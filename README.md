@@ -1,4 +1,4 @@
-# WordPing
+# Habit Tracker
 
 A vocabulary flashcard app for iOS built with Expo and React Native. Add words, flip cards to reveal meanings, and receive scheduled push notifications so you keep reviewing throughout the day.
 

@@ -184,7 +184,7 @@ export default function App() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       <View style={s.header}>
-        <Text style={[s.title, { color: pal.text }]}>WordPing</Text>
+        <Text style={[s.title, { color: pal.text }]}>Habit Tracker</Text>
         <View style={s.headerIcons}>
           <TouchableOpacity style={s.iconBtn} onPress={() => setTutorialVisible(true)}>
             <Ionicons name="help-circle-outline" size={22} color={pal.sub} />
