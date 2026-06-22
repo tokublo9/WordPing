@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "EnglishApp",
-    "slug": "english-app",
+    "name": "WordPing",
+    "slug": "wordping",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
