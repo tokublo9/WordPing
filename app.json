@@ -16,6 +16,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "newArchEnabled": false,
     "plugins": [
       [
         "expo-notifications",
