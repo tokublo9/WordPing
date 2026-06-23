@@ -11,3 +11,7 @@ web-build/
 *.orig.*
 web-build/
 .env
+.env.local
+.env.production
+.env.*.local
+.claude/settings.local.json

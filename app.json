@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Habit Tracker",
-    "slug": "habit-tracker",
+    "name": "WordPing",
+    "slug": "wordping",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

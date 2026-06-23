@@ -44,7 +44,7 @@ export function TutorialModal({ visible, onClose, pal, themeColor }: Props) {
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <TouchableOpacity style={s.overlayCenter} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={[s.dialog, styles.container, { backgroundColor: pal.dialog }]}>
-          <Text style={[s.dialogTitle, { color: pal.text }]}>How to use Habit Tracker</Text>
+          <Text style={[s.dialogTitle, { color: pal.text }]}>How to use WordPing</Text>
 
           <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
             {STEPS.map((step, i) => (

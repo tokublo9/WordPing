@@ -9,13 +9,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { bootstrapData, persist } from './src/lib/db';
 
 import type { Appearance, WordCard } from './src/types';
 import {
-  APPEARANCE_KEY, CARDS_KEY, DARK, DEFAULT_DISPLAY_ONLY_WORD, DEFAULT_INTERVAL,
-  DEFAULT_THEME, DISPLAY_ONLY_WORD_KEY, INTERVAL_KEY, LIGHT, THEME_KEY,
+  DARK, DEFAULT_DISPLAY_ONLY_WORD, DEFAULT_INTERVAL, DEFAULT_THEME, LIGHT,
 } from './src/constants';
 import { requestPermission, rescheduleNotifications } from './src/notifications';
 import { appStyles as s } from './src/styles';
@@ -47,6 +46,7 @@ export default function App() {
   const [note, setNote] = useState('');
 
   const closeOpenCard = useRef<(() => void) | null>(null);
+  const hasLoaded = useRef(false);
 
   const isDark = appearance === 'system' ? systemScheme === 'dark' : appearance === 'dark';
   const pal = isDark ? DARK : LIGHT;
@@ -54,51 +54,34 @@ export default function App() {
 
   // ── Persist & load ──────────────────────────────────────────────────────────
   useEffect(() => {
-    Promise.all([
-      AsyncStorage.getItem(CARDS_KEY),
-      AsyncStorage.getItem(INTERVAL_KEY),
-      AsyncStorage.getItem(THEME_KEY),
-      AsyncStorage.getItem(APPEARANCE_KEY),
-      AsyncStorage.getItem(DISPLAY_ONLY_WORD_KEY),
-    ]).then(([rawCards, rawInterval, rawTheme, rawAppearance, rawDisplayOnlyWord]) => {
-      if (rawCards) setCards(JSON.parse(rawCards));
-      if (rawInterval) {
-        const sec = Number(rawInterval);
-        setIntervalSeconds(sec);
-      }
-      if (rawTheme) setThemeColor(rawTheme);
-      if (rawAppearance) setAppearance(rawAppearance as Appearance);
-      if (rawDisplayOnlyWord !== null) setDisplayOnlyWord(rawDisplayOnlyWord === 'true');
+    const applyData = (d: { cards: WordCard[]; settings: { intervalSeconds: number; themeColor: string; appearance: Appearance; displayOnlyWord: boolean } }) => {
+      setCards(d.cards);
+      setIntervalSeconds(d.settings.intervalSeconds);
+      setThemeColor(d.settings.themeColor);
+      setAppearance(d.settings.appearance);
+      setDisplayOnlyWord(d.settings.displayOnlyWord);
+    };
+
+    bootstrapData((remote) => applyData(remote)).then((local) => {
+      applyData(local);
+      hasLoaded.current = true;
     });
     requestPermission().then(setNotificationGranted);
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem(CARDS_KEY, JSON.stringify(cards));
+    if (!hasLoaded.current) return;
+    persist({ cards, settings: { intervalSeconds, themeColor, appearance, displayOnlyWord } });
     if (notificationGranted) rescheduleNotifications(cards, intervalSeconds, displayOnlyWord);
-  }, [cards, intervalSeconds, notificationGranted, displayOnlyWord]);
+  }, [cards, intervalSeconds, notificationGranted, displayOnlyWord, themeColor, appearance]);
 
   // ── Notifications ───────────────────────────────────────────────────────────
-  const pickInterval = (seconds: number) => {
-    setIntervalSeconds(seconds);
-    AsyncStorage.setItem(INTERVAL_KEY, String(seconds));
-  };
-
-  const pickDisplayOnlyWord = (value: boolean) => {
-    setDisplayOnlyWord(value);
-    AsyncStorage.setItem(DISPLAY_ONLY_WORD_KEY, String(value));
-  };
+  const pickInterval = (seconds: number) => setIntervalSeconds(seconds);
+  const pickDisplayOnlyWord = (value: boolean) => setDisplayOnlyWord(value);
 
   // ── Theme ────────────────────────────────────────────────────────────────────
-  const pickTheme = (color: string) => {
-    setThemeColor(color);
-    AsyncStorage.setItem(THEME_KEY, color);
-  };
-
-  const pickAppearance = (mode: Appearance) => {
-    setAppearance(mode);
-    AsyncStorage.setItem(APPEARANCE_KEY, mode);
-  };
+  const pickTheme = (color: string) => setThemeColor(color);
+  const pickAppearance = (mode: Appearance) => setAppearance(mode);
 
   // ── Cards ────────────────────────────────────────────────────────────────────
   const openAdd = () => {
@@ -184,7 +167,7 @@ export default function App() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       <View style={s.header}>
-        <Text style={[s.title, { color: pal.text }]}>Habit Tracker</Text>
+        <Text style={[s.title, { color: pal.text }]}>WordPing</Text>
         <View style={s.headerIcons}>
           <TouchableOpacity style={s.iconBtn} onPress={() => setTutorialVisible(true)}>
             <Ionicons name="help-circle-outline" size={22} color={pal.sub} />

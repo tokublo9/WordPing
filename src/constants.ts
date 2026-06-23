@@ -37,6 +37,7 @@ export const DARK: Palette = {
 export const DEFAULT_THEME = '#7C6BF8';
 export const DEFAULT_INTERVAL = 1800;
 
+export const DEVICE_ID_KEY = 'device_id';
 export const CARDS_KEY = 'vocabulary_cards';
 export const INTERVAL_KEY = 'notif_interval_seconds';
 export const THEME_KEY = 'theme_color';
