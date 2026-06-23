@@ -103,8 +103,8 @@ export default function App() {
 
   const saveCard = () => {
     if (!word.trim()) { Alert.alert('Enter a word'); return; }
-    if (!editingCard && cards.length >= 20) {
-      Alert.alert('Word limit reached', 'You can register up to 20 words.');
+    if (!editingCard && cards.length >= 30) {
+      Alert.alert('Word limit reached', 'You can register up to 30 words.');
       return;
     }
     if (editingCard) {
