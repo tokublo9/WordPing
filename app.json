@@ -30,8 +30,7 @@
         {
           "ios": {
             "extraBuildSettings": {
-              "SWIFT_VERSION": "5.9",
-              "OTHER_SWIFT_FLAGS": "$(inherited) -enable-upcoming-feature InternalImportsByDefault"
+              "SWIFT_VERSION": "5.9"
             }
           }
         }

@@ -309,6 +309,10 @@ fi
 					"-ObjC",
 					"-lc++",
 				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-enable-upcoming-feature InternalImportsByDefault",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.daiki0219.wordping";
 				PRODUCT_NAME = "EnglishApp";
 				SWIFT_OBJC_BRIDGING_HEADER = "EnglishApp/EnglishApp-Bridging-Header.h";
@@ -338,6 +342,10 @@ fi
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-enable-upcoming-feature InternalImportsByDefault",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.daiki0219.wordping";
 				PRODUCT_NAME = "EnglishApp";
