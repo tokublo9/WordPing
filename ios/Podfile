@@ -61,14 +61,15 @@ target 'EnglishApp' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
-    # Xcode 26 enforces explicit access levels on Swift imports.
-    # ExpoModulesProvider.swift is auto-generated and uses bare `import Expo`,
-    # which conflicts with how ExpoModulesCore imports it internally.
-    provider_path = "#{installer.sandbox.root}/Target Support Files/Pods-EnglishApp/ExpoModulesProvider.swift"
-    if File.exist?(provider_path)
-      content = File.read(provider_path)
-      patched = content.gsub(/^(\s*)import (Expo\w*)/, '\1internal import \2')
-      File.write(provider_path, patched) if patched != content
+    # Xcode 26 enforces SE-0409: bare `import` statements are now ambiguous
+    # unless `InternalImportsByDefault` is enabled. Apply it to all Pods targets
+    # so that ExpoModulesProvider.swift's bare imports resolve to `internal`.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        existing = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+        next if existing.to_s.include?('InternalImportsByDefault')
+        config.build_settings['OTHER_SWIFT_FLAGS'] = "#{existing} -enable-upcoming-feature InternalImportsByDefault"
+      end
     end
   end
 end
