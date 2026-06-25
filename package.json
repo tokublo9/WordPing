@@ -13,6 +13,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.108.2",
     "babel-preset-expo": "~54.0.10",
+    "chalk": "^4.1.2",
     "expo": "^54.0.0",
     "expo-build-properties": "~1.0.10",
     "expo-device": "~8.0.10",
