@@ -38,7 +38,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.daiki0219.english-app",
+      "bundleIdentifier": "com.daiki0219.wordping",
       "buildNumber": "1",
       "config": {
         "usesNonExemptEncryption": false
