@@ -61,15 +61,5 @@ target 'EnglishApp' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
-    # Xcode 26 enforces SE-0409: bare `import` statements are now ambiguous
-    # unless `InternalImportsByDefault` is enabled. Apply it to all Pods targets
-    # so that ExpoModulesProvider.swift's bare imports resolve to `internal`.
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        existing = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
-        next if existing.to_s.include?('InternalImportsByDefault')
-        config.build_settings['OTHER_SWIFT_FLAGS'] = "#{existing} -enable-upcoming-feature InternalImportsByDefault"
-      end
-    end
   end
 end
