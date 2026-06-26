@@ -19,8 +19,8 @@
     "production": {
       "ios": {
         "appleId": "tokumoto.daiki.0219@icloud.com",
-        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+        "ascAppId": "6782242202",
+        "appleTeamId": "VBS46L78XJ"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
