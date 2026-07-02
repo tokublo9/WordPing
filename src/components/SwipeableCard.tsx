@@ -1,6 +1,9 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
+  Dimensions,
+  Modal,
   PanResponder,
   StyleSheet,
   Text,
@@ -8,25 +11,50 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import { BlurView } from 'expo-blur';
+import { preloadAI, speakWithAI, stopPlayback } from '../lib/tts';
 
 import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
+import { useLang } from '../i18n';
+
+const SCREEN_H = Dimensions.get('window').height;
+
+const ACTION_MENU_H = 210;
+
+interface LiftedLayout {
+  pageX: number;
+  pageY: number;
+  width: number;
+  height: number;
+}
 
 interface Props {
   item: WordCard;
   isFlipped: boolean;
   themeColor: string;
   pal: Palette;
+  voiceLocked: boolean;
   onFlip: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onToggleNotif: () => void;
+  onVoiceLocked: () => void;
   onOpen: (close: () => void) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  showLevelLabel?: boolean;
 }
 
 export function SwipeableCard({
-  item, isFlipped, themeColor, pal, onFlip, onEdit, onDelete, onToggleNotif, onOpen,
+  item, isFlipped, themeColor, pal, voiceLocked,
+  onFlip, onEdit, onDelete, onToggleNotif, onVoiceLocked, onOpen,
+  selectionMode = false, selected = false, onToggleSelect,
+  showLevelLabel = true,
 }: Props) {
+  const t = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef(false);
   const startX = useRef(0);
@@ -76,35 +104,179 @@ export function SwipeableCard({
     else onFlip();
   };
 
+  // ── Long-press lift ──────────────────────────────────────────────────────────
+  const cardRef = useRef<View>(null);
+  const [lifted, setLifted] = useState<LiftedLayout | null>(null);
+  const liftScale = useRef(new Animated.Value(1)).current;
+
+  const handleLongPress = () => {
+    if (isOpen.current) return;
+    cardRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+      liftScale.setValue(0.97);
+      setLifted({ pageX, pageY, width, height });
+      Animated.spring(liftScale, {
+        toValue: 1.03,
+        useNativeDriver: true,
+        tension: 180,
+        friction: 7,
+      }).start();
+    });
+  };
+
+  const dismissLifted = () => {
+    setLifted(null);
+    liftScale.setValue(1);
+  };
+
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(isFlipped ? item.meaning : item.word);
+    dismissLifted();
+  };
+
+  const handleNotifToggle = () => {
+    dismissLifted();
+    onToggleNotif();
+  };
+
+  const handleEditLifted = () => {
+    dismissLifted();
+    onEdit();
+  };
+
+  const handleDeleteLifted = () => {
+    dismissLifted();
+    onDelete();
+  };
+
+  // Place action menu below the card; flip above if near the bottom edge
+  const actionsBelow = lifted
+    ? lifted.pageY + lifted.height + ACTION_MENU_H + 16 < SCREEN_H
+    : true;
+  const actionsTop = lifted
+    ? actionsBelow
+      ? lifted.pageY + lifted.height + 10
+      : lifted.pageY - ACTION_MENU_H - 10
+    : 0;
+
+  // ── Voice ────────────────────────────────────────────────────────────────────
+  const [loadingVoice, setLoadingVoice] = useState<'word' | 'meaning' | null>(null);
+  // Ref mirrors state so async handlers always read the current value, not a stale closure.
+  const loadingVoiceRef = useRef<'word' | 'meaning' | null>(null);
+
+  const setVoiceState = useCallback((v: 'word' | 'meaning' | null) => {
+    loadingVoiceRef.current = v;
+    setLoadingVoice(v);
+  }, []);
+
+  useEffect(() => { preloadAI(item.word).catch(() => {}); }, [item.word]);
+  useEffect(() => { if (isFlipped) preloadAI(item.meaning).catch(() => {}); }, [isFlipped, item.meaning]);
+
+  // Stop playback and reset state when the card is unmounted (e.g. folder switch).
+  useEffect(() => () => {
+    if (loadingVoiceRef.current) {
+      stopPlayback();
+      loadingVoiceRef.current = null;
+    }
+  }, []);
+
+  const handleTTSError = useCallback((e: unknown) => {
+    const msg = e instanceof Error ? e.message : '';
+    if (msg === 'cancelled') return; // Normal: a newer play request superseded this one.
+    console.error('[TTS] error:', e);
+    if (msg === 'quota_exceeded') {
+      Alert.alert(t('ai_voice_unavailable'), t('quota_exceeded_msg'));
+    }
+  }, [t]);
+
+  const speakWord = useCallback(async () => {
+    if (loadingVoiceRef.current) return; // Synchronous guard — no stale-closure risk.
+    setVoiceState('word');
+    try { await speakWithAI(item.word); } catch (e) { handleTTSError(e); }
+    setVoiceState(null);
+  }, [item.word, setVoiceState, handleTTSError]);
+
+  const speakMeaning = useCallback(async () => {
+    if (loadingVoiceRef.current) return;
+    setVoiceState('meaning');
+    try { await speakWithAI(item.meaning); } catch (e) { handleTTSError(e); }
+    setVoiceState(null);
+  }, [item.meaning, setVoiceState, handleTTSError]);
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.cardRow}>
-      <View style={styles.actionBg}>
+    <View ref={cardRef} style={[styles.cardRow, selectionMode && styles.cardRowSelect]}>
+
+      {/* Selection circle — shown only in selection mode */}
+      {selectionMode && (
         <TouchableOpacity
-          style={[styles.circleBtn, { backgroundColor: item.notifOff ? '#C0C0C0' : themeColor }]}
-          onPress={() => { close(); setTimeout(onToggleNotif, 220); }}
+          style={styles.selCircleWrap}
+          onPress={onToggleSelect}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'} size={17} color="#fff" />
+          <View style={[
+            styles.selCircle,
+            { borderColor: themeColor },
+            selected && { backgroundColor: themeColor },
+          ]}>
+            {selected && <Ionicons name="checkmark" size={13} color="#fff" />}
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.circleBtn, { backgroundColor: '#C0C0C0' }]}
-          onPress={() => { close(); setTimeout(onEdit, 220); }}
-        >
-          <Ionicons name="create-outline" size={17} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.circleBtn, { backgroundColor: '#E05C5C' }]}
-          onPress={() => { close(); setTimeout(onDelete, 220); }}
-        >
-          <Ionicons name="trash-outline" size={17} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      )}
+
+      {/* Swipe reveal — hidden in selection mode */}
+      {!selectionMode && (
+        <View style={styles.actionBg}>
+          <TouchableOpacity
+            style={[styles.circleBtn, { backgroundColor: item.notifOff ? '#C0C0C0' : themeColor }]}
+            onPress={() => { close(); setTimeout(onToggleNotif, 220); }}
+          >
+            <Ionicons name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'} size={17} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.circleBtn, { backgroundColor: '#C0C0C0' }]}
+            onPress={() => { close(); setTimeout(onEdit, 220); }}
+          >
+            <Ionicons name="create-outline" size={17} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.circleBtn, { backgroundColor: '#E05C5C' }]}
+            onPress={() => { close(); setTimeout(onDelete, 220); }}
+          >
+            <Ionicons name="trash-outline" size={17} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Animated.View
-        style={[styles.cardOuter, { shadowColor: '#000', transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
+        style={[
+          styles.cardOuter,
+          { shadowColor: '#000' },
+          selectionMode
+            ? { flex: 1, transform: [{ translateX: 0 }] }
+            : { transform: [{ translateX }] },
+        ]}
+        {...(selectionMode ? {} : panResponder.panHandlers)}
       >
-        <View style={[styles.cardInner, { backgroundColor: isFlipped ? themeColor : pal.card }]}>
-          <TouchableOpacity style={styles.cardFlipArea} onPress={handleTap} activeOpacity={1}>
+        <View style={[styles.cardInner, { backgroundColor: isFlipped ? themeColor : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
+          <TouchableOpacity
+            style={[styles.cardFlipArea, { flex: 1 }]}
+            onPress={selectionMode ? onToggleSelect : handleTap}
+            onLongPress={selectionMode ? undefined : handleLongPress}
+            delayLongPress={380}
+            activeOpacity={selectionMode ? 0.7 : 1}
+          >
+            {/* Test level stripe — diagonal ribbon in bottom-right corner, front side only */}
+            {showLevelLabel && !isFlipped && !!item.testLevel && (() => {
+              const STRIPE_COLORS: Record<string, string> = {
+                perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
+              };
+              const color = STRIPE_COLORS[item.testLevel!];
+              return color ? (
+                <View style={[styles.cornerStripe, { backgroundColor: color }]} pointerEvents="none" />
+              ) : null;
+            })()}
+
             {isFlipped ? (
               <>
                 <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
@@ -117,20 +289,140 @@ export function SwipeableCard({
             ) : (
               <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
             )}
-            {!isFlipped && !!item.notifOff && (
-              <View style={styles.notifOffBadge} pointerEvents="none">
-                <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+
+            {/* Corner buttons — hidden in selection mode */}
+            {!selectionMode && (
+              <View style={styles.cornerBtns} pointerEvents="box-none">
+                <TouchableOpacity
+                  onPress={voiceLocked ? onVoiceLocked : (isFlipped ? speakMeaning : speakWord)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  disabled={!voiceLocked && !!loadingVoice}
+                >
+                  {voiceLocked ? (
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={15}
+                      color={isFlipped ? 'rgba(255,255,255,0.5)' : pal.sub}
+                      style={{ opacity: 0.6 }}
+                    />
+                  ) : (
+                    <Ionicons
+                      name={loadingVoice === (isFlipped ? 'meaning' : 'word') ? 'volume-high' : 'volume-medium-outline'}
+                      size={17}
+                      color={isFlipped
+                        ? (loadingVoice === 'meaning' ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.7)')
+                        : (loadingVoice === 'word' ? themeColor : pal.sub)
+                      }
+                    />
+                  )}
+                </TouchableOpacity>
+                {!!item.notifOff && (
+                  <View style={{ opacity: 0.45 }} pointerEvents="none">
+                    <Ionicons
+                      name="notifications-off-outline"
+                      size={13}
+                      color={isFlipped ? '#fff' : pal.sub}
+                    />
+                  </View>
+                )}
               </View>
             )}
           </TouchableOpacity>
-        </View>
+        </View>{/* cardInner row */}
       </Animated.View>
+
+      {/* Long-press overlay — disabled in selection mode */}
+      {!selectionMode && lifted && (
+        <Modal visible transparent animationType="fade" onRequestClose={dismissLifted}>
+          <View style={StyleSheet.absoluteFill}>
+            <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)' }]} />
+
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              onPress={dismissLifted}
+              activeOpacity={1}
+            />
+
+            {/* Lifted card clone */}
+            <Animated.View
+              style={[
+                styles.liftedCard,
+                {
+                  left: lifted.pageX,
+                  top: lifted.pageY,
+                  width: lifted.width,
+                  backgroundColor: isFlipped ? themeColor : pal.card,
+                  transform: [{ scale: liftScale }],
+                },
+              ]}
+            >
+              {isFlipped ? (
+                <>
+                  <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
+                  {!!item.note?.trim() && (
+                    <Text style={[styles.cardNote, { color: 'rgba(255,255,255,0.72)' }]}>
+                      {item.note}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+              )}
+            </Animated.View>
+
+            {/* Action menu */}
+            <View
+              style={[
+                styles.actionMenu,
+                { backgroundColor: pal.dialog, left: lifted.pageX, top: actionsTop, width: lifted.width },
+              ]}
+            >
+              <TouchableOpacity style={styles.actionRow} onPress={handleCopy}>
+                <Ionicons name="copy-outline" size={18} color={pal.text} />
+                <Text style={[styles.actionLabel, { color: pal.text }]}>{t('copy')}</Text>
+              </TouchableOpacity>
+              <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />
+              <TouchableOpacity style={styles.actionRow} onPress={handleNotifToggle}>
+                <Ionicons
+                  name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'}
+                  size={18}
+                  color={item.notifOff ? pal.text : themeColor}
+                />
+                <Text style={[styles.actionLabel, { color: item.notifOff ? pal.text : themeColor }]}>
+                  {t(item.notifOff ? 'notif_off_action' : 'notif_on')}
+                </Text>
+              </TouchableOpacity>
+              <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />
+              <TouchableOpacity style={styles.actionRow} onPress={handleEditLifted}>
+                <Ionicons name="create-outline" size={18} color={pal.text} />
+                <Text style={[styles.actionLabel, { color: pal.text }]}>{t('edit')}</Text>
+              </TouchableOpacity>
+              <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />
+              <TouchableOpacity style={styles.actionRow} onPress={handleDeleteLifted}>
+                <Ionicons name="trash-outline" size={18} color="#E05C5C" />
+                <Text style={[styles.actionLabel, { color: '#E05C5C' }]}>{t('delete')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  cardRow: { marginBottom: 10 },
+  cardRow:       { marginBottom: 10 },
+  cardRowSelect: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  // Selection circle
+  selCircleWrap: { paddingHorizontal: 4 },
+  selCircle: {
+    width: 24, height: 24, borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
   cardOuter: {
     borderRadius: 16,
     shadowOpacity: 0.06, shadowRadius: 8,
@@ -148,8 +440,50 @@ const styles = StyleSheet.create({
     width: 46, height: 46, borderRadius: 23,
     alignItems: 'center', justifyContent: 'center',
   },
+
   cardFlipArea: { paddingVertical: 16, paddingHorizontal: 18 },
   cardText: { fontSize: 18, fontWeight: '600' },
   cardNote: { fontSize: 14, fontWeight: '400', marginTop: 8 },
-  notifOffBadge: { position: 'absolute', bottom: 8, right: 10 },
+  cornerBtns: { position: 'absolute', top: 10, right: 10, alignItems: 'center', gap: 5 },
+  cornerStripe: {
+    position: 'absolute',
+    bottom: 4,
+    right: -15,
+    width: 40,
+    height: 5,
+    opacity: 0.7,
+    transform: [{ rotate: '-45deg' }],
+  },
+
+  // Long-press overlay
+  liftedCard: {
+    position: 'absolute',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 14,
+  },
+  actionMenu: {
+    position: 'absolute',
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+  },
+  actionLabel: { fontSize: 15 },
+  actionDivider: { height: StyleSheet.hairlineWidth },
 });

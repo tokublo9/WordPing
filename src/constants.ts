@@ -1,27 +1,23 @@
-import type { IntervalOption, Palette, ThemeColor } from './types';
+import type { IntervalOption, Palette, ThemeColor, ThemeSkin } from './types';
 
 export const INTERVAL_OPTIONS: IntervalOption[] = [
-  { label: '30 seconds', seconds: 30 },
-  { label: '1 minute',   seconds: 60 },
-  { label: '3 minutes',  seconds: 180 },
-  { label: '5 minutes',  seconds: 300 },
-  { label: '10 minutes', seconds: 600 },
-  { label: '15 minutes', seconds: 900 },
-  { label: '30 minutes', seconds: 1800 },
-  { label: '1 hour',     seconds: 3600 },
-  { label: '2 hours',    seconds: 7200 },
-  { label: 'Off',        seconds: 0 },
+  { label: '30 min',  seconds: 1800 },
+  { label: '1 hour',  seconds: 3600 },
+  { label: '2 hours', seconds: 7200 },
+  { label: '3 hours', seconds: 10800 },
+  { label: '6 hours', seconds: 21600 },
+  { label: '12 hours', seconds: 43200 },
+  { label: '24 hours', seconds: 86400 },
+  { label: 'Off',      seconds: 0 },
 ];
 
 export const THEME_COLORS: ThemeColor[] = [
+  { name: 'Black',  value: '#1A1A1A' },
   { name: 'Purple', value: '#7C6BF8' },
   { name: 'Blue',   value: '#3B82F6' },
-  { name: 'Red',    value: '#EF4444' },
-  { name: 'Green',  value: '#10B981' },
-  { name: 'Orange', value: '#F59E0B' },
-  { name: 'Yellow', value: '#EAB308' },
   { name: 'Pink',   value: '#EC4899' },
   { name: 'Teal',   value: '#14B8A6' },
+  { name: 'Coral',  value: '#FF6B6B' },
 ];
 
 export const LIGHT: Palette = {
@@ -37,6 +33,7 @@ export const DARK: Palette = {
 export const DEFAULT_THEME = '#7C6BF8';
 export const DEFAULT_INTERVAL = 1800;
 
+export const SKIN_KEY = 'theme_skin';
 export const DEVICE_ID_KEY = 'device_id';
 export const CARDS_KEY = 'vocabulary_cards';
 export const INTERVAL_KEY = 'notif_interval_seconds';
@@ -46,4 +43,71 @@ export const DISPLAY_ONLY_WORD_KEY = 'notification_display_only_word';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 
+export const SKINS: ThemeSkin[] = [
+  {
+    id: 'floral',
+    name: 'Floral',
+    emoji: '🌸',
+    darkStatusBar: false,
+    themeColor: '#E8779A',
+    palette: {
+      bg: '#FEF0F5', card: '#FFFFFF', text: '#4A1535', sub: '#C4789A',
+      border: '#F8DCEA', input: '#FFF5F8', chip: '#FCE8F0', dialog: '#FFFFFF',
+    },
+  },
+  {
+    id: 'neon',
+    name: 'Neon',
+    emoji: '🌃',
+    darkStatusBar: true,
+    themeColor: '#FF2D78',
+    palette: {
+      bg: '#0D0A1E', card: '#15103A', text: '#F0E6FF', sub: '#8B72BE',
+      border: '#2A1F5A', input: '#100D28', chip: '#1E1850', dialog: '#15103A',
+    },
+  },
+  {
+    id: 'animal',
+    name: 'Animal',
+    emoji: '🐾',
+    darkStatusBar: false,
+    themeColor: '#9B6B2F',
+    palette: {
+      bg: '#FFF8EC', card: '#FFFDF7', text: '#2D1F0A', sub: '#9E8050',
+      border: '#EEE0C4', input: '#FFFCF5', chip: '#F5EDD8', dialog: '#FFFDF7',
+    },
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    emoji: '🌊',
+    darkStatusBar: true,
+    themeColor: '#00C9B1',
+    palette: {
+      bg: '#071828', card: '#0C2438', text: '#D4EEF7', sub: '#5A9AB5',
+      border: '#1A3D52', input: '#091E30', chip: '#0F2E44', dialog: '#0C2438',
+    },
+  },
+  {
+    id: 'cosmos',
+    name: 'Cosmos',
+    emoji: '✨',
+    darkStatusBar: true,
+    themeColor: '#A78BFA',
+    palette: {
+      bg: '#07091A', card: '#0D1030', text: '#DCE4FF', sub: '#6070A8',
+      border: '#1A2050', input: '#0A0D22', chip: '#131840', dialog: '#0D1030',
+    },
+  },
+];
+
+export const FOLDERS_KEY      = 'wordping_folders';
+export const NOTIF_FOLDER_KEY = 'wordping_notif_folder';
+export const LANGUAGE_KEY = 'app_language';
+export const DEFAULT_LANGUAGE = 'en-US';
+
 export const REVEAL_WIDTH = 172;
+
+
+export const FREE_WORD_LIMIT = 30;
+export const FREE_VOICE_LIMIT = 10;

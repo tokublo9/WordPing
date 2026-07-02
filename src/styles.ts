@@ -74,11 +74,7 @@ export const appStyles = StyleSheet.create({
     width: 42, height: 42, borderRadius: 21, marginBottom: 5,
     alignItems: 'center', justifyContent: 'center',
   },
-  colorSwatchSelected: {
-    borderWidth: 3, borderColor: '#fff',
-    shadowOpacity: 0.25, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 }, elevation: 4,
-  },
+  colorSwatchSelected: {},
   colorName: { fontSize: 11, fontWeight: '500' },
 
   // Settings — appearance buttons

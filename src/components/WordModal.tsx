@@ -14,6 +14,7 @@ import {
 import { useEffect, useRef } from 'react';
 
 import type { Palette, WordCard } from '../types';
+import { useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 
 interface Props {
@@ -36,6 +37,7 @@ export function WordModal({
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
 }: Props) {
+  const t = useLang();
   const slideY          = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const bottomOffset    = useRef(new Animated.Value(0)).current;
@@ -117,7 +119,7 @@ export function WordModal({
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                <Text style={[s.inputLabel, { color: pal.sub }]}>Word</Text>
+                <Text style={[s.inputLabel, { color: pal.sub }]}>{t('word_label')}</Text>
                 <TextInput
                   style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text }]}
                   value={word}
@@ -127,7 +129,7 @@ export function WordModal({
                   scrollEnabled={false}
                 />
 
-                <Text style={[s.inputLabel, { color: pal.sub }]}>Meaning</Text>
+                <Text style={[s.inputLabel, { color: pal.sub }]}>{t('meaning_label')}</Text>
                 <TextInput
                   style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text }]}
                   value={meaning}
@@ -136,7 +138,7 @@ export function WordModal({
                   scrollEnabled={false}
                 />
 
-                <Text style={[s.inputLabel, { color: pal.sub }]}>Note</Text>
+                <Text style={[s.inputLabel, { color: pal.sub }]}>{t('note_label')}</Text>
                 <TextInput
                   style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text }]}
                   value={note}
@@ -151,15 +153,13 @@ export function WordModal({
                   style={[styles.btn, { backgroundColor: pal.chip }]}
                   onPress={handleClose}
                 >
-                  <Text style={[styles.btnText, { color: pal.sub }]}>Cancel</Text>
+                  <Text style={[styles.btnText, { color: pal.sub }]}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.btn, { backgroundColor: themeColor }]}
                   onPress={onSave}
                 >
-                  <Text style={[styles.btnText, { color: '#fff' }]}>
-                    Save
-                  </Text>
+                  <Text style={[styles.btnText, { color: '#fff' }]}>{t('save')}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>

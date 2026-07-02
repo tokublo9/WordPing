@@ -5,7 +5,7 @@
     "owner": "daiki0219",
     "version": "1.0.0",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "sdkVersion"
     },
     "scheme": "wordping",
     "orientation": "portrait",
@@ -16,7 +16,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "newArchEnabled": false,
     "plugins": [
       [
         "expo-notifications",
@@ -35,7 +34,8 @@
             }
           }
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "ios": {
       "supportsTablet": true,
