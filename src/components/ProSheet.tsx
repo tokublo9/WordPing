@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  ActivityIndicator, Animated, ScrollView,
+  ActivityIndicator, Animated, Linking, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Palette } from '../types';
 import { useLang, type TranslationKey } from '../i18n';
 
+const MANAGE_SUB_URL = 'https://apps.apple.com/account/subscriptions';
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -16,6 +18,9 @@ interface Props {
   onRestore: () => Promise<void>;
   themeColor: string;
   pal: Palette;
+  isSubscribed?: boolean;
+  /** DEV ONLY: when provided, tapping "Manage Subscription" calls this instead of opening the App Store URL. */
+  onManageSubscription?: () => void;
 }
 
 // ── Promotional visuals ────────────────────────────────────────────────────────
@@ -130,7 +135,7 @@ const FEATURE_KEYS: { Visual: () => React.JSX.Element; labelKey: TranslationKey;
   { Visual: SkinsVisual,         labelKey: 'theme_skins',      descKey: 'theme_skins_desc' },
 ];
 
-export function ProSheet({ visible, onClose, onSubscribe, onRestore, themeColor, pal }: Props) {
+export function ProSheet({ visible, onClose, onSubscribe, onRestore, themeColor, pal, isSubscribed, onManageSubscription }: Props) {
   const insets = useSafeAreaInsets();
   const t = useLang();
   const slideY = useRef(new Animated.Value(900)).current;
@@ -197,26 +202,49 @@ export function ProSheet({ visible, onClose, onSubscribe, onRestore, themeColor,
           </View>
         ))}
 
-        {/* Price */}
-        <Text style={[styles.price, { color: pal.sub }]}>{t('price_month')}</Text>
+        {isSubscribed ? (
+          <>
+            {/* Active subscription status */}
+            <View style={[styles.proBadge, { backgroundColor: themeColor + '18', borderColor: themeColor + '44' }]}>
+              <Ionicons name="checkmark-circle" size={20} color={themeColor} />
+              <Text style={[styles.proBadgeText, { color: themeColor }]}>{t('pro')}</Text>
+            </View>
 
-        {/* Subscribe */}
-        <TouchableOpacity
-          style={[styles.subscribeBtn, { backgroundColor: themeColor }]}
-          onPress={() => run(onSubscribe)}
-          disabled={busy}
-          activeOpacity={0.85}
-        >
-          {busy
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.subscribeBtnText}>{t('subscribe')}</Text>
-          }
-        </TouchableOpacity>
+            {/* Manage subscription */}
+            <TouchableOpacity
+              style={[styles.subscribeBtn, { backgroundColor: themeColor }]}
+              onPress={() => onManageSubscription
+                ? onManageSubscription()
+                : Linking.openURL(MANAGE_SUB_URL)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.subscribeBtnText}>{t('manage_subscription')}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Price */}
+            <Text style={[styles.price, { color: pal.sub }]}>{t('price_month')}</Text>
 
-        {/* Restore */}
-        <TouchableOpacity style={styles.restoreBtn} onPress={() => run(onRestore)} disabled={busy}>
-          <Text style={[styles.restoreBtnText, { color: pal.sub }]}>{t('restore_purchases')}</Text>
-        </TouchableOpacity>
+            {/* Subscribe */}
+            <TouchableOpacity
+              style={[styles.subscribeBtn, { backgroundColor: themeColor }]}
+              onPress={() => run(onSubscribe)}
+              disabled={busy}
+              activeOpacity={0.85}
+            >
+              {busy
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.subscribeBtnText}>{t('subscribe')}</Text>
+              }
+            </TouchableOpacity>
+
+            {/* Restore */}
+            <TouchableOpacity style={styles.restoreBtn} onPress={() => run(onRestore)} disabled={busy}>
+              <Text style={[styles.restoreBtnText, { color: pal.sub }]}>{t('restore_purchases')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </Animated.View>
   );
@@ -241,6 +269,11 @@ const styles = StyleSheet.create({
   featureDesc: { fontSize: 14, lineHeight: 20 },
 
   price: { fontSize: 13, textAlign: 'center', marginBottom: 16 },
+  proBadge: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 14, borderWidth: 1, paddingVertical: 14, marginBottom: 20,
+  },
+  proBadgeText: { fontSize: 16, fontWeight: '700' },
   subscribeBtn: { borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 12 },
   subscribeBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   restoreBtn: { alignItems: 'center', paddingVertical: 8 },

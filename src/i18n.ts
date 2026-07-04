@@ -15,7 +15,7 @@ export type TranslationKey =
   | 'tut5_title' | 'tut5_desc'
   | 'words_singular' | 'words_plural' | 'no_words_title' | 'no_words_hint'
   | 'alert_enter_word'
-  | 'copy' | 'notif_on' | 'notif_off_action' | 'edit' | 'delete'
+  | 'copy' | 'notif_on' | 'notif_off_action' | 'move' | 'move_to_folder' | 'edit' | 'delete'
   | 'ai_voice_unavailable' | 'quota_exceeded_msg'
   | 'wordping_pro' | 'reached_word_limit' | 'voice_limited'
   | 'unlimited_words' | 'up_to_words_free'
@@ -33,14 +33,26 @@ export type TranslationKey =
   | 'new_folder' | 'folder_name_placeholder'
   | 'no_folders_title' | 'no_folders_hint'
   | 'create'
-  | 'rename_folder' | 'change_icon' | 'change_color' | 'delete_folder'
+  | 'rename_folder' | 'change_icon' | 'change_color' | 'delete_folder' | 'edit_folder'
   | 'folders_singular' | 'folders_plural'
   | 'test_flip_hint'
   | 'test_know_perfectly' | 'test_know_good' | 'test_know_slightly' | 'test_dont_know'
   | 'test_desc_perfect' | 'test_desc_good' | 'test_desc_slightly' | 'test_desc_unknown'
   | 'test_complete_title' | 'test_complete_hint'
   | 'test_empty_title' | 'test_empty_hint'
-  | 'test_start' | 'test_shuffle' | 'test_reset' | 'test_reset_confirm';
+  | 'test_start' | 'test_shuffle' | 'test_reset' | 'test_reset_confirm'
+  | 'test_info_title' | 'test_info_caption' | 'test_info_section' | 'test_info_footer'
+  | 'test_info_perfect_exp' | 'test_info_good_exp'
+  | 'test_info_slightly_exp' | 'test_info_unknown_exp'
+  | 'chart_now' | 'chart_day_1' | 'chart_day_3' | 'chart_day_7'
+  | 'chart_memory' | 'chart_time' | 'chart_review' | 'chart_after_review' | 'chart_no_review'
+  | 'pro' | 'manage_subscription'
+  | 'add_word' | 'edit_word' | 'basic'
+  | 'kisekae_shop' | 'kisekae_title'
+  | 'shop_tab_solid' | 'shop_tab_premium'
+  | 'shop_search_placeholder'
+  | 'shop_owned' | 'shop_using' | 'shop_free'
+  | 'shop_no_items';
 
 type Dict = Record<TranslationKey, string>;
 
@@ -94,6 +106,8 @@ const enUS: Dict = {
   copy:             'Copy',
   notif_on:         'Notification On',
   notif_off_action: 'Notification Off',
+  move:             'Move',
+  move_to_folder:   'Move to Folder',
   edit:             'Edit',
   delete:           'Delete',
   ai_voice_unavailable: 'AI Voice Unavailable',
@@ -139,6 +153,7 @@ const enUS: Dict = {
   change_icon:             'Change Icon',
   change_color:            'Change Color',
   delete_folder:           'Delete Folder',
+  edit_folder:             'Edit Folder',
   folders_singular:        'folder',
   folders_plural:          'folders',
 
@@ -159,15 +174,41 @@ const enUS: Dict = {
   test_shuffle:          'Shuffle',
   test_reset:            'Reset',
   test_reset_confirm:    'All progress will be cleared.',
-};
 
-// ── English (GB) ───────────────────────────────────────────────────────────────
-const enGB: Dict = {
-  ...enUS,
-  theme_color:          'Theme Colour',
-  license:              'Licence',
-  remove_ads_desc:      'Enjoy a clean, distraction-free experience with no banners.',
-  unlimited_words_desc: 'No caps — collect as many words as you like.',
+  test_info_title:       'How it works',
+  test_info_caption:     'Memory fades over time. Reviewing before you forget improves retention.',
+  test_info_section:     'REVIEW OPTIONS',
+  test_info_perfect_exp: 'Removed from review',
+  test_info_good_exp:    'Review again in 3 days',
+  test_info_slightly_exp:'Review again tomorrow',
+  test_info_unknown_exp: 'Review again soon',
+  test_info_footer:      '',
+
+  chart_now:            'Now',
+  chart_day_1:          'Day 1',
+  chart_day_3:          'Day 3',
+  chart_day_7:          'Day 7',
+  chart_memory:         'Memory (%)',
+  chart_time:           'Time',
+  chart_review:         'Review',
+  chart_after_review:   'After review',
+  chart_no_review:      'Without review',
+
+  pro:                  'Pro',
+  manage_subscription:  'Manage Subscription',
+  add_word:             'Add Word',
+  edit_word:            'Edit Word',
+  basic:                'Basic',
+
+  kisekae_shop:             'Theme Shop',
+  kisekae_title:            'Theme Shop',
+  shop_tab_solid:           'Solid',
+  shop_tab_premium:         'Premium',
+  shop_search_placeholder:  'Item name, keyword…',
+  shop_owned:               'Owned',
+  shop_using:               'Using',
+  shop_free:                'Free',
+  shop_no_items:            'No items found',
 };
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
@@ -220,6 +261,8 @@ const ja: Dict = {
   copy:             'コピー',
   notif_on:         '通知オン',
   notif_off_action: '通知オフ',
+  move:             '移動',
+  move_to_folder:   'フォルダに移動',
   edit:             '編集',
   delete:           '削除',
   ai_voice_unavailable: 'AI音声を利用できません',
@@ -265,6 +308,7 @@ const ja: Dict = {
   change_icon:             'アイコンを変更',
   change_color:            '色を変更',
   delete_folder:           'フォルダを削除',
+  edit_folder:             'フォルダを編集',
   folders_singular:        'フォルダ',
   folders_plural:          'フォルダ',
 
@@ -285,6 +329,41 @@ const ja: Dict = {
   test_shuffle:          'シャッフル',
   test_reset:            'リセット',
   test_reset_confirm:    'すべての進捗がリセットされます。',
+
+  test_info_title:       '仕組みを理解する',
+  test_info_caption:     '記憶は時間とともに薄れます。忘れる前に復習することで定着が深まります。',
+  test_info_section:     '復習オプション',
+  test_info_perfect_exp: '復習から除外',
+  test_info_good_exp:    '3日後に復習',
+  test_info_slightly_exp:'明日復習',
+  test_info_unknown_exp: 'すぐに復習',
+  test_info_footer:      '',
+
+  chart_now:            '今',
+  chart_day_1:          '1日目',
+  chart_day_3:          '3日目',
+  chart_day_7:          '7日目',
+  chart_memory:         '記憶率(%)',
+  chart_time:           '時間',
+  chart_review:         '復習',
+  chart_after_review:   '復習後',
+  chart_no_review:      '復習なし',
+
+  pro:                  'Pro',
+  manage_subscription:  'サブスクリプションを管理',
+  add_word:             '単語を追加',
+  edit_word:            '単語を編集',
+  basic:                'ベーシック',
+
+  kisekae_shop:             'きせかえショップ',
+  kisekae_title:            '着せかえショップ',
+  shop_tab_solid:           '単色',
+  shop_tab_premium:         'プレミアム',
+  shop_search_placeholder:  'アイテム名、キーワードなど',
+  shop_owned:               '所持済み',
+  shop_using:               '使用中',
+  shop_free:                '無料',
+  shop_no_items:            '該当するアイテムがありません',
 };
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
@@ -337,6 +416,8 @@ const ko: Dict = {
   copy:             '복사',
   notif_on:         '알림 켜기',
   notif_off_action: '알림 끄기',
+  move:             '이동',
+  move_to_folder:   '폴더로 이동',
   edit:             '편집',
   delete:           '삭제',
   ai_voice_unavailable: 'AI 음성 사용 불가',
@@ -382,6 +463,7 @@ const ko: Dict = {
   change_icon:             '아이콘 변경',
   change_color:            '색상 변경',
   delete_folder:           '폴더 삭제',
+  edit_folder:             '폴더 편집',
   folders_singular:        '폴더',
   folders_plural:          '폴더',
 
@@ -402,6 +484,41 @@ const ko: Dict = {
   test_shuffle:          '셔플',
   test_reset:            '초기화',
   test_reset_confirm:    '모든 진행 상황이 초기화됩니다.',
+
+  test_info_title:       '작동 원리',
+  test_info_caption:     '기억은 시간이 지나면서 약해집니다. 잊기 전에 복습하면 기억이 강화됩니다.',
+  test_info_section:     '복습 옵션',
+  test_info_perfect_exp: '복습에서 제거됨',
+  test_info_good_exp:    '3일 후 복습',
+  test_info_slightly_exp:'내일 복습',
+  test_info_unknown_exp: '곧 복습',
+  test_info_footer:      '',
+
+  chart_now:            '지금',
+  chart_day_1:          '1일',
+  chart_day_3:          '3일',
+  chart_day_7:          '7일',
+  chart_memory:         '기억률(%)',
+  chart_time:           '시간',
+  chart_review:         '복습',
+  chart_after_review:   '복습 후',
+  chart_no_review:      '복습 없음',
+
+  pro:                  'Pro',
+  manage_subscription:  '구독 관리',
+  add_word:             '단어 추가',
+  edit_word:            '단어 편집',
+  basic:                '기본',
+
+  kisekae_shop:             '테마 샵',
+  kisekae_title:            '테마 샵',
+  shop_tab_solid:           '단색',
+  shop_tab_premium:         '프리미엄',
+  shop_search_placeholder:  '아이템 이름, 키워드…',
+  shop_owned:               '보유 중',
+  shop_using:               '사용 중',
+  shop_free:                '무료',
+  shop_no_items:            '아이템을 찾을 수 없음',
 };
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
@@ -454,6 +571,8 @@ const zhCN: Dict = {
   copy:             '复制',
   notif_on:         '开启通知',
   notif_off_action: '关闭通知',
+  move:             '移动',
+  move_to_folder:   '移动到文件夹',
   edit:             '编辑',
   delete:           '删除',
   ai_voice_unavailable: 'AI 语音不可用',
@@ -499,6 +618,7 @@ const zhCN: Dict = {
   change_icon:             '更改图标',
   change_color:            '更改颜色',
   delete_folder:           '删除文件夹',
+  edit_folder:             '编辑文件夹',
   folders_singular:        '文件夹',
   folders_plural:          '文件夹',
 
@@ -519,6 +639,41 @@ const zhCN: Dict = {
   test_shuffle:          '随机',
   test_reset:            '重置',
   test_reset_confirm:    '所有进度将被清除。',
+
+  test_info_title:       '工作原理',
+  test_info_caption:     '记忆随时间自然衰退。在遗忘前复习，有效巩固记忆。',
+  test_info_section:     '复习选项',
+  test_info_perfect_exp: '从复习中移除',
+  test_info_good_exp:    '3天后复习',
+  test_info_slightly_exp:'明天复习',
+  test_info_unknown_exp: '即将复习',
+  test_info_footer:      '',
+
+  chart_now:            '现在',
+  chart_day_1:          '第1天',
+  chart_day_3:          '第3天',
+  chart_day_7:          '第7天',
+  chart_memory:         '记忆率(%)',
+  chart_time:           '时间',
+  chart_review:         '复习',
+  chart_after_review:   '复习后',
+  chart_no_review:      '未复习',
+
+  pro:                  'Pro',
+  manage_subscription:  '管理订阅',
+  add_word:             '添加单词',
+  edit_word:            '编辑单词',
+  basic:                '基础版',
+
+  kisekae_shop:             '主题商店',
+  kisekae_title:            '主题商店',
+  shop_tab_solid:           '纯色',
+  shop_tab_premium:         '高级',
+  shop_search_placeholder:  '商品名称、关键词…',
+  shop_owned:               '已拥有',
+  shop_using:               '使用中',
+  shop_free:                '免费',
+  shop_no_items:            '未找到商品',
 };
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
@@ -571,6 +726,8 @@ const es: Dict = {
   copy:             'Copiar',
   notif_on:         'Notificación activada',
   notif_off_action: 'Notificación desactivada',
+  move:             'Mover',
+  move_to_folder:   'Mover a carpeta',
   edit:             'Editar',
   delete:           'Eliminar',
   ai_voice_unavailable: 'Voz IA no disponible',
@@ -616,6 +773,7 @@ const es: Dict = {
   change_icon:             'Cambiar ícono',
   change_color:            'Cambiar color',
   delete_folder:           'Eliminar carpeta',
+  edit_folder:             'Editar carpeta',
   folders_singular:        'carpeta',
   folders_plural:          'carpetas',
 
@@ -636,6 +794,41 @@ const es: Dict = {
   test_shuffle:          'Mezclar',
   test_reset:            'Reiniciar',
   test_reset_confirm:    'Se borrará todo el progreso.',
+
+  test_info_title:       'Cómo funciona',
+  test_info_caption:     'La memoria se desvanece con el tiempo. Repasar antes de olvidar mejora la retención.',
+  test_info_section:     'OPCIONES DE REPASO',
+  test_info_perfect_exp: 'Eliminada del repaso',
+  test_info_good_exp:    'Repasar en 3 días',
+  test_info_slightly_exp:'Repasar mañana',
+  test_info_unknown_exp: 'Repasar pronto',
+  test_info_footer:      '',
+
+  chart_now:            'Ahora',
+  chart_day_1:          'Día 1',
+  chart_day_3:          'Día 3',
+  chart_day_7:          'Día 7',
+  chart_memory:         'Memoria (%)',
+  chart_time:           'Tiempo',
+  chart_review:         'Repaso',
+  chart_after_review:   'Tras repaso',
+  chart_no_review:      'Sin repaso',
+
+  pro:                  'Pro',
+  manage_subscription:  'Gestionar suscripción',
+  add_word:             'Agregar palabra',
+  edit_word:            'Editar palabra',
+  basic:                'Básico',
+
+  kisekae_shop:             'Tienda de Temas',
+  kisekae_title:            'Tienda de Temas',
+  shop_tab_solid:           'Sólido',
+  shop_tab_premium:         'Premium',
+  shop_search_placeholder:  'Nombre del artículo, palabra clave…',
+  shop_owned:               'Adquirido',
+  shop_using:               'En uso',
+  shop_free:                'Gratis',
+  shop_no_items:            'No se encontraron artículos',
 };
 
 // ── French ─────────────────────────────────────────────────────────────────────
@@ -688,6 +881,8 @@ const fr: Dict = {
   copy:             'Copier',
   notif_on:         'Notification activée',
   notif_off_action: 'Notification désactivée',
+  move:             'Déplacer',
+  move_to_folder:   'Déplacer vers le dossier',
   edit:             'Modifier',
   delete:           'Supprimer',
   ai_voice_unavailable: 'Voix IA indisponible',
@@ -733,6 +928,7 @@ const fr: Dict = {
   change_icon:             "Changer l'icône",
   change_color:            'Changer la couleur',
   delete_folder:           'Supprimer le dossier',
+  edit_folder:             'Modifier le dossier',
   folders_singular:        'dossier',
   folders_plural:          'dossiers',
 
@@ -753,6 +949,41 @@ const fr: Dict = {
   test_shuffle:          'Mélanger',
   test_reset:            'Réinitialiser',
   test_reset_confirm:    'Toute progression sera effacée.',
+
+  test_info_title:       'Comment ça fonctionne',
+  test_info_caption:     "La mémoire s'estompe avec le temps. Réviser avant d'oublier améliore la rétention.",
+  test_info_section:     'OPTIONS DE RÉVISION',
+  test_info_perfect_exp: 'Retirée de la révision',
+  test_info_good_exp:    'Révision dans 3 jours',
+  test_info_slightly_exp:'Révision demain',
+  test_info_unknown_exp: 'Révision bientôt',
+  test_info_footer:      '',
+
+  chart_now:            'Maintenant',
+  chart_day_1:          'Jour 1',
+  chart_day_3:          'Jour 3',
+  chart_day_7:          'Jour 7',
+  chart_memory:         'Mémoire (%)',
+  chart_time:           'Temps',
+  chart_review:         'Révision',
+  chart_after_review:   'Après révision',
+  chart_no_review:      'Sans révision',
+
+  pro:                  'Pro',
+  manage_subscription:  "Gérer l'abonnement",
+  add_word:             'Ajouter un mot',
+  edit_word:            'Modifier le mot',
+  basic:                'Basique',
+
+  kisekae_shop:             'Boutique Thèmes',
+  kisekae_title:            'Boutique Thèmes',
+  shop_tab_solid:           'Uni',
+  shop_tab_premium:         'Premium',
+  shop_search_placeholder:  'Nom de l\'article, mot-clé…',
+  shop_owned:               'Possédé',
+  shop_using:               'En cours',
+  shop_free:                'Gratuit',
+  shop_no_items:            'Aucun article trouvé',
 };
 
 // ── German ─────────────────────────────────────────────────────────────────────
@@ -805,6 +1036,8 @@ const de: Dict = {
   copy:             'Kopieren',
   notif_on:         'Benachrichtigung an',
   notif_off_action: 'Benachrichtigung aus',
+  move:             'Verschieben',
+  move_to_folder:   'In Ordner verschieben',
   edit:             'Bearbeiten',
   delete:           'Löschen',
   ai_voice_unavailable: 'KI-Stimme nicht verfügbar',
@@ -850,6 +1083,7 @@ const de: Dict = {
   change_icon:             'Symbol ändern',
   change_color:            'Farbe ändern',
   delete_folder:           'Ordner löschen',
+  edit_folder:             'Ordner bearbeiten',
   folders_singular:        'Ordner',
   folders_plural:          'Ordner',
 
@@ -870,6 +1104,41 @@ const de: Dict = {
   test_shuffle:          'Mischen',
   test_reset:            'Zurücksetzen',
   test_reset_confirm:    'Alle Fortschritte werden gelöscht.',
+
+  test_info_title:       'So funktioniert es',
+  test_info_caption:     'Das Gedächtnis verblasst mit der Zeit. Vor dem Vergessen zu wiederholen verbessert die Merkfähigkeit.',
+  test_info_section:     'WIEDERHOLUNGSOPTIONEN',
+  test_info_perfect_exp: 'Aus der Wiederholung entfernt',
+  test_info_good_exp:    'In 3 Tagen wiederholen',
+  test_info_slightly_exp:'Morgen wiederholen',
+  test_info_unknown_exp: 'Bald wiederholen',
+  test_info_footer:      '',
+
+  chart_now:            'Jetzt',
+  chart_day_1:          'Tag 1',
+  chart_day_3:          'Tag 3',
+  chart_day_7:          'Tag 7',
+  chart_memory:         'Erinnerung (%)',
+  chart_time:           'Zeit',
+  chart_review:         'Wiederholung',
+  chart_after_review:   'Nach Wdh.',
+  chart_no_review:      'Ohne Wdh.',
+
+  pro:                  'Pro',
+  manage_subscription:  'Abonnement verwalten',
+  add_word:             'Wort hinzufügen',
+  edit_word:            'Wort bearbeiten',
+  basic:                'Standard',
+
+  kisekae_shop:             'Theme-Shop',
+  kisekae_title:            'Theme-Shop',
+  shop_tab_solid:           'Einfarbig',
+  shop_tab_premium:         'Premium',
+  shop_search_placeholder:  'Artikelname, Stichwort…',
+  shop_owned:               'Erworben',
+  shop_using:               'Aktiv',
+  shop_free:                'Kostenlos',
+  shop_no_items:            'Keine Artikel gefunden',
 };
 
 // ── Italian ────────────────────────────────────────────────────────────────────
@@ -922,6 +1191,8 @@ const it: Dict = {
   copy:             'Copia',
   notif_on:         'Notifica attivata',
   notif_off_action: 'Notifica disattivata',
+  move:             'Sposta',
+  move_to_folder:   'Sposta nella cartella',
   edit:             'Modifica',
   delete:           'Elimina',
   ai_voice_unavailable: 'Voce IA non disponibile',
@@ -967,6 +1238,7 @@ const it: Dict = {
   change_icon:             'Cambia icona',
   change_color:            'Cambia colore',
   delete_folder:           'Elimina cartella',
+  edit_folder:             'Modifica cartella',
   folders_singular:        'cartella',
   folders_plural:          'cartelle',
 
@@ -987,6 +1259,41 @@ const it: Dict = {
   test_shuffle:          'Mescola',
   test_reset:            'Reimposta',
   test_reset_confirm:    'Tutti i progressi verranno azzerati.',
+
+  test_info_title:       'Come funziona',
+  test_info_caption:     'La memoria svanisce nel tempo. Ripassare prima di dimenticare migliora la ritenzione.',
+  test_info_section:     'OPZIONI DI RIPASSO',
+  test_info_perfect_exp: 'Rimossa dal ripasso',
+  test_info_good_exp:    'Ripasso tra 3 giorni',
+  test_info_slightly_exp:'Ripasso domani',
+  test_info_unknown_exp: 'Ripasso presto',
+  test_info_footer:      '',
+
+  chart_now:            'Adesso',
+  chart_day_1:          'Giorno 1',
+  chart_day_3:          'Giorno 3',
+  chart_day_7:          'Giorno 7',
+  chart_memory:         'Memoria (%)',
+  chart_time:           'Tempo',
+  chart_review:         'Revisione',
+  chart_after_review:   'Dopo revisione',
+  chart_no_review:      'Senza revisione',
+
+  pro:                  'Pro',
+  manage_subscription:  'Gestisci abbonamento',
+  add_word:             'Aggiungi parola',
+  edit_word:            'Modifica parola',
+  basic:                'Base',
+
+  kisekae_shop:             'Negozio Temi',
+  kisekae_title:            'Negozio Temi',
+  shop_tab_solid:           'Tinta Unita',
+  shop_tab_premium:         'Premium',
+  shop_search_placeholder:  'Nome articolo, parola chiave…',
+  shop_owned:               'Posseduto',
+  shop_using:               'In uso',
+  shop_free:                'Gratis',
+  shop_no_items:            'Nessun articolo trovato',
 };
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
@@ -1039,6 +1346,8 @@ const ptBR: Dict = {
   copy:             'Copiar',
   notif_on:         'Notificação ativada',
   notif_off_action: 'Notificação desativada',
+  move:             'Mover',
+  move_to_folder:   'Mover para pasta',
   edit:             'Editar',
   delete:           'Excluir',
   ai_voice_unavailable: 'Voz IA indisponível',
@@ -1084,6 +1393,7 @@ const ptBR: Dict = {
   change_icon:             'Alterar ícone',
   change_color:            'Alterar cor',
   delete_folder:           'Excluir pasta',
+  edit_folder:             'Editar pasta',
   folders_singular:        'pasta',
   folders_plural:          'pastas',
 
@@ -1104,13 +1414,47 @@ const ptBR: Dict = {
   test_shuffle:          'Embaralhar',
   test_reset:            'Redefinir',
   test_reset_confirm:    'Todo o progresso será apagado.',
+
+  test_info_title:       'Como funciona',
+  test_info_caption:     'A memória desaparece com o tempo. Revisar antes de esquecer melhora a retenção.',
+  test_info_section:     'OPÇÕES DE REVISÃO',
+  test_info_perfect_exp: 'Removida da revisão',
+  test_info_good_exp:    'Revisão em 3 dias',
+  test_info_slightly_exp:'Revisão amanhã',
+  test_info_unknown_exp: 'Revisão em breve',
+  test_info_footer:      '',
+
+  chart_now:            'Agora',
+  chart_day_1:          'Dia 1',
+  chart_day_3:          'Dia 3',
+  chart_day_7:          'Dia 7',
+  chart_memory:         'Memória (%)',
+  chart_time:           'Tempo',
+  chart_review:         'Revisão',
+  chart_after_review:   'Após revisão',
+  chart_no_review:      'Sem revisão',
+
+  pro:                  'Pro',
+  manage_subscription:  'Gerenciar assinatura',
+  add_word:             'Adicionar palavra',
+  edit_word:            'Editar palavra',
+  basic:                'Básico',
+
+  kisekae_shop:             'Loja de Temas',
+  kisekae_title:            'Loja de Temas',
+  shop_tab_solid:           'Sólido',
+  shop_tab_premium:         'Premium',
+  shop_search_placeholder:  'Nome do item, palavra-chave…',
+  shop_owned:               'Adquirido',
+  shop_using:               'Usando',
+  shop_free:                'Grátis',
+  shop_no_items:            'Nenhum item encontrado',
 };
 
 // ── Registry ───────────────────────────────────────────────────────────────────
 
 const DICTS: Record<string, Dict> = {
   'en-US': enUS,
-  'en-GB': enGB,
   ja,
   ko,
   'zh-CN': zhCN,
@@ -1130,7 +1474,6 @@ export function translate(lang: string, key: TranslationKey): string {
 /** All languages available in the UI, in display order. */
 export const SUPPORTED_LANGUAGES = [
   { code: 'en-US', name: 'English (US)',    flag: '🇺🇸' },
-  { code: 'en-GB', name: 'English (UK)',    flag: '🇬🇧' },
   { code: 'ja',    name: '日本語',           flag: '🇯🇵' },
   { code: 'ko',    name: '한국어',           flag: '🇰🇷' },
   { code: 'zh-CN', name: '中文（简体）',     flag: '🇨🇳' },

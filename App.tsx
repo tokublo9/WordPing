@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Modal,
@@ -28,14 +29,31 @@ import { SwipeableCard } from './src/components/SwipeableCard';
 import { WordModal } from './src/components/WordModal';
 import { NotificationModal } from './src/components/NotificationModal';
 import { PaywallModal } from './src/components/PaywallModal';
+import { ProSheet } from './src/components/ProSheet';
 import { SettingsModal } from './src/components/SettingsModal';
 import { ReorderableList } from './src/components/ReorderableList';
-import { AddFolderModal } from './src/components/AddFolderModal';
 import { SwipeableFolder } from './src/components/SwipeableFolder';
 import { FolderCustomizeModal } from './src/components/FolderCustomizeModal';
-import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBannerPlaceholder';
+import { AdBannerPlaceholder, AdSquarePlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBannerPlaceholder';
 import { TestModeScreen } from './src/components/TestModeScreen';
 import { FlipCardBrowser } from './src/components/FlipCardBrowser';
+import { FolderPickerSheet } from './src/components/FolderPickerSheet';
+import { SkinPatternOverlay } from './src/components/SkinPatternOverlay';
+import { SkinWallpaperOverlay } from './src/components/SkinWallpaperOverlay';
+import { DeepSeaOverlay } from './src/components/DeepSeaOverlay';
+import {
+  AuroraOverlay,
+  BeautifulWoodsOverlay,
+  CoffeeHouseOverlay,
+  CyberNeonOverlay,
+  GalaxyOverlay,
+  GreenNatureOverlay,
+  RainyWindowOverlay,
+  RosesOverlay,
+  SakuraOverlay,
+  SnowMountainOverlay,
+  SunsetOverlay,
+} from './src/components/SkinOverlays';
 
 const ALL_LEVEL_KEYS = ['perfect', 'good', 'slightly', 'unknown', 'none'] as const;
 
@@ -50,7 +68,7 @@ const LEVEL_FILTER_OPTIONS: Array<{ level: string; icon: string | null; color: s
 
 export default function App() {
   const systemScheme = useColorScheme();
-  const { isSubscribed, subscribe, restore } = useSubscription();
+  const { isSubscribed, subscribe, restore, unsubscribe } = useSubscription();
 
   const [cards, setCards] = useState<WordCard[]>([]);
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
@@ -78,16 +96,18 @@ export default function App() {
   const [showLevelLabels, setShowLevelLabels] = useState(true);
   const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [proSheetVisible, setProSheetVisible] = useState(false);
+  const [movePickerVisible, setMovePickerVisible] = useState(false);
+  const [pendingMoveIds, setPendingMoveIds] = useState<string[]>([]);
 
   // ── Folder navigation ────────────────────────────────────────────────────────
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [addFolderVisible, setAddFolderVisible] = useState(false);
+  const [addingFolder, setAddingFolder] = useState(false);
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [folderReorderMode, setFolderReorderMode] = useState(false);
-  const [renamingFolder, setRenamingFolder] = useState<Folder | null>(null);
-  const [customizingFolder, setCustomizingFolder] = useState<Folder | null>(null);
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const folderMenuBtnRef = useRef<View>(null);
   const closeOpenFolder = useRef<(() => void) | null>(null);
   const [menuContext, setMenuContext] = useState<'cards' | 'folders'>('cards');
@@ -245,11 +265,15 @@ export default function App() {
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
   const [note, setNote] = useState('');
+  const [wordFieldLang, setWordFieldLang] = useState<string | undefined>(undefined);
+  const [meaningFieldLang, setMeaningFieldLang] = useState<string | undefined>(undefined);
 
   const closeOpenCard = useRef<(() => void) | null>(null);
   const hasLoaded = useRef(false);
+  // Tracks word-list scroll position for the Deep Sea skin gradient effect.
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  const activeSkin = SKINS.find(s => s.id === skinId) ?? null;
+  const activeSkin = isSubscribed ? (SKINS.find(s => s.id === skinId) ?? null) : null;
   const isDark = activeSkin
     ? activeSkin.darkStatusBar
     : appearance === 'system' ? systemScheme === 'dark' : appearance === 'dark';
@@ -376,6 +400,8 @@ export default function App() {
     setWord('');
     setMeaning('');
     setNote('');
+    setWordFieldLang(undefined);
+    setMeaningFieldLang(undefined);
     setWordModalVisible(true);
   };
 
@@ -384,6 +410,8 @@ export default function App() {
     setWord(card.word);
     setMeaning(card.meaning);
     setNote(card.note ?? '');
+    setWordFieldLang(card.wordLang);
+    setMeaningFieldLang(card.meaningLang);
     setWordModalVisible(true);
   };
 
@@ -397,13 +425,13 @@ export default function App() {
     if (editingCard) {
       setCards(prev => prev.map(c =>
         c.id === editingCard.id
-          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim() }
+          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim(), wordLang: wordFieldLang, meaningLang: meaningFieldLang }
           : c
       ));
     } else {
       setCards(prev => [
         ...prev,
-        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined },
+        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined, wordLang: wordFieldLang, meaningLang: meaningFieldLang },
       ]);
     }
     setWordModalVisible(false);
@@ -412,6 +440,16 @@ export default function App() {
   const deleteCard = (id: string) => {
     setCards(prev => prev.filter(c => c.id !== id));
     setFlipped(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+
+  const openMovePicker = (ids: string[]) => {
+    setPendingMoveIds(ids);
+    setMovePickerVisible(true);
+  };
+
+  const moveCardsToFolder = (targetFolderId: string) => {
+    setCards(prev => prev.map(c => pendingMoveIds.includes(c.id) ? { ...c, folderId: targetFolderId } : c));
+    if (selectionMode) exitSelectionMode();
   };
 
   const toggleCardNotif = (id: string) => {
@@ -436,8 +474,8 @@ export default function App() {
     closeOpenFolder.current = close;
   }, []);
 
-  const createFolder = (name: string) => {
-    const folder: Folder = { id: Date.now().toString(), name, createdAt: Date.now() };
+  const createFolder = (name: string, icon = 'folder-outline') => {
+    const folder: Folder = { id: Date.now().toString(), name, icon, createdAt: Date.now() };
     setFolders(prev => [...prev, folder]);
   };
 
@@ -448,6 +486,7 @@ export default function App() {
     exitFolderSelectionMode();
     exitFolderReorderMode();
     setCurrentFolderId(id);
+    scrollY.setValue(0);
   };
 
   const goBackToFolders = () => {
@@ -455,6 +494,8 @@ export default function App() {
     exitReorderMode();
     setCurrentFolderId(null);
     setLevelFilter(new Set(ALL_LEVEL_KEYS));
+    // Reset depth gradient to ocean surface when navigating away from word list.
+    scrollY.setValue(0);
   };
 
   const SEL_BAR_H = 68;
@@ -466,12 +507,15 @@ export default function App() {
       themeColor={activeThemeColor}
       pal={pal}
       voiceLocked={!isSubscribed && index >= FREE_VOICE_LIMIT}
+      isSubscribed={isSubscribed}
       onFlip={() => toggleFlip(item.id)}
       onEdit={() => openEdit(item)}
       onDelete={() => deleteCard(item.id)}
+      onMove={() => openMovePicker([item.id])}
       onToggleNotif={() => toggleCardNotif(item.id)}
       onVoiceLocked={() => openPaywall('voice')}
       onOpen={handleCardOpen}
+      openCardRef={closeOpenCard}
       selectionMode={selectionMode}
       selected={selectedIds.has(item.id)}
       onToggleSelect={() => toggleSelect(item.id)}
@@ -493,8 +537,7 @@ export default function App() {
         folderIcon={folderIcon}
         onOpen={handleFolderOpen}
         onPress={() => openFolder(item.id)}
-        onRename={() => setRenamingFolder(item)}
-        onChangeIcon={() => setCustomizingFolder(item)}
+        onEdit={() => setEditingFolder(item)}
         onDelete={() => setFolders(prev => prev.filter(f => f.id !== item.id))}
         selectionMode={folderSelectionMode}
         selected={selectedFolderIds.has(item.id)}
@@ -509,6 +552,28 @@ export default function App() {
     <SafeAreaProvider>
     <SafeAreaView style={[s.root, { backgroundColor: pal.bg }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      {activeSkin?.patternType && (
+        <SkinPatternOverlay patternType={activeSkin.patternType} />
+      )}
+      {activeSkin?.wallpaperImage && (
+        <SkinWallpaperOverlay
+          image={activeSkin.wallpaperImage}
+          blurIntensity={activeSkin.wallpaperBlur}
+          overlayColor={activeSkin.wallpaperOverlayColor}
+        />
+      )}
+      {activeSkin?.id === 'skin_deep_sea'  && <DeepSeaOverlay scrollY={scrollY} />}
+      {activeSkin?.id === 'skin_leaf_blur' && <GreenNatureOverlay />}
+      {activeSkin?.id === 'shop_woods'     && <BeautifulWoodsOverlay />}
+      {activeSkin?.id === 'shop_roses'     && <RosesOverlay />}
+      {activeSkin?.id === 'skin_sunset'    && <SunsetOverlay />}
+      {activeSkin?.id === 'skin_sakura'    && <SakuraOverlay />}
+      {activeSkin?.id === 'skin_galaxy'    && <GalaxyOverlay />}
+      {activeSkin?.id === 'skin_snow'      && <SnowMountainOverlay />}
+      {activeSkin?.id === 'skin_cyber'     && <CyberNeonOverlay />}
+      {activeSkin?.id === 'skin_coffee'    && <CoffeeHouseOverlay />}
+      {activeSkin?.id === 'skin_aurora'    && <AuroraOverlay />}
+      {activeSkin?.id === 'skin_rain'      && <RainyWindowOverlay />}
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
       {currentFolderId === null ? (
@@ -539,7 +604,7 @@ export default function App() {
           <View style={s.header}>
             <Text style={[s.title, { color: pal.text }]}>WordPing</Text>
             <View style={s.headerIcons}>
-              <TouchableOpacity style={s.iconBtn} onPress={() => setAddFolderVisible(true)}>
+              <TouchableOpacity style={s.iconBtn} onPress={() => setAddingFolder(true)}>
                 <MaterialCommunityIcons name="folder-plus-outline" size={22} color={pal.sub} />
               </TouchableOpacity>
               <View ref={folderMenuBtnRef}>
@@ -552,7 +617,7 @@ export default function App() {
         )
       ) : (
         /* Inside-folder header */
-        <View style={s.header}>
+        <View style={s.header} onTouchStart={() => closeOpenCard.current?.()}>
           {selectionMode ? (
             <>
               <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
@@ -639,7 +704,17 @@ export default function App() {
             }
             pal={pal}
             themeColor={activeThemeColor}
-            extraPaddingBottom={AD_BANNER_HEIGHT}
+            extraPaddingBottom={isSubscribed ? 0 : AD_BANNER_HEIGHT}
+            folderData={Object.fromEntries(
+              folders.map(f => [
+                f.id,
+                {
+                  icon:      f.icon  ?? 'folder-outline',
+                  color:     activeThemeColor,
+                  cardCount: cards.filter(c => c.folderId === f.id).length,
+                },
+              ])
+            )}
           />
         ) : (
           <>
@@ -647,9 +722,10 @@ export default function App() {
               data={folders}
               keyExtractor={f => f.id}
               renderItem={renderFolderItem}
+              ListFooterComponent={undefined}
               contentContainerStyle={[
                 s.list,
-                { paddingBottom: s.list.paddingBottom + AD_BANNER_HEIGHT + (folderSelectionMode ? SEL_BAR_H : 0) },
+                { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (folderSelectionMode ? SEL_BAR_H : 0) },
               ]}
               showsVerticalScrollIndicator={false}
             />
@@ -675,17 +751,18 @@ export default function App() {
       ) : (
         /* Card list inside folder */
         <>
-          <Text style={[s.wordCount, { color: pal.sub }]}>
-            {isFilterActive
-              ? `${filteredFolderCards.length} / ${folderCards.length}`
-              : folderCards.length}{' '}
-            {t(folderCards.length === 1 ? 'words_singular' : 'words_plural')}
-            {isSubscribed ? '  ★ Pro' : ''}
-          </Text>
+          <View onTouchStart={() => closeOpenCard.current?.()}>
+            <Text style={[s.wordCount, { color: pal.sub }]}>
+              {isFilterActive
+                ? `${filteredFolderCards.length} / ${folderCards.length}`
+                : folderCards.length}{' '}
+              {t(folderCards.length === 1 ? 'words_singular' : 'words_plural')}
+            </Text>
+          </View>
 
           {/* Level filter chips */}
           {folderCards.length > 0 && !selectionMode && !reorderMode && showLevelLabels && (
-            <View style={filterStyles.bar}>
+            <View style={filterStyles.bar} onTouchStart={() => closeOpenCard.current?.()}>
               {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
                 const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
                 const on = levelFilter.has(level);
@@ -749,17 +826,20 @@ export default function App() {
                 }}
                 pal={pal}
                 themeColor={activeThemeColor}
-                extraPaddingBottom={AD_BANNER_HEIGHT}
+                extraPaddingBottom={isSubscribed ? 0 : AD_BANNER_HEIGHT}
                 showLevelLabel={showLevelLabels}
               />
             </>
           ) : cardViewMode === 'flip' ? (
             <FlipCardBrowser
+              key={Array.from(levelFilter).sort().join(',')}
               cards={filteredFolderCards}
               pal={pal}
               themeColor={activeThemeColor}
+              isSubscribed={isSubscribed}
               onEdit={openEdit}
               onDelete={deleteCard}
+              onMove={card => openMovePicker([card.id])}
               onToggleNotif={toggleCardNotif}
               showLevelLabel={showLevelLabels}
             />
@@ -770,27 +850,23 @@ export default function App() {
               renderItem={renderCard}
               contentContainerStyle={[
                 s.list,
-                { paddingBottom: s.list.paddingBottom + AD_BANNER_HEIGHT + (selectionMode ? SEL_BAR_H : 0) },
+                { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selectionMode ? SEL_BAR_H : 0) },
               ]}
               showsVerticalScrollIndicator={false}
               onScrollBeginDrag={() => closeOpenCard.current?.()}
+              scrollEventThrottle={16}
+              onScroll={activeSkin?.id === 'skin_deep_sea'
+                ? Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: false }
+                  )
+                : undefined}
             />
           )}
 
           {/* Selection action bar */}
           {selectionMode && (
             <View style={[selStyles.bar, { backgroundColor: pal.dialog, borderTopColor: pal.border }]}>
-              <TouchableOpacity
-                style={selStyles.barBtn}
-                onPress={deleteSelected}
-                disabled={selectedIds.size === 0}
-              >
-                <Ionicons name="trash-outline" size={20} color={selectedIds.size === 0 ? pal.sub : '#E05C5C'} />
-                <Text style={[selStyles.barLabel, { color: selectedIds.size === 0 ? pal.sub : '#E05C5C' }]}>
-                  {t('delete')}
-                </Text>
-              </TouchableOpacity>
-              <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
               <TouchableOpacity
                 style={selStyles.barBtn}
                 onPress={() => setNotifForSelected(false)}
@@ -810,12 +886,34 @@ export default function App() {
                 <Ionicons name="notifications-off-outline" size={20} color={pal.sub} />
                 <Text style={[selStyles.barLabel, { color: pal.sub }]}>{t('notif_off_action')}</Text>
               </TouchableOpacity>
+              <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
+              <TouchableOpacity
+                style={selStyles.barBtn}
+                onPress={() => openMovePicker([...selectedIds])}
+                disabled={selectedIds.size === 0}
+              >
+                <Ionicons name="folder-outline" size={20} color={selectedIds.size === 0 ? pal.sub : activeThemeColor} />
+                <Text style={[selStyles.barLabel, { color: selectedIds.size === 0 ? pal.sub : activeThemeColor }]}>
+                  {t('move')}
+                </Text>
+              </TouchableOpacity>
+              <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
+              <TouchableOpacity
+                style={selStyles.barBtn}
+                onPress={deleteSelected}
+                disabled={selectedIds.size === 0}
+              >
+                <Ionicons name="trash-outline" size={20} color={selectedIds.size === 0 ? pal.sub : '#E05C5C'} />
+                <Text style={[selStyles.barLabel, { color: selectedIds.size === 0 ? pal.sub : '#E05C5C' }]}>
+                  {t('delete')}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
           {!selectionMode && !reorderMode && (
             <TouchableOpacity
-              style={[s.fab, { bottom: AD_BANNER_HEIGHT + 48, backgroundColor: activeThemeColor, shadowColor: activeThemeColor }]}
+              style={[s.fab, { bottom: (isSubscribed ? 16 : AD_BANNER_HEIGHT) + 48, backgroundColor: activeThemeColor, shadowColor: activeThemeColor }]}
               onPress={openAdd}
             >
               <Text style={s.fabText}>+</Text>
@@ -824,7 +922,7 @@ export default function App() {
         </>
       )}
 
-      <AdBannerPlaceholder pal={pal} />
+      {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
 
       <WordModal
         visible={wordModalVisible}
@@ -839,6 +937,11 @@ export default function App() {
         onSave={saveCard}
         pal={pal}
         themeColor={activeThemeColor}
+        isSubscribed={isSubscribed}
+        wordLang={wordFieldLang}
+        onChangeWordLang={setWordFieldLang}
+        meaningLang={meaningFieldLang}
+        onChangeMeaningLang={setMeaningFieldLang}
       />
 
       <NotificationModal
@@ -861,8 +964,7 @@ export default function App() {
       <SettingsModal
         visible={settingsModalVisible}
         onClose={() => setSettingsModalVisible(false)}
-        themeColor={themeColor}
-        onPickTheme={pickTheme}
+        themeColor={activeThemeColor}
         appearance={appearance}
         onPickAppearance={pickAppearance}
         skinId={skinId}
@@ -871,6 +973,8 @@ export default function App() {
         onUpgrade={() => { setSettingsModalVisible(false); openPaywall('words'); }}
         onSubscribe={subscribe}
         onRestore={restore}
+        // DEV ONLY: Temporary subscription downgrade for testing. Remove before release.
+        onManageSubscription={__DEV__ ? unsubscribe : undefined}
         pal={pal}
         language={language}
         onPickLanguage={pickLanguage}
@@ -884,6 +988,18 @@ export default function App() {
         onRestore={restore}
         pal={pal}
         themeColor={themeColor}
+      />
+
+      <ProSheet
+        visible={proSheetVisible}
+        onClose={() => setProSheetVisible(false)}
+        onSubscribe={subscribe}
+        onRestore={restore}
+        // DEV ONLY: Temporary subscription downgrade for testing. Remove before release.
+        onManageSubscription={__DEV__ ? unsubscribe : undefined}
+        themeColor={activeThemeColor}
+        pal={pal}
+        isSubscribed={isSubscribed}
       />
 
       {/* Three-dot popup menu */}
@@ -967,41 +1083,36 @@ export default function App() {
         </View>
       </Modal>
 
-      <AddFolderModal
-        visible={addFolderVisible}
-        onClose={() => setAddFolderVisible(false)}
-        onCreate={createFolder}
+      <FolderCustomizeModal
+        visible={addingFolder}
+        mode="edit"
+        isNew
+        currentValue="folder-outline"
+        folderName=""
+        onSelect={() => {}}
+        onSaveEdit={(name, icon) => { createFolder(name, icon); }}
+        onClose={() => setAddingFolder(false)}
         pal={pal}
         themeColor={activeThemeColor}
-      />
-
-      <AddFolderModal
-        visible={renamingFolder !== null}
-        onClose={() => setRenamingFolder(null)}
-        onCreate={(name) => {
-          if (!renamingFolder) return;
-          setFolders(prev => prev.map(f => f.id === renamingFolder.id ? { ...f, name } : f));
-        }}
-        initialName={renamingFolder?.name ?? ''}
-        mode="rename"
-        pal={pal}
-        themeColor={activeThemeColor}
+        isSubscribed={isSubscribed}
       />
 
       <FolderCustomizeModal
-        visible={customizingFolder !== null}
-        mode="icon"
-        currentValue={customizingFolder?.icon ?? 'folder-outline'}
-        folderName={customizingFolder?.name ?? ''}
-        onSelect={(value) => {
-          if (!customizingFolder) return;
+        visible={editingFolder !== null}
+        mode="edit"
+        currentValue={editingFolder?.icon ?? 'folder-outline'}
+        folderName={editingFolder?.name ?? ''}
+        onSelect={() => {}}
+        onSaveEdit={(name, icon) => {
+          if (!editingFolder) return;
           setFolders(prev => prev.map(f =>
-            f.id === customizingFolder.id ? { ...f, icon: value } : f
+            f.id === editingFolder.id ? { ...f, name, icon } : f
           ));
         }}
-        onClose={() => setCustomizingFolder(null)}
+        onClose={() => setEditingFolder(null)}
         pal={pal}
         themeColor={activeThemeColor}
+        isSubscribed={isSubscribed}
       />
 
       {testModeVisible && (
@@ -1013,8 +1124,20 @@ export default function App() {
           onClose={() => setTestModeVisible(false)}
           pal={pal}
           themeColor={activeThemeColor}
+          isSubscribed={isSubscribed}
         />
       )}
+
+      <FolderPickerSheet
+        visible={movePickerVisible}
+        onClose={() => setMovePickerVisible(false)}
+        folders={folders}
+        currentFolderId={currentFolderId}
+        pal={pal}
+        themeColor={activeThemeColor}
+        onSelect={moveCardsToFolder}
+        isSubscribed={isSubscribed}
+      />
     </SafeAreaView>
     </SafeAreaProvider>
     </LangContext.Provider>

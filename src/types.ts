@@ -24,6 +24,8 @@ export interface WordCard {
   testMastered?: boolean;
   testNextReview?: number; // Unix ms; if set and > Date.now(), skip in test queue
   testLevel?: TestLevel;
+  wordLang?: string;    // BCP-47 locale for free device TTS (e.g. 'en-US', 'ja-JP')
+  meaningLang?: string; // BCP-47 locale for free device TTS
 }
 
 export interface IntervalOption {
@@ -45,6 +47,10 @@ export interface ThemeSkin {
   darkStatusBar: boolean; // true → white status-bar text
   themeColor: string;
   palette: Palette;
+  patternType?: 'flower' | 'paw' | 'space';
+  wallpaperImage?: number;          // Metro require() result
+  wallpaperBlur?: number;           // BlurView intensity
+  wallpaperOverlayColor?: string;   // tint layer on top of blur
 }
 
 export interface Palette {

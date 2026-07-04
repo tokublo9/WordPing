@@ -5,6 +5,11 @@ function audioLib() {
   return require('expo-audio') as typeof import('expo-audio');
 }
 
+function speechLib() {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require('expo-speech') as typeof import('expo-speech');
+}
+
 type AudioPlayer = import('expo-audio').AudioPlayer;
 
 // ── Module-level singleton state ─────────────────────────────────────────────
@@ -78,22 +83,64 @@ function stopCurrent() {
     try { currentPlayer.remove(); } catch {}
     currentPlayer = null;
   }
+  // Also stop any active device TTS session.
+  try { speechLib().stop(); } catch {}
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
-// Call when a card becomes visible to warm the cache in the background.
-export async function preloadAI(text: string): Promise<void> {
-  if (base64Cache.has(text) || inFlight.has(text)) return;
-  try { await fetchBase64(text); } catch {}
-}
+// ── Device TTS (free users) ───────────────────────────────────────────────────
 
 /**
- * Fetch (or use cached) audio for `text` and play it.
- * Returns a Promise that resolves when playback finishes, or rejects on
- * error / when another speakWithAI call supersedes this one.
+ * Detect the BCP-47 locale to use for device TTS based on the text content.
+ * Uses Unicode script ranges so English words are always read with an English
+ * voice even if the app UI language is set to Japanese (or any other language).
  */
-export async function speakWithAI(text: string): Promise<void> {
+function detectLocale(text: string): string {
+  // Japanese: hiragana (U+3040–309F) or katakana (U+30A0–30FF)
+  if (/[぀-ヿ]/.test(text)) return 'ja-JP';
+  // Korean: Hangul syllables (U+AC00–D7AF) and Hangul Jamo (U+1100–11FF)
+  if (/[가-힯ᄀ-ᇿ]/.test(text)) return 'ko-KR';
+  // CJK Unified Ideographs — without kana already caught above, treat as Chinese
+  if (/[一-鿿㐀-䶿]/.test(text)) return 'zh-CN';
+  // Arabic script
+  if (/[؀-ۿ]/.test(text)) return 'ar';
+  // Default to English for Latin-based scripts
+  return 'en-US';
+}
+
+function speakFree(text: string, locale: string): Promise<void> {
+  stopCurrent();
+  return new Promise<void>((resolve, reject) => {
+    // Try with the full locale first; if the device doesn't have that voice,
+    // fall back to the bare language subtag (e.g. 'ja' instead of 'ja-JP').
+    function attempt(l: string, retried: boolean) {
+      try {
+        speechLib().speak(text, {
+          language:  l,
+          onDone:    resolve,
+          onStopped: resolve,
+          onError: (e) => {
+            if (!retried) {
+              const base = l.split('-')[0];
+              if (base !== l) { attempt(base, true); return; }
+            }
+            reject(e instanceof Error ? e : new Error(String(e)));
+          },
+        });
+      } catch (e) {
+        if (!retried) {
+          const base = l.split('-')[0];
+          if (base !== l) { attempt(base, true); return; }
+        }
+        reject(e instanceof Error ? e : new Error(String(e)));
+      }
+    }
+    attempt(locale, false);
+  });
+}
+
+// ── OpenAI TTS (Pro users) ────────────────────────────────────────────────────
+
+async function speakWithAI(text: string): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
 
   // Immediately stop any prior playback and cancel its pending promise.
@@ -103,7 +150,7 @@ export async function speakWithAI(text: string): Promise<void> {
   // ── Fetch audio data ───────────────────────────────────────────────────────
   const base64 = await fetchBase64(text);
 
-  // If another speakWithAI call arrived while we were fetching, bail out.
+  // If another speak call arrived while we were fetching, bail out.
   if (myEpoch !== epoch) throw new Error('cancelled');
 
   // ── Prepare audio session ─────────────────────────────────────────────────
@@ -144,6 +191,30 @@ export async function speakWithAI(text: string): Promise<void> {
       finish(e instanceof Error ? e : new Error(String(e)));
     }
   });
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Warm the AI audio cache for the given text. No-op for free users so we
+ * never make OpenAI API calls on their behalf.
+ */
+export async function preloadAI(text: string, isPro: boolean): Promise<void> {
+  if (!isPro) return;
+  if (base64Cache.has(text) || inFlight.has(text)) return;
+  try { await fetchBase64(text); } catch {}
+}
+
+/**
+ * Speak `text` using the appropriate engine:
+ * - Pro users  → OpenAI high-quality voice (auto-detects language from text)
+ * - Free users → device TTS; locale is inferred from the text content via
+ *   detectLocale() so each card side is always spoken in its own language,
+ *   regardless of the app's UI language setting.
+ */
+export function speak(text: string, isPro: boolean, forcedLocale?: string): Promise<void> {
+  if (isPro) return speakWithAI(text);
+  return speakFree(text, forcedLocale ?? detectLocale(text));
 }
 
 /** Stop any active playback immediately (e.g. on component unmount). */

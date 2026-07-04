@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BlurView } from 'expo-blur';
-import { preloadAI, speakWithAI, stopPlayback } from '../lib/tts';
+import { preloadAI, speak, stopPlayback } from '../lib/tts';
 
 import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
@@ -36,12 +36,16 @@ interface Props {
   themeColor: string;
   pal: Palette;
   voiceLocked: boolean;
+  isSubscribed: boolean;
   onFlip: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onMove: () => void;
   onToggleNotif: () => void;
   onVoiceLocked: () => void;
   onOpen: (close: () => void) => void;
+  /** Ref to the close-function of whichever card is currently swiped open (null if none). */
+  openCardRef: React.MutableRefObject<(() => void) | null>;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -49,8 +53,8 @@ interface Props {
 }
 
 export function SwipeableCard({
-  item, isFlipped, themeColor, pal, voiceLocked,
-  onFlip, onEdit, onDelete, onToggleNotif, onVoiceLocked, onOpen,
+  item, isFlipped, themeColor, pal, voiceLocked, isSubscribed,
+  onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
   showLevelLabel = true,
 }: Props) {
@@ -64,8 +68,9 @@ export function SwipeableCard({
 
   const close = useCallback(() => {
     isOpen.current = false;
+    openCardRef.current = null;
     Animated.spring(translateX, { toValue: 0, useNativeDriver: false, tension: 80, friction: 12 }).start();
-  }, [translateX]);
+  }, [translateX, openCardRef]);
 
   const open = useCallback(() => {
     isOpen.current = true;
@@ -100,8 +105,11 @@ export function SwipeableCard({
   ).current;
 
   const handleTap = () => {
-    if (isOpen.current) close();
-    else onFlip();
+    // This card is swiped open — close it, don't flip.
+    if (isOpen.current) { close(); return; }
+    // Another card is swiped open — close that one, don't flip this card.
+    if (openCardRef.current) { openCardRef.current(); return; }
+    onFlip();
   };
 
   // ── Long-press lift ──────────────────────────────────────────────────────────
@@ -168,8 +176,8 @@ export function SwipeableCard({
     setLoadingVoice(v);
   }, []);
 
-  useEffect(() => { preloadAI(item.word).catch(() => {}); }, [item.word]);
-  useEffect(() => { if (isFlipped) preloadAI(item.meaning).catch(() => {}); }, [isFlipped, item.meaning]);
+  useEffect(() => { preloadAI(item.word, isSubscribed).catch(() => {}); }, [item.word, isSubscribed]);
+  useEffect(() => { if (isFlipped) preloadAI(item.meaning, isSubscribed).catch(() => {}); }, [isFlipped, item.meaning, isSubscribed]);
 
   // Stop playback and reset state when the card is unmounted (e.g. folder switch).
   useEffect(() => () => {
@@ -191,16 +199,16 @@ export function SwipeableCard({
   const speakWord = useCallback(async () => {
     if (loadingVoiceRef.current) return; // Synchronous guard — no stale-closure risk.
     setVoiceState('word');
-    try { await speakWithAI(item.word); } catch (e) { handleTTSError(e); }
+    try { await speak(item.word, isSubscribed, item.wordLang); } catch (e) { handleTTSError(e); }
     setVoiceState(null);
-  }, [item.word, setVoiceState, handleTTSError]);
+  }, [item.word, item.wordLang, isSubscribed, setVoiceState, handleTTSError]);
 
   const speakMeaning = useCallback(async () => {
     if (loadingVoiceRef.current) return;
     setVoiceState('meaning');
-    try { await speakWithAI(item.meaning); } catch (e) { handleTTSError(e); }
+    try { await speak(item.meaning, isSubscribed, item.meaningLang); } catch (e) { handleTTSError(e); }
     setVoiceState(null);
-  }, [item.meaning, setVoiceState, handleTTSError]);
+  }, [item.meaning, item.meaningLang, isSubscribed, setVoiceState, handleTTSError]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -231,19 +239,25 @@ export function SwipeableCard({
             style={[styles.circleBtn, { backgroundColor: item.notifOff ? '#C0C0C0' : themeColor }]}
             onPress={() => { close(); setTimeout(onToggleNotif, 220); }}
           >
-            <Ionicons name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'} size={17} color="#fff" />
+            <Ionicons name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'} size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.circleBtn, { backgroundColor: '#C0C0C0' }]}
+            onPress={() => { close(); setTimeout(onMove, 220); }}
+          >
+            <Ionicons name="folder-outline" size={20} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.circleBtn, { backgroundColor: '#C0C0C0' }]}
             onPress={() => { close(); setTimeout(onEdit, 220); }}
           >
-            <Ionicons name="create-outline" size={17} color="#fff" />
+            <Ionicons name="create-outline" size={20} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.circleBtn, { backgroundColor: '#E05C5C' }]}
             onPress={() => { close(); setTimeout(onDelete, 220); }}
           >
-            <Ionicons name="trash-outline" size={17} color="#fff" />
+            <Ionicons name="trash-outline" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
@@ -258,7 +272,7 @@ export function SwipeableCard({
         ]}
         {...(selectionMode ? {} : panResponder.panHandlers)}
       >
-        <View style={[styles.cardInner, { backgroundColor: isFlipped ? themeColor : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
+        <View style={[styles.cardInner, { backgroundColor: isFlipped ? themeColor : selected ? themeColor + '20' : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
           <TouchableOpacity
             style={[styles.cardFlipArea, { flex: 1 }]}
             onPress={selectionMode ? onToggleSelect : handleTap}
@@ -437,7 +451,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
   },
   circleBtn: {
-    width: 46, height: 46, borderRadius: 23,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
   },
 

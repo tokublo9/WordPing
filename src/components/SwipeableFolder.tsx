@@ -10,7 +10,7 @@ import { useLang } from '../i18n';
 
 const REVEAL_W  = 130;
 const SCREEN_H  = Dimensions.get('window').height;
-const MENU_H    = 52 * 3 + 2; // 3 rows × ~52px + 2 hairline dividers
+const MENU_H    = 52 * 2 + 1; // 2 rows × ~52px + 1 hairline divider
 
 interface LiftedLayout { pageX: number; pageY: number; width: number; height: number }
 
@@ -23,8 +23,7 @@ interface Props {
   folderIcon: string;
   onOpen: (close: () => void) => void;
   onPress: () => void;
-  onRename: () => void;
-  onChangeIcon: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   selectionMode: boolean;
   selected: boolean;
@@ -33,7 +32,7 @@ interface Props {
 
 export function SwipeableFolder({
   folder, cardCount, pal, themeColor, folderColor, folderIcon,
-  onOpen, onPress, onRename, onChangeIcon, onDelete,
+  onOpen, onPress, onEdit, onDelete,
   selectionMode, selected, onToggleSelect,
 }: Props) {
   const t          = useLang();
@@ -92,8 +91,7 @@ export function SwipeableFolder({
     ? menuBelow ? lifted.pageY + lifted.height + 6 : lifted.pageY - MENU_H - 6
     : 0;
 
-  const handleRename = () => { dismissLifted(); onRename(); };
-  const handleChangeIcon  = () => { dismissLifted(); onChangeIcon(); };
+  const handleEdit = () => { dismissLifted(); onEdit(); };
   const handleDelete = () => {
     dismissLifted();
     Alert.alert(t('delete_folder'), folder.name, [
@@ -134,7 +132,7 @@ export function SwipeableFolder({
         <View style={styles.actionBg}>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: '#A0A0A0' }]}
-            onPress={() => { close(); setTimeout(onRename, 220); }}
+            onPress={() => { close(); setTimeout(onEdit, 220); }}
           >
             <Ionicons name="pencil-outline" size={17} color="#fff" />
           </TouchableOpacity>
@@ -183,7 +181,7 @@ export function SwipeableFolder({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Long-press floating menu */}
+      {/* Long-press floating menu — Edit and Delete */}
       {lifted && (
         <Modal visible transparent animationType="fade" onRequestClose={dismissLifted}>
           <View style={StyleSheet.absoluteFill}>
@@ -196,9 +194,7 @@ export function SwipeableFolder({
               styles.menu,
               { backgroundColor: pal.dialog, left: lifted.pageX, top: menuTop, width: lifted.width },
             ]}>
-              <MenuRow icon="pencil-outline"        label={t('rename_folder')} pal={pal} onPress={handleRename} />
-              <Sep pal={pal} />
-              <MenuRow icon="grid-outline"          label={t('change_icon')}   pal={pal} onPress={handleChangeIcon} />
+              <MenuRow icon="pencil-outline" label={t('edit_folder')} pal={pal} onPress={handleEdit} />
               <Sep pal={pal} />
               <MenuRow icon="trash-outline" label={t('delete_folder')} pal={pal} color="#E05C5C" onPress={handleDelete} />
             </View>

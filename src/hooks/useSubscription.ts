@@ -7,7 +7,6 @@ export function useSubscription() {
   const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
-    if (__DEV__) AsyncStorage.removeItem(KEY); // TEMP: remove after reset
     AsyncStorage.getItem(KEY).then(v => setIsSubscribed(v === '1'));
   }, []);
 
@@ -25,5 +24,12 @@ export function useSubscription() {
     setIsSubscribed(v === '1');
   };
 
-  return { isSubscribed, subscribe, restore };
+  // DEV ONLY: Temporary subscription downgrade for testing.
+  // Remove (or stop calling) before shipping to production.
+  const unsubscribe = async () => {
+    await AsyncStorage.removeItem(KEY);
+    setIsSubscribed(false);
+  };
+
+  return { isSubscribed, subscribe, restore, unsubscribe };
 }
