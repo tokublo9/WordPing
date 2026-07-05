@@ -14,7 +14,7 @@ export function useSubscription() {
     });
   }, []);
 
-  // ⚠️  Real IAP (StoreKit / Google Play) requires react-native-purchases
+  // Real IAP (StoreKit / Google Play) requires react-native-purchases
   // (RevenueCat) and a native build — it does NOT work in Expo Go.
   // Replace the two AsyncStorage calls below with Purchases.purchasePackage /
   // Purchases.restorePurchases once you set up a development build.

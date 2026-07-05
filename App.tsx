@@ -356,6 +356,14 @@ export default function App() {
       updateFolderNotif({ intervalSeconds: 0 });
       return;
     }
+    if (!notificationGranted) {
+      requestPermission().then(granted => {
+        setNotificationGranted(granted);
+        if (!granted) return;
+        updateFolderNotif({ intervalSeconds: seconds });
+      });
+      return;
+    }
     const conflicting = folders.find(
       f => f.id !== currentFolderId && (f.notifSettings?.intervalSeconds ?? 0) > 0
     );
@@ -1072,8 +1080,8 @@ export default function App() {
           {/* Thicker divider before settings group */}
           <View style={[menuStyles.groupSep, { backgroundColor: pal.border }]} />
 
-          {/* Group 2: Settings — notification shown only in cards context */}
-          {menuContext === 'cards' && notificationGranted && (
+          {/* Group 2: Settings — notification shown in cards context */}
+          {menuContext === 'cards' && (
             <>
               <TouchableOpacity
                 style={menuStyles.item}
