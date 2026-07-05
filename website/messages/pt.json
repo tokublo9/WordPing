@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "title": "WordPing — Aprenda inglês de forma mais inteligente",
+    "description": "Um aplicativo de cartões inteligente com significados por IA, temas bonitos e lembretes diários para quem leva o inglês a sério."
+  },
+  "nav": {
+    "features": "Funcionalidades",
+    "howItWorks": "Como funciona",
+    "download": "Baixar"
+  },
+  "hero": {
+    "badge": "Disponível no iOS",
+    "title": "Domine o inglês,\numa palavra de cada vez.",
+    "subtitle": "WordPing é um aplicativo de cartões inteligente com significados por IA, temas bonitos e lembretes diários — feito para quem leva o aprendizado a sério.",
+    "ctaNote": "Download gratuito"
+  },
+  "features": {
+    "badge": "Funcionalidades",
+    "title": "Tudo o que você precisa para aprender",
+    "subtitle": "Ferramentas simples, resultados poderosos.",
+    "cards": {
+      "flashcards": {
+        "title": "Cartões inteligentes",
+        "desc": "Deslize os cartões, vire-os para ver os significados e organize palavras em pastas. Estude no seu próprio ritmo."
+      },
+      "ai": {
+        "title": "Significados por IA",
+        "desc": "Obtenha definições instantâneas e contextuais para qualquer palavra — sem precisar buscar manualmente."
+      },
+      "test": {
+        "title": "Modos de teste",
+        "desc": "Desafie-se com Virar Palavra, Reordenar e o modo Teste para fixar o que aprendeu."
+      },
+      "notifications": {
+        "title": "Lembretes diários",
+        "desc": "Configure notificações personalizadas para nunca perder uma sessão. Pequenos hábitos, grandes resultados."
+      },
+      "themes": {
+        "title": "Temas bonitos",
+        "desc": "Personalize seu ambiente de estudo com temas premium — do Mar Profundo à Sakura ou Cidade Noturna."
+      },
+      "folders": {
+        "title": "Organize e foque",
+        "desc": "Agrupe palavras por tema, capítulo ou dificuldade. Organizado é mais eficiente."
+      }
+    }
+  },
+  "how": {
+    "badge": "Como funciona",
+    "title": "Comece em 3 passos simples",
+    "steps": {
+      "1": {
+        "title": "Adicione suas palavras",
+        "desc": "Salve qualquer palavra ou frase que queira aprender. Adicione um significado, uma nota e organize em pastas."
+      },
+      "2": {
+        "title": "Estude todo dia",
+        "desc": "Revise seus cartões, faça testes e receba lembretes. A revisão diária é o caminho mais rápido para a fluência."
+      },
+      "3": {
+        "title": "Veja sua evolução",
+        "desc": "Conforme você domina mais palavras, seu vocabulário cresce. Acompanhe o progresso e veja resultados reais."
+      }
+    }
+  },
+  "cta": {
+    "title": "Comece a aprender hoje",
+    "subtitle": "Download gratuito. Temas premium disponíveis.",
+    "button": "Baixar na App Store"
+  },
+  "footer": {
+    "tagline": "Feito para quem aprende de verdade.",
+    "rights": "© 2025 WordPing. Todos os direitos reservados."
+  }
+}

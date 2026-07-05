@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "title": "WordPing — Apprenez l'anglais intelligemment",
+    "description": "Une application de fiches intelligente avec des définitions IA, de magnifiques thèmes et des rappels quotidiens pour les apprenants sérieux."
+  },
+  "nav": {
+    "features": "Fonctionnalités",
+    "howItWorks": "Comment ça marche",
+    "download": "Télécharger"
+  },
+  "hero": {
+    "badge": "Disponible sur iOS",
+    "title": "Maîtrisez l'anglais,\nmot par mot.",
+    "subtitle": "WordPing est une application de fiches intelligente avec des définitions IA, de magnifiques thèmes et des rappels quotidiens — pour les apprenants sérieux.",
+    "ctaNote": "Téléchargement gratuit"
+  },
+  "features": {
+    "badge": "Fonctionnalités",
+    "title": "Tout ce dont vous avez besoin",
+    "subtitle": "Des outils simples, des résultats puissants.",
+    "cards": {
+      "flashcards": {
+        "title": "Fiches intelligentes",
+        "desc": "Faites glisser les fiches, retournez-les pour voir les définitions et organisez les mots en dossiers. Apprenez à votre rythme."
+      },
+      "ai": {
+        "title": "Définitions par IA",
+        "desc": "Obtenez des définitions instantanées et contextuelles pour n'importe quel mot — sans recherche manuelle."
+      },
+      "test": {
+        "title": "Modes d'entraînement",
+        "desc": "Testez-vous avec Retournement de mots, Réorganisation et le mode Examen pour ancrer vos connaissances."
+      },
+      "notifications": {
+        "title": "Rappels quotidiens",
+        "desc": "Configurez des notifications personnalisées pour ne jamais manquer une session. De petites habitudes, de grands résultats."
+      },
+      "themes": {
+        "title": "Thèmes magnifiques",
+        "desc": "Personnalisez votre espace d'apprentissage avec des skins premium — des Grands Fonds à Sakura ou Night City."
+      },
+      "folders": {
+        "title": "Organiser & se concentrer",
+        "desc": "Regroupez vos mots par thème, chapitre ou difficulté. Organisé, c'est plus efficace."
+      }
+    }
+  },
+  "how": {
+    "badge": "Comment ça marche",
+    "title": "Commencez en 3 étapes",
+    "steps": {
+      "1": {
+        "title": "Ajoutez vos mots",
+        "desc": "Sauvegardez les mots ou expressions que vous souhaitez apprendre. Ajoutez une définition, une note et classez-les en dossiers."
+      },
+      "2": {
+        "title": "Étudiez chaque jour",
+        "desc": "Parcourez vos fiches, passez des tests et recevez des rappels. La révision quotidienne est la voie la plus rapide vers la fluidité."
+      },
+      "3": {
+        "title": "Constatez vos progrès",
+        "desc": "À mesure que vous maîtrisez plus de mots, votre vocabulaire s'enrichit. Voyez des résultats concrets au fil du temps."
+      }
+    }
+  },
+  "cta": {
+    "title": "Commencez à apprendre aujourd'hui",
+    "subtitle": "Téléchargement gratuit. Thèmes premium disponibles.",
+    "button": "Télécharger sur l'App Store"
+  },
+  "footer": {
+    "tagline": "Conçu pour ceux qui apprennent sérieusement.",
+    "rights": "© 2025 WordPing. Tous droits réservés."
+  }
+}

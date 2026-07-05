@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "title": "WordPing — Englisch intelligenter lernen",
+    "description": "Eine smarte Lernkarten-App mit KI-Bedeutungen, schönen Designs und täglichen Erinnerungen für ernsthafte Englischlernende."
+  },
+  "nav": {
+    "features": "Funktionen",
+    "howItWorks": "So funktioniert's",
+    "download": "Herunterladen"
+  },
+  "hero": {
+    "badge": "Verfügbar auf iOS",
+    "title": "Englisch meistern,\nein Wort nach dem anderen.",
+    "subtitle": "WordPing ist eine smarte Lernkarten-App mit KI-Bedeutungen, wunderschönen Themes und täglichen Erinnerungen — für ernsthafte Lernende.",
+    "ctaNote": "Kostenlos herunterladen"
+  },
+  "features": {
+    "badge": "Funktionen",
+    "title": "Alles was du zum Lernen brauchst",
+    "subtitle": "Einfache Werkzeuge, starke Ergebnisse.",
+    "cards": {
+      "flashcards": {
+        "title": "Smarte Lernkarten",
+        "desc": "Wische durch Karten, klappe sie um und organisiere Wörter in Ordnern. Lerne in deinem eigenen Tempo."
+      },
+      "ai": {
+        "title": "KI-gestützte Bedeutungen",
+        "desc": "Erhalte sofortige, kontextbezogene Definitionen für jedes Wort — kein manuelles Nachschlagen nötig."
+      },
+      "test": {
+        "title": "Testmodi",
+        "desc": "Fordere dich selbst heraus mit Wortumdrehen, Wörter sortieren und dem Testmodus, um dein Gedächtnis zu festigen."
+      },
+      "notifications": {
+        "title": "Tägliche Erinnerungen",
+        "desc": "Richte individuelle Push-Benachrichtigungen ein, damit du keine Lernsession verpasst. Kleine Gewohnheiten, große Ergebnisse."
+      },
+      "themes": {
+        "title": "Wunderschöne Themes",
+        "desc": "Personalisiere deine Lernumgebung mit Premium-Skins — von Tiefsee bis Sakura oder Night City."
+      },
+      "folders": {
+        "title": "Organisieren & fokussieren",
+        "desc": "Gruppiere deine Wörter nach Thema, Kapitel oder Schwierigkeitsgrad. Organisiert ist effizient."
+      }
+    }
+  },
+  "how": {
+    "badge": "So funktioniert's",
+    "title": "In 3 einfachen Schritten starten",
+    "steps": {
+      "1": {
+        "title": "Wörter hinzufügen",
+        "desc": "Speichere jedes Wort oder jede Phrase, die du lernen möchtest. Füge eine Bedeutung und Notiz hinzu und sortiere sie in Ordner."
+      },
+      "2": {
+        "title": "Täglich lernen",
+        "desc": "Blättere durch deine Karten, mache Tests und lass dich erinnern. Tägliche Wiederholung ist der schnellste Weg zur Sprachkompetenz."
+      },
+      "3": {
+        "title": "Deinen Fortschritt beobachten",
+        "desc": "Mit jedem gemeisterten Wort wächst dein Wortschatz. Verfolge deinen Fortschritt und erlebe echte Ergebnisse."
+      }
+    }
+  },
+  "cta": {
+    "title": "Fange heute an zu lernen",
+    "subtitle": "Kostenlos herunterladen. Premium-Themes verfügbar.",
+    "button": "Im App Store herunterladen"
+  },
+  "footer": {
+    "tagline": "Gebaut für Menschen, die es ernst meinen.",
+    "rights": "© 2025 WordPing. Alle Rechte vorbehalten."
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "title": "WordPing — Học tiếng Anh thông minh hơn",
+    "description": "Ứng dụng flashcard thông minh với nghĩa từ AI, giao diện đẹp và nhắc nhở hàng ngày dành cho người học tiếng Anh nghiêm túc."
+  },
+  "nav": {
+    "features": "Tính năng",
+    "howItWorks": "Cách hoạt động",
+    "download": "Tải xuống"
+  },
+  "hero": {
+    "badge": "Có trên iOS",
+    "title": "Thành thạo tiếng Anh,\ntừng từ một.",
+    "subtitle": "WordPing là ứng dụng flashcard thông minh với nghĩa từ AI, giao diện đẹp và nhắc nhở hàng ngày — dành cho những người học nghiêm túc.",
+    "ctaNote": "Tải miễn phí"
+  },
+  "features": {
+    "badge": "Tính năng",
+    "title": "Tất cả những gì bạn cần để học",
+    "subtitle": "Công cụ đơn giản, kết quả mạnh mẽ.",
+    "cards": {
+      "flashcards": {
+        "title": "Flashcard thông minh",
+        "desc": "Vuốt thẻ, lật để xem nghĩa và tổ chức từ vựng vào thư mục. Học theo tốc độ của bạn."
+      },
+      "ai": {
+        "title": "Nghĩa từ bằng AI",
+        "desc": "Nhận định nghĩa tức thì và phù hợp ngữ cảnh cho bất kỳ từ nào — không cần tra cứu thủ công."
+      },
+      "test": {
+        "title": "Chế độ kiểm tra",
+        "desc": "Thử thách bản thân với Lật từ, Sắp xếp từ và chế độ Kiểm tra để củng cố trí nhớ."
+      },
+      "notifications": {
+        "title": "Nhắc nhở hàng ngày",
+        "desc": "Đặt thông báo tùy chỉnh để không bỏ lỡ buổi học nào. Thói quen nhỏ, kết quả lớn."
+      },
+      "themes": {
+        "title": "Giao diện đẹp",
+        "desc": "Cá nhân hóa không gian học với giao diện cao cấp — từ Đại dương sâu đến Sakura hay Thành phố đêm."
+      },
+      "folders": {
+        "title": "Tổ chức & tập trung",
+        "desc": "Nhóm từ vựng theo chủ đề, chương hoặc độ khó. Có tổ chức là học hiệu quả hơn."
+      }
+    }
+  },
+  "how": {
+    "badge": "Cách hoạt động",
+    "title": "Bắt đầu trong 3 bước đơn giản",
+    "steps": {
+      "1": {
+        "title": "Thêm từ của bạn",
+        "desc": "Lưu bất kỳ từ hoặc cụm từ nào bạn muốn học. Thêm nghĩa, ghi chú và tổ chức vào thư mục."
+      },
+      "2": {
+        "title": "Học mỗi ngày",
+        "desc": "Lật thẻ, làm bài kiểm tra và nhận nhắc nhở. Ôn tập hàng ngày là con đường nhanh nhất để nói lưu loát."
+      },
+      "3": {
+        "title": "Thấy sự tiến bộ",
+        "desc": "Khi bạn nắm vững nhiều từ hơn, vốn từ vựng ngày càng tăng. Theo dõi tiến trình và thấy kết quả thực sự."
+      }
+    }
+  },
+  "cta": {
+    "title": "Bắt đầu học ngay hôm nay",
+    "subtitle": "Tải miễn phí. Giao diện cao cấp có sẵn.",
+    "button": "Tải trên App Store"
+  },
+  "footer": {
+    "tagline": "Được tạo ra cho những người học thực sự nghiêm túc.",
+    "rights": "© 2025 WordPing. Bảo lưu mọi quyền."
+  }
+}
