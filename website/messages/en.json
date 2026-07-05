@@ -1,72 +1,72 @@
 {
   "meta": {
     "title": "WordPing — Learn English Smarter",
-    "description": "A smart flashcard app with AI-powered meanings, beautiful themes, and daily reminders for serious English learners."
+    "description": "A smart flashcard app with daily reminders, beautiful themes, and AI-powered meanings for serious English learners."
   },
   "nav": {
     "features": "Features",
     "howItWorks": "How It Works",
+    "premium": "Basic Plan",
     "download": "Download"
   },
   "hero": {
-    "badge": "Available on iOS",
-    "title": "Master English,\none word at a time.",
-    "subtitle": "WordPing is a smart flashcard app with AI-powered meanings, beautiful themes, and daily reminders — built for serious learners.",
+    "badge": "Available on iOS · Coming Soon",
+    "titleLine1": "Learn words through",
+    "titleHighlight": "smart reminders.",
+    "subtitle": "WordPing helps you remember vocabulary through simple flashcards and daily push notifications — study anywhere, anytime.",
+    "cta": "Coming Soon on the App Store",
     "ctaNote": "Free to download"
   },
   "features": {
     "badge": "Features",
     "title": "Everything you need to learn",
-    "subtitle": "Simple tools, powerful results.",
+    "subtitle": "Simple tools. Real results.",
     "cards": {
+      "reminders": {
+        "title": "Smart word reminders",
+        "desc": "Set custom push notifications for each folder. Daily reminders keep you on track without interrupting your day."
+      },
       "flashcards": {
-        "title": "Smart Flashcards",
-        "desc": "Swipe through cards, flip to reveal meanings, and organize words into folders. Study at your own pace."
+        "title": "Flip-card vocabulary review",
+        "desc": "Swipe through cards, flip to reveal meanings, and track your memory level for every word."
       },
-      "ai": {
-        "title": "AI-Powered Meanings",
-        "desc": "Get instant, context-aware definitions for any word — no manual lookup needed."
-      },
-      "test": {
-        "title": "Test Modes",
-        "desc": "Challenge yourself with Word Flip, Word Reorder, and Test mode to solidify your memory."
-      },
-      "notifications": {
-        "title": "Daily Reminders",
-        "desc": "Set custom push notifications so you never skip a study session. Small habits, big results."
+      "notes": {
+        "title": "Custom meanings & notes",
+        "desc": "Add your own translations, context notes, and example sentences so words stick in your memory."
       },
       "themes": {
-        "title": "Beautiful Themes",
-        "desc": "Personalize your learning environment with premium skins — from Deep Sea to Sakura to Night City."
-      },
-      "folders": {
-        "title": "Organize & Focus",
-        "desc": "Group your words into folders by topic, chapter, or difficulty. Stay organized, study smarter."
+        "title": "Beautiful skins & themes",
+        "desc": "Choose from 11+ solid color themes or premium wallpaper skins like Sakura, Deep Sea, and Night City."
       }
     }
   },
   "how": {
     "badge": "How it works",
-    "title": "Learn in 3 simple steps",
+    "title": "Learn in 4 simple steps",
     "steps": {
-      "1": {
-        "title": "Add Your Words",
-        "desc": "Save any word or phrase you want to learn. Add a meaning, a personal note, and organize them into folders."
-      },
-      "2": {
-        "title": "Study Every Day",
-        "desc": "Flip through your flashcards, take tests, and get reminded to study. Daily review is the fastest path to fluency."
-      },
-      "3": {
-        "title": "Watch Yourself Improve",
-        "desc": "As you master more words, your vocabulary grows. Track progress and see real results over time."
-      }
+      "1": { "title": "Add a word", "desc": "Save any English word or phrase you encounter. One tap is all it takes." },
+      "2": { "title": "Write meaning & note", "desc": "Add your own translation and a personal note to make the word stick." },
+      "3": { "title": "Get reminders", "desc": "WordPing sends push notifications so you never forget to study." },
+      "4": { "title": "Review anytime", "desc": "Flip cards, take tests, and reinforce your vocabulary at your own pace." }
     }
   },
+  "premium": {
+    "badge": "WordPing Basic",
+    "title": "Unlock the full experience.",
+    "subtitle": "More colors, premium wallpaper skins, and deeper personalization.",
+    "colors_title": "11+ theme colors",
+    "colors_desc": "Match your mood with solid color themes — blue, teal, pink, and more.",
+    "skins_title": "Premium wallpaper skins",
+    "skins_desc": "Sakura, Night City, Deep Sea, Aurora, and more stunning skins.",
+    "personal_title": "Full personalization",
+    "personal_desc": "Flip, reorder, and test your vocabulary exactly the way you want.",
+    "cta": "Coming soon"
+  },
   "cta": {
-    "title": "Start learning today",
-    "subtitle": "Free to download. Premium themes available.",
-    "button": "Download on the App Store"
+    "title": "WordPing is coming soon.",
+    "subtitle": "Be the first to know when it launches on the App Store.",
+    "button": "Coming Soon on the App Store",
+    "note": "Free to download"
   },
   "footer": {
     "tagline": "Built for learners who mean it.",

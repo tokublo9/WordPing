@@ -2,7 +2,11 @@ import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations } from 'next-intl/server';
+import { Inter } from 'next/font/google';
 import { routing } from '@/i18n/routing';
+import '../globals.css';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 
 export function generateStaticParams() {
   return routing.locales.map(locale => ({ locale }));
@@ -39,8 +43,8 @@ export default async function LocaleLayout({
   const isRtl = locale === 'ar';
 
   return (
-    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'}>
-      <body>
+    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} className={inter.variable}>
+      <body className="font-sans">
         <NextIntlClientProvider messages={messages}>
           {children}
         </NextIntlClientProvider>

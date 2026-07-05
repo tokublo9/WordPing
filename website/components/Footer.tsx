@@ -1,19 +1,44 @@
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 export default function Footer() {
   const t = useTranslations('footer');
 
   return (
-    <footer className="bg-gray-900 border-t border-white/10 py-10 px-6">
-      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-[10px] font-black">WP</span>
+    <footer
+      style={{
+        background: '#06050f',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        paddingTop: 40,
+        paddingBottom: 40,
+      }}
+    >
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="overflow-hidden rounded-xl" style={{ width: 28, height: 28 }}>
+              <Image src="/icon.png" alt="WordPing" width={28} height={28} className="object-cover" />
+            </div>
+            <span className="font-bold text-white">WordPing</span>
           </div>
-          <span className="text-white font-bold">WordPing</span>
+
+          {/* Links */}
+          <div className="flex items-center gap-6">
+            <a href="#" className="text-xs text-white/30 transition-colors hover:text-white/60">
+              Privacy
+            </a>
+            <a href="#" className="text-xs text-white/30 transition-colors hover:text-white/60">
+              Terms
+            </a>
+          </div>
+
+          {/* Tagline + Copyright */}
+          <div className="text-right">
+            <p className="text-xs text-white/30">{t('tagline')}</p>
+            <p className="mt-1 text-xs text-white/20">{t('rights')}</p>
+          </div>
         </div>
-        <p className="text-gray-500 text-sm">{t('tagline')}</p>
-        <p className="text-gray-600 text-xs">{t('rights')}</p>
       </div>
     </footer>
   );

@@ -1,30 +1,66 @@
 import { useTranslations } from 'next-intl';
 
-const STEPS = ['1', '2', '3'] as const;
+const STEP_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'] as const;
 
 export default function HowItWorks() {
   const t = useTranslations('how');
 
   return (
-    <section id="how" className="py-24 px-6 bg-white">
-      <div className="max-w-5xl mx-auto">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <span className="text-xs font-semibold text-blue-600 uppercase tracking-widest">{t('badge')}</span>
-          <h2 className="mt-3 text-4xl font-black text-gray-900 tracking-tight">{t('title')}</h2>
+    <section
+      id="how"
+      style={{
+        background: '#09091a',
+        paddingTop: 96,
+        paddingBottom: 96,
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}
+    >
+      <div className="mx-auto max-w-6xl px-6">
+        {/* Header */}
+        <div className="mb-16 text-center">
+          <span className="mb-4 inline-block rounded-full border border-purple-500/20 bg-purple-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-purple-400">
+            {t('badge')}
+          </span>
+          <h2 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+            {t('title')}
+          </h2>
         </div>
 
         {/* Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-          {STEPS.map((step, i) => (
-            <div key={step} className="flex flex-col items-center text-center md:items-start md:text-left">
-              {/* Number */}
-              <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white text-xl font-black flex items-center justify-center mb-5 shrink-0">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          {(['1', '2', '3', '4'] as const).map((step, i) => (
+            <div key={step} className="relative flex flex-col">
+              {/* Connector line (desktop) */}
+              {i < 3 && (
+                <div
+                  className="absolute hidden lg:block"
+                  aria-hidden
+                  style={{
+                    top: 20,
+                    left: 'calc(100% - 0px)',
+                    width: '100%',
+                    height: 1,
+                    background: 'linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02))',
+                    zIndex: 0,
+                  }}
+                />
+              )}
+
+              {/* Number badge */}
+              <div
+                className="relative z-10 mb-5 flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-black text-white"
+                style={{ background: STEP_COLORS[i] }}
+              >
                 {i + 1}
               </div>
-              {/* Connector line (desktop only, between cards) */}
-              <h3 className="text-xl font-bold text-gray-900 mb-2">{t(`steps.${step}.title`)}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{t(`steps.${step}.desc`)}</p>
+
+              <h3 className="mb-2 text-base font-bold text-white">
+                {t(`steps.${step}.title`)}
+              </h3>
+              <p className="text-sm leading-relaxed text-white/40">
+                {t(`steps.${step}.desc`)}
+              </p>
             </div>
           ))}
         </div>

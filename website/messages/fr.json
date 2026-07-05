@@ -1,72 +1,84 @@
 {
   "meta": {
     "title": "WordPing — Apprenez l'anglais intelligemment",
-    "description": "Une application de fiches intelligente avec des définitions IA, de magnifiques thèmes et des rappels quotidiens pour les apprenants sérieux."
+    "description": "Flashcards, rappels quotidiens et significations générées par IA pour maîtriser le vocabulaire anglais."
   },
   "nav": {
     "features": "Fonctionnalités",
     "howItWorks": "Comment ça marche",
+    "premium": "Plan Basic",
     "download": "Télécharger"
   },
   "hero": {
-    "badge": "Disponible sur iOS",
-    "title": "Maîtrisez l'anglais,\nmot par mot.",
-    "subtitle": "WordPing est une application de fiches intelligente avec des définitions IA, de magnifiques thèmes et des rappels quotidiens — pour les apprenants sérieux.",
+    "badge": "Disponible sur iOS · Bientôt",
+    "titleLine1": "Apprenez des mots grâce à",
+    "titleHighlight": "des rappels intelligents.",
+    "subtitle": "WordPing vous aide à mémoriser le vocabulaire grâce à des flashcards et des notifications push quotidiennes.",
+    "cta": "Bientôt sur l'App Store",
     "ctaNote": "Téléchargement gratuit"
   },
   "features": {
     "badge": "Fonctionnalités",
-    "title": "Tout ce dont vous avez besoin",
-    "subtitle": "Des outils simples, des résultats puissants.",
+    "title": "Tout ce qu'il faut pour apprendre",
+    "subtitle": "Des outils simples. De vrais résultats.",
     "cards": {
+      "reminders": {
+        "title": "Rappels intelligents",
+        "desc": "Définissez des notifications push pour chaque dossier. Les rappels quotidiens vous gardent sur la bonne voie."
+      },
       "flashcards": {
-        "title": "Fiches intelligentes",
-        "desc": "Faites glisser les fiches, retournez-les pour voir les définitions et organisez les mots en dossiers. Apprenez à votre rythme."
+        "title": "Révision par flashcards",
+        "desc": "Faites glisser les cartes, retournez-les pour voir les significations et suivez votre niveau de mémorisation."
       },
-      "ai": {
-        "title": "Définitions par IA",
-        "desc": "Obtenez des définitions instantanées et contextuelles pour n'importe quel mot — sans recherche manuelle."
-      },
-      "test": {
-        "title": "Modes d'entraînement",
-        "desc": "Testez-vous avec Retournement de mots, Réorganisation et le mode Examen pour ancrer vos connaissances."
-      },
-      "notifications": {
-        "title": "Rappels quotidiens",
-        "desc": "Configurez des notifications personnalisées pour ne jamais manquer une session. De petites habitudes, de grands résultats."
+      "notes": {
+        "title": "Significations et notes personnalisées",
+        "desc": "Ajoutez vos propres traductions et notes pour que les mots restent gravés dans votre mémoire."
       },
       "themes": {
-        "title": "Thèmes magnifiques",
-        "desc": "Personnalisez votre espace d'apprentissage avec des skins premium — des Grands Fonds à Sakura ou Night City."
-      },
-      "folders": {
-        "title": "Organiser & se concentrer",
-        "desc": "Regroupez vos mots par thème, chapitre ou difficulté. Organisé, c'est plus efficace."
+        "title": "Beaux thèmes et apparences",
+        "desc": "Choisissez parmi 11+ thèmes de couleur unis ou des skins premium comme Sakura, Mer Profonde et Nuit Urbaine."
       }
     }
   },
   "how": {
     "badge": "Comment ça marche",
-    "title": "Commencez en 3 étapes",
+    "title": "Apprenez en 4 étapes simples",
     "steps": {
       "1": {
-        "title": "Ajoutez vos mots",
-        "desc": "Sauvegardez les mots ou expressions que vous souhaitez apprendre. Ajoutez une définition, une note et classez-les en dossiers."
+        "title": "Ajoutez un mot",
+        "desc": "Enregistrez n'importe quel mot ou phrase anglaise. Un seul appui suffit."
       },
       "2": {
-        "title": "Étudiez chaque jour",
-        "desc": "Parcourez vos fiches, passez des tests et recevez des rappels. La révision quotidienne est la voie la plus rapide vers la fluidité."
+        "title": "Écrivez la signification",
+        "desc": "Ajoutez votre propre traduction et une note personnelle pour retenir le mot."
       },
       "3": {
-        "title": "Constatez vos progrès",
-        "desc": "À mesure que vous maîtrisez plus de mots, votre vocabulaire s'enrichit. Voyez des résultats concrets au fil du temps."
+        "title": "Recevez des rappels",
+        "desc": "WordPing envoie des notifications pour que vous n'oubliiez jamais d'étudier."
+      },
+      "4": {
+        "title": "Révisez quand vous voulez",
+        "desc": "Utilisez des flashcards et des tests pour renforcer votre vocabulaire à votre rythme."
       }
     }
   },
+  "premium": {
+    "badge": "WordPing Basic",
+    "title": "Débloquez l'expérience complète.",
+    "subtitle": "Plus de couleurs, des skins premium et une personnalisation approfondie.",
+    "colors_title": "11+ couleurs de thème",
+    "colors_desc": "Accordez votre humeur avec des thèmes de couleur : bleu, sarcelle, rose et plus.",
+    "skins_title": "Skins de fond premium",
+    "skins_desc": "Sakura, Nuit Urbaine, Mer Profonde, Aurore et plus.",
+    "personal_title": "Personnalisation totale",
+    "personal_desc": "Retournez, réorganisez et testez votre vocabulaire comme vous le souhaitez.",
+    "cta": "Bientôt disponible"
+  },
   "cta": {
-    "title": "Commencez à apprendre aujourd'hui",
-    "subtitle": "Téléchargement gratuit. Thèmes premium disponibles.",
-    "button": "Télécharger sur l'App Store"
+    "title": "WordPing arrive bientôt.",
+    "subtitle": "Soyez le premier à savoir quand il arrive sur l'App Store.",
+    "button": "Bientôt sur l'App Store",
+    "note": "Téléchargement gratuit"
   },
   "footer": {
     "tagline": "Conçu pour ceux qui apprennent sérieusement.",
