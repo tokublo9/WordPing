@@ -83,22 +83,31 @@ function FallingItem({ spec }: { spec: FallSpec }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LEAVES: FallSpec[] = [
-  { xFrac: 0.05, w: 10, h: 7,  color: '#4CAF50', opacity: 0.38, duration: 7200, delay: 0,    sway: 22, spins: 1.5 },
-  { xFrac: 0.22, w: 8,  h: 5,  color: '#81C784', opacity: 0.30, duration: 8800, delay: 1300, sway: 16, spins: 2   },
-  { xFrac: 0.38, w: 12, h: 8,  color: '#388E3C', opacity: 0.32, duration: 6600, delay: 800,  sway: 26, spins: 1   },
-  { xFrac: 0.55, w: 7,  h: 5,  color: '#A5D6A7', opacity: 0.34, duration: 9200, delay: 2600, sway: 18, spins: 2   },
-  { xFrac: 0.68, w: 10, h: 7,  color: '#66BB6A', opacity: 0.28, duration: 7600, delay: 400,  sway: 20, spins: 1.5 },
-  { xFrac: 0.80, w: 9,  h: 6,  color: '#C8E6C9', opacity: 0.24, duration: 8200, delay: 3200, sway: 14, spins: 1   },
-  { xFrac: 0.14, w: 8,  h: 6,  color: '#2E7D32', opacity: 0.30, duration: 7000, delay: 1800, sway: 24, spins: 2   },
-  { xFrac: 0.91, w: 11, h: 7,  color: '#AED581', opacity: 0.32, duration: 7400, delay: 2900, sway: 18, spins: 1.5 },
+  { xFrac: 0.08, w: 8,  h: 5,  color: '#4CAF50', opacity: 0.26, duration: 11000, delay: 0,    sway: 14, spins: 0 },
+  { xFrac: 0.24, w: 6,  h: 4,  color: '#81C784', opacity: 0.20, duration: 13500, delay: 2100, sway: 11, spins: 0 },
+  { xFrac: 0.41, w: 9,  h: 6,  color: '#388E3C', opacity: 0.22, duration: 10000, delay: 950,  sway: 17, spins: 0 },
+  { xFrac: 0.57, w: 7,  h: 5,  color: '#A5D6A7', opacity: 0.24, duration: 13000, delay: 3800, sway: 10, spins: 0 },
+  { xFrac: 0.70, w: 8,  h: 5,  color: '#66BB6A', opacity: 0.18, duration: 11500, delay: 650,  sway: 18, spins: 0 },
+  { xFrac: 0.83, w: 6,  h: 4,  color: '#C8E6C9', opacity: 0.16, duration: 14500, delay: 5200, sway: 10, spins: 0 },
+  { xFrac: 0.16, w: 7,  h: 5,  color: '#2E7D32', opacity: 0.21, duration: 10500, delay: 2800, sway: 14, spins: 0 },
+];
+
+const GREEN_RAYS = [
+  { xFrac: 0.22, halfPeriod: 5500, delay: 0    },
+  { xFrac: 0.54, halfPeriod: 7800, delay: 3000 },
+  { xFrac: 0.80, halfPeriod: 6500, delay: 5200 },
+];
+
+const POLLEN = [
+  { xFrac: 0.20, yStart: H * 0.72, size: 2, maxOp: 0.18, riseMs: 7800,  pulseMs: 3600, delay: 0    },
+  { xFrac: 0.44, yStart: H * 0.65, size: 2, maxOp: 0.14, riseMs: 9800,  pulseMs: 4600, delay: 1700 },
+  { xFrac: 0.64, yStart: H * 0.76, size: 2, maxOp: 0.16, riseMs: 8800,  pulseMs: 4200, delay: 3100 },
+  { xFrac: 0.80, yStart: H * 0.60, size: 2, maxOp: 0.12, riseMs: 11500, pulseMs: 5400, delay: 850  },
+  { xFrac: 0.34, yStart: H * 0.82, size: 2, maxOp: 0.15, riseMs: 9300,  pulseMs: 4400, delay: 4000 },
 ];
 
 export function GreenNatureOverlay() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {LEAVES.map((spec, i) => <FallingItem key={i} spec={spec} />)}
-    </View>
-  );
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none" />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,22 +174,30 @@ export function BeautifulWoodsOverlay() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ROSE_PETALS: FallSpec[] = [
-  { xFrac: 0.08, w: 10, h: 7,  color: '#D4627A', opacity: 0.42, duration: 6800, delay: 0,    sway: 20, spins: 1.5 },
-  { xFrac: 0.22, w: 12, h: 8,  color: '#E88FA0', opacity: 0.34, duration: 8200, delay: 1500, sway: 24, spins: 2   },
-  { xFrac: 0.38, w: 8,  h: 6,  color: '#C44060', opacity: 0.38, duration: 7200, delay: 600,  sway: 16, spins: 1   },
-  { xFrac: 0.52, w: 11, h: 7,  color: '#F0A0B0', opacity: 0.30, duration: 9000, delay: 2800, sway: 22, spins: 2   },
-  { xFrac: 0.65, w: 9,  h: 6,  color: '#D4627A', opacity: 0.38, duration: 6400, delay: 400,  sway: 18, spins: 1.5 },
-  { xFrac: 0.78, w: 13, h: 9,  color: '#E07090', opacity: 0.32, duration: 9400, delay: 3400, sway: 26, spins: 1   },
-  { xFrac: 0.14, w: 8,  h: 6,  color: '#FFB8C6', opacity: 0.30, duration: 7800, delay: 1900, sway: 16, spins: 2   },
-  { xFrac: 0.90, w: 10, h: 7,  color: '#C44060', opacity: 0.34, duration: 7000, delay: 2500, sway: 20, spins: 1.5 },
+  { xFrac: 0.06, w: 9,  h: 6,  color: '#C44060', opacity: 0.34, duration: 11500, delay: 0,    sway: 12, spins: 0 },
+  { xFrac: 0.20, w: 11, h: 7,  color: '#E8829A', opacity: 0.26, duration: 14000, delay: 2100, sway: 10, spins: 0 },
+  { xFrac: 0.35, w: 8,  h: 5,  color: '#D4627A', opacity: 0.30, duration: 10500, delay: 950,  sway: 14, spins: 0 },
+  { xFrac: 0.50, w: 12, h: 8,  color: '#F0A0B0', opacity: 0.22, duration: 15000, delay: 3800, sway: 8,  spins: 0 },
+  { xFrac: 0.63, w: 9,  h: 6,  color: '#C44060', opacity: 0.28, duration: 12000, delay: 550,  sway: 16, spins: 0 },
+  { xFrac: 0.76, w: 11, h: 7,  color: '#E07090', opacity: 0.24, duration: 13000, delay: 5000, sway: 10, spins: 0 },
+  { xFrac: 0.12, w: 8,  h: 5,  color: '#FFB8C6', opacity: 0.22, duration: 14500, delay: 3100, sway: 12, spins: 0 },
+  { xFrac: 0.88, w: 10, h: 6,  color: '#D4627A', opacity: 0.26, duration: 11000, delay: 1700, sway: 14, spins: 0 },
+  { xFrac: 0.44, w: 9,  h: 6,  color: '#E8829A', opacity: 0.24, duration: 12500, delay: 4200, sway: 10, spins: 0 },
 ];
 
-export function RosesOverlay() {
+function RoseGlow() {
+  const pulse   = usePulse(7000, 0);
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.03, 0.09] });
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {ROSE_PETALS.map((spec, i) => <FallingItem key={i} spec={spec} />)}
-    </View>
+    <Animated.View style={{
+      position: 'absolute', bottom: 0, left: 0, right: 0,
+      height: H * 0.28, backgroundColor: '#C44060', opacity,
+    }} />
   );
+}
+
+export function RosesOverlay() {
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none" />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -189,15 +206,28 @@ export function RosesOverlay() {
 
 function WarmGlow() {
   const pulse   = usePulse(5500, 0);
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.04, 0.11] });
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.13] });
   return <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#FF7020', opacity }]} />;
+}
+
+function SunGlow() {
+  const pulse   = usePulse(7500, 1200);
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.07, 0.20] });
+  return (
+    <Animated.View style={{
+      position: 'absolute', top: -W * 0.18, right: -W * 0.18,
+      width: W * 0.75, height: W * 0.75, borderRadius: W * 0.375,
+      backgroundColor: '#FFD060', opacity,
+    }} />
+  );
 }
 
 interface CloudSpec { top: number; width: number; maxOp: number; color: string; driftPx: number; driftMs: number; delay: number; }
 const CLOUDS: CloudSpec[] = [
-  { top: H * 0.06, width: W * 0.62, maxOp: 0.08, color: '#FFD0A0', driftPx: 32,  driftMs: 14000, delay: 0    },
-  { top: H * 0.18, width: W * 0.82, maxOp: 0.06, color: '#FFB870', driftPx: -24, driftMs: 19000, delay: 4000 },
-  { top: H * 0.33, width: W * 0.54, maxOp: 0.07, color: '#FF9A60', driftPx: 28,  driftMs: 12000, delay: 2000 },
+  { top: H * 0.05, width: W * 0.65, maxOp: 0.10, color: '#FFD0A0', driftPx:  30, driftMs: 14000, delay: 0    },
+  { top: H * 0.16, width: W * 0.85, maxOp: 0.08, color: '#FFB870', driftPx: -22, driftMs: 19500, delay: 4000 },
+  { top: H * 0.30, width: W * 0.56, maxOp: 0.09, color: '#FF9A60', driftPx:  26, driftMs: 12500, delay: 2000 },
+  { top: H * 0.48, width: W * 0.74, maxOp: 0.06, color: '#FFD0A0', driftPx: -18, driftMs: 17000, delay: 6500 },
 ];
 
 function Cloud({ spec }: { spec: CloudSpec }) {
@@ -205,7 +235,7 @@ function Cloud({ spec }: { spec: CloudSpec }) {
   const translateX = drift.interpolate({ inputRange: [0, 1], outputRange: [0, spec.driftPx] });
   return (
     <Animated.View style={{
-      position: 'absolute', top: spec.top, left: W * 0.09,
+      position: 'absolute', top: spec.top, left: W * 0.08,
       width: spec.width, height: 44, borderRadius: 22,
       backgroundColor: spec.color, opacity: spec.maxOp,
       transform: [{ translateX }],
@@ -214,12 +244,7 @@ function Cloud({ spec }: { spec: CloudSpec }) {
 }
 
 export function SunsetOverlay() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <WarmGlow />
-      {CLOUDS.map((spec, i) => <Cloud key={i} spec={spec} />)}
-    </View>
-  );
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none" />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -227,24 +252,20 @@ export function SunsetOverlay() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SAKURA_PETALS: FallSpec[] = [
-  { xFrac: 0.04, w: 10, h: 7,  color: '#FFB7C5', opacity: 0.55, duration: 6200, delay: 0,    sway: 22, spins: 1   },
-  { xFrac: 0.18, w: 8,  h: 6,  color: '#FFC9D5', opacity: 0.46, duration: 8000, delay: 1100, sway: 26, spins: 1.5 },
-  { xFrac: 0.30, w: 12, h: 8,  color: '#FF90A8', opacity: 0.44, duration: 5700, delay: 600,  sway: 18, spins: 2   },
-  { xFrac: 0.45, w: 9,  h: 6,  color: '#FFADC0', opacity: 0.52, duration: 8800, delay: 2300, sway: 22, spins: 1   },
-  { xFrac: 0.58, w: 11, h: 7,  color: '#FFB7C5', opacity: 0.50, duration: 7000, delay: 400,  sway: 20, spins: 1.5 },
-  { xFrac: 0.70, w: 8,  h: 6,  color: '#FFC9D5', opacity: 0.42, duration: 7400, delay: 3200, sway: 16, spins: 2   },
-  { xFrac: 0.82, w: 10, h: 7,  color: '#FF90A8', opacity: 0.54, duration: 6000, delay: 1700, sway: 26, spins: 1   },
-  { xFrac: 0.12, w: 9,  h: 6,  color: '#FFADC0', opacity: 0.46, duration: 9200, delay: 2900, sway: 20, spins: 1.5 },
-  { xFrac: 0.40, w: 11, h: 7,  color: '#FFB7C5', opacity: 0.48, duration: 6800, delay: 1500, sway: 18, spins: 2   },
-  { xFrac: 0.93, w: 8,  h: 6,  color: '#FFC9D5', opacity: 0.40, duration: 7800, delay: 500,  sway: 22, spins: 1   },
+  { xFrac: 0.04, w: 10, h: 7,  color: '#FFB7C5', opacity: 0.46, duration: 9000,  delay: 0,    sway: 18, spins: 0.4 },
+  { xFrac: 0.18, w: 8,  h: 6,  color: '#FFC9D5', opacity: 0.38, duration: 11000, delay: 1300, sway: 22, spins: 0.4 },
+  { xFrac: 0.30, w: 12, h: 8,  color: '#FF90A8', opacity: 0.36, duration: 8200,  delay: 750,  sway: 16, spins: 0.4 },
+  { xFrac: 0.45, w: 9,  h: 6,  color: '#FFADC0', opacity: 0.44, duration: 12000, delay: 2600, sway: 20, spins: 0.4 },
+  { xFrac: 0.58, w: 11, h: 7,  color: '#FFB7C5', opacity: 0.42, duration: 9500,  delay: 450,  sway: 18, spins: 0.4 },
+  { xFrac: 0.70, w: 8,  h: 6,  color: '#FFC9D5', opacity: 0.34, duration: 10500, delay: 3600, sway: 14, spins: 0.4 },
+  { xFrac: 0.82, w: 10, h: 7,  color: '#FF90A8', opacity: 0.46, duration: 8500,  delay: 1900, sway: 22, spins: 0.4 },
+  { xFrac: 0.12, w: 9,  h: 6,  color: '#FFADC0', opacity: 0.38, duration: 12500, delay: 3200, sway: 18, spins: 0.4 },
+  { xFrac: 0.40, w: 11, h: 7,  color: '#FFB7C5', opacity: 0.40, duration: 10000, delay: 1600, sway: 16, spins: 0.4 },
+  { xFrac: 0.93, w: 8,  h: 6,  color: '#FFC9D5', opacity: 0.32, duration: 11500, delay: 650,  sway: 20, spins: 0.4 },
 ];
 
 export function SakuraOverlay() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {SAKURA_PETALS.map((spec, i) => <FallingItem key={i} spec={spec} />)}
-    </View>
-  );
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none" />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,21 +349,21 @@ export function GalaxyOverlay() {
 interface SnowSpec { xFrac: number; size: number; opacity: number; duration: number; delay: number; drift: number; }
 
 const SNOWFLAKES: SnowSpec[] = [
-  { xFrac: 0.05, size: 5, opacity: 0.68, duration: 5200, delay: 0,    drift: 11  },
-  { xFrac: 0.14, size: 3, opacity: 0.54, duration: 6800, delay: 800,  drift: -9  },
-  { xFrac: 0.25, size: 6, opacity: 0.64, duration: 4700, delay: 300,  drift: 13  },
-  { xFrac: 0.36, size: 4, opacity: 0.58, duration: 7200, delay: 1700, drift: -11 },
-  { xFrac: 0.47, size: 5, opacity: 0.70, duration: 5700, delay: 2500, drift: 9   },
-  { xFrac: 0.57, size: 3, opacity: 0.50, duration: 6200, delay: 400,  drift: -13 },
-  { xFrac: 0.67, size: 6, opacity: 0.62, duration: 5000, delay: 2100, drift: 11  },
-  { xFrac: 0.77, size: 4, opacity: 0.56, duration: 7500, delay: 1300, drift: -9  },
-  { xFrac: 0.87, size: 5, opacity: 0.66, duration: 5400, delay: 3400, drift: 11  },
-  { xFrac: 0.09, size: 4, opacity: 0.54, duration: 7000, delay: 1900, drift: -10 },
-  { xFrac: 0.32, size: 6, opacity: 0.60, duration: 5800, delay: 650,  drift: 16  },
-  { xFrac: 0.52, size: 3, opacity: 0.48, duration: 8000, delay: 2900, drift: -7  },
-  { xFrac: 0.72, size: 5, opacity: 0.64, duration: 4400, delay: 1100, drift: 13  },
-  { xFrac: 0.93, size: 4, opacity: 0.54, duration: 6500, delay: 3700, drift: -9  },
-  { xFrac: 0.41, size: 5, opacity: 0.58, duration: 6000, delay: 550,  drift: 10  },
+  { xFrac: 0.05, size: 3, opacity: 0.38, duration: 13000, delay: 0,    drift: 6  },
+  { xFrac: 0.13, size: 2, opacity: 0.28, duration: 16000, delay: 1400, drift: -5 },
+  { xFrac: 0.22, size: 3, opacity: 0.34, duration: 12000, delay: 600,  drift: 7  },
+  { xFrac: 0.31, size: 2, opacity: 0.30, duration: 15000, delay: 3000, drift: -6 },
+  { xFrac: 0.41, size: 3, opacity: 0.36, duration: 13500, delay: 4500, drift: 5  },
+  { xFrac: 0.50, size: 2, opacity: 0.26, duration: 17000, delay: 800,  drift: -7 },
+  { xFrac: 0.59, size: 3, opacity: 0.32, duration: 12500, delay: 4000, drift: 6  },
+  { xFrac: 0.68, size: 2, opacity: 0.28, duration: 15500, delay: 2200, drift: -5 },
+  { xFrac: 0.77, size: 3, opacity: 0.34, duration: 14000, delay: 5500, drift: 6  },
+  { xFrac: 0.86, size: 2, opacity: 0.30, duration: 16500, delay: 1800, drift: -6 },
+  { xFrac: 0.09, size: 2, opacity: 0.26, duration: 14500, delay: 3500, drift: 5  },
+  { xFrac: 0.36, size: 3, opacity: 0.32, duration: 13000, delay: 1000, drift: -6 },
+  { xFrac: 0.55, size: 2, opacity: 0.28, duration: 16000, delay: 5000, drift: 7  },
+  { xFrac: 0.73, size: 3, opacity: 0.36, duration: 12000, delay: 2700, drift: -5 },
+  { xFrac: 0.91, size: 2, opacity: 0.28, duration: 15000, delay: 400,  drift: 6  },
 ];
 
 function Snowflake({ spec }: { spec: SnowSpec }) {
@@ -360,11 +381,7 @@ function Snowflake({ spec }: { spec: SnowSpec }) {
 }
 
 export function SnowMountainOverlay() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {SNOWFLAKES.map((spec, i) => <Snowflake key={i} spec={spec} />)}
-    </View>
-  );
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none" />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -430,36 +447,46 @@ export function CyberNeonOverlay() {
 
 interface SteamSpec { xFrac: number; yStart: number; width: number; maxOp: number; riseMs: number; pulseMs: number; delay: number; }
 const STEAM: SteamSpec[] = [
-  { xFrac: 0.30, yStart: H * 0.68, width: 8,  maxOp: 0.22, riseMs: 4800, pulseMs: 2200, delay: 0    },
-  { xFrac: 0.43, yStart: H * 0.71, width: 10, maxOp: 0.18, riseMs: 5800, pulseMs: 2700, delay: 1100 },
-  { xFrac: 0.56, yStart: H * 0.66, width: 7,  maxOp: 0.20, riseMs: 4200, pulseMs: 2000, delay: 650  },
-  { xFrac: 0.68, yStart: H * 0.74, width: 9,  maxOp: 0.16, riseMs: 6400, pulseMs: 3000, delay: 2100 },
+  { xFrac: 0.28, yStart: H * 0.65, width: 7,  maxOp: 0.17, riseMs: 6200, pulseMs: 2800, delay: 0    },
+  { xFrac: 0.40, yStart: H * 0.68, width: 9,  maxOp: 0.13, riseMs: 7600, pulseMs: 3400, delay: 1300 },
+  { xFrac: 0.55, yStart: H * 0.62, width: 6,  maxOp: 0.15, riseMs: 5600, pulseMs: 2500, delay: 750  },
+  { xFrac: 0.69, yStart: H * 0.70, width: 8,  maxOp: 0.12, riseMs: 8400, pulseMs: 3800, delay: 2400 },
 ];
 
 function SteamWisp({ spec }: { spec: SteamSpec }) {
   const rise  = useFall(spec.riseMs, spec.delay);
   const pulse = usePulse(spec.pulseMs, spec.delay + 200);
-  const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [0, -160] });
+  const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [0, -180] });
   const translateX = rise.interpolate({
-    inputRange: [0, 0.33, 0.66, 1], outputRange: [0, 7, -5, 3],
+    inputRange: [0, 0.33, 0.66, 1], outputRange: [0, 8, -6, 3],
   });
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, spec.maxOp] });
   return (
     <Animated.View style={{
       position: 'absolute', left: spec.xFrac * W, top: spec.yStart,
-      width: spec.width, height: 70, borderRadius: spec.width / 2,
+      width: spec.width, height: 80, borderRadius: spec.width / 2,
       backgroundColor: '#D8C4A8', opacity,
       transform: [{ translateY }, { translateX }],
     }} />
   );
 }
 
+function CoffeeGlow() {
+  const pulse   = usePulse(4500, 600);
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.03, 0.07] });
+  return <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#FF8040', opacity }]} />;
+}
+
+const COFFEE_DUST = [
+  { xFrac: 0.36, yStart: H * 0.54, size: 2, maxOp: 0.13, riseMs: 9000,  pulseMs: 4400, delay: 550  },
+  { xFrac: 0.52, yStart: H * 0.47, size: 2, maxOp: 0.10, riseMs: 11000, pulseMs: 5400, delay: 2200 },
+  { xFrac: 0.65, yStart: H * 0.59, size: 2, maxOp: 0.11, riseMs: 10000, pulseMs: 4900, delay: 1150 },
+  { xFrac: 0.44, yStart: H * 0.68, size: 2, maxOp: 0.09, riseMs: 12000, pulseMs: 6000, delay: 3300 },
+  { xFrac: 0.74, yStart: H * 0.50, size: 2, maxOp: 0.12, riseMs: 9500,  pulseMs: 4600, delay: 1800 },
+];
+
 export function CoffeeHouseOverlay() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {STEAM.map((spec, i) => <SteamWisp key={i} spec={spec} />)}
-    </View>
-  );
+  return <View style={StyleSheet.absoluteFill} pointerEvents="none" />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,24 +542,15 @@ export function AuroraOverlay() {
 interface RainSpec { xFrac: number; dropH: number; opacity: number; duration: number; delay: number; }
 
 const RAINDROPS: RainSpec[] = [
-  { xFrac: 0.04, dropH: 18, opacity: 0.22, duration: 920,  delay: 0    },
-  { xFrac: 0.10, dropH: 14, opacity: 0.16, duration: 1120, delay: 210  },
-  { xFrac: 0.17, dropH: 22, opacity: 0.24, duration: 840,  delay: 720  },
-  { xFrac: 0.24, dropH: 16, opacity: 0.18, duration: 1030, delay: 340  },
-  { xFrac: 0.31, dropH: 20, opacity: 0.22, duration: 970,  delay: 570  },
-  { xFrac: 0.38, dropH: 14, opacity: 0.17, duration: 1180, delay: 110  },
-  { xFrac: 0.45, dropH: 24, opacity: 0.24, duration: 870,  delay: 830  },
-  { xFrac: 0.52, dropH: 16, opacity: 0.19, duration: 1060, delay: 430  },
-  { xFrac: 0.59, dropH: 20, opacity: 0.21, duration: 940,  delay: 670  },
-  { xFrac: 0.65, dropH: 14, opacity: 0.16, duration: 1220, delay: 260  },
-  { xFrac: 0.72, dropH: 22, opacity: 0.23, duration: 900,  delay: 940  },
-  { xFrac: 0.79, dropH: 16, opacity: 0.18, duration: 1090, delay: 60   },
-  { xFrac: 0.85, dropH: 18, opacity: 0.20, duration: 980,  delay: 620  },
-  { xFrac: 0.91, dropH: 14, opacity: 0.17, duration: 1150, delay: 380  },
-  { xFrac: 0.96, dropH: 20, opacity: 0.21, duration: 850,  delay: 780  },
-  { xFrac: 0.08, dropH: 16, opacity: 0.17, duration: 1080, delay: 480  },
-  { xFrac: 0.43, dropH: 22, opacity: 0.22, duration: 930,  delay: 880  },
-  { xFrac: 0.77, dropH: 14, opacity: 0.16, duration: 1200, delay: 160  },
+  { xFrac: 0.06, dropH: 18, opacity: 0.16, duration: 1340, delay: 0    },
+  { xFrac: 0.20, dropH: 14, opacity: 0.13, duration: 1580, delay: 420  },
+  { xFrac: 0.34, dropH: 22, opacity: 0.17, duration: 1200, delay: 900  },
+  { xFrac: 0.48, dropH: 16, opacity: 0.14, duration: 1460, delay: 250  },
+  { xFrac: 0.60, dropH: 20, opacity: 0.15, duration: 1320, delay: 710  },
+  { xFrac: 0.73, dropH: 14, opacity: 0.13, duration: 1640, delay: 140  },
+  { xFrac: 0.83, dropH: 22, opacity: 0.16, duration: 1260, delay: 1050 },
+  { xFrac: 0.91, dropH: 16, opacity: 0.13, duration: 1500, delay: 560  },
+  { xFrac: 0.14, dropH: 20, opacity: 0.14, duration: 1380, delay: 820  },
 ];
 
 function RainDrop({ spec }: { spec: RainSpec }) {
@@ -552,6 +570,77 @@ export function RainyWindowOverlay() {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {RAINDROPS.map((spec, i) => <RainDrop key={i} spec={spec} />)}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AnimalOverlay — dog paw prints appear one by one in a trail along the right
+// side of the screen, from bottom-right up toward the top-right, then fade out.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PAW_CYCLE = 21000;
+
+interface PawSpec { x: number; y: number; rot: number; delay: number; scale: number; }
+
+const PAWS: PawSpec[] = [
+  { x: W * 0.70, y: H * 0.80, rot:  12, delay:     0, scale: 1.0 },
+  { x: W * 0.80, y: H * 0.71, rot:  -8, delay:  3000, scale: 0.9 },
+  { x: W * 0.72, y: H * 0.61, rot:  12, delay:  6000, scale: 1.0 },
+  { x: W * 0.82, y: H * 0.52, rot:  -8, delay:  9000, scale: 0.9 },
+  { x: W * 0.74, y: H * 0.42, rot:  12, delay: 12000, scale: 1.0 },
+  { x: W * 0.84, y: H * 0.32, rot:  -8, delay: 15000, scale: 0.9 },
+  { x: W * 0.76, y: H * 0.22, rot:  12, delay: 18000, scale: 1.0 },
+];
+
+function usePawFade(delay: number): Animated.Value {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const fadeIn  = 280;
+    const hold    = 900;
+    const fadeOut = 380;
+    const idle    = PAW_CYCLE - delay - fadeIn - hold - fadeOut;
+    const steps: Animated.CompositeAnimation[] = [];
+    if (delay > 0) steps.push(Animated.delay(delay));
+    steps.push(Animated.timing(v, { toValue: 1, duration: fadeIn,  easing: Easing.out(Easing.ease), useNativeDriver: true }));
+    steps.push(Animated.delay(hold));
+    steps.push(Animated.timing(v, { toValue: 0, duration: fadeOut, easing: Easing.in(Easing.ease),  useNativeDriver: true }));
+    if (idle > 0) steps.push(Animated.delay(idle));
+    const anim = Animated.loop(Animated.sequence(steps));
+    anim.start();
+    return () => anim.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return v;
+}
+
+const PAW_COLOR = 'rgba(141, 104, 84, 0.52)';
+
+function PawPrintView({ spec }: { spec: PawSpec }) {
+  const opacity = usePawFade(spec.delay);
+  const s = spec.scale;
+  return (
+    <Animated.View style={{
+      position: 'absolute', left: spec.x, top: spec.y,
+      opacity, transform: [{ rotate: `${spec.rot}deg` }],
+    }}>
+      {/* Toe pads — two larger middle, two smaller outer */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 1.5 * s, marginBottom: 1.5 * s, justifyContent: 'center' }}>
+        <View style={{ width: 4.5 * s, height: 4.5 * s, borderRadius: 2.5 * s, backgroundColor: PAW_COLOR, marginBottom: 1.5 * s }} />
+        <View style={{ width: 5   * s, height: 5.5 * s, borderRadius: 2.5 * s, backgroundColor: PAW_COLOR }} />
+        <View style={{ width: 5   * s, height: 5.5 * s, borderRadius: 2.5 * s, backgroundColor: PAW_COLOR }} />
+        <View style={{ width: 4.5 * s, height: 4.5 * s, borderRadius: 2.5 * s, backgroundColor: PAW_COLOR, marginBottom: 1.5 * s }} />
+      </View>
+      {/* Main palm pad */}
+      <View style={{ width: 13 * s, height: 10 * s, borderRadius: 6.5 * s, backgroundColor: PAW_COLOR, alignSelf: 'center' }} />
+    </Animated.View>
+  );
+}
+
+export function AnimalOverlay() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {PAWS.map((spec, i) => <PawPrintView key={i} spec={spec} />)}
     </View>
   );
 }

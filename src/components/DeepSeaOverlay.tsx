@@ -1,18 +1,17 @@
 import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
 
 const { width: W, height: H } = Dimensions.get('window');
 
-// ── Bubble definitions ────────────────────────────────────────────────────────
-// Each bubble rises from bottom to top at a unique speed and horizontal position.
-// The `delay` staggers their initial start so they aren't all in sync.
+// ── Bubbles ───────────────────────────────────────────────────────────────────
 
 interface BubbleConfig {
-  xFrac: number;   // horizontal position as fraction of screen width
-  size: number;    // diameter in px
+  xFrac: number;
+  size: number;
   opacity: number;
-  duration: number; // ms to rise from bottom to top
-  delay: number;    // initial delay in ms (only affects first rise)
+  duration: number;
+  delay: number;
 }
 
 const BUBBLES: BubbleConfig[] = [
@@ -30,29 +29,23 @@ const BUBBLES: BubbleConfig[] = [
   { xFrac: 0.91, size: 5,  opacity: 0.23, duration: 5100, delay: 2800 },
 ];
 
-// ── Single animated bubble ────────────────────────────────────────────────────
-
 function Bubble({ xFrac, size, opacity, duration, delay }: BubbleConfig) {
   const y = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let anim: Animated.CompositeAnimation | null = null;
-    // setTimeout gives the initial stagger without adding a gap between loops.
     const timer = setTimeout(() => {
       anim = Animated.loop(
         Animated.timing(y, { toValue: 1, duration, useNativeDriver: true })
       );
       anim.start();
     }, delay);
-    return () => {
-      clearTimeout(timer);
-      anim?.stop();
-    };
+    return () => { clearTimeout(timer); anim?.stop(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const translateY = y.interpolate({
     inputRange: [0, 1],
-    // Start just below the bottom edge, end just above the top edge
     outputRange: [0, -(H + size + 20)],
   });
 
@@ -74,31 +67,39 @@ function Bubble({ xFrac, size, opacity, duration, delay }: BubbleConfig) {
   );
 }
 
-// ── Overlay component ─────────────────────────────────────────────────────────
+// ── Main overlay ───────────────────────────────────────────────────────────────
 
 interface Props {
-  // Animated.Value driven by the word-list FlatList's onScroll event.
-  // Controls how deep the gradient shifts toward navy/abyss.
   scrollY: Animated.Value;
 }
 
 export function DeepSeaOverlay({ scrollY }: Props) {
-  // Color interpolation: scroll drives the transition from ocean surface to abyss.
-  // Values chosen to feel gradual — still clearly blue at 400px scroll.
-  const bgColor = scrollY.interpolate({
-    inputRange: [0, 200, 600, 1400],
-    outputRange: ['#0B5EA8', '#073B7A', '#021B3F', '#020D1F'],
+  // As the user scrolls down, a dark veil grows over the gradient —
+  // simulating the loss of light as they descend into the deep ocean.
+  const depthOp = scrollY.interpolate({
+    inputRange: [0, 250, 900, 2200],
+    outputRange: [0, 0.05, 0.48, 0.78],
     extrapolate: 'clamp',
   });
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* Scroll-depth gradient — covers the whole screen */}
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: bgColor }]} />
-      {/* Rising air bubbles */}
-      {BUBBLES.map((b, i) => (
-        <Bubble key={i} {...b} />
-      ))}
+      {/* Single GPU-rendered gradient: seamless top-bright → bottom-dark ocean */}
+      <LinearGradient
+        colors={['#1585CC', '#0C5290', '#062A54', '#030F28', '#010610']}
+        locations={[0, 0.28, 0.55, 0.78, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* Depth veil: scroll darkens the whole scene progressively */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { backgroundColor: '#010610', opacity: depthOp }]}
+      />
+
+      {/* Rising bubbles */}
+      {BUBBLES.map((b, i) => <Bubble key={i} {...b} />)}
     </View>
   );
 }

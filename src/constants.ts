@@ -130,11 +130,11 @@ export const SOLID_SKINS: ThemeSkin[] = [
     },
   },
   {
-    id: 'solid_black', name: 'Black', emoji: '🖤',
-    darkStatusBar: true, themeColor: '#E2E8F0',
+    id: 'solid_teal', name: 'Teal', emoji: '💎',
+    darkStatusBar: false, themeColor: '#0D9488',
     palette: {
-      bg: '#0A0A0A', card: '#1A1A1A', text: '#F0F0F0', sub: '#888888',
-      border: 'rgba(255,255,255,0.1)', input: '#141414', chip: '#222222', dialog: '#1A1A1A',
+      bg: '#F0FDFA', card: '#FFFFFF', text: '#0D2E2A', sub: '#3D8C84',
+      border: 'rgba(13,148,136,0.12)', input: '#F5FFFE', chip: '#CCFBF1', dialog: '#FFFFFF',
     },
   },
   {
@@ -285,6 +285,10 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
     emoji: '🌅',
     darkStatusBar: false,
     themeColor: '#F97316',
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    wallpaperImage: require('../assets/wallpapers/sunset.png') as number,
+    wallpaperBlur: 25,
+    wallpaperOverlayColor: 'rgba(255, 240, 220, 0.38)',
     palette: {
       bg: '#FFF3E8', card: '#FFFFFF', text: '#3A1505', sub: '#B06030',
       border: 'rgba(249,115,22,0.15)', input: '#FFFBF5', chip: '#FFE8CC', dialog: '#FFFFFF',
@@ -296,6 +300,10 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
     emoji: '🌸',
     darkStatusBar: false,
     themeColor: '#F472B6',
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    wallpaperImage: require('../assets/wallpapers/sakura.png') as number,
+    wallpaperBlur: 25,
+    wallpaperOverlayColor: 'rgba(253, 240, 248, 0.42)',
     palette: {
       bg: '#FDF4F8', card: '#FFFFFF', text: '#4A1040', sub: '#C060A0',
       border: 'rgba(244,114,182,0.15)', input: '#FFF8FB', chip: '#FCE7F5', dialog: '#FFFFFF',
@@ -318,6 +326,10 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
     emoji: '🏔️',
     darkStatusBar: false,
     themeColor: '#60A5FA',
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    wallpaperImage: require('../assets/wallpapers/Snowy-mountain.png') as number,
+    wallpaperBlur: 28,
+    wallpaperOverlayColor: 'rgba(240, 248, 255, 0.42)',
     palette: {
       bg: '#F8FBFF', card: '#FFFFFF', text: '#0A1A2E', sub: '#608098',
       border: 'rgba(96,165,250,0.15)', input: '#F0F6FF', chip: '#DBEAFE', dialog: '#FFFFFF',
@@ -340,6 +352,10 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
     emoji: '☕',
     darkStatusBar: false,
     themeColor: '#92400E',
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    wallpaperImage: require('../assets/wallpapers/coffee-shop.png') as number,
+    wallpaperBlur: 0,
+    wallpaperOverlayColor: 'rgba(251, 240, 220, 0.12)',
     palette: {
       bg: '#FBF6F0', card: '#FFFFFF', text: '#2A1205', sub: '#7A5030',
       border: 'rgba(146,64,14,0.15)', input: '#FDFAF6', chip: '#F5E8D8', dialog: '#FFFFFF',
@@ -362,6 +378,10 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
     emoji: '🌹',
     darkStatusBar: false,
     themeColor: '#D4627A',
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    wallpaperImage: require('../assets/wallpapers/rose.png') as number,
+    wallpaperBlur: 25,
+    wallpaperOverlayColor: 'rgba(254, 240, 245, 0.40)',
     palette: {
       bg: '#FEF0F5', card: '#FFFFFF', text: '#4A0820', sub: '#B06080',
       border: 'rgba(212,98,122,0.15)', input: '#FFF5F8', chip: '#FDE8EE', dialog: '#FFFFFF',
@@ -389,6 +409,27 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
       border: 'rgba(96,165,250,0.18)', input: '#101C2C', chip: '#182840', dialog: '#152030',
     },
   },
+  {
+    id: 'skin_night_city',
+    name: 'Night City',
+    emoji: '🌃',
+    darkStatusBar: true,
+    themeColor: '#F59E0B',
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    wallpaperImage: require('../assets/wallpapers/night-city.png') as number,
+    wallpaperBlur: 15,
+    wallpaperOverlayColor: 'rgba(5, 3, 20, 0.25)',
+    palette: {
+      bg:     '#0A0816',
+      card:   '#131126',
+      text:   '#F5F0FF',
+      sub:    '#7B70A0',
+      border: 'rgba(245,158,11,0.15)',
+      input:  '#0D0B20',
+      chip:   '#1A1540',
+      dialog: '#131126',
+    },
+  },
 ];
 
 export const SKINS: ThemeSkin[] = [...LEGACY_SKINS, ...SOLID_SKINS, ...PREMIUM_SKINS];
@@ -398,7 +439,7 @@ export const NOTIF_FOLDER_KEY = 'wordping_notif_folder';
 export const LANGUAGE_KEY = 'app_language';
 export const DEFAULT_LANGUAGE = 'en-US';
 
-export const REVEAL_WIDTH = 210;
+export const REVEAL_WIDTH = 220;
 
 
 export const FREE_WORD_LIMIT = 30;

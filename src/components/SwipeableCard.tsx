@@ -170,6 +170,9 @@ export function SwipeableCard({
   const [loadingVoice, setLoadingVoice] = useState<'word' | 'meaning' | null>(null);
   // Ref mirrors state so async handlers always read the current value, not a stale closure.
   const loadingVoiceRef = useRef<'word' | 'meaning' | null>(null);
+  // Incremented on every speak call so the finishing handler of a superseded call
+  // does not clear the loading indicator that the new call just set.
+  const speakSeqRef = useRef(0);
 
   const setVoiceState = useCallback((v: 'word' | 'meaning' | null) => {
     loadingVoiceRef.current = v;
@@ -197,17 +200,29 @@ export function SwipeableCard({
   }, [t]);
 
   const speakWord = useCallback(async () => {
-    if (loadingVoiceRef.current) return; // Synchronous guard — no stale-closure risk.
+    if (loadingVoiceRef.current === 'word') {
+      ++speakSeqRef.current; // invalidate the in-flight call's seq check
+      stopPlayback();
+      setVoiceState(null);
+      return;
+    }
+    const seq = ++speakSeqRef.current;
     setVoiceState('word');
     try { await speak(item.word, isSubscribed, item.wordLang); } catch (e) { handleTTSError(e); }
-    setVoiceState(null);
+    if (speakSeqRef.current === seq) setVoiceState(null);
   }, [item.word, item.wordLang, isSubscribed, setVoiceState, handleTTSError]);
 
   const speakMeaning = useCallback(async () => {
-    if (loadingVoiceRef.current) return;
+    if (loadingVoiceRef.current === 'meaning') {
+      ++speakSeqRef.current;
+      stopPlayback();
+      setVoiceState(null);
+      return;
+    }
+    const seq = ++speakSeqRef.current;
     setVoiceState('meaning');
     try { await speak(item.meaning, isSubscribed, item.meaningLang); } catch (e) { handleTTSError(e); }
-    setVoiceState(null);
+    if (speakSeqRef.current === seq) setVoiceState(null);
   }, [item.meaning, item.meaningLang, isSubscribed, setVoiceState, handleTTSError]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -310,7 +325,7 @@ export function SwipeableCard({
                 <TouchableOpacity
                   onPress={voiceLocked ? onVoiceLocked : (isFlipped ? speakMeaning : speakWord)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  disabled={!voiceLocked && !!loadingVoice}
+                  disabled={voiceLocked}
                 >
                   {voiceLocked ? (
                     <Ionicons
@@ -426,7 +441,7 @@ export function SwipeableCard({
 }
 
 const styles = StyleSheet.create({
-  cardRow:       { marginBottom: 10 },
+  cardRow:       { marginBottom: 10, overflow: 'visible' },
   cardRowSelect: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
   // Selection circle
@@ -448,10 +463,12 @@ const styles = StyleSheet.create({
     width: REVEAL_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-between',
+    paddingLeft: 14,
+    paddingRight: 0,
   },
   circleBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 44, height: 44, borderRadius: 100,
     alignItems: 'center', justifyContent: 'center',
   },
 

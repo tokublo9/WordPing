@@ -19,7 +19,9 @@ export function SkinWallpaperOverlay({
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
       >
-        <BlurView intensity={blurIntensity} tint="light" style={StyleSheet.absoluteFill} />
+        {blurIntensity > 0 && (
+          <BlurView intensity={blurIntensity} tint="light" style={StyleSheet.absoluteFill} />
+        )}
         <View style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor }]} />
       </ImageBackground>
     </View>

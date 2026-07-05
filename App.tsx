@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { bootstrapData, persist, readFolders, persistFolders, DEFAULT_FOLDER_ID } from './src/lib/db';
+import { bootstrapData, persist, readFolders, persistFolders, DEFAULT_FOLDER_ID, WELCOME_FOLDER_ID } from './src/lib/db';
 import { LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, FolderNotifSettings, WordCard } from './src/types';
@@ -42,6 +42,7 @@ import { SkinPatternOverlay } from './src/components/SkinPatternOverlay';
 import { SkinWallpaperOverlay } from './src/components/SkinWallpaperOverlay';
 import { DeepSeaOverlay } from './src/components/DeepSeaOverlay';
 import {
+  AnimalOverlay,
   AuroraOverlay,
   BeautifulWoodsOverlay,
   CoffeeHouseOverlay,
@@ -319,7 +320,7 @@ export default function App() {
       setCards(migratedCards);
       setFolders(migratedFolders);
       applySettings(local.settings);
-      if (local.isFirstLaunch) setCurrentFolderId(DEFAULT_FOLDER_ID);
+      if (local.isFirstLaunch) setCurrentFolderId(WELCOME_FOLDER_ID);
       hasLoaded.current = true;
     })();
 
@@ -574,6 +575,7 @@ export default function App() {
       {activeSkin?.id === 'skin_coffee'    && <CoffeeHouseOverlay />}
       {activeSkin?.id === 'skin_aurora'    && <AuroraOverlay />}
       {activeSkin?.id === 'skin_rain'      && <RainyWindowOverlay />}
+      {activeSkin?.id === 'skin_paw'       && <AnimalOverlay />}
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
       {currentFolderId === null ? (

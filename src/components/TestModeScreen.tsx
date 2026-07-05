@@ -117,7 +117,7 @@ function ForgettingCurve({ pal, themeColor }: { pal: Palette; themeColor: string
       </Text>
 
       {/* Chart row: Y labels + plot */}
-      <View style={{ flexDirection: 'row', alignItems: 'stretch' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'stretch', overflow: 'visible' }}>
         {/* Y-axis labels */}
         <View style={{ width: Y_AXIS_W, height: CHART_H }}>
           <Text style={[smallFont, { position: 'absolute', top: -5, right: 6 }]}>100%</Text>
@@ -127,7 +127,7 @@ function ForgettingCurve({ pal, themeColor }: { pal: Palette; themeColor: string
 
         {/* Plot area */}
         <View
-          style={{ flex: 1, height: CHART_H }}
+          style={{ flex: 1, height: CHART_H, overflow: 'visible' }}
           onLayout={e => setPlotW(e.nativeEvent.layout.width)}
         >
           {/* Bottom baseline */}
@@ -201,7 +201,7 @@ function ForgettingCurve({ pal, themeColor }: { pal: Palette; themeColor: string
           <Text style={{
             position: 'absolute',
             left: x3 + 6,
-            top: CHART_H * (1 - r3) - 14,
+            top: CHART_H * (1 - r3) - 26,
             fontSize: 8, color: themeColor, fontWeight: '600',
           }}>{t('chart_after_review')}</Text>
 

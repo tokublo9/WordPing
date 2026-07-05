@@ -9,20 +9,99 @@ import { supabase } from './supabase';
 
 const SEEDED_KEY = 'wordping_seeded';
 
-export const DEFAULT_FOLDER_ID = 'default';
-
-const DEFAULT_FOLDER: Folder = {
-  id: DEFAULT_FOLDER_ID,
-  name: 'My Words',
-  createdAt: 0,
-};
+export const DEFAULT_FOLDER_ID  = 'default';  // kept for migration of existing users
+export const WELCOME_FOLDER_ID  = 'wp-welcome';
+const        WORDS_FOLDER_ID    = 'wp-words';
+const        SENTENCES_FOLDER_ID = 'wp-sentences';
 
 // Shown on a genuine first install. Supabase data replaces these in the background.
+const DEFAULT_FOLDERS: Folder[] = [
+  { id: WELCOME_FOLDER_ID,   name: 'Welcome to WordPing', createdAt: 1 },
+  { id: WORDS_FOLDER_ID,     name: 'Words',               createdAt: 2 },
+  { id: SENTENCES_FOLDER_ID, name: 'Sentences',           createdAt: 3 },
+];
+
 const DEFAULT_CARDS: WordCard[] = [
-  { id: 'default-1', word: 'hesitate',   meaning: 'to pause before doing something because you feel unsure or nervous', note: "Example: Don't hesitate to ask questions.", folderId: DEFAULT_FOLDER_ID },
-  { id: 'default-2', word: 'reliable',   meaning: 'someone or something you can trust or depend on',                   note: 'Example: He is very reliable.',             folderId: DEFAULT_FOLDER_ID },
-  { id: 'default-3', word: 'roughly',    meaning: 'approximately or about, not exactly',                               note: '',                                           folderId: DEFAULT_FOLDER_ID },
-  { id: 'default-4', word: 'figure out', meaning: 'to understand something or find a solution',                        note: '',                                           folderId: DEFAULT_FOLDER_ID },
+  // ── Welcome to WordPing (4 tutorial cards) ───────────────────────────────────
+  {
+    id: 'wp-w1',
+    word: 'Tap the speaker icon to hear pronunciation',
+    meaning: 'Tap the speaker icon to hear the word spoken aloud.',
+    note: 'Native audio helps you learn the correct sound.',
+    folderId: WELCOME_FOLDER_ID,
+  },
+  {
+    id: 'wp-w2',
+    word: 'Swipe left to edit or delete',
+    meaning: 'Swipe a card to the left to see edit and delete options.',
+    note: 'Manage your cards quickly with gestures.',
+    folderId: WELCOME_FOLDER_ID,
+  },
+  {
+    id: 'wp-w3',
+    word: 'Tap a card to flip it',
+    meaning: 'Tap any card to reveal the meaning on the back.',
+    note: 'Flashcard review helps words stick in your memory.',
+    folderId: WELCOME_FOLDER_ID,
+  },
+  {
+    id: 'wp-w4',
+    word: 'Turn on notifications to keep learning',
+    meaning: 'Enable push notifications to get daily word reminders.',
+    note: 'Short daily reviews lead to lasting progress.',
+    folderId: WELCOME_FOLDER_ID,
+  },
+  // ── Words (4 single-word examples) ──────────────────────────────────────────
+  {
+    id: 'wp-v1',
+    word: 'giddy',
+    meaning: 'Excited, nervous, and happy.',
+    note: 'I felt giddy with excitement before the trip.',
+    folderId: WORDS_FOLDER_ID,
+  },
+  {
+    id: 'wp-v2',
+    word: 'resilient',
+    meaning: 'Able to recover quickly from difficulties.',
+    note: 'She is incredibly resilient under pressure.',
+    folderId: WORDS_FOLDER_ID,
+  },
+  {
+    id: 'wp-v3',
+    word: 'eloquent',
+    meaning: 'Expressing ideas fluently and persuasively.',
+    note: 'His eloquent speech moved the entire audience.',
+    folderId: WORDS_FOLDER_ID,
+  },
+  {
+    id: 'wp-v4',
+    word: 'tantamount',
+    meaning: 'Equivalent to; essentially the same as.',
+    note: 'Silence on this issue is tantamount to approval.',
+    folderId: WORDS_FOLDER_ID,
+  },
+  // ── Sentences (3 phrase examples) ───────────────────────────────────────────
+  {
+    id: 'wp-s1',
+    word: 'It really hits home.',
+    meaning: 'It feels deeply personal or emotionally impactful.',
+    note: 'His words really hit home for me.',
+    folderId: SENTENCES_FOLDER_ID,
+  },
+  {
+    id: 'wp-s2',
+    word: 'I can imagine that.',
+    meaning: 'Used to show understanding or empathy toward someone.',
+    note: 'Common in natural everyday conversation.',
+    folderId: SENTENCES_FOLDER_ID,
+  },
+  {
+    id: 'wp-s3',
+    word: 'That makes a lot of sense.',
+    meaning: 'Used to say you understand and agree with an explanation.',
+    note: 'A polite and natural way to respond in discussions.',
+    folderId: SENTENCES_FOLDER_ID,
+  },
 ];
 
 export interface Settings {
@@ -133,8 +212,8 @@ export async function bootstrapData(onRemoteData: (data: AppData) => void): Prom
   if (local.cards.length === 0) {
     if (isFirstLaunch) {
       local.cards = DEFAULT_CARDS;
-      // Write the default folder synchronously so readFolders() sees it.
-      await AsyncStorage.setItem(FOLDERS_KEY, JSON.stringify([DEFAULT_FOLDER]));
+      // Write both default folders synchronously so readFolders() sees them.
+      await AsyncStorage.setItem(FOLDERS_KEY, JSON.stringify(DEFAULT_FOLDERS));
     }
 
     // Try to restore the user's real data from Supabase in the background.
