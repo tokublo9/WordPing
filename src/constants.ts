@@ -31,7 +31,7 @@ export const DARK: Palette = {
   border: '#2A2A4A', input: '#16162A', chip: '#2A2A4A', dialog: '#1C1C2E',
 };
 
-export const DEFAULT_THEME = '#7C6BF8';
+export const DEFAULT_THEME = FREE_THEME_COLOR;
 export const DEFAULT_INTERVAL = 1800;
 
 export const SKIN_KEY = 'theme_skin';

@@ -343,18 +343,19 @@ const SkinCard = memo(function SkinCard({
   const t = useLang();
 
   // Basic plan users have all themes available — no price labels; only show "Using".
-  // Free plan users see price labels.
+  // Free plan users see price labels; non-blue solid skins show a subscription badge.
   const statusLabel: string =
-    isSelected                          ? t('shop_using')
-    : isSubscribed                      ? ''
-    : isOwned && item.price > 0         ? t('shop_owned')
-    : item.price === 0                  ? t('shop_free')
-    :                                     `¥${item.price}`;
+    isSelected                            ? t('shop_using')
+    : isSubscribed                        ? ''
+    : (!isOwned && item.price === 0)      ? '★ Basic'
+    : (isOwned && item.price > 0)         ? t('shop_owned')
+    : item.price === 0                    ? t('shop_free')
+    :                                       `¥${item.price}`;
 
   const statusColor =
-    isSelected       ? themeColor
-    : isOwned        ? '#22C55E'
-    : item.price === 0 ? pal.sub
+    isSelected         ? themeColor
+    : isOwned          ? '#22C55E'
+    : item.price === 0 ? '#A855F7'    // locked solid skin → subscription badge color
     : '#EF4444';
 
   // Stable reference: item.id never changes (comes from the module-level constant).
@@ -459,10 +460,11 @@ interface Props {
   isSubscribed: boolean;
   pal: Palette;
   themeColor: string;
+  onUpgrade?: () => void;
 }
 
 export function KisekaeShopSheet({
-  visible, onClose, skinId, onPickSkin, isSubscribed, pal, themeColor,
+  visible, onClose, skinId, onPickSkin, isSubscribed, pal, themeColor, onUpgrade,
 }: Props) {
   const insets  = useSafeAreaInsets();
   const t       = useLang();
@@ -488,9 +490,12 @@ export function KisekaeShopSheet({
       .start(() => onClose());
   }, [onClose]);
 
-  const isOwned = useCallback((item: ShopItem): boolean =>
-    item.price === 0 || ownedIds.has(item.id) || (isSubscribed && ownedIds.has(item.id)),
-  [ownedIds, isSubscribed]);
+  const isOwned = useCallback((item: ShopItem): boolean => {
+    // solid_blue is always free; all other solid colors require a subscription.
+    if (item.id === 'solid_blue') return true;
+    if (!isSubscribed) return false;
+    return item.price === 0 || ownedIds.has(item.id);
+  }, [ownedIds, isSubscribed]);
 
   const handleTap = useCallback((item: ShopItem) => {
     if (skinId === item.id) {
@@ -500,10 +505,14 @@ export function KisekaeShopSheet({
     if (isOwned(item)) {
       const exists = SKINS.some(s => s.id === item.id);
       onPickSkin(exists ? item.id : null);
+    } else if (!isSubscribed && item.category === 'solid') {
+      // Free user tapping a locked solid color — show subscription upsell.
+      onUpgrade?.();
     } else {
+      // Premium skin: grant via in-app purchase coins.
       setOwnedIds(prev => new Set([...prev, item.id]));
     }
-  }, [skinId, onPickSkin, isOwned]);
+  }, [skinId, onPickSkin, isOwned, isSubscribed, onUpgrade]);
 
   const filtered = useMemo(
     () => SHOP_ITEMS.filter(

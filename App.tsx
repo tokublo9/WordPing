@@ -20,7 +20,7 @@ import { LangContext, translate } from './src/i18n';
 import type { Appearance, Folder, FolderNotifSettings, WordCard } from './src/types';
 import {
   DARK, DEFAULT_LANGUAGE,
-  DEFAULT_THEME, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, SKINS,
+  DEFAULT_THEME, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, SKINS,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
 import { appStyles as s } from './src/styles';
@@ -69,12 +69,13 @@ const LEVEL_FILTER_OPTIONS: Array<{ level: string; icon: string | null; color: s
 
 export default function App() {
   const systemScheme = useColorScheme();
-  const { isSubscribed, subscribe, restore, unsubscribe } = useSubscription();
+  const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
 
   const [cards, setCards] = useState<WordCard[]>([]);
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
   const [notificationGranted, setNotificationGranted] = useState(false);
   const [themeColor, setThemeColor] = useState(DEFAULT_THEME);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [appearance, setAppearance] = useState<Appearance>('system');
   const [skinId, setSkinId] = useState<string | null>(null);
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
@@ -320,6 +321,7 @@ export default function App() {
       setCards(migratedCards);
       setFolders(migratedFolders);
       applySettings(local.settings);
+      setSettingsLoaded(true);
       if (local.isFirstLaunch) setCurrentFolderId(WELCOME_FOLDER_ID);
       hasLoaded.current = true;
     })();
@@ -390,6 +392,18 @@ export default function App() {
   };
 
   // ── Theme ────────────────────────────────────────────────────────────────────
+
+  // Enforce free-plan color constraint. Runs after both settings AND subscription
+  // status have loaded (to avoid a race where isSubscribed is still the initial
+  // false before AsyncStorage resolves). Also re-runs on every subsequent change
+  // to isSubscribed or themeColor — covers the downgrade case at runtime.
+  useEffect(() => {
+    if (!settingsLoaded || !isSubscriptionLoaded) return;
+    if (!isSubscribed && themeColor !== FREE_THEME_COLOR) {
+      setThemeColor(FREE_THEME_COLOR);
+    }
+  }, [isSubscribed, isSubscriptionLoaded, settingsLoaded, themeColor]);
+
   const pickTheme = (color: string) => setThemeColor(color);
   const pickAppearance = (mode: Appearance) => setAppearance(mode);
   const pickLanguage = (code: string) => setLanguage(code);

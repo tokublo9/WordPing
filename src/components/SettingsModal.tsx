@@ -45,6 +45,7 @@ export function SettingsModal({
   skinId, onPickSkin, isSubscribed, onUpgrade: _onUpgrade,
   onSubscribe, onRestore, onManageSubscription, pal, language, onPickLanguage,
 }: Props) {
+  void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
   const insets = useSafeAreaInsets();
   const t = useLang();
   const [proSheetVisible, setProSheetVisible]     = useState(false);
@@ -171,6 +172,7 @@ export function SettingsModal({
           isSubscribed={isSubscribed}
           pal={pal}
           themeColor={themeColor}
+          onUpgrade={() => setProSheetVisible(true)}
         />
 
         <TutorialModal

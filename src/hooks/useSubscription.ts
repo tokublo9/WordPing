@@ -5,9 +5,13 @@ const KEY = 'wordping_pro';
 
 export function useSubscription() {
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(KEY).then(v => setIsSubscribed(v === '1'));
+    AsyncStorage.getItem(KEY).then(v => {
+      setIsSubscribed(v === '1');
+      setIsLoaded(true);
+    });
   }, []);
 
   // ⚠️  Real IAP (StoreKit / Google Play) requires react-native-purchases
@@ -31,5 +35,5 @@ export function useSubscription() {
     setIsSubscribed(false);
   };
 
-  return { isSubscribed, subscribe, restore, unsubscribe };
+  return { isSubscribed, isLoaded, subscribe, restore, unsubscribe };
 }
