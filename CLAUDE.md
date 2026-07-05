@@ -4,17 +4,15 @@
 
 WordPing is a mobile vocabulary learning app built with Expo / React Native.
 
-The main goal of the app is simple:
+Users add words they want to remember. WordPing helps them review those words through flip cards and scheduled push notifications throughout the day.
 
-Users add words they want to remember, and WordPing helps them review those words through cards and notifications.
-
-Do not make the app complicated. Keep it simple, clean, fast, and easy to understand.
+**Keep the app simple, clean, fast, and easy to understand. Do not add complexity that does not serve this goal.**
 
 ---
 
 ## 2. Most Important Rule
 
-Before changing code, always understand the current structure first.
+Before changing any code, understand the current structure first.
 
 Do not randomly rewrite large parts of the app.
 
@@ -28,356 +26,371 @@ When fixing a bug:
 
 ## 3. App Name
 
-The app name is:
-
-WordPing
-
-Do not rename it.
-Do not use old names like Vocabulary, Memora, or Wordloop.
+The app name is **WordPing**. Do not rename it. Do not use old names like Vocabulary, Memora, or Wordloop.
 
 ---
 
-## 4. Main Features
-
-WordPing has these core features:
-
-- Add vocabulary words
-- Add meaning
-- Add note
-- Review words with flip cards
-- Turn notification ON / OFF for words
-- Open notification settings from the three-dots menu
-- Customize appearance with theme colors and skins
-- Basic plan unlocks more colors and premium skins
-
----
-
-## 5. Three-Dots Menu
-
-The three-dots menu must include:
-
-1. Notification
-2. Settings
-
-The Notification item should appear above Settings.
-
-Tapping Notification should open the notification settings sheet / modal.
-
-Do not confuse this with the notification toggle on each word card.
-
----
-
-## 6. Theme Color Rules
-
-Free plan users can only use the blue theme color.
-
-Free theme color:
-
-#3B82F6
-
-If a user downgrades from Basic to Free, and their selected theme color is not blue, reset it to blue automatically.
-
-This check should happen:
-- when the app starts
-- when subscription state changes
-- when settings are loaded
-
-Never allow purple or other paid colors to remain active for Free users.
-
----
-
-## 7. Skins / Theme Shop
-
-The Theme Shop has two main categories:
-
-- Solid colors
-- Premium skins
-
-Free users:
-- Can only use the blue solid color
-
-Basic users:
-- Can use other solid colors
-- Can use premium skins
-
-Premium skin cards should preview the actual applied skin appearance.
-
-This means the card should show:
-- background image
-- blur overlay
-- decorative effects
-- paw prints
-- sparkles
-- gradients
-- any other real skin effects
-
-Do not show only the raw background image.
-
-The preview card should feel like a small version of the actual skin.
-
----
-
-## 8. Premium Skin Performance
-
-Do not re-render premium skin card images every time the Theme Shop opens.
-
-Use performance optimizations such as:
-- React.memo
-- useMemo
-- useCallback
-- stable style objects
-- stable skin config data
-- image caching where appropriate
-
-Opening the Theme Shop should feel smooth and instant.
-
----
-
-## 9. Blur Rule
-
-If a skin uses blur, the preview card must use the same blur strength as the actual applied skin.
-
-Do not make the preview blur stronger than the real skin.
-
----
-
-## 10. Word Card Rules
-
-Word cards should remain simple and readable.
-
-Front:
-- Word
-- Notification status if needed
-
-Back:
-- Meaning
-- Note
-
-Do not remove existing notification controls by accident.
-
-Do not change the word card layout unless the task specifically asks for it.
-
----
-
-## 11. Notification Rules
-
-Notifications are an important feature of WordPing.
-
-Do not remove:
-- notification settings
-- notification menu item
-- per-word notification ON / OFF logic
-- notification display settings
-
-Expected notification menu:
-- Open three-dots menu
-- Tap Notification
-- Notification settings opens
-
----
-
-## 12. Add / Edit Word Sheet
-
-The Add Word and Edit Word sheets should be clean and compact.
-
-They include:
-- Word
-- Meaning
-- Note
-- Save
-- Cancel
-
-There may also be AI buttons for:
-- generating meaning
-- generating example sentences / notes
-
-The translate / AI buttons should be placed close to the related input, not too far away.
-
----
-
-## 13. Subscription / Basic Plan Rules
-
-Basic plan unlocks:
-- more theme colors
-- premium skins
-- more customization
-
-Free plan should not show paid features as owned.
-
-If a free user taps a locked color or premium skin, show the upgrade sheet.
-
-Do not allow coin purchase logic for locked solid colors if the feature is subscription-based.
-
----
-
-## 14. Website Rules
-
-The website is separate from the Expo mobile app.
-
-Website folder:
-
-website/
-
-Do not put website files randomly into the Expo app structure.
-
-For website images, use:
-
-website/public/
-
-Example:
-
-website/public/images/hero.png
-
-In Next.js, use:
-
-/images/hero.png
-
-The website should be deployed on Vercel.
-
-If Vercel deploys from the main WordPing repo, set Root Directory to:
-
-website
-
----
-
-## 15. Website Quality Standard
-
-The WordPing website should look like a real product landing page.
-
-It should include:
-- Hero section
-- WordPing app name
-- clear tagline
-- app screenshot or mockup
-- feature cards
-- how it works section
-- Basic / Premium explanation
-- Coming Soon App Store button
-
-Do not make it look like default HTML.
-
-If the page looks like:
-- blue default links
-- default select box
-- unstyled layout
-- plain white page
-
-Then CSS / Tailwind is probably not loading.
-
-Fix the root cause instead of redesigning randomly.
-
----
-
-## 16. Git / Deploy Rule
-
-Local changes are not enough.
-
-For Vercel deployment:
-
-1. Change files locally
-2. git add .
-3. git commit
-4. git push origin main
-5. Vercel auto-deploys from GitHub
-
-If changes are not pushed, Vercel will still show the old version.
-
----
-
-## 17. Coding Style
-
-Keep code simple.
-
-Avoid:
-- unnecessary complexity
-- huge rewrites
-- random renaming
-- deleting working features
-- changing unrelated UI
-- creating duplicate logic
-
-Prefer:
-- small components
-- clear names
-- reusable constants
-- stable configs
-- simple state logic
-
----
-
-## 18. When Fixing Bugs
-
-Always check:
-- What worked before?
-- What recently changed?
-- Is it a rendering issue?
-- Is it a condition issue?
-- Is it a z-index / opacity issue?
-- Is it a subscription state issue?
-- Is it an AsyncStorage issue?
-- Is it a CSS / Tailwind issue?
-- Is it a Vercel root directory issue?
-
-Do not guess blindly.
-
----
-
-## 19. Communication Style
-
-When explaining changes to me, use simple English.
-
-Assume I am not an expert engineer.
-
-Explain like this:
-
-- What was broken
-- Why it happened
-- Which files you changed
-- What the fix does
-- How I can test it
-
-Avoid overly technical explanations unless necessary.
-
----
-
-## 20. Final Check Before Finishing
-
-Before saying the task is done, confirm:
-
-- App still runs
-- No important feature disappeared
-- Free / Basic plan rules still work
-- Theme colors are correct
-- Skins preview correctly
-- Notification menu still exists
-- Website builds if website files were changed
-- No blank page on Vercel
-- No unrelated files were changed
-
----
-
-## 21. Technical Reference
-
-### Commands
-
-```bash
-npm install --legacy-peer-deps   # install dependencies
-npx expo start                   # start dev server (scan QR with Expo Go)
-npx expo run:ios                 # build and run on iOS simulator
-npx expo run:android             # build and run on Android emulator
-npx expo start --web             # run in browser
-```
-
-No test runner is configured yet.
-
-### Architecture
-
-Entry point: `index.ts` → `registerRootComponent(App)` → `App.tsx`.
-
-The main UI lives in `App.tsx`. New components go under `src/components/`. New screens or features use React Navigation (not Expo Router). Shared constants go in `src/constants.ts`. The `@/*` alias resolves to `./src/*` per `tsconfig.json`.
-
-**Stack:** Expo 54, React Native 0.81.5, React 19, TypeScript 5.9 (strict mode).
+## 4. Tech Stack
+
+| Layer | Library / Version |
+|---|---|
+| Framework | Expo 54 / React Native 0.81.5 |
+| Language | TypeScript 5.9 (strict mode) |
+| React | 19 |
+| Icons | @expo/vector-icons (Ionicons) |
+| Notifications | expo-notifications |
+| Blur | expo-blur |
+| TTS | expo-speech |
+| Storage | @react-native-async-storage/async-storage |
+| Backend | Supabase (@supabase/supabase-js v2) |
+| AI | OpenAI GPT-4o-mini (`EXPO_PUBLIC_OPENAI_API_KEY`) |
+| Safe area | react-native-safe-area-context |
 
 **iOS bundle ID:** `com.daiki0219.english-app`
 
-**Website:** Next.js 15 App Router, next-intl v3.26, Tailwind CSS v3, deployed on Vercel. Located in `website/`.
+**Build system:** CNG — `ios/` and `android/` are gitignored and regenerated by EAS. Never commit them.
+
+---
+
+## 5. Commands
+
+```bash
+npm install --legacy-peer-deps   # install (always use --legacy-peer-deps)
+npx expo start                   # start dev server — scan QR with Expo Go
+npx expo run:ios                 # build and run on iOS simulator
+npx expo run:android             # build and run on Android emulator
+npx expo start --web             # run in browser (limited)
+```
+
+No test runner is configured. There are no automated tests.
+
+---
+
+## 6. Project Structure
+
+```
+App.tsx                         # Root component — all state, handlers, render
+index.ts                        # Entry point (registerRootComponent → App)
+src/
+  types.ts                      # All shared TypeScript interfaces
+  constants.ts                  # Theme colors, skins, interval options, AsyncStorage keys
+  styles.ts                     # Shared StyleSheet (appStyles)
+  i18n.ts                       # All translations + useLang() hook
+  notifications.ts              # requestPermission + rescheduleAllNotifications
+  hooks/
+    useSubscription.ts          # Basic plan state (AsyncStorage-backed)
+  lib/
+    db.ts                       # load/persist (AsyncStorage) + Supabase sync
+    tts.ts                      # Text-to-speech wrapper (expo-speech)
+    generateMeaning.ts          # AI meaning/note via OpenAI GPT-4o-mini
+    supabase.ts                 # Supabase client + anonymous auth
+  components/
+    SwipeableCard.tsx            # PanResponder card — flip, swipe-reveal, long-press menu
+    SwipeableFolder.tsx          # Folder row with swipe-reveal
+    WordModal.tsx                # Add / edit word sheet
+    NotificationModal.tsx        # Notification interval picker sheet
+    SettingsModal.tsx            # Settings: theme, appearance, skin, language
+    KisekaeShopSheet.tsx         # Theme Shop: solid colors + premium skins
+    SkinOverlays.tsx             # Decorative card overlays (patterns, sparkles)
+    SkinWallpaperOverlay.tsx     # Full-screen wallpaper for premium skins
+    SkinPatternOverlay.tsx       # Repeating pattern overlay (flowers, paws, stars)
+    FlipCardBrowser.tsx          # One-at-a-time flip card browser
+    TestModeScreen.tsx           # Multiple-choice quiz with mastery / spaced repetition
+    ReorderableList.tsx          # Drag-to-reorder list
+    AddFolderModal.tsx           # Create folder
+    FolderActionSheet.tsx        # Folder long-press actions
+    FolderCustomizeModal.tsx     # Folder icon + color
+    FolderPickerSheet.tsx        # Move a card to a different folder
+    ProSheet.tsx                 # Basic plan upgrade sheet
+    PaywallModal.tsx             # Plan comparison / paywall
+    LanguageModal.tsx            # App UI language picker
+    TutorialModal.tsx            # How-to-use guide
+    AdBannerPlaceholder.tsx      # Ad banner placeholder
+website/                        # Next.js marketing site (see Section 15)
+```
+
+---
+
+## 7. Data Model
+
+### WordCard (`src/types.ts`)
+```typescript
+interface WordCard {
+  id: string;
+  word: string;
+  meaning: string;
+  note: string;
+  notifOff?: boolean;       // true = excluded from notifications
+  folderId?: string;
+  wordLang?: string;        // BCP-47 for TTS, e.g. 'en-US'
+  meaningLang?: string;
+  testLevel?: 'perfect' | 'good' | 'slightly' | 'unknown';
+  testNextReview?: number;  // Unix ms — spaced repetition skip-until
+}
+```
+
+### Folder
+```typescript
+interface Folder {
+  id: string;
+  name: string;
+  createdAt: number;
+  icon?: string;
+  color?: string;
+  notifSettings?: { intervalSeconds: number; displayOnlyWord: boolean };
+}
+```
+
+---
+
+## 8. Main Features
+
+- Add words (word + meaning + note)
+- Flip cards to review
+- Folders — each folder has its own notification schedule
+- Test mode — multiple-choice quiz with mastery tracking
+- Flip mode — full-screen card browser
+- Notifications — per-folder interval, per-card mute
+- AI meaning generation (OpenAI)
+- Text-to-speech
+- Theme Shop (solid colors + premium skins)
+- Basic plan subscription
+
+---
+
+## 9. Three-Dots Menu
+
+The three-dots menu (`menuVisible` state in `App.tsx`) **must always contain**:
+
+1. Select entries
+2. Reorder cards
+3. Show / hide level labels (cards context only)
+4. **Notification** — opens `NotificationModal` — **always shown in cards context, never gated behind permission state**
+5. **Settings** — opens `SettingsModal`
+
+The Notification item appears **above** Settings. Do not gate it behind `notificationGranted`. The `notificationGranted` flag should only control whether notifications are actually scheduled — not whether the menu item is visible. Permission is requested the first time the user tries to enable a notification interval.
+
+---
+
+## 10. Theme Color Rules
+
+Free plan users can only use the blue theme color:
+
+```
+FREE_THEME_COLOR = '#3B82F6'
+DEFAULT_THEME    = FREE_THEME_COLOR
+```
+
+All other colors (Purple `#7C6BF8`, Pink `#EC4899`, Teal `#14B8A6`, Coral `#FF6B6B`) require a Basic plan.
+
+**If a user downgrades from Basic to Free**, reset `themeColor` to `FREE_THEME_COLOR` automatically. This check runs:
+- on app start (after AsyncStorage loads + subscription resolves)
+- whenever `isSubscribed` changes
+
+The sanitization effect in `App.tsx`:
+```typescript
+useEffect(() => {
+  if (!settingsLoaded || !isSubscriptionLoaded) return;
+  if (!isSubscribed && themeColor !== FREE_THEME_COLOR) {
+    setThemeColor(FREE_THEME_COLOR);
+  }
+}, [isSubscribed, isSubscriptionLoaded, settingsLoaded, themeColor]);
+```
+
+**Never** let a free user keep a paid color.
+
+---
+
+## 11. Skins / Theme Shop (`KisekaeShopSheet.tsx`)
+
+### Solid skins (`SOLID_SKINS` in `constants.ts`)
+- `solid_blue` — always free
+- All other solids — Basic plan required
+
+### Premium skins (`PREMIUM_SKINS` in `constants.ts`)
+15 skins: Deep Sea, Leaf Blur, Flower, Animal, Space, Sunset, Sakura, Galaxy, Snow Mountain, Cyber Neon, Coffee House, Beautiful Woods, Roses, Aurora, Rainy Window, Night City.
+
+All premium skins require a Basic plan.
+
+### Preview cards
+The preview card in the shop **must show the actual applied skin appearance**: background image, blur overlay, color tints, decorative patterns, sparkles, gradients. Do not show only the raw image. The preview should feel like a small version of the real skin.
+
+Blur strength in the preview must match the real skin — never stronger.
+
+### Performance
+Do not cause re-renders every time the shop opens. Use:
+- `React.memo` on preview card components
+- `useMemo` / `useCallback` for handlers and computed values
+- Stable skin config objects (defined in `constants.ts`, not inline)
+
+---
+
+## 12. Word Card Rules (`SwipeableCard.tsx`)
+
+Card structure:
+- **Front:** word text + optional level label + notification-off indicator (non-interactive) in top-right corner
+- **Back:** meaning + note (shown when flipped, themed background color)
+- **Swipe-reveal (right side):** notification toggle, move, edit, delete buttons
+- **Long-press overlay:** action menu with the same actions
+
+Do not change the word card layout unless the task specifically asks for it.
+
+Do not remove the `notifOff` indicator or the swipe-reveal notification button.
+
+---
+
+## 13. Notification Rules
+
+Key state in `App.tsx`:
+```typescript
+const [notificationGranted, setNotificationGranted] = useState(false);
+const [notificationModalVisible, setNotificationModalVisible] = useState(false);
+```
+
+`requestPermission()` is called once on mount. It returns `false` on simulators (`!Device.isDevice`). **Never gate the Notification menu item on `notificationGranted`.**
+
+When the user picks a non-zero interval in `NotificationModal`, if permission has not been granted yet, call `requestPermission()` first, then schedule only if granted.
+
+`rescheduleAllNotifications(cards, folders)` is called from a `useEffect` whenever `cards`, `folders`, or `notificationGranted` changes. It distributes up to 64 notification slots across all folders that have a non-zero interval.
+
+Per-card mute: `WordCard.notifOff = true` excludes that card from scheduling.
+
+---
+
+## 14. Subscription / Basic Plan
+
+Current implementation uses AsyncStorage as a stub. Real IAP requires `react-native-purchases` (RevenueCat) and a native build — it does not work in Expo Go.
+
+`useSubscription.ts` returns:
+```typescript
+{ isSubscribed, isLoaded, subscribe, restore, unsubscribe }
+```
+
+`isLoaded` becomes `true` after AsyncStorage resolves. The theme sanitization effect must wait for both `isLoaded` and `settingsLoaded` before running.
+
+Free plan limits:
+- 30 words max (`FREE_WORD_LIMIT`)
+- 10 TTS plays max (`FREE_VOICE_LIMIT`)
+- Blue theme color only
+- `solid_blue` skin only
+
+---
+
+## 15. Add / Edit Word Sheet (`WordModal.tsx`)
+
+Fields: Word, Meaning, Note, language selectors for each side, AI generate buttons, Save, Cancel.
+
+AI buttons sit close to their related input field. The translate/AI buttons should not be placed far from the field they affect.
+
+---
+
+## 16. App UI Language (`i18n.ts`, `LanguageModal.tsx`)
+
+Supported languages: English (US), Japanese, Korean, Chinese (Simplified), Spanish, French, German, Italian, Portuguese (BR).
+
+`useLang()` returns a `t(key: TranslationKey)` function. All UI strings go through this. Do not hard-code English strings in components.
+
+---
+
+## 17. Website (`website/`)
+
+The website is a separate Next.js 15 app deployed on Vercel. It is completely independent from the Expo app.
+
+**Stack:** Next.js 15 App Router, next-intl v3.26, Tailwind CSS v3, React 19.
+
+**Locales:** 12 — en, ja, ko, zh, es, fr, de, pt, vi, id, th, ar (JSON files in `website/messages/`).
+
+**Key layout pattern:**
+- `app/layout.tsx` — minimal pass-through, no `<html>`/`<body>`, no CSS import
+- `app/[locale]/layout.tsx` — owns `<html>`, `<body>`, imports `globals.css`, wraps with `NextIntlClientProvider`
+
+This is the canonical next-intl pattern. **Never import `globals.css` in the root layout.** If Tailwind stops working, check this first.
+
+**Static generation:** `generateStaticParams()` in the locale layout pre-renders all 12 locale pages at build time.
+
+**Images:** Put static assets in `website/public/`. Reference them as `/filename.png` in Next.js (not as a relative path).
+
+**Vercel deployment:** Set Root Directory to `website` in the Vercel project settings.
+
+If the deployed site looks like unstyled HTML (blue links, no layout), the CSS is not loading. Check that `globals.css` is imported in `app/[locale]/layout.tsx`, not the root layout.
+
+---
+
+## 18. Git / Deploy Workflow
+
+Local changes are not deployed until pushed.
+
+```bash
+git add <files>
+git commit -m "message"
+git push origin main
+```
+
+Vercel auto-deploys from `main`. Do not push broken builds.
+
+---
+
+## 19. Coding Style
+
+Keep code simple.
+
+**Avoid:**
+- Large rewrites of working code
+- Duplicate logic
+- Renaming things without a clear reason
+- Deleting features without being asked
+- Changing unrelated UI while fixing a bug
+
+**Prefer:**
+- Small, focused components
+- Constants defined in `constants.ts`, not inline
+- Stable config objects (avoids unnecessary re-renders)
+- Simple `useState` — no external state manager
+
+---
+
+## 20. When Fixing Bugs
+
+Check in this order:
+1. What worked before? What recently changed?
+2. Is it a **condition** issue? (e.g., gated behind a flag that is now false)
+3. Is it a **rendering** issue? (e.g., component not re-rendering)
+4. Is it a **z-index / absolute positioning** issue?
+5. Is it a **subscription state** issue? (isLoaded, isSubscribed)
+6. Is it an **AsyncStorage** issue? (async load not awaited)
+7. Is it a **CSS / Tailwind** issue? (website only)
+8. Is it a **Vercel root directory** issue? (website only)
+
+Do not guess blindly. Read the relevant file before changing it.
+
+---
+
+## 21. Communication Style
+
+Explain changes in simple English. Assume the reader is not an expert engineer.
+
+Structure every explanation like this:
+1. What was broken
+2. Why it happened
+3. Which files were changed
+4. What the fix does
+5. How to test it
+
+Avoid technical jargon unless necessary.
+
+---
+
+## 22. Final Check Before Finishing
+
+Before saying a task is done, confirm:
+
+- [ ] App still runs
+- [ ] No important feature disappeared
+- [ ] Free / Basic plan rules still work correctly
+- [ ] Theme colors reset properly on downgrade
+- [ ] Skins preview correctly in the shop
+- [ ] Notification menu item is still visible in the three-dots menu
+- [ ] Word card layout is unchanged (unless the task asked for a change)
+- [ ] Website builds without errors (if website files were changed)
+- [ ] No blank page on Vercel (if website was deployed)
+- [ ] No unrelated files were changed
