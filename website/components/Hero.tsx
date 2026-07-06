@@ -28,7 +28,7 @@ export default function Hero() {
       {/* Aurora blobs — dark mode only */}
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute dark:block hidden"
+        className="pointer-events-none absolute hidden dark:block"
         style={{
           width: 700, height: 700, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%)',
@@ -39,7 +39,7 @@ export default function Hero() {
       />
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute dark:block hidden"
+        className="pointer-events-none absolute hidden dark:block"
         style={{
           width: 500, height: 500, borderRadius: '50%',
           background: 'radial-gradient(circle, rgba(139,92,246,0.14) 0%, transparent 70%)',
@@ -49,7 +49,7 @@ export default function Hero() {
         transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
       />
 
-      {/* Light mode subtle gradient top */}
+      {/* Light mode subtle tint */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 dark:hidden"
@@ -61,7 +61,7 @@ export default function Hero() {
       {/* Subtle grid — dark mode only */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.025] dark:block hidden"
+        className="pointer-events-none absolute inset-0 hidden opacity-[0.025] dark:block"
         style={{
           backgroundImage:
             'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
@@ -74,7 +74,6 @@ export default function Hero() {
 
           {/* ── Left: copy ── */}
           <div className="flex-1 text-center lg:text-left">
-            {/* Badge */}
             <motion.div
               {...fadeUp(0)}
               className="mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold text-blue-500 dark:text-blue-400"
@@ -88,7 +87,6 @@ export default function Hero() {
               {t('badge')}
             </motion.div>
 
-            {/* Headline */}
             <motion.h1
               {...fadeUp(0.1)}
               className="mb-6 text-balance text-5xl font-black leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl"
@@ -107,7 +105,6 @@ export default function Hero() {
               </span>
             </motion.h1>
 
-            {/* Subtitle */}
             <motion.p
               {...fadeUp(0.2)}
               className="mx-auto mb-10 max-w-md text-balance text-lg leading-relaxed lg:mx-0"
@@ -116,7 +113,6 @@ export default function Hero() {
               {t('subtitle')}
             </motion.p>
 
-            {/* CTA */}
             <motion.div {...fadeUp(0.3)} className="flex flex-col items-center gap-3 lg:items-start">
               <motion.a
                 href="#download"
@@ -138,24 +134,24 @@ export default function Hero() {
             </motion.div>
           </div>
 
-          {/* ── Right: screenshots ── */}
+          {/* ── Right: 3 screenshots ── */}
           <motion.div
             className="relative flex-shrink-0 flex items-end justify-center gap-4"
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.9, delay: 0.15, ease: EASE }}
           >
-            {/* Glow behind */}
+            {/* Soft glow behind screenshots */}
             <div
               aria-hidden
               className="absolute inset-0 -z-10"
               style={{
-                background: 'radial-gradient(ellipse 70% 60% at 50% 60%, rgba(59,130,246,0.18) 0%, rgba(139,92,246,0.1) 50%, transparent 80%)',
+                background: 'radial-gradient(ellipse 80% 70% at 50% 65%, rgba(59,130,246,0.15) 0%, rgba(139,92,246,0.09) 50%, transparent 80%)',
                 filter: 'blur(32px)',
               }}
             />
 
-            {/* Secondary screenshot — partially behind, left */}
+            {/* Left: flip card — visible on lg+ */}
             <motion.div
               className="relative hidden lg:block"
               style={{ marginBottom: -24 }}
@@ -165,13 +161,13 @@ export default function Hero() {
               <div
                 className="overflow-hidden rounded-[32px]"
                 style={{
-                  width: 180,
-                  boxShadow: '0 24px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)',
+                  width: 170,
+                  boxShadow: '0 24px 60px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.07)',
                 }}
               >
                 <Image
-                  src="/iphone2.png"
-                  alt="Flip card view"
+                  src="/images/flip-card.png"
+                  alt="Flip card review"
                   width={390}
                   height={844}
                   className="block w-full"
@@ -180,21 +176,21 @@ export default function Hero() {
               </div>
             </motion.div>
 
-            {/* Main screenshot — front and center */}
+            {/* Center: Night City skin — main hero shot */}
             <motion.div
-              animate={{ y: [0, -8, 0] }}
+              animate={{ y: [0, -10, 0] }}
               transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
             >
               <div
                 className="overflow-hidden rounded-[40px]"
                 style={{
-                  width: 230,
-                  boxShadow: '0 40px 80px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)',
+                  width: 235,
+                  boxShadow: '0 40px 80px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.07)',
                 }}
               >
                 <Image
-                  src="/iphone1.png"
-                  alt="WordPing word list"
+                  src="/images/skin-night-city.png"
+                  alt="WordPing with Night City skin"
                   width={390}
                   height={844}
                   className="block w-full"
@@ -203,7 +199,7 @@ export default function Hero() {
               </div>
             </motion.div>
 
-            {/* Tertiary screenshot — right, peeking */}
+            {/* Right: Leaf skin — visible on xl+ */}
             <motion.div
               className="relative hidden xl:block"
               style={{ marginBottom: -40 }}
@@ -213,13 +209,13 @@ export default function Hero() {
               <div
                 className="overflow-hidden rounded-[32px]"
                 style={{
-                  width: 160,
-                  boxShadow: '0 24px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)',
+                  width: 158,
+                  boxShadow: '0 24px 60px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.07)',
                 }}
               >
                 <Image
-                  src="/iphone3.png"
-                  alt="Test mode"
+                  src="/images/skin-leaf.png"
+                  alt="WordPing with Leaf skin"
                   width={390}
                   height={844}
                   className="block w-full"
