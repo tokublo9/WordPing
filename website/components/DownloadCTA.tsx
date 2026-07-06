@@ -1,3 +1,8 @@
+'use client';
+
+import { motion } from 'framer-motion';
+
+const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 import { useTranslations } from 'next-intl';
 
 export default function DownloadCTA() {
@@ -14,12 +19,16 @@ export default function DownloadCTA() {
     >
       {/* Gradient banner */}
       <div className="mx-auto max-w-5xl px-6">
-        <div
+        <motion.div
           className="relative overflow-hidden rounded-3xl px-8 py-16 text-center"
           style={{
             background: 'linear-gradient(135deg, #1e3a8a 0%, #1e1b6a 40%, #3b0764 100%)',
             boxShadow: '0 0 80px rgba(59,130,246,0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
           }}
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.7, ease: EASE }}
         >
           {/* Glow */}
           <div
@@ -69,7 +78,7 @@ export default function DownloadCTA() {
             </span>
             <span className="text-xs text-white/30">{t('note')}</span>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
