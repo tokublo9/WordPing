@@ -4,6 +4,7 @@ import Features from '@/components/Features';
 import HowItWorks from '@/components/HowItWorks';
 import ScreenshotGallery from '@/components/ScreenshotGallery';
 import PremiumSection from '@/components/PremiumSection';
+import { Component as PricingSection } from '@/components/ui/squishy-pricing';
 import DownloadCTA from '@/components/DownloadCTA';
 import Footer from '@/components/Footer';
 
@@ -16,6 +17,7 @@ export default function Page() {
       <ScreenshotGallery />
       <HowItWorks />
       <PremiumSection />
+      <PricingSection />
       <DownloadCTA />
       <Footer />
     </main>
