@@ -12,6 +12,9 @@ const config: Config = {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       colors: {
+        background: 'var(--color-background)',
+        foreground: 'var(--color-foreground)',
+        muted: { foreground: 'var(--color-muted-foreground)' },
         night: '#06050f',
         'night-card': '#0e0d1e',
       },
@@ -24,7 +27,13 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  plugins: [(function ({ addUtilities }: any) {
+    addUtilities({
+      '.transform-style-3d': { 'transform-style': 'preserve-3d' },
+      '.backface-hidden': { 'backface-visibility': 'hidden' },
+    });
+  })],
 };
 
 export default config;
