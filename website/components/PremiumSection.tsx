@@ -37,8 +37,7 @@ const ITEMS = [
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
+    opacity: 1, y: 0,
     transition: { duration: 0.55, delay: i * 0.1, ease: EASE },
   }),
 };
@@ -47,58 +46,35 @@ export default function PremiumSection() {
   const t = useTranslations('premium');
 
   return (
-    <section id="premium" style={{ background: '#06050f', paddingTop: 96, paddingBottom: 96 }}>
+    <section id="premium" style={{ background: 'var(--bg-page)', paddingTop: 96, paddingBottom: 96 }}>
       <div className="mx-auto max-w-5xl px-6">
         <motion.div
           className="relative overflow-hidden rounded-3xl p-10 text-center md:p-16"
           style={{
             background: 'linear-gradient(145deg, #111030 0%, #0a0820 50%, #0e0c28 100%)',
-            border: '1px solid rgba(139,92,246,0.2)',
+            border: '1px solid rgba(139,92,246,0.22)',
           }}
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
           transition={{ duration: 0.7, ease: EASE }}
-          whileHover={{ boxShadow: '0 0 80px rgba(139,92,246,0.2)' }}
+          whileHover={{ boxShadow: '0 0 80px rgba(139,92,246,0.18)' }}
         >
           {/* Animated aurora glow */}
           <motion.div
             aria-hidden
             className="pointer-events-none absolute inset-0"
             style={{
-              background:
-                'radial-gradient(ellipse 70% 50% at 50% 0%, rgba(139,92,246,0.18) 0%, transparent 70%)',
+              background: 'radial-gradient(ellipse 70% 50% at 50% 0%, rgba(139,92,246,0.2) 0%, transparent 70%)',
             }}
             animate={{ opacity: [0.7, 1, 0.7] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
           />
 
-          {/* Shimmer border */}
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-3xl"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(139,92,246,0.3) 0%, transparent 40%, transparent 60%, rgba(59,130,246,0.2) 100%)',
-              WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-              WebkitMaskComposite: 'xor',
-              maskComposite: 'exclude',
-              padding: 1,
-            }}
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-          />
-
-          {/* Content */}
           <div className="relative">
-            {/* Badge */}
             <motion.span
               className="mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-widest"
-              style={{
-                border: '1px solid rgba(167,139,250,0.3)',
-                background: 'rgba(139,92,246,0.1)',
-                color: '#a78bfa',
-              }}
+              style={{ border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(139,92,246,0.1)', color: '#a78bfa' }}
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
@@ -112,7 +88,7 @@ export default function PremiumSection() {
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1 }}
+              transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
             >
               {t('title')}
             </motion.h2>
@@ -121,21 +97,17 @@ export default function PremiumSection() {
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.15 }}
+              transition={{ duration: 0.6, delay: 0.15, ease: EASE }}
             >
               {t('subtitle')}
             </motion.p>
 
-            {/* Feature items */}
             <div className="grid gap-5 sm:grid-cols-3">
               {ITEMS.map(({ key, icon }, i) => (
                 <motion.div
                   key={key}
                   className="group rounded-2xl p-6 text-left"
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                  }}
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
                   variants={itemVariants}
                   custom={i}
                   initial="hidden"
@@ -160,7 +132,6 @@ export default function PremiumSection() {
               ))}
             </div>
 
-            {/* CTA */}
             <motion.div
               className="mt-10"
               initial={{ opacity: 0 }}
@@ -170,11 +141,7 @@ export default function PremiumSection() {
             >
               <span
                 className="inline-flex items-center gap-2 rounded-2xl px-8 py-3.5 text-sm font-bold text-white/60"
-                style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  cursor: 'default',
-                }}
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'default' }}
               >
                 🔜 {t('cta')}
               </span>

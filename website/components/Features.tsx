@@ -3,12 +3,14 @@
 import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 
+const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
+
 const FEATURES = [
   {
     key: 'reminders',
     color: '#3B82F6',
-    glow: 'rgba(59,130,246,0.15)',
-    border: 'rgba(59,130,246,0.2)',
+    glow: 'rgba(59,130,246,0.14)',
+    borderHover: 'rgba(59,130,246,0.22)',
     bg: 'rgba(59,130,246,0.08)',
     icon: (
       <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -20,8 +22,8 @@ const FEATURES = [
   {
     key: 'flashcards',
     color: '#8B5CF6',
-    glow: 'rgba(139,92,246,0.15)',
-    border: 'rgba(139,92,246,0.2)',
+    glow: 'rgba(139,92,246,0.14)',
+    borderHover: 'rgba(139,92,246,0.22)',
     bg: 'rgba(139,92,246,0.08)',
     icon: (
       <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -33,8 +35,8 @@ const FEATURES = [
   {
     key: 'notes',
     color: '#10B981',
-    glow: 'rgba(16,185,129,0.15)',
-    border: 'rgba(16,185,129,0.2)',
+    glow: 'rgba(16,185,129,0.14)',
+    borderHover: 'rgba(16,185,129,0.22)',
     bg: 'rgba(16,185,129,0.08)',
     icon: (
       <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -46,8 +48,8 @@ const FEATURES = [
   {
     key: 'themes',
     color: '#F59E0B',
-    glow: 'rgba(245,158,11,0.15)',
-    border: 'rgba(245,158,11,0.2)',
+    glow: 'rgba(245,158,11,0.14)',
+    borderHover: 'rgba(245,158,11,0.22)',
     bg: 'rgba(245,158,11,0.08)',
     icon: (
       <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -64,8 +66,6 @@ const containerVariants = {
   visible: { transition: { staggerChildren: 0.1 } },
 };
 
-const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
-
 const cardVariants = {
   hidden: { opacity: 0, y: 30 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
@@ -75,7 +75,7 @@ export default function Features() {
   const t = useTranslations('features');
 
   return (
-    <section id="features" style={{ background: '#06050f', paddingTop: 96, paddingBottom: 96 }}>
+    <section id="features" style={{ background: 'var(--bg-page)', paddingTop: 96, paddingBottom: 96 }}>
       <div className="mx-auto max-w-6xl px-6">
         {/* Section header */}
         <motion.div
@@ -83,15 +83,18 @@ export default function Features() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.6, ease: EASE }}
         >
-          <span className="mb-4 inline-block rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-blue-400">
+          <span
+            className="mb-4 inline-block rounded-full border px-4 py-1 text-xs font-semibold uppercase tracking-widest text-blue-500 dark:text-blue-400"
+            style={{ borderColor: 'rgba(59,130,246,0.25)', background: 'rgba(59,130,246,0.08)' }}
+          >
             {t('badge')}
           </span>
-          <h2 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+          <h2 className="text-4xl font-black tracking-tight sm:text-5xl" style={{ color: 'var(--text)' }}>
             {t('title')}
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-white/40">{t('subtitle')}</p>
+          <p className="mx-auto mt-4 max-w-xl" style={{ color: 'var(--text-sub)' }}>{t('subtitle')}</p>
         </motion.div>
 
         {/* Bento grid */}
@@ -102,19 +105,18 @@ export default function Features() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
         >
-          {/* Card 0 — large, spans 2 rows on lg */}
-          {FEATURES.map(({ key, color, glow, border, bg, icon }, i) => (
+          {FEATURES.map(({ key, color, glow, borderHover, bg, icon }, i) => (
             <motion.div
               key={key}
               variants={cardVariants}
               className={`group relative overflow-hidden rounded-3xl p-8 ${i === 0 ? 'lg:row-span-2' : ''}`}
               style={{
-                background: '#0e0d1e',
-                border: `1px solid rgba(255,255,255,0.06)`,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
               }}
               whileHover={{
-                borderColor: border,
-                boxShadow: `0 0 32px ${glow}`,
+                borderColor: borderHover,
+                boxShadow: `0 0 28px ${glow}`,
                 y: -3,
               }}
               transition={{ type: 'spring', stiffness: 300, damping: 24 }}
@@ -122,9 +124,7 @@ export default function Features() {
               {/* Hover glow overlay */}
               <div
                 className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                style={{
-                  background: `radial-gradient(ellipse 60% 50% at 30% 30%, ${glow} 0%, transparent 70%)`,
-                }}
+                style={{ background: `radial-gradient(ellipse 60% 50% at 30% 30%, ${glow} 0%, transparent 70%)` }}
               />
 
               {/* Icon */}
@@ -135,15 +135,13 @@ export default function Features() {
                 {icon}
               </div>
 
-              {/* Text */}
-              <h3 className="relative mb-2 text-lg font-bold text-white">
+              <h3 className="relative mb-2 text-lg font-bold" style={{ color: 'var(--text)' }}>
                 {t(`cards.${key}.title`)}
               </h3>
-              <p className="relative text-sm leading-relaxed text-white/45">
+              <p className="relative text-sm leading-relaxed" style={{ color: 'var(--text-sub)' }}>
                 {t(`cards.${key}.desc`)}
               </p>
 
-              {/* Large icon watermark for the hero card */}
               {i === 0 && (
                 <div
                   aria-hidden

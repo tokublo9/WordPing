@@ -4,9 +4,13 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations } from 'next-intl/server';
 import { Inter } from 'next/font/google';
 import { routing } from '@/i18n/routing';
+import ThemeProvider from '@/components/ThemeProvider';
 import '../globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+
+// Inline script runs before paint to prevent flash of wrong theme
+const themeScript = `(function(){try{var t=localStorage.getItem('wp-theme');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(t===null&&d)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
 
 export function generateStaticParams() {
   return routing.locales.map(locale => ({ locale }));
@@ -44,9 +48,15 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} className={inter.variable}>
+      <head>
+        {/* Flash-free theme: runs synchronously before first paint */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="font-sans">
         <NextIntlClientProvider messages={messages}>
-          {children}
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>

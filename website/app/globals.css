@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme variables ─────────────────────────────────────────────── */
+:root {
+  --bg-page:   #f5f7ff;
+  --bg-card:   #ffffff;
+  --bg-alt:    #eef1fb;
+  --bg-header: rgba(245, 247, 255, 0.82);
+  --text:      #0f172a;
+  --text-sub:  #64748b;
+  --border:    rgba(0, 0, 0, 0.08);
+  --shadow:    rgba(0, 0, 0, 0.07);
+}
+
+.dark {
+  --bg-page:   #06050f;
+  --bg-card:   #0e0d1e;
+  --bg-alt:    #09091a;
+  --bg-header: rgba(6, 5, 15, 0.78);
+  --text:      #ffffff;
+  --text-sub:  rgba(255, 255, 255, 0.48);
+  --border:    rgba(255, 255, 255, 0.06);
+  --shadow:    rgba(0, 0, 0, 0.4);
+}
+
+/* ── Base ────────────────────────────────────────────────────────── */
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -10,12 +34,31 @@
   }
 
   body {
-    background: #06050f;
+    background-color: var(--bg-page);
+    color: var(--text);
+    transition: background-color 0.35s ease, color 0.35s ease;
   }
 }
 
+/* ── Utilities ───────────────────────────────────────────────────── */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bg-page  { background-color: var(--bg-page); }
+  .bg-card  { background-color: var(--bg-card); }
+  .bg-alt   { background-color: var(--bg-alt); }
+  .text-primary { color: var(--text); }
+  .text-sub { color: var(--text-sub); }
+  .border-theme { border-color: var(--border); }
 }

@@ -12,7 +12,7 @@ export default function DownloadCTA() {
     <section
       id="download"
       style={{
-        background: '#06050f',
+        background: 'var(--bg-page)',
         paddingTop: 80,
         paddingBottom: 80,
       }}

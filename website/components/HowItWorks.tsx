@@ -3,9 +3,8 @@
 import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 
-const STEP_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'] as const;
-
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
+const STEP_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'] as const;
 
 const stepVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -23,31 +22,32 @@ export default function HowItWorks() {
     <section
       id="how"
       style={{
-        background: '#09091a',
+        background: 'var(--bg-alt)',
         paddingTop: 96,
         paddingBottom: 96,
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        borderTop: '1px solid var(--border)',
+        borderBottom: '1px solid var(--border)',
       }}
     >
       <div className="mx-auto max-w-6xl px-6">
-        {/* Header */}
         <motion.div
           className="mb-16 text-center"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.6, ease: EASE }}
         >
-          <span className="mb-4 inline-block rounded-full border border-purple-500/20 bg-purple-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-purple-400">
+          <span
+            className="mb-4 inline-block rounded-full border px-4 py-1 text-xs font-semibold uppercase tracking-widest text-purple-600 dark:text-purple-400"
+            style={{ borderColor: 'rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)' }}
+          >
             {t('badge')}
           </span>
-          <h2 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+          <h2 className="text-4xl font-black tracking-tight sm:text-5xl" style={{ color: 'var(--text)' }}>
             {t('title')}
           </h2>
         </motion.div>
 
-        {/* Steps */}
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {(['1', '2', '3', '4'] as const).map((step, i) => (
             <motion.div
@@ -59,17 +59,14 @@ export default function HowItWorks() {
               whileInView="visible"
               viewport={{ once: true, margin: '-40px' }}
             >
-              {/* Connector line (desktop) */}
               {i < 3 && (
                 <motion.div
                   className="absolute hidden lg:block"
                   aria-hidden
                   style={{
-                    top: 20,
-                    left: 'calc(100% - 0px)',
-                    width: '100%',
-                    height: 1,
-                    background: `linear-gradient(90deg, ${STEP_COLORS[i]}60, rgba(255,255,255,0.03))`,
+                    top: 20, left: 'calc(100% - 0px)',
+                    width: '100%', height: 1,
+                    background: `linear-gradient(90deg, ${STEP_COLORS[i]}50, transparent)`,
                     zIndex: 0,
                   }}
                   initial={{ scaleX: 0, originX: 0 }}
@@ -79,7 +76,6 @@ export default function HowItWorks() {
                 />
               )}
 
-              {/* Number badge */}
               <motion.div
                 className="relative z-10 mb-5 flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-black text-white"
                 style={{ background: STEP_COLORS[i] }}
@@ -89,10 +85,10 @@ export default function HowItWorks() {
                 {i + 1}
               </motion.div>
 
-              <h3 className="mb-2 text-base font-bold text-white">
+              <h3 className="mb-2 text-base font-bold" style={{ color: 'var(--text)' }}>
                 {t(`steps.${step}.title`)}
               </h3>
-              <p className="text-sm leading-relaxed text-white/40">
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-sub)' }}>
                 {t(`steps.${step}.desc`)}
               </p>
             </motion.div>
