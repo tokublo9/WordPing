@@ -1,4 +1,4 @@
-import { WordPingCinematicHero } from '@/components/ui/cinematic-hero';
+import { CinematicHero } from '@/components/ui/cinematic-hero';
 import Header from '@/components/Header';
 import Features from '@/components/Features';
 import HowItWorks from '@/components/HowItWorks';
@@ -13,7 +13,7 @@ export default function Page() {
   return (
     <main className="antialiased">
       <Header />
-      <WordPingCinematicHero />
+      <CinematicHero />
       <Features />
       <ScreenshotGallery />
       <ThemesSection />
