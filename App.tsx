@@ -282,10 +282,13 @@ export default function App() {
 
   // Free users may activate solid_blue and solid_gray; all other skins require a subscription.
   const activeSkin = SKINS.find(s => s.id === skinId && (isSubscribed || FREE_SKIN_IDS.has(s.id))) ?? null;
-  const isDark = activeSkin
+  // Solid-color skins are simple color themes — the user's Appearance (Light/Dark/System) still
+  // applies. Only premium image/wallpaper skins force their own fixed palette and dark-bar setting.
+  const isSolidSkin = !!activeSkin?.id.startsWith('solid_');
+  const isDark = (activeSkin && !isSolidSkin)
     ? activeSkin.darkStatusBar
     : appearance === 'system' ? systemScheme === 'dark' : appearance === 'dark';
-  const pal = activeSkin ? activeSkin.palette : isDark ? DARK : LIGHT;
+  const pal = (activeSkin && !isSolidSkin) ? activeSkin.palette : isDark ? DARK : LIGHT;
   const activeThemeColor = activeSkin ? activeSkin.themeColor : themeColor;
   // ── Persist & load ──────────────────────────────────────────────────────────
   // Ref so the Supabase remote callback can access up-to-date folders
@@ -927,7 +930,7 @@ export default function App() {
                 : undefined}
               ListFooterComponent={
                 <TouchableWithoutFeedback onPress={() => closeOpenCard.current?.()}>
-                  <View style={{ height: 200 }} />
+                  <View style={{ height: 300 }} />
                 </TouchableWithoutFeedback>
               }
             />
