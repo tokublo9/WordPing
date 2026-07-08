@@ -386,7 +386,7 @@ export function WordModal({
           >
             {/* Sheet card */}
             <View style={[styles.sheetCard, { backgroundColor: pal.dialog, height: cardH }]}>
-              <View style={{ flex: 1 }} onStartShouldSetResponder={() => true}>
+              <View style={{ flex: 1 }}>
                 {/* Drag handle */}
                 <View style={styles.handleArea}>
                   <View style={[styles.handle, { backgroundColor: pal.border }]} />
