@@ -86,7 +86,7 @@ export function NotificationModal({
                 <TouchableOpacity
                   key={option.seconds}
                   style={[s.intervalRow, {
-                    backgroundColor: selected ? themeColor + '15' : pal.chip,
+                    backgroundColor: selected ? themeColor + '15' : pal.input,
                     borderColor:     selected ? themeColor : pal.border,
                   }]}
                   onPress={() => onPickInterval(option.seconds)}
@@ -105,7 +105,7 @@ export function NotificationModal({
 
             {/* Display-only-word toggle */}
             <View style={[s.intervalRow, {
-              backgroundColor: displayOnlyWord ? themeColor + '15' : pal.chip,
+              backgroundColor: displayOnlyWord ? themeColor + '15' : pal.input,
               borderColor:     displayOnlyWord ? themeColor : pal.border,
               marginBottom: 0,
             }]}>
