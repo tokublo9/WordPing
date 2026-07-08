@@ -49,7 +49,7 @@ export type TranslationKey =
   | 'pro' | 'manage_subscription'
   | 'add_word' | 'edit_word' | 'basic'
   | 'kisekae_shop' | 'kisekae_title'
-  | 'shop_tab_solid' | 'shop_tab_premium'
+  | 'shop_tab_free' | 'shop_tab_premium'
   | 'shop_search_placeholder'
   | 'shop_owned' | 'shop_using' | 'shop_free'
   | 'shop_no_items';
@@ -202,7 +202,7 @@ const enUS: Dict = {
 
   kisekae_shop:             'Theme Shop',
   kisekae_title:            'Theme Shop',
-  shop_tab_solid:           'Solid',
+  shop_tab_free:           'Free',
   shop_tab_premium:         'Premium',
   shop_search_placeholder:  'Item name, keyword…',
   shop_owned:               'Owned',
@@ -357,7 +357,7 @@ const ja: Dict = {
 
   kisekae_shop:             'きせかえショップ',
   kisekae_title:            '着せかえショップ',
-  shop_tab_solid:           '単色',
+  shop_tab_free:           '無料',
   shop_tab_premium:         'プレミアム',
   shop_search_placeholder:  'アイテム名、キーワードなど',
   shop_owned:               '所持済み',
@@ -512,7 +512,7 @@ const ko: Dict = {
 
   kisekae_shop:             '테마 샵',
   kisekae_title:            '테마 샵',
-  shop_tab_solid:           '단색',
+  shop_tab_free:           '무료',
   shop_tab_premium:         '프리미엄',
   shop_search_placeholder:  '아이템 이름, 키워드…',
   shop_owned:               '보유 중',
@@ -667,7 +667,7 @@ const zhCN: Dict = {
 
   kisekae_shop:             '主题商店',
   kisekae_title:            '主题商店',
-  shop_tab_solid:           '纯色',
+  shop_tab_free:           '免费',
   shop_tab_premium:         '高级',
   shop_search_placeholder:  '商品名称、关键词…',
   shop_owned:               '已拥有',
@@ -822,7 +822,7 @@ const es: Dict = {
 
   kisekae_shop:             'Tienda de Temas',
   kisekae_title:            'Tienda de Temas',
-  shop_tab_solid:           'Sólido',
+  shop_tab_free:           'Gratis',
   shop_tab_premium:         'Premium',
   shop_search_placeholder:  'Nombre del artículo, palabra clave…',
   shop_owned:               'Adquirido',
@@ -977,7 +977,7 @@ const fr: Dict = {
 
   kisekae_shop:             'Boutique Thèmes',
   kisekae_title:            'Boutique Thèmes',
-  shop_tab_solid:           'Uni',
+  shop_tab_free:           'Gratuit',
   shop_tab_premium:         'Premium',
   shop_search_placeholder:  'Nom de l\'article, mot-clé…',
   shop_owned:               'Possédé',
@@ -1132,7 +1132,7 @@ const de: Dict = {
 
   kisekae_shop:             'Theme-Shop',
   kisekae_title:            'Theme-Shop',
-  shop_tab_solid:           'Einfarbig',
+  shop_tab_free:           'Kostenlos',
   shop_tab_premium:         'Premium',
   shop_search_placeholder:  'Artikelname, Stichwort…',
   shop_owned:               'Erworben',
@@ -1287,7 +1287,7 @@ const it: Dict = {
 
   kisekae_shop:             'Negozio Temi',
   kisekae_title:            'Negozio Temi',
-  shop_tab_solid:           'Tinta Unita',
+  shop_tab_free:           'Gratuito',
   shop_tab_premium:         'Premium',
   shop_search_placeholder:  'Nome articolo, parola chiave…',
   shop_owned:               'Posseduto',
@@ -1442,7 +1442,7 @@ const ptBR: Dict = {
 
   kisekae_shop:             'Loja de Temas',
   kisekae_title:            'Loja de Temas',
-  shop_tab_solid:           'Sólido',
+  shop_tab_free:           'Grátis',
   shop_tab_premium:         'Premium',
   shop_search_placeholder:  'Nome do item, palavra-chave…',
   shop_owned:               'Adquirido',

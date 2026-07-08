@@ -51,41 +51,44 @@ export interface ShopItem {
 }
 
 const SHOP_ITEMS: ShopItem[] = [
-  // ── Solid (12) — blue & gray are free; all others require Basic ──────────────
+  // ── Free (2) — always available without subscription ─────────────────────────
   { id: 'solid_blue',   name: 'Blue',     price: 0, category: 'solid', previewBg: '#EEF3FF', previewAccent: '#2563EB', previewEmoji: '💙' },
   { id: 'solid_gray',   name: 'Gray',     price: 0, category: 'solid', previewBg: '#F3F4F6', previewAccent: '#6B7280', previewEmoji: '🩶' },
-  { id: 'solid_sky',    name: 'Sky Blue', price: 0, category: 'solid', previewBg: '#E0F2FE', previewAccent: '#0EA5E9', previewEmoji: '🩵' },
-  { id: 'solid_green',  name: 'Green',    price: 0, category: 'solid', previewBg: '#EDFBF2', previewAccent: '#16A34A', previewEmoji: '💚' },
-  { id: 'solid_mint',   name: 'Mint',     price: 0, category: 'solid', previewBg: '#DCFCE7', previewAccent: '#10B981', previewEmoji: '🌱' },
-  { id: 'solid_purple', name: 'Purple',   price: 0, category: 'solid', previewBg: '#F5F0FF', previewAccent: '#7C3AED', previewEmoji: '💜' },
-  { id: 'solid_pink',   name: 'Pink',     price: 0, category: 'solid', previewBg: '#FCE7F3', previewAccent: '#EC4899', previewEmoji: '🩷' },
-  { id: 'solid_red',    name: 'Red',      price: 0, category: 'solid', previewBg: '#FEE2E2', previewAccent: '#EF4444', previewEmoji: '❤️' },
-  { id: 'solid_orange', name: 'Orange',   price: 0, category: 'solid', previewBg: '#FFEDD5', previewAccent: '#F97316', previewEmoji: '🧡' },
-  { id: 'solid_yellow', name: 'Yellow',   price: 0, category: 'solid', previewBg: '#FEF9C3', previewAccent: '#CA8A04', previewEmoji: '💛' },
-  { id: 'solid_beige',  name: 'Beige',    price: 0, category: 'solid', previewBg: '#FAF5EB', previewAccent: '#92400E', previewEmoji: '🤎' },
-  { id: 'solid_teal',   name: 'Teal',     price: 0, category: 'solid', previewBg: '#F0FDFA', previewAccent: '#0D9488', previewEmoji: '💎' },
-  // ── Premium (12) ─────────────────────────────────────────────────────────────
+  // ── Premium tab — remaining solids interleaved with premium skins ─────────────
   { id: 'skin_deep_sea',  name: 'Deep Sea',       price: 480, category: 'premium', previewBg: '#061628', previewAccent: '#38BDF8', previewEmoji: '🌊' },
-  { id: 'skin_leaf_blur', name: 'Green Nature',   price: 320, category: 'premium', previewBg: '#2D4A2D', previewAccent: '#2E7D5A', previewEmoji: '🌿' },
-  { id: 'shop_woods',     name: 'Beautiful Woods',price: 320, category: 'premium', previewBg: '#1A2E1A', previewAccent: '#6AAF5A', previewEmoji: '🌲' },
-  { id: 'shop_roses',     name: 'Roses',          price: 320, category: 'premium', previewBg: '#FEF0F5', previewAccent: '#D4627A', previewEmoji: '🌹' },
-  { id: 'skin_sunset',    name: 'Sunset',         price: 320, category: 'premium', previewBg: '#FFF3E8', previewAccent: '#F97316', previewEmoji: '🌅' },
-  { id: 'skin_sakura',    name: 'Sakura',         price: 320, category: 'premium', previewBg: '#FDF4F8', previewAccent: '#F472B6', previewEmoji: '🌸' },
+  { id: 'solid_sky',    name: 'Sky Blue', price: 0, category: 'solid', previewBg: '#E0F2FE', previewAccent: '#0EA5E9', previewEmoji: '🩵' },
   { id: 'skin_galaxy',    name: 'Galaxy',         price: 480, category: 'premium', previewBg: '#050714', previewAccent: '#818CF8', previewEmoji: '🌌' },
-  { id: 'skin_snow',      name: 'Snow Mountain',  price: 320, category: 'premium', previewBg: '#F0F6FF', previewAccent: '#60A5FA', previewEmoji: '🏔️' },
-  { id: 'skin_cyber',     name: 'Cyber Neon',     price: 480, category: 'premium', previewBg: '#040810', previewAccent: '#00E5FF', previewEmoji: '⚡' },
-  { id: 'skin_coffee',    name: 'Coffee House',   price: 320, category: 'premium', previewBg: '#FBF6F0', previewAccent: '#92400E', previewEmoji: '☕' },
+  { id: 'solid_purple', name: 'Purple',   price: 0, category: 'solid', previewBg: '#F5F0FF', previewAccent: '#7C3AED', previewEmoji: '💜' },
   { id: 'skin_aurora',    name: 'Aurora',         price: 480, category: 'premium', previewBg: '#020814', previewAccent: '#00E5A0', previewEmoji: '🌠' },
-  { id: 'skin_rain',       name: 'Rainy Window',  price: 320, category: 'premium', previewBg: '#0D1520', previewAccent: '#60A5FA', previewEmoji: '🌧️' },
-  { id: 'skin_paw',        name: 'Animal',        price: 320, category: 'premium', previewBg: '#FFF8F0', previewAccent: '#BF7A40', previewEmoji: '🐾' },
+  { id: 'solid_green',  name: 'Green',    price: 0, category: 'solid', previewBg: '#EDFBF2', previewAccent: '#16A34A', previewEmoji: '💚' },
+  { id: 'skin_cyber',     name: 'Cyber Neon',     price: 480, category: 'premium', previewBg: '#040810', previewAccent: '#00E5FF', previewEmoji: '⚡' },
+  { id: 'solid_pink',   name: 'Pink',     price: 0, category: 'solid', previewBg: '#FCE7F3', previewAccent: '#EC4899', previewEmoji: '🩷' },
+  { id: 'skin_leaf_blur', name: 'Green Nature',   price: 320, category: 'premium', previewBg: '#2D4A2D', previewAccent: '#2E7D5A', previewEmoji: '🌿' },
+  { id: 'solid_mint',   name: 'Mint',     price: 0, category: 'solid', previewBg: '#DCFCE7', previewAccent: '#10B981', previewEmoji: '🌱' },
+  { id: 'shop_woods',     name: 'Beautiful Woods',price: 320, category: 'premium', previewBg: '#1A2E1A', previewAccent: '#6AAF5A', previewEmoji: '🌲' },
+  { id: 'solid_red',    name: 'Red',      price: 0, category: 'solid', previewBg: '#FEE2E2', previewAccent: '#EF4444', previewEmoji: '❤️' },
+  { id: 'skin_sakura',    name: 'Sakura',         price: 320, category: 'premium', previewBg: '#FDF4F8', previewAccent: '#F472B6', previewEmoji: '🌸' },
+  { id: 'solid_orange', name: 'Orange',   price: 0, category: 'solid', previewBg: '#FFEDD5', previewAccent: '#F97316', previewEmoji: '🧡' },
+  { id: 'skin_rain',      name: 'Rainy Window',   price: 320, category: 'premium', previewBg: '#0D1520', previewAccent: '#60A5FA', previewEmoji: '🌧️' },
+  { id: 'solid_yellow', name: 'Yellow',   price: 0, category: 'solid', previewBg: '#FEF9C3', previewAccent: '#CA8A04', previewEmoji: '💛' },
+  { id: 'skin_snow',      name: 'Snow Mountain',  price: 320, category: 'premium', previewBg: '#F0F6FF', previewAccent: '#60A5FA', previewEmoji: '🏔️' },
+  { id: 'solid_beige',  name: 'Beige',    price: 0, category: 'solid', previewBg: '#FAF5EB', previewAccent: '#92400E', previewEmoji: '🤎' },
+  { id: 'shop_roses',     name: 'Roses',          price: 320, category: 'premium', previewBg: '#FEF0F5', previewAccent: '#D4627A', previewEmoji: '🌹' },
+  { id: 'solid_teal',   name: 'Teal',     price: 0, category: 'solid', previewBg: '#F0FDFA', previewAccent: '#0D9488', previewEmoji: '💎' },
+  { id: 'skin_coffee',    name: 'Coffee House',   price: 320, category: 'premium', previewBg: '#FBF6F0', previewAccent: '#92400E', previewEmoji: '☕' },
+  { id: 'skin_paw',       name: 'Animal',         price: 320, category: 'premium', previewBg: '#FFF8F0', previewAccent: '#BF7A40', previewEmoji: '🐾' },
   { id: 'skin_night_city', name: 'Night City',    price: 480, category: 'premium', previewBg: '#0A0816', previewAccent: '#F59E0B', previewEmoji: '🌃' },
+  { id: 'skin_sunset',    name: 'Sunset',         price: 320, category: 'premium', previewBg: '#FFF3E8', previewAccent: '#F97316', previewEmoji: '🌅' },
 ];
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 // Internal keys — language-independent, drive the filter logic
-type TabKey = 'solid' | 'premium';
-const TABS: TabKey[] = ['premium', 'solid'];  // Premium LEFT, Solid RIGHT
+type TabKey = 'free' | 'premium';
+const TABS: TabKey[] = ['premium', 'free'];  // Premium LEFT, Free RIGHT
+
+// IDs available on the Free tab (blue + gray)
+const FREE_TAB_IDS = new Set(['solid_blue', 'solid_gray']);
 
 // Blur scale: card is smaller than the full screen, so the same BlurView
 // intensity covers a proportionally larger area and looks stronger. Scale it
@@ -418,7 +421,7 @@ function ShopTabs({
   const tabW = (SCREEN_W - H_PAD * 2) / TABS.length;
 
   const tabLabel = (tab: TabKey) =>
-    tab === 'solid' ? t('shop_tab_solid') : t('shop_tab_premium');
+    tab === 'free' ? t('shop_tab_free') : t('shop_tab_premium');
 
   // Single source of truth: drive the indicator whenever `active` changes,
   // whether from a user tap or from the parent's useEffect sync on open.
@@ -476,9 +479,8 @@ export function KisekaeShopSheet({
 
   useEffect(() => {
     if (visible) {
-      // Sync active tab to whichever category the current skin belongs to.
-      const selectedItem = SHOP_ITEMS.find(item => item.id === skinId);
-      setActiveTab(selectedItem ? selectedItem.category : 'premium');
+      // Sync active tab: free skins go to 'free', everything else to 'premium'.
+      setActiveTab(skinId && FREE_TAB_IDS.has(skinId) ? 'free' : 'premium');
 
       slideY.setValue(SCREEN_H);
       Animated.spring(slideY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
@@ -515,10 +517,9 @@ export function KisekaeShopSheet({
   }, [skinId, onPickSkin, isOwned, isSubscribed, onUpgrade]);
 
   const filtered = useMemo(
-    () => SHOP_ITEMS.filter(
-      item =>
-        item.category === activeTab &&
-        item.name.toLowerCase().includes(search.toLowerCase()),
+    () => SHOP_ITEMS.filter(item =>
+      (activeTab === 'free' ? FREE_TAB_IDS.has(item.id) : !FREE_TAB_IDS.has(item.id)) &&
+      item.name.toLowerCase().includes(search.toLowerCase()),
     ),
     [activeTab, search],
   );
