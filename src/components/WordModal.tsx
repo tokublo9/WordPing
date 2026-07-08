@@ -17,6 +17,9 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { File, Directory, Paths } from 'expo-file-system';
+import { Audio } from 'expo-av';
 
 import type { Palette, WordCard } from '../types';
 import { useLang } from '../i18n';
@@ -76,6 +79,8 @@ interface Props {
   onChangeWordLang: (lang: string | undefined) => void;
   meaningLang: string | undefined;
   onChangeMeaningLang: (lang: string | undefined) => void;
+  audioUri?: string;
+  onChangeAudioUri: (uri: string | undefined) => void;
 }
 
 export function WordModal({
@@ -83,6 +88,7 @@ export function WordModal({
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
   isSubscribed, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
+  audioUri, onChangeAudioUri,
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
@@ -113,6 +119,83 @@ export function WordModal({
   const [isTranslatingNote, setIsTranslatingNote]       = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
+
+  // ── Audio ────────────────────────────────────────────────────────────────────
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  // Stop and unload sound whenever the modal closes
+  useEffect(() => {
+    if (!visible) {
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      setIsPlayingAudio(false);
+    }
+  }, [visible]);
+
+  // Always clean up on unmount
+  useEffect(() => () => { soundRef.current?.unloadAsync().catch(() => {}); }, []);
+
+  const handleAudioButton = async () => {
+    if (!audioUri) {
+      // Pick an audio file and copy it to persistent storage
+      try {
+        const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: false });
+        if (result.canceled) return;
+        const asset = result.assets[0];
+        const audioDir = new Directory(Paths.document, 'audio');
+        audioDir.create({ intermediates: true, idempotent: true });
+        const ext = asset.name.split('.').pop() ?? 'mp3';
+        const destFile = new File(audioDir, `audio_${Date.now()}.${ext}`);
+        new File(asset.uri).copy(destFile);
+        onChangeAudioUri(destFile.uri);
+      } catch {
+        Alert.alert('Error', 'Could not import the audio file.');
+      }
+      return;
+    }
+
+    // Toggle playback
+    if (isPlayingAudio) {
+      await soundRef.current?.stopAsync().catch(() => {});
+      await soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
+      soundRef.current = sound;
+      setIsPlayingAudio(true);
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate(status => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          soundRef.current = null;
+          setIsPlayingAudio(false);
+        }
+      });
+    } catch {
+      Alert.alert('Playback error', 'Could not play the audio file.');
+      setIsPlayingAudio(false);
+    }
+  };
+
+  const handleClearAudio = () => {
+    Alert.alert('Remove audio', 'Remove the audio from this card?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive', onPress: () => {
+          soundRef.current?.unloadAsync().catch(() => {});
+          soundRef.current = null;
+          setIsPlayingAudio(false);
+          onChangeAudioUri(undefined);
+        },
+      },
+    ]);
+  };
 
   // keyboard height for floating Save toolbar
   const [kbHeight, setKbHeight] = useState(0);
@@ -309,6 +392,25 @@ export function WordModal({
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>
                     {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
                   </Text>
+                  {isSubscribed && (
+                    <TouchableOpacity
+                      onPress={handleAudioButton}
+                      onLongPress={audioUri ? handleClearAudio : undefined}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[
+                        styles.audioBtn,
+                        audioUri
+                          ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
+                          : { borderColor: pal.border },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
+                        size={16}
+                        color={audioUri ? themeColor : pal.sub}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <TextInput
                   style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96 }]}
@@ -637,6 +739,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  audioBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   aiGroup: {
     flexDirection: 'row',

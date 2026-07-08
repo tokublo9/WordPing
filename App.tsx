@@ -269,6 +269,7 @@ export default function App() {
   const [note, setNote] = useState('');
   const [wordFieldLang, setWordFieldLang] = useState<string | undefined>(undefined);
   const [meaningFieldLang, setMeaningFieldLang] = useState<string | undefined>(undefined);
+  const [wordAudioUri, setWordAudioUri] = useState<string | undefined>(undefined);
 
   const closeOpenCard = useRef<(() => void) | null>(null);
   const hasLoaded = useRef(false);
@@ -425,6 +426,7 @@ export default function App() {
     setNote('');
     setWordFieldLang(undefined);
     setMeaningFieldLang(undefined);
+    setWordAudioUri(undefined);
     setWordModalVisible(true);
   };
 
@@ -435,6 +437,7 @@ export default function App() {
     setNote(card.note ?? '');
     setWordFieldLang(card.wordLang);
     setMeaningFieldLang(card.meaningLang);
+    setWordAudioUri(card.audioUri);
     setWordModalVisible(true);
   };
 
@@ -448,13 +451,13 @@ export default function App() {
     if (editingCard) {
       setCards(prev => prev.map(c =>
         c.id === editingCard.id
-          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim(), wordLang: wordFieldLang, meaningLang: meaningFieldLang }
+          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim(), wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri }
           : c
       ));
     } else {
       setCards(prev => [
         ...prev,
-        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined, wordLang: wordFieldLang, meaningLang: meaningFieldLang },
+        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined, wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri },
       ]);
     }
     setWordModalVisible(false);
@@ -966,6 +969,8 @@ export default function App() {
         onChangeWordLang={setWordFieldLang}
         meaningLang={meaningFieldLang}
         onChangeMeaningLang={setMeaningFieldLang}
+        audioUri={wordAudioUri}
+        onChangeAudioUri={setWordAudioUri}
       />
 
       <NotificationModal
