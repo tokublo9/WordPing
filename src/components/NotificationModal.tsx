@@ -58,55 +58,71 @@ export function NotificationModal({
       {/* Sheet — slides up independently */}
       <Animated.View style={[styles.sheetWrapper, { transform: [{ translateY: slideY }] }]}>
         <TouchableOpacity activeOpacity={1} style={[s.bottomSheet, { backgroundColor: pal.dialog }]}>
-          <Text style={[s.dialogTitle, { color: pal.text }]}>{t('notifications')}</Text>
 
-          {INTERVAL_OPTIONS.map(option => {
-            const selected = option.seconds === intervalSeconds;
-            const isOff = option.seconds === 0;
-            return (
-              <TouchableOpacity
-                key={option.seconds}
-                style={[s.intervalRow, { backgroundColor: selected ? themeColor + '18' : 'transparent' }]}
-                onPress={() => onPickInterval(option.seconds)}
-              >
-                <Text style={[
-                  s.intervalRowText,
-                  { color: selected ? themeColor : isOff ? '#E05C5C' : pal.sub },
-                  selected && s.intervalRowTextSelected,
-                ]}>
-                  {option.label}
-                </Text>
-                {selected && <Ionicons name="checkmark" size={16} color={themeColor} />}
-              </TouchableOpacity>
-            );
-          })}
-
-          <View style={[s.intervalRow, { backgroundColor: displayOnlyWord ? themeColor + '18' : 'transparent', marginTop: 4 }]}>
-            <Text style={[s.intervalRowText, { color: displayOnlyWord ? themeColor : pal.sub, fontSize: 13 }, displayOnlyWord && s.intervalRowTextSelected]}>{t('display_only_word')}</Text>
-            <Switch
-              value={displayOnlyWord}
-              onValueChange={onToggleDisplayOnlyWord}
-              trackColor={{ false: pal.border, true: themeColor }}
-              thumbColor="#fff"
-              style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
-            />
+          {/* Header row: title + Send Test button */}
+          <View style={styles.headerRow}>
+            <Text style={[s.dialogTitle, { color: pal.text, marginBottom: 0 }]}>{t('notifications')}</Text>
+            <TouchableOpacity
+              style={styles.testBtn}
+              onPress={() => {
+                onTest();
+                setTestSent(true);
+                setTimeout(() => setTestSent(false), 4000);
+              }}
+            >
+              <Ionicons name="notifications-outline" size={13} color={pal.sub} />
+              <Text style={[styles.testBtnText, { color: pal.sub }]}>
+                {testSent ? t('test_sending') : t('test_send')}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.testBtn}
-            onPress={() => {
-              onTest();
-              setTestSent(true);
-              setTimeout(() => setTestSent(false), 4000);
-            }}
-          >
-            <Ionicons name="notifications-outline" size={13} color={pal.sub} />
-            <Text style={[styles.testBtnText, { color: pal.sub }]}>
-              {testSent ? t('test_sending') : t('test_send')}
-            </Text>
-          </TouchableOpacity>
+          {/* Interval options */}
+          <View style={styles.list}>
+            {INTERVAL_OPTIONS.map(option => {
+              const selected = option.seconds === intervalSeconds;
+              const isOff = option.seconds === 0;
+              return (
+                <TouchableOpacity
+                  key={option.seconds}
+                  style={[s.intervalRow, {
+                    backgroundColor: selected ? themeColor + '15' : pal.chip,
+                    borderColor:     selected ? themeColor : pal.border,
+                  }]}
+                  onPress={() => onPickInterval(option.seconds)}
+                >
+                  <Text style={[
+                    s.intervalRowText,
+                    { color: selected ? themeColor : isOff ? '#E05C5C' : pal.text },
+                    selected && s.intervalRowTextSelected,
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {selected && <Ionicons name="checkmark" size={16} color={themeColor} />}
+                </TouchableOpacity>
+              );
+            })}
 
-          <TouchableOpacity style={s.cancelBtn} onPress={handleClose}>
+            {/* Display-only-word toggle */}
+            <View style={[s.intervalRow, {
+              backgroundColor: displayOnlyWord ? themeColor + '15' : pal.chip,
+              borderColor:     displayOnlyWord ? themeColor : pal.border,
+              marginBottom: 0,
+            }]}>
+              <Text style={[s.intervalRowText, { color: displayOnlyWord ? themeColor : pal.text, fontSize: 13 }, displayOnlyWord && s.intervalRowTextSelected]}>
+                {t('display_only_word')}
+              </Text>
+              <Switch
+                value={displayOnlyWord}
+                onValueChange={onToggleDisplayOnlyWord}
+                trackColor={{ false: pal.border, true: themeColor }}
+                thumbColor="#fff"
+                style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity style={[s.cancelBtn, { marginTop: 6 }]} onPress={handleClose}>
             <Text style={[s.cancelBtnText, { color: pal.sub }]}>{t('close')}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -116,11 +132,16 @@ export function NotificationModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  backdrop:    { backgroundColor: 'rgba(0,0,0,0.45)' },
   sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  list: { marginBottom: 4 },
   testBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, paddingVertical: 8, marginTop: 4, marginBottom: 2,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 6, paddingHorizontal: 10,
   },
   testBtnText: { fontSize: 12 },
 });

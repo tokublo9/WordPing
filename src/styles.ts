@@ -58,7 +58,8 @@ export const appStyles = StyleSheet.create({
   // Notification interval list
   intervalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 13, paddingHorizontal: 16, borderRadius: 12, marginBottom: 6,
+    paddingVertical: 13, paddingHorizontal: 16,
+    borderRadius: 14, borderWidth: 1, marginBottom: 7,
   },
   intervalRowText: { fontSize: 15, fontWeight: '500' },
   intervalRowTextSelected: { fontWeight: '700' },
