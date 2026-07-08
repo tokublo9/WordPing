@@ -3,6 +3,8 @@ import {
   Dimensions,
   FlatList,
   ImageBackground,
+  Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -89,6 +91,17 @@ const TABS: TabKey[] = ['premium', 'free'];  // Premium LEFT, Free RIGHT
 
 // IDs available on the Free tab (blue + gray)
 const FREE_TAB_IDS = new Set(['solid_blue', 'solid_gray']);
+
+// Premium tab items shuffled once at module load — keeps the grid visually dynamic.
+function shuffleOnce<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const PREMIUM_TAB_ITEMS = shuffleOnce(SHOP_ITEMS.filter(item => !FREE_TAB_IDS.has(item.id)));
 
 // Blur scale: card is smaller than the full screen, so the same BlurView
 // intensity covers a proportionally larger area and looks stronger. Scale it
@@ -473,6 +486,15 @@ export function KisekaeShopSheet({
   const [activeTab, setActiveTab] = useState<TabKey>('premium');
   const [search,    setSearch]    = useState('');
   const [ownedIds,  setOwnedIds]  = useState<Set<string>>(new Set<string>());
+  const [kbHeight,  setKbHeight]  = useState(0);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, e => setKbHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -514,10 +536,8 @@ export function KisekaeShopSheet({
   }, [skinId, onPickSkin, isOwned, isSubscribed, onUpgrade]);
 
   const filtered = useMemo(
-    () => SHOP_ITEMS.filter(item =>
-      (activeTab === 'free' ? FREE_TAB_IDS.has(item.id) : !FREE_TAB_IDS.has(item.id)) &&
-      item.name.toLowerCase().includes(search.toLowerCase()),
-    ),
+    () => (activeTab === 'free' ? SHOP_ITEMS.filter(i => FREE_TAB_IDS.has(i.id)) : PREMIUM_TAB_ITEMS)
+      .filter(item => item.name.toLowerCase().includes(search.toLowerCase())),
     [activeTab, search],
   );
 
@@ -582,6 +602,24 @@ export function KisekaeShopSheet({
           </View>
         }
       />
+
+      {/* Keyboard toolbar — same pattern as Add/Edit Word screens */}
+      {kbHeight > 0 && (
+        <View style={[styles.kbToolbar, { bottom: kbHeight }]}>
+          <TouchableOpacity
+            onPress={Keyboard.dismiss}
+            style={[styles.kbBtn, { backgroundColor: themeColor }]}
+          >
+            <Text style={[styles.kbBtnText, { color: '#fff' }]}>{t('save')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={Keyboard.dismiss}
+            style={[styles.kbBtn, { backgroundColor: pal.chip }]}
+          >
+            <Ionicons name="chevron-down" size={16} color={pal.sub} />
+          </TouchableOpacity>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -635,4 +673,17 @@ const styles = StyleSheet.create({
 
   empty:     { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: 14 },
+
+  kbToolbar: {
+    position: 'absolute', left: 0, right: 0, height: 52,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingHorizontal: 14,
+  },
+  kbBtn: {
+    paddingVertical: 7, paddingHorizontal: 18, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', minWidth: 40, height: 36,
+    shadowColor: '#000', shadowOpacity: 0.20, shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 }, elevation: 4,
+  },
+  kbBtnText: { fontSize: 15, fontWeight: '700' },
 });

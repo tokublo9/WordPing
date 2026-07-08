@@ -71,11 +71,15 @@ export function SettingsModal({
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
           {/* ── Appearance ───────────────────────────────────────────────── */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 24, opacity: skinId ? 0.38 : 1 }}>
-            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
-            {skinId && <Ionicons name="lock-closed-outline" size={12} color={pal.sub} />}
-          </View>
-          <View style={[s.appearanceRow, skinId ? { opacity: 0.38 } : null]} pointerEvents={skinId ? 'none' : 'auto'}>
+          {/* Disabled only for premium (non-solid) skins; solid colors allow appearance picks. */}
+          {(() => {
+            const appearanceDisabled = !!skinId && !skinId.startsWith('solid_');
+            return (
+              <>
+                <View style={{ marginBottom: 12, marginTop: 24 }}>
+                  <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
+                </View>
+                <View style={[s.appearanceRow, appearanceDisabled ? { opacity: 0.38 } : null]} pointerEvents={appearanceDisabled ? 'none' : 'auto'}>
             {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
               const active = appearance === mode;
               const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
@@ -94,7 +98,10 @@ export function SettingsModal({
                 </TouchableOpacity>
               );
             })}
-          </View>
+                </View>
+              </>
+            );
+          })()}
 
           {/* ── Pro ──────────────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
