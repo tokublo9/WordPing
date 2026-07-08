@@ -27,6 +27,8 @@ export interface WordCard {
   wordLang?: string;    // BCP-47 locale for free device TTS (e.g. 'en-US', 'ja-JP')
   meaningLang?: string; // BCP-47 locale for free device TTS
   audioUri?: string;    // local file URI of a user-attached MP3 (Basic plan only)
+  audioSpeed?: number;  // playback rate, e.g. 0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0 (default 1.0)
+  audioVolume?: number; // playback volume 0.0–1.0 (default 1.0)
 }
 
 export interface IntervalOption {

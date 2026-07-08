@@ -270,6 +270,8 @@ export default function App() {
   const [wordFieldLang, setWordFieldLang] = useState<string | undefined>(undefined);
   const [meaningFieldLang, setMeaningFieldLang] = useState<string | undefined>(undefined);
   const [wordAudioUri, setWordAudioUri] = useState<string | undefined>(undefined);
+  const [wordAudioSpeed, setWordAudioSpeed] = useState(1.0);
+  const [wordAudioVolume, setWordAudioVolume] = useState(1.0);
 
   const closeOpenCard = useRef<(() => void) | null>(null);
   const hasLoaded = useRef(false);
@@ -427,6 +429,8 @@ export default function App() {
     setWordFieldLang(undefined);
     setMeaningFieldLang(undefined);
     setWordAudioUri(undefined);
+    setWordAudioSpeed(1.0);
+    setWordAudioVolume(1.0);
     setWordModalVisible(true);
   };
 
@@ -438,6 +442,8 @@ export default function App() {
     setWordFieldLang(card.wordLang);
     setMeaningFieldLang(card.meaningLang);
     setWordAudioUri(card.audioUri);
+    setWordAudioSpeed(card.audioSpeed ?? 1.0);
+    setWordAudioVolume(card.audioVolume ?? 1.0);
     setWordModalVisible(true);
   };
 
@@ -451,13 +457,13 @@ export default function App() {
     if (editingCard) {
       setCards(prev => prev.map(c =>
         c.id === editingCard.id
-          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim(), wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri }
+          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim(), wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri, audioSpeed: wordAudioSpeed, audioVolume: wordAudioVolume }
           : c
       ));
     } else {
       setCards(prev => [
         ...prev,
-        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined, wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri },
+        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined, wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri, audioSpeed: wordAudioSpeed, audioVolume: wordAudioVolume },
       ]);
     }
     setWordModalVisible(false);
@@ -971,6 +977,10 @@ export default function App() {
         onChangeMeaningLang={setMeaningFieldLang}
         audioUri={wordAudioUri}
         onChangeAudioUri={setWordAudioUri}
+        audioSpeed={wordAudioSpeed}
+        onChangeAudioSpeed={setWordAudioSpeed}
+        audioVolume={wordAudioVolume}
+        onChangeAudioVolume={setWordAudioVolume}
       />
 
       <NotificationModal
