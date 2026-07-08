@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   UIManager,
   View,
 } from 'react-native';
@@ -133,7 +134,30 @@ export function WordModal({
   const [noteTransCollapsed, setNoteTransCollapsed]     = useState(false);
   const [isTranslatingNote, setIsTranslatingNote]       = useState(false);
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef           = useRef<ScrollView>(null);
+  const scrollGuardTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks live scroll offset so we can restore it after iOS auto-scrolls to the focused input.
+  const scrollYRef          = useRef(0);
+  const savedScrollYBeforeKb = useRef(0);
+  // Ref (not state) so scroll status is readable synchronously in event handlers.
+  const isScrollingRef      = useRef(false);
+
+  const handleScrollBeginDrag = () => {
+    if (scrollGuardTimer.current) clearTimeout(scrollGuardTimer.current);
+    isScrollingRef.current = true;
+  };
+  const handleScrollEnded = () => {
+    scrollGuardTimer.current = setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 150);
+  };
+
+  // Dismiss keyboard when the user taps a non-interactive area outside the inputs.
+  // TouchableWithoutFeedback.onPress only fires on genuine taps, not during scroll,
+  // so the isScrollingRef guard is a safety net for very short drags.
+  const handleDismissKeyboard = () => {
+    if (!isScrollingRef.current) Keyboard.dismiss();
+  };
 
   // ── Audio ────────────────────────────────────────────────────────────────────
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -225,9 +249,24 @@ export function WordModal({
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const show = Keyboard.addListener(showEvt, e => setKbHeight(e.endCoordinates.height));
+
+    // On iOS, save the current scroll offset just before the keyboard appears.
+    // iOS UIKit automatically scrolls the ScrollView to reveal the focused input
+    // (scroll-to-first-responder). We undo that after the keyboard is fully shown.
+    const willShow = Keyboard.addListener(showEvt, e => {
+      savedScrollYBeforeKb.current = scrollYRef.current;
+      setKbHeight(e.endCoordinates.height);
+    });
+    // keyboardDidShow fires after the keyboard animation + auto-scroll complete.
+    // Snap back to where the user was — they control scrolling manually.
+    const didShow = Platform.OS === 'ios'
+      ? Keyboard.addListener('keyboardDidShow', () => {
+          scrollRef.current?.scrollTo({ y: savedScrollYBeforeKb.current, animated: false });
+        })
+      : null;
     const hide = Keyboard.addListener(hideEvt, () => setKbHeight(0));
-    return () => { show.remove(); hide.remove(); };
+
+    return () => { willShow.remove(); didShow?.remove(); hide.remove(); };
   }, []);
 
   // Sheet fills from the safe-area top boundary downward, covering the folder header
@@ -405,11 +444,18 @@ export function WordModal({
                 <ScrollView
                   ref={scrollRef}
                   style={{ flex: 1 }}
-                  bounces={false}
-                  keyboardShouldPersistTaps="handled"
+                  bounces={true}
+                  keyboardShouldPersistTaps="always"
+                  keyboardDismissMode="none"
                   showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(kbHeight, 520) }}
+                  scrollEventThrottle={16}
+                  onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+                  onScrollBeginDrag={handleScrollBeginDrag}
+                  onScrollEndDrag={handleScrollEnded}
+                  onMomentumScrollEnd={handleScrollEnded}
                 >
+                <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(kbHeight, 520) }}>
                 {/* Word field */}
                 <View style={styles.fieldLabelRow}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>
@@ -435,13 +481,15 @@ export function WordModal({
                     </TouchableOpacity>
                   )}
                 </View>
-                <TextInput
-                  style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96 }]}
-                  value={word}
-                  onChangeText={onChangeWord}
-                  multiline
-                  scrollEnabled={false}
-                />
+                <View>
+                  <TextInput
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96 }]}
+                    value={word}
+                    onChangeText={onChangeWord}
+                    multiline
+                    scrollEnabled={false}
+                  />
+                </View>
 
                 {/* Audio playback settings — visible only when an audio file is attached */}
                 {isSubscribed && audioUri ? (
@@ -515,8 +563,20 @@ export function WordModal({
                   </View>
                 ) : null}
 
+                {/* Swap Word ↔ Meaning */}
+                <View style={styles.swapRow}>
+                  <TouchableOpacity
+                    onPress={() => { const w = word; onChangeWord(meaning); onChangeMeaning(w); }}
+                    style={[styles.swapBtn, { borderColor: pal.border, backgroundColor: pal.chip }]}
+                    hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
+                  >
+                    <Ionicons name="swap-vertical" size={14} color={pal.sub} />
+                    <Text style={[styles.swapBtnText, { color: pal.sub }]}>{t('swap_fields')}</Text>
+                  </TouchableOpacity>
+                </View>
+
                 {/* Meaning field */}
-                <View style={[styles.fieldLabelRow, { marginTop: 24 }]}>
+                <View style={[styles.fieldLabelRow, { marginTop: 8 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('meaning_label')}</Text>
                   {isSubscribed && (
                     <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
@@ -543,13 +603,15 @@ export function WordModal({
                     </View>
                   )}
                 </View>
-                <TextInput
-                  style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && meaning.trim() ? 4 : 18 }]}
-                  value={meaning}
-                  onChangeText={onChangeMeaning}
-                  multiline
-                  scrollEnabled={false}
-                />
+                <View>
+                  <TextInput
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && meaning.trim() ? 4 : 18 }]}
+                    value={meaning}
+                    onChangeText={onChangeMeaning}
+                    multiline
+                    scrollEnabled={false}
+                  />
+                </View>
                 {isSubscribed && meaning.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
@@ -646,13 +708,15 @@ export function WordModal({
                     </View>
                   )}
                 </View>
-                <TextInput
-                  style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && note.trim() ? 4 : 18 }]}
-                  value={note}
-                  onChangeText={onChangeNote}
-                  multiline
-                  scrollEnabled={false}
-                />
+                <View>
+                  <TextInput
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && note.trim() ? 4 : 18 }]}
+                    value={note}
+                    onChangeText={onChangeNote}
+                    multiline
+                    scrollEnabled={false}
+                  />
+                </View>
                 {isSubscribed && note.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
@@ -693,6 +757,8 @@ export function WordModal({
                     ) : null}
                   </View>
                 ) : null}
+                </View>
+                </TouchableWithoutFeedback>
                 </ScrollView>
 
                 <View style={styles.buttonRow}>
@@ -827,6 +893,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bannerLabel: { fontSize: 11, letterSpacing: 0.5 },
+
+  // ── Swap button ──────────────────────────────────────────────────────────────
+  swapRow: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  swapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  swapBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
 
   // ── Field label row ──────────────────────────────────────────────────────────
   fieldLabelRow: {

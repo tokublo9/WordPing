@@ -438,6 +438,7 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
 export const SKINS: ThemeSkin[] = [...LEGACY_SKINS, ...SOLID_SKINS, ...PREMIUM_SKINS];
 
 export const FOLDERS_KEY      = 'wordping_folders';
+export const ONBOARDING_KEY   = 'wordping_onboarding';
 export const NOTIF_FOLDER_KEY = 'wordping_notif_folder';
 export const LANGUAGE_KEY = 'app_language';
 export const DEFAULT_LANGUAGE = 'en-US';

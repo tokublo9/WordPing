@@ -11,97 +11,18 @@ const SEEDED_KEY = 'wordping_seeded';
 
 export const DEFAULT_FOLDER_ID  = 'default';  // kept for migration of existing users
 export const WELCOME_FOLDER_ID  = 'wp-welcome';
-const        WORDS_FOLDER_ID    = 'wp-words';
-const        SENTENCES_FOLDER_ID = 'wp-sentences';
 
 // Shown on a genuine first install. Supabase data replaces these in the background.
 const DEFAULT_FOLDERS: Folder[] = [
-  { id: WELCOME_FOLDER_ID,   name: 'Welcome to WordPing', createdAt: 1 },
-  { id: WORDS_FOLDER_ID,     name: 'Words',               createdAt: 2 },
-  { id: SENTENCES_FOLDER_ID, name: 'Sentences',           createdAt: 3 },
+  { id: WELCOME_FOLDER_ID, name: 'Welcome to WordPing', createdAt: 1 },
 ];
 
+// English placeholders — replaced with localized content when onboarding completes.
 const DEFAULT_CARDS: WordCard[] = [
-  // ── Welcome to WordPing (4 tutorial cards) ───────────────────────────────────
-  {
-    id: 'wp-w1',
-    word: 'Tap the speaker icon to hear pronunciation',
-    meaning: 'Tap the speaker icon to hear the word spoken aloud.',
-    note: 'Native audio helps you learn the correct sound.',
-    folderId: WELCOME_FOLDER_ID,
-  },
-  {
-    id: 'wp-w2',
-    word: 'Swipe left to edit or delete',
-    meaning: 'Swipe a card to the left to see edit and delete options.',
-    note: 'Manage your cards quickly with gestures.',
-    folderId: WELCOME_FOLDER_ID,
-  },
-  {
-    id: 'wp-w3',
-    word: 'Tap a card to flip it',
-    meaning: 'Tap any card to reveal the meaning on the back.',
-    note: 'Flashcard review helps words stick in your memory.',
-    folderId: WELCOME_FOLDER_ID,
-  },
-  {
-    id: 'wp-w4',
-    word: 'Turn on notifications to keep learning',
-    meaning: 'Enable push notifications to get daily word reminders.',
-    note: 'Short daily reviews lead to lasting progress.',
-    folderId: WELCOME_FOLDER_ID,
-  },
-  // ── Words (4 single-word examples) ──────────────────────────────────────────
-  {
-    id: 'wp-v1',
-    word: 'giddy',
-    meaning: 'Excited, nervous, and happy.',
-    note: 'I felt giddy with excitement before the trip.',
-    folderId: WORDS_FOLDER_ID,
-  },
-  {
-    id: 'wp-v2',
-    word: 'resilient',
-    meaning: 'Able to recover quickly from difficulties.',
-    note: 'She is incredibly resilient under pressure.',
-    folderId: WORDS_FOLDER_ID,
-  },
-  {
-    id: 'wp-v3',
-    word: 'eloquent',
-    meaning: 'Expressing ideas fluently and persuasively.',
-    note: 'His eloquent speech moved the entire audience.',
-    folderId: WORDS_FOLDER_ID,
-  },
-  {
-    id: 'wp-v4',
-    word: 'tantamount',
-    meaning: 'Equivalent to; essentially the same as.',
-    note: 'Silence on this issue is tantamount to approval.',
-    folderId: WORDS_FOLDER_ID,
-  },
-  // ── Sentences (3 phrase examples) ───────────────────────────────────────────
-  {
-    id: 'wp-s1',
-    word: 'It really hits home.',
-    meaning: 'It feels deeply personal or emotionally impactful.',
-    note: 'His words really hit home for me.',
-    folderId: SENTENCES_FOLDER_ID,
-  },
-  {
-    id: 'wp-s2',
-    word: 'I can imagine that.',
-    meaning: 'Used to show understanding or empathy toward someone.',
-    note: 'Common in natural everyday conversation.',
-    folderId: SENTENCES_FOLDER_ID,
-  },
-  {
-    id: 'wp-s3',
-    word: 'That makes a lot of sense.',
-    meaning: 'Used to say you understand and agree with an explanation.',
-    note: 'A polite and natural way to respond in discussions.',
-    folderId: SENTENCES_FOLDER_ID,
-  },
+  { id: 'wp-w1', word: 'Tap the card to reveal its meaning.',                               meaning: 'Tap the card to reveal its meaning.',                               note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w2', word: 'Switch between List Mode and Flip Mode using the top-right button.', meaning: 'Switch between List Mode and Flip Mode using the top-right button.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w3', word: 'Tap the graduation cap icon to test yourself.',                      meaning: 'Tap the graduation cap icon to test yourself.',                      note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w4', word: 'Set up notifications to review your words automatically.',           meaning: 'Set up notifications to review your words automatically.',           note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
 ];
 
 export interface Settings {

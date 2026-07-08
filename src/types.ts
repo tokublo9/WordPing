@@ -56,6 +56,13 @@ export interface ThemeSkin {
   wallpaperOverlayColor?: string;   // tint layer on top of blur
 }
 
+export interface OnboardingChoices {
+  purpose: 'language' | 'words';
+  learningLang?: string;  // BCP-47; only when purpose === 'language'
+  nativeLang: string;     // BCP-47
+  wordCategory?: string;  // only when purpose === 'words'
+}
+
 export interface Palette {
   bg: string;
   card: string;

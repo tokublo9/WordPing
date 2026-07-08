@@ -385,25 +385,71 @@ export function SnowMountainOverlay() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CyberNeonOverlay — pulsing neon scan-lines + glowing particles
+// CyberNeonOverlay — diagonal laser beams from each corner + floating particles
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface NeonLineSpec { yFrac: number; color: string; maxOp: number; halfPeriod: number; delay: number; }
-const NEON_LINES: NeonLineSpec[] = [
-  { yFrac: 0.20, color: '#00E5FF', maxOp: 0.28, halfPeriod: 2100, delay: 0    },
-  { yFrac: 0.44, color: '#FF00FF', maxOp: 0.22, halfPeriod: 2900, delay: 700  },
-  { yFrac: 0.64, color: '#00E5FF', maxOp: 0.24, halfPeriod: 1900, delay: 1600 },
-  { yFrac: 0.82, color: '#7B00FF', maxOp: 0.20, halfPeriod: 3400, delay: 400  },
+// Beam geometry is computed once from screen dimensions at module load.
+const DIAG   = Math.sqrt((W / 2) ** 2 + (H / 2) ** 2);
+const BEAM_L = DIAG * 1.30; // extend 30% past center for a clean crossing
+
+interface DiagBeamConfig {
+  cx: number;
+  cy: number;
+  rotation: string;
+  color: string;
+  halfPeriod: number;
+  delay: number;
+  maxOp: number;
+}
+
+function buildBeam(
+  x0: number, y0: number,
+  color: string,
+  halfPeriod: number, delay: number, maxOp: number,
+): DiagBeamConfig {
+  // Unit vector from corner toward screen center
+  const dx = (W / 2 - x0) / DIAG;
+  const dy = (H / 2 - y0) / DIAG;
+  // Place beam centre along that vector at distance BEAM_L/2 from corner
+  const cx = x0 + BEAM_L / 2 * dx;
+  const cy = y0 + BEAM_L / 2 * dy;
+  // Rotate a vertical rectangle to point in direction (dx, dy):
+  // natural direction of height-axis = 90° from +x → subtract 90°
+  const rotDeg = Math.atan2(dy, dx) * (180 / Math.PI) - 90;
+  return { cx, cy, rotation: `${rotDeg.toFixed(2)}deg`, color, halfPeriod, delay, maxOp };
+}
+
+const DIAG_BEAMS: DiagBeamConfig[] = [
+  buildBeam(0, 0, '#00E5FF', 2800, 0,    0.38), // top-left  → cyan
+  buildBeam(W, 0, '#FF00FF', 3200, 700,  0.34), // top-right → magenta
+  buildBeam(0, H, '#7B00FF', 3000, 1400, 0.30), // bot-left  → purple
+  buildBeam(W, H, '#00BFFF', 2600, 2100, 0.32), // bot-right → deep-sky
 ];
 
-function NeonLine({ spec }: { spec: NeonLineSpec }) {
-  const pulse   = usePulse(spec.halfPeriod, spec.delay);
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, spec.maxOp] });
+function DiagBeam({ spec }: { spec: DiagBeamConfig }) {
+  const pulse  = usePulse(spec.halfPeriod, spec.delay);
+  const lineOp = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, spec.maxOp] });
+  const glowOp = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, spec.maxOp * 0.35] });
+
   return (
-    <Animated.View style={{
-      position: 'absolute', left: 0, top: spec.yFrac * H,
-      width: W, height: 1, backgroundColor: spec.color, opacity,
-    }} />
+    <>
+      {/* Soft colour glow (wider) */}
+      <Animated.View style={{
+        position: 'absolute',
+        left: spec.cx - 5, top: spec.cy - BEAM_L / 2,
+        width: 10, height: BEAM_L,
+        backgroundColor: spec.color, opacity: glowOp,
+        transform: [{ rotate: spec.rotation }],
+      }} />
+      {/* Bright white core */}
+      <Animated.View style={{
+        position: 'absolute',
+        left: spec.cx - 1, top: spec.cy - BEAM_L / 2,
+        width: 2, height: BEAM_L,
+        backgroundColor: '#ffffff', opacity: lineOp,
+        transform: [{ rotate: spec.rotation }],
+      }} />
+    </>
   );
 }
 
@@ -435,7 +481,7 @@ function NeonParticle({ spec }: { spec: NeonParticleSpec }) {
 export function CyberNeonOverlay() {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {NEON_LINES.map((spec, i) => <NeonLine key={i} spec={spec} />)}
+      {DIAG_BEAMS.map((spec, i) => <DiagBeam key={i} spec={spec} />)}
       {NEON_PARTICLES.map((spec, i) => <NeonParticle key={i} spec={spec} />)}
     </View>
   );

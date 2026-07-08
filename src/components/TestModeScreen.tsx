@@ -664,6 +664,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
                   size={15}
                   color={muted ? themeColor : pal.text}
                 />
+                <Text style={[s.toolBtnText, { color: muted ? themeColor : pal.text }]}>{t('test_mute')}</Text>
               </TouchableOpacity>
             </View>
 
