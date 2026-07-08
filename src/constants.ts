@@ -104,6 +104,9 @@ const LEGACY_SKINS: ThemeSkin[] = [
 ];
 
 // Solid-colour skins — available free in the Kisekae Shop.
+// Skins free users may activate (no subscription required).
+export const FREE_SKIN_IDS = new Set(['solid_blue', 'solid_gray']);
+
 export const SOLID_SKINS: ThemeSkin[] = [
   {
     id: 'solid_blue', name: 'Blue', emoji: '💙',
@@ -111,6 +114,14 @@ export const SOLID_SKINS: ThemeSkin[] = [
     palette: {
       bg: '#EEF3FF', card: '#FFFFFF', text: '#1E3A5F', sub: '#6B8098',
       border: 'rgba(37,99,235,0.12)', input: '#F5F8FF', chip: '#E0EAFF', dialog: '#FFFFFF',
+    },
+  },
+  {
+    id: 'solid_gray', name: 'Gray', emoji: '🩶',
+    darkStatusBar: false, themeColor: '#6B7280',
+    palette: {
+      bg: '#F9FAFB', card: '#FFFFFF', text: '#111827', sub: '#6B7280',
+      border: 'rgba(107,114,128,0.12)', input: '#F3F4F6', chip: '#E5E7EB', dialog: '#FFFFFF',
     },
   },
   {
@@ -191,14 +202,6 @@ export const SOLID_SKINS: ThemeSkin[] = [
     palette: {
       bg: '#FEFCE8', card: '#FFFFFF', text: '#2D2000', sub: '#7A6020',
       border: 'rgba(202,138,4,0.12)', input: '#FEFDF5', chip: '#FEF9C3', dialog: '#FFFFFF',
-    },
-  },
-  {
-    id: 'solid_gray', name: 'Gray', emoji: '🩶',
-    darkStatusBar: false, themeColor: '#6B7280',
-    palette: {
-      bg: '#F9FAFB', card: '#FFFFFF', text: '#111827', sub: '#6B7280',
-      border: 'rgba(107,114,128,0.12)', input: '#F3F4F6', chip: '#E5E7EB', dialog: '#FFFFFF',
     },
   },
 ];

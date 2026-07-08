@@ -20,7 +20,7 @@ import { LangContext, translate } from './src/i18n';
 import type { Appearance, Folder, FolderNotifSettings, WordCard } from './src/types';
 import {
   DARK, DEFAULT_LANGUAGE,
-  DEFAULT_THEME, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, SKINS,
+  DEFAULT_THEME, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, SKINS,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
 import { appStyles as s } from './src/styles';
@@ -278,7 +278,8 @@ export default function App() {
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const activeSkin = isSubscribed ? (SKINS.find(s => s.id === skinId) ?? null) : null;
+  // Free users may activate solid_blue and solid_gray; all other skins require a subscription.
+  const activeSkin = SKINS.find(s => s.id === skinId && (isSubscribed || FREE_SKIN_IDS.has(s.id))) ?? null;
   const isDark = activeSkin
     ? activeSkin.darkStatusBar
     : appearance === 'system' ? systemScheme === 'dark' : appearance === 'dark';
@@ -410,10 +411,17 @@ export default function App() {
   // to isSubscribed or themeColor — covers the downgrade case at runtime.
   useEffect(() => {
     if (!settingsLoaded || !isSubscriptionLoaded) return;
-    if (!isSubscribed && themeColor !== FREE_THEME_COLOR) {
-      setThemeColor(FREE_THEME_COLOR);
+    if (!isSubscribed) {
+      // On downgrade: reset any premium skin back to blue.
+      if (skinId && !FREE_SKIN_IDS.has(skinId)) {
+        setSkinId('solid_blue');
+      }
+      // Legacy: if no skin is active and themeColor drifted to a paid color, reset it.
+      if (!skinId && themeColor !== FREE_THEME_COLOR) {
+        setThemeColor(FREE_THEME_COLOR);
+      }
     }
-  }, [isSubscribed, isSubscriptionLoaded, settingsLoaded, themeColor]);
+  }, [isSubscribed, isSubscriptionLoaded, settingsLoaded, skinId, themeColor]);
 
   const pickTheme = (color: string) => setThemeColor(color);
   const pickAppearance = (mode: Appearance) => setAppearance(mode);
@@ -693,9 +701,9 @@ export default function App() {
                   onPress={() => setNotificationModalVisible(true)}
                 >
                   <Ionicons
-                    name={notificationsEnabled ? 'notifications-outline' : 'notifications-off-outline'}
+                    name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
                     size={22}
-                    color={pal.sub}
+                    color={notificationsEnabled ? activeThemeColor : pal.sub}
                   />
                 </TouchableOpacity>
                 <TouchableOpacity

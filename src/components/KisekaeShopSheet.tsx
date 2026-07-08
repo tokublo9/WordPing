@@ -51,8 +51,9 @@ export interface ShopItem {
 }
 
 const SHOP_ITEMS: ShopItem[] = [
-  // ── Solid (12) ───────────────────────────────────────────────────────────────
+  // ── Solid (12) — blue & gray are free; all others require Basic ──────────────
   { id: 'solid_blue',   name: 'Blue',     price: 0, category: 'solid', previewBg: '#EEF3FF', previewAccent: '#2563EB', previewEmoji: '💙' },
+  { id: 'solid_gray',   name: 'Gray',     price: 0, category: 'solid', previewBg: '#F3F4F6', previewAccent: '#6B7280', previewEmoji: '🩶' },
   { id: 'solid_sky',    name: 'Sky Blue', price: 0, category: 'solid', previewBg: '#E0F2FE', previewAccent: '#0EA5E9', previewEmoji: '🩵' },
   { id: 'solid_green',  name: 'Green',    price: 0, category: 'solid', previewBg: '#EDFBF2', previewAccent: '#16A34A', previewEmoji: '💚' },
   { id: 'solid_mint',   name: 'Mint',     price: 0, category: 'solid', previewBg: '#DCFCE7', previewAccent: '#10B981', previewEmoji: '🌱' },
@@ -62,7 +63,6 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'solid_orange', name: 'Orange',   price: 0, category: 'solid', previewBg: '#FFEDD5', previewAccent: '#F97316', previewEmoji: '🧡' },
   { id: 'solid_yellow', name: 'Yellow',   price: 0, category: 'solid', previewBg: '#FEF9C3', previewAccent: '#CA8A04', previewEmoji: '💛' },
   { id: 'solid_beige',  name: 'Beige',    price: 0, category: 'solid', previewBg: '#FAF5EB', previewAccent: '#92400E', previewEmoji: '🤎' },
-  { id: 'solid_gray',   name: 'Gray',     price: 0, category: 'solid', previewBg: '#F3F4F6', previewAccent: '#6B7280', previewEmoji: '🩶' },
   { id: 'solid_teal',   name: 'Teal',     price: 0, category: 'solid', previewBg: '#F0FDFA', previewAccent: '#0D9488', previewEmoji: '💎' },
   // ── Premium (12) ─────────────────────────────────────────────────────────────
   { id: 'skin_deep_sea',  name: 'Deep Sea',       price: 480, category: 'premium', previewBg: '#061628', previewAccent: '#38BDF8', previewEmoji: '🌊' },
@@ -491,8 +491,8 @@ export function KisekaeShopSheet({
   }, [onClose]);
 
   const isOwned = useCallback((item: ShopItem): boolean => {
-    // solid_blue is always free; all other solid colors require a subscription.
-    if (item.id === 'solid_blue') return true;
+    // solid_blue and solid_gray are always free; all other skins require a subscription.
+    if (item.id === 'solid_blue' || item.id === 'solid_gray') return true;
     if (!isSubscribed) return false;
     return item.price === 0 || ownedIds.has(item.id);
   }, [ownedIds, isSubscribed]);
