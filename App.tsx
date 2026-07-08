@@ -803,33 +803,37 @@ export default function App() {
           {/* Level filter chips + test mode button */}
           {folderCards.length > 0 && !selectionMode && !reorderMode && showLevelLabels && (
             <View style={filterStyles.bar} onTouchStart={() => closeOpenCard.current?.()}>
-              {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
-                const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
-                const on = levelFilter.has(level);
-                return (
-                  <TouchableOpacity
-                    key={level}
-                    style={[filterStyles.chip, {
-                      borderColor: on ? color : pal.border,
-                    }]}
-                    onPress={() => toggleLevelFilter(level)}
-                  >
-                    {icon === '◎'
-                      ? <Text style={{ fontSize: 14, color: on ? color : '#9CA3AF', lineHeight: 15 }}>◎</Text>
-                      : icon != null
-                      ? <Ionicons name={icon as any} size={13} color={on ? color : '#9CA3AF'} />
-                      : null
-                    }
-                    <Text style={[filterStyles.chipCount, { color: on ? color : '#9CA3AF' }]}>
-                      {count}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {/* Level filter chips */}
+              <View style={filterStyles.chipGroup}>
+                {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
+                  const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
+                  const on = levelFilter.has(level);
+                  return (
+                    <TouchableOpacity
+                      key={level}
+                      style={[filterStyles.chip, { borderColor: on ? color : pal.border }]}
+                      onPress={() => toggleLevelFilter(level)}
+                    >
+                      {icon === '◎'
+                        ? <Text style={{ fontSize: 14, color: on ? color : '#9CA3AF', lineHeight: 15 }}>◎</Text>
+                        : icon != null
+                        ? <Ionicons name={icon as any} size={13} color={on ? color : '#9CA3AF'} />
+                        : null
+                      }
+                      <Text style={[filterStyles.chipCount, { color: on ? color : '#9CA3AF' }]}>
+                        {count}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Test mode button — pushed to far right */}
               <TouchableOpacity
-                style={[filterStyles.chip, { borderColor: pal.border, marginLeft: 4 }]}
+                style={[filterStyles.chip, { borderColor: pal.border }]}
                 onPress={() => setTestModeVisible(true)}
               >
+                <Text style={[filterStyles.chipCount, { color: pal.sub }]}>Test Mode</Text>
                 <Ionicons name="school-outline" size={14} color={pal.sub} />
               </TouchableOpacity>
             </View>
@@ -1222,8 +1226,13 @@ const filterStyles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingBottom: 10,
+  },
+  chipGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   chip: {
