@@ -518,11 +518,12 @@ export function KisekaeShopSheet({
     return item.price === 0 || ownedIds.has(item.id);
   }, [ownedIds, isSubscribed]);
 
+  // solid_blue is the baseline: when no skin is explicitly picked it is still active.
+  const effectiveSkinId = skinId ?? 'solid_blue';
+
   const handleTap = useCallback((item: ShopItem) => {
-    if (skinId === item.id) {
-      onPickSkin(null);
-      return;
-    }
+    // Already active — do nothing (prevent clearing to an empty/no-theme state).
+    if (effectiveSkinId === item.id) return;
     if (isOwned(item)) {
       const exists = SKINS.some(s => s.id === item.id);
       onPickSkin(exists ? item.id : null);
@@ -533,7 +534,7 @@ export function KisekaeShopSheet({
       // Premium skin: grant via in-app purchase coins.
       setOwnedIds(prev => new Set([...prev, item.id]));
     }
-  }, [skinId, onPickSkin, isOwned, isSubscribed, onUpgrade]);
+  }, [effectiveSkinId, onPickSkin, isOwned, isSubscribed, onUpgrade]);
 
   const filtered = useMemo(
     () => (activeTab === 'free' ? SHOP_ITEMS.filter(i => FREE_TAB_IDS.has(i.id)) : PREMIUM_TAB_ITEMS)
@@ -544,14 +545,14 @@ export function KisekaeShopSheet({
   const renderItem = useCallback(({ item }: { item: ShopItem }) => (
     <SkinCard
       item={item}
-      isSelected={skinId === item.id}
+      isSelected={effectiveSkinId === item.id}
       isOwned={isOwned(item)}
       isSubscribed={isSubscribed}
       onPress={() => handleTap(item)}
       themeColor={themeColor}
       pal={pal}
     />
-  ), [skinId, isOwned, isSubscribed, handleTap, themeColor, pal]);
+  ), [effectiveSkinId, isOwned, isSubscribed, handleTap, themeColor, pal]);
 
   // Keep mounted even when hidden so wallpaper images stay in memory.
   // Pointer events are blocked and the sheet is off-screen when !visible.

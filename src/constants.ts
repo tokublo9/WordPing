@@ -110,7 +110,7 @@ export const FREE_SKIN_IDS = new Set(['solid_blue', 'solid_gray']);
 export const SOLID_SKINS: ThemeSkin[] = [
   {
     id: 'solid_blue', name: 'Blue', emoji: '💙',
-    darkStatusBar: false, themeColor: '#2563EB',
+    darkStatusBar: false, themeColor: FREE_THEME_COLOR,
     palette: {
       bg: '#EEF3FF', card: '#FFFFFF', text: '#1E3A5F', sub: '#6B8098',
       border: 'rgba(37,99,235,0.12)', input: '#F5F8FF', chip: '#E0EAFF', dialog: '#FFFFFF',
