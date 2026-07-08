@@ -175,7 +175,7 @@ export function SwipeableFolder({
             </Text>
           </View>
           {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
-            <Ionicons name="notifications" size={15} color={themeColor} style={styles.notifIcon} />
+            <Ionicons name="notifications" size={19} color={themeColor} style={styles.notifIcon} />
           )}
           {!selectionMode && <Ionicons name="chevron-forward" size={16} color={pal.sub} />}
         </TouchableOpacity>

@@ -1120,23 +1120,6 @@ export default function App() {
           {/* Thicker divider before settings group */}
           <View style={[menuStyles.groupSep, { backgroundColor: pal.border }]} />
 
-          {/* Group 2: Settings — notification shown in cards context */}
-          {menuContext === 'cards' && (
-            <>
-              <TouchableOpacity
-                style={menuStyles.item}
-                onPress={() => { setNotificationModalVisible(true); setMenuVisible(false); }}
-              >
-                <Ionicons
-                  name={notificationsEnabled ? 'notifications-outline' : 'notifications-off-outline'}
-                  size={17}
-                  color={pal.text}
-                />
-                <Text style={[menuStyles.itemText, { color: pal.text }]}>{t('notifications')}</Text>
-              </TouchableOpacity>
-              <View style={[menuStyles.sep, { backgroundColor: pal.border }]} />
-            </>
-          )}
           <TouchableOpacity
             style={menuStyles.item}
             onPress={() => { setSettingsModalVisible(true); setMenuVisible(false); }}

@@ -93,7 +93,7 @@ export function NotificationModal({
                 >
                   <Text style={[
                     s.intervalRowText,
-                    { color: selected ? themeColor : isOff ? '#E05C5C' : pal.text },
+                    { color: selected ? themeColor : isOff ? '#E05C5C' : pal.sub },
                     selected && s.intervalRowTextSelected,
                   ]}>
                     {option.label}
@@ -109,7 +109,7 @@ export function NotificationModal({
               borderColor:     displayOnlyWord ? themeColor : pal.border,
               marginBottom: 0,
             }]}>
-              <Text style={[s.intervalRowText, { color: displayOnlyWord ? themeColor : pal.text, fontSize: 13 }, displayOnlyWord && s.intervalRowTextSelected]}>
+              <Text style={[s.intervalRowText, { color: displayOnlyWord ? themeColor : pal.sub, fontSize: 13 }, displayOnlyWord && s.intervalRowTextSelected]}>
                 {t('display_only_word')}
               </Text>
               <Switch
