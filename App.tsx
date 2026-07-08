@@ -688,8 +688,15 @@ export default function App() {
                 </Text>
               </View>
               <View style={s.headerIcons}>
-                <TouchableOpacity style={s.iconBtn} onPress={() => setTestModeVisible(true)}>
-                  <Ionicons name="school-outline" size={22} color={pal.sub} />
+                <TouchableOpacity
+                  style={s.iconBtn}
+                  onPress={() => setNotificationModalVisible(true)}
+                >
+                  <Ionicons
+                    name={notificationsEnabled ? 'notifications-outline' : 'notifications-off-outline'}
+                    size={22}
+                    color={pal.sub}
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.iconBtn}
@@ -793,7 +800,7 @@ export default function App() {
             </Text>
           </View>
 
-          {/* Level filter chips */}
+          {/* Level filter chips + test mode button */}
           {folderCards.length > 0 && !selectionMode && !reorderMode && showLevelLabels && (
             <View style={filterStyles.bar} onTouchStart={() => closeOpenCard.current?.()}>
               {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
@@ -819,6 +826,12 @@ export default function App() {
                   </TouchableOpacity>
                 );
               })}
+              <TouchableOpacity
+                style={[filterStyles.chip, { borderColor: pal.border, marginLeft: 4 }]}
+                onPress={() => setTestModeVisible(true)}
+              >
+                <Ionicons name="school-outline" size={14} color={pal.sub} />
+              </TouchableOpacity>
             </View>
           )}
 
