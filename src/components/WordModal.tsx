@@ -730,7 +730,7 @@ export function WordModal({
 
             {/* Safe-area spacer */}
             {insets.bottom > 0 && (
-              <View style={{ height: insets.bottom, backgroundColor: pal.bg }} />
+              <View style={{ height: insets.bottom, backgroundColor: pal.dialog }} />
             )}
           </Animated.View>
         </View>
