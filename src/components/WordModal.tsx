@@ -5,6 +5,7 @@ import {
   Dimensions,
   Easing,
   Keyboard,
+  LayoutAnimation,
   Modal,
   Platform,
   ScrollView,
@@ -12,8 +13,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  UIManager,
   View,
 } from 'react-native';
+
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +36,7 @@ import { AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
 const SCREEN_H = Dimensions.get('window').height;
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-const VOLUME_OPTIONS = [0.25, 0.5, 0.75, 1.0];
+const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
 // ── TTS language options (BCP-47 codes supported by device TTS) ───────────────
 
@@ -131,7 +137,13 @@ export function WordModal({
 
   // ── Audio ────────────────────────────────────────────────────────────────────
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioSettingsExpanded, setAudioSettingsExpanded] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
+
+  const toggleAudioSettings = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setAudioSettingsExpanded(e => !e);
+  };
 
   // Stop and unload sound whenever the modal closes
   useEffect(() => {
@@ -177,7 +189,7 @@ export function WordModal({
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
       await sound.setRateAsync(audioSpeed, true);
-      await sound.setVolumeAsync(audioVolume);
+      await sound.setVolumeAsync(Math.min(audioVolume, 1.0));
       soundRef.current = sound;
       setIsPlayingAudio(true);
       await sound.playAsync();
@@ -434,55 +446,72 @@ export function WordModal({
                 {/* Audio playback settings — visible only when an audio file is attached */}
                 {isSubscribed && audioUri ? (
                   <View style={[styles.audioSettings, { borderColor: pal.border, backgroundColor: pal.input }]}>
-                    {/* Speed row */}
-                    <View style={styles.audioSettingRow}>
-                      <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>Speed</Text>
-                      <View style={styles.audioChipRow}>
-                        {SPEED_OPTIONS.map(rate => {
-                          const active = audioSpeed === rate;
-                          return (
-                            <TouchableOpacity
-                              key={rate}
-                              onPress={() => onChangeAudioSpeed(rate)}
-                              style={[
-                                styles.audioChip,
-                                { borderColor: active ? themeColor : pal.border },
-                                active && { backgroundColor: themeColor + '18' },
-                              ]}
-                            >
-                              <Text style={[styles.audioChipText, { color: active ? themeColor : pal.sub }]}>
-                                {rate === 1.0 ? '1×' : `${rate}×`}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
+                    {/* Collapsible header */}
+                    <TouchableOpacity
+                      onPress={toggleAudioSettings}
+                      activeOpacity={0.6}
+                      style={styles.audioSettingsHeader}
+                    >
+                      <Text style={[styles.audioSettingsTitle, { color: pal.sub }]}>Playback</Text>
+                      <Ionicons
+                        name={audioSettingsExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={13}
+                        color={pal.sub}
+                      />
+                    </TouchableOpacity>
+
+                    {audioSettingsExpanded && (
+                      <View style={styles.audioSettingsBody}>
+                        {/* Speed row */}
+                        <View style={styles.audioSettingRow}>
+                          <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>Speed</Text>
+                          <View style={styles.audioChipRow}>
+                            {SPEED_OPTIONS.map(rate => {
+                              const active = audioSpeed === rate;
+                              return (
+                                <TouchableOpacity
+                                  key={rate}
+                                  onPress={() => onChangeAudioSpeed(rate)}
+                                  style={[
+                                    styles.audioChip,
+                                    { borderColor: active ? themeColor : pal.border },
+                                    active && { backgroundColor: themeColor + '18' },
+                                  ]}
+                                >
+                                  <Text style={[styles.audioChipText, { color: active ? themeColor : pal.sub }]}>
+                                    {rate === 1.0 ? '1×' : `${rate}×`}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                        {/* Volume row */}
+                        <View style={[styles.audioSettingRow, { marginTop: 8 }]}>
+                          <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>Volume</Text>
+                          <View style={styles.audioChipRow}>
+                            {VOLUME_OPTIONS.map(v => {
+                              const active = audioVolume === v;
+                              return (
+                                <TouchableOpacity
+                                  key={v}
+                                  onPress={() => onChangeAudioVolume(v)}
+                                  style={[
+                                    styles.audioChip,
+                                    { borderColor: active ? themeColor : pal.border },
+                                    active && { backgroundColor: themeColor + '18' },
+                                  ]}
+                                >
+                                  <Text style={[styles.audioChipText, { color: active ? themeColor : pal.sub }]}>
+                                    {Math.round(v * 100)}%
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
                       </View>
-                    </View>
-                    {/* Volume row */}
-                    <View style={[styles.audioSettingRow, { marginTop: 8 }]}>
-                      <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>Volume</Text>
-                      <View style={styles.audioChipRow}>
-                        {VOLUME_OPTIONS.map(v => {
-                          const active = audioVolume === v;
-                          const icon = v <= 0.25 ? '🔈' : v <= 0.5 ? '🔉' : '🔊';
-                          return (
-                            <TouchableOpacity
-                              key={v}
-                              onPress={() => onChangeAudioVolume(v)}
-                              style={[
-                                styles.audioChip,
-                                { borderColor: active ? themeColor : pal.border },
-                                active && { backgroundColor: themeColor + '18' },
-                              ]}
-                            >
-                              <Text style={[styles.audioChipText, { color: active ? themeColor : pal.sub }]}>
-                                {icon} {Math.round(v * 100)}%
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
+                    )}
                   </View>
                 ) : null}
 
@@ -820,9 +849,24 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     marginTop: 8,
     marginBottom: 16,
+    overflow: 'hidden',
+  },
+  audioSettingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  audioSettingsTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  audioSettingsBody: {
+    marginTop: 10,
   },
   audioSettingRow: {
     flexDirection: 'row',
