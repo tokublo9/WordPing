@@ -31,7 +31,7 @@ import type { Palette, WordCard } from '../types';
 import { useLang } from '../i18n';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
 import { appStyles as s } from '../styles';
-import { AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
+import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -712,8 +712,8 @@ export function WordModal({
               </View>
             </View>
 
-            {/* Banner — hidden for Pro subscribers */}
-            {!isSubscribed && (
+            {/* Banner — hidden for Pro subscribers; also suppressed when ADS_ENABLED = false */}
+            {ADS_ENABLED && !isSubscribed && (
               <View
                 style={[
                   styles.banner,

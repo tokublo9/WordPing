@@ -17,7 +17,7 @@ import type { Palette, WordCard } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLang, type TranslationKey } from '../i18n';
 import { speak, stopPlayback } from '../lib/tts';
-import { AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
+import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 
 const TEST_MUTED_KEY = 'wordping_test_muted';
 
@@ -752,8 +752,8 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
           </View>
         )}
 
-        {/* Banner ad — hidden for Pro subscribers */}
-        {!isSubscribed ? (
+        {/* Banner ad — hidden for Pro subscribers; also suppressed when ADS_ENABLED = false */}
+        {ADS_ENABLED && !isSubscribed ? (
           <View
             style={{
               width: '100%',
