@@ -408,7 +408,7 @@ export function WordModal({
                   bounces={false}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(kbHeight, 350) }}
+                  contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(kbHeight, 520) }}
                 >
                 {/* Word field */}
                 <View style={styles.fieldLabelRow}>

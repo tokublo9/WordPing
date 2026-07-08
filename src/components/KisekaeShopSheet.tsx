@@ -345,21 +345,18 @@ const SkinCard = memo(function SkinCard({
 }) {
   const t = useLang();
 
-  // Basic plan users have all themes available — no price labels; only show "Using".
-  // Free plan users see price labels; non-blue solid skins show a subscription badge.
+  // Show "Using" when active, nothing for subscribers, price for purchasable skins.
   const statusLabel: string =
-    isSelected                            ? t('shop_using')
-    : isSubscribed                        ? ''
-    : (!isOwned && item.price === 0)      ? '★ Basic'
-    : (isOwned && item.price > 0)         ? t('shop_owned')
-    : item.price === 0                    ? t('shop_free')
-    :                                       `¥${item.price}`;
+    isSelected                    ? t('shop_using')
+    : isSubscribed                ? ''
+    : (isOwned && item.price > 0) ? t('shop_owned')
+    : item.price > 0              ? `¥${item.price}`
+    :                               '';
 
   const statusColor =
-    isSelected         ? themeColor
-    : isOwned          ? '#22C55E'
-    : item.price === 0 ? '#A855F7'    // locked solid skin → subscription badge color
-    : '#EF4444';
+    isSelected ? themeColor
+    : isOwned  ? '#22C55E'
+    :            '#EF4444';
 
   // Stable reference: item.id never changes (comes from the module-level constant).
   const skinData = useMemo(() => SKINS.find(s => s.id === item.id), [item.id]);
@@ -557,6 +554,7 @@ export function KisekaeShopSheet({
         <Ionicons name="search-outline" size={16} color={pal.sub} />
         <TextInput
           style={[styles.searchInput, { color: pal.text }]}
+          placeholder={t('shop_search_placeholder')}
           placeholderTextColor={pal.sub}
           value={search}
           onChangeText={setSearch}

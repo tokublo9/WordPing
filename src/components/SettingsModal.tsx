@@ -71,10 +71,11 @@ export function SettingsModal({
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
           {/* ── Appearance ───────────────────────────────────────────────── */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 24, opacity: skinId ? 0.38 : 1 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
+            {skinId && <Ionicons name="lock-closed-outline" size={12} color={pal.sub} />}
           </View>
-          <View style={s.appearanceRow}>
+          <View style={[s.appearanceRow, skinId ? { opacity: 0.38 } : null]} pointerEvents={skinId ? 'none' : 'auto'}>
             {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
               const active = appearance === mode;
               const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
