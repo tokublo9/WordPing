@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   useColorScheme,
   View,
 } from 'react-native';
@@ -908,12 +909,14 @@ export default function App() {
               data={filteredFolderCards}
               keyExtractor={c => c.id}
               renderItem={renderCard}
+              style={{ flex: 1 }}
               contentContainerStyle={[
                 s.list,
                 { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selectionMode ? SEL_BAR_H : 0) },
               ]}
               showsVerticalScrollIndicator={false}
               scrollEnabled={cardScrollEnabled}
+              keyboardShouldPersistTaps="handled"
               onScrollBeginDrag={() => closeOpenCard.current?.()}
               scrollEventThrottle={16}
               onScroll={activeSkin?.id === 'skin_deep_sea'
@@ -922,6 +925,11 @@ export default function App() {
                     { useNativeDriver: false }
                   )
                 : undefined}
+              ListFooterComponent={
+                <TouchableWithoutFeedback onPress={() => closeOpenCard.current?.()}>
+                  <View style={{ height: 200 }} />
+                </TouchableWithoutFeedback>
+              }
             />
           )}
 
