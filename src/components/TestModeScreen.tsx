@@ -264,7 +264,7 @@ function InfoSheet({
 }) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
-  const sheetH = Math.round(SCREEN_H * 0.82);
+  const sheetH = SCREEN_H - insets.top - 10;
   const slideY    = useRef(new Animated.Value(900)).current;
   const backdropO = useRef(new Animated.Value(0)).current;
 
@@ -660,7 +660,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
                 onPress={handleMuteToggle}
               >
                 <Ionicons
-                  name={muted ? 'volume-mute-outline' : 'volume-medium-outline'}
+                  name="volume-mute-outline"
                   size={15}
                   color={muted ? themeColor : pal.text}
                 />
