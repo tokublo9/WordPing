@@ -379,6 +379,13 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                   </Text>
                 </View>
               )}
+
+              {/* Notification-off badge — bottom-right corner, current card only */}
+              {isCurr && c.notifOff && (
+                <View style={[s.notifOffBadge, { backgroundColor: pal.border }]} pointerEvents="none">
+                  <Ionicons name="notifications-off-outline" size={14} color={pal.sub} />
+                </View>
+              )}
             </Animated.View>
           );
         })}
@@ -504,6 +511,17 @@ const s = StyleSheet.create({
     zIndex: 2,
     width: 36,
     height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifOffBadge: {
+    position: 'absolute',
+    bottom: 14,
+    right: 14,
+    zIndex: 3,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

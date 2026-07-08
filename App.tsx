@@ -274,6 +274,7 @@ export default function App() {
   const [wordAudioVolume, setWordAudioVolume] = useState(1.0);
 
   const closeOpenCard = useRef<(() => void) | null>(null);
+  const [cardScrollEnabled, setCardScrollEnabled] = useState(true);
   const hasLoaded = useRef(false);
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -560,6 +561,7 @@ export default function App() {
       selected={selectedIds.has(item.id)}
       onToggleSelect={() => toggleSelect(item.id)}
       showLevelLabel={showLevelLabels}
+      onSwiping={(active) => setCardScrollEnabled(!active)}
     />
   );
 
@@ -911,6 +913,7 @@ export default function App() {
                 { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selectionMode ? SEL_BAR_H : 0) },
               ]}
               showsVerticalScrollIndicator={false}
+              scrollEnabled={cardScrollEnabled}
               onScrollBeginDrag={() => closeOpenCard.current?.()}
               scrollEventThrottle={16}
               onScroll={activeSkin?.id === 'skin_deep_sea'

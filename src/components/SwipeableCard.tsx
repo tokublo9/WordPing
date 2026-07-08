@@ -50,21 +50,25 @@ interface Props {
   selected?: boolean;
   onToggleSelect?: () => void;
   showLevelLabel?: boolean;
+  /** Called with true when a leftward swipe starts, false when the gesture ends. */
+  onSwiping?: (active: boolean) => void;
 }
 
 export function SwipeableCard({
   item, isFlipped, themeColor, pal, voiceLocked, isSubscribed,
   onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
-  showLevelLabel = true,
+  showLevelLabel = true, onSwiping,
 }: Props) {
   const t = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef(false);
   const startX = useRef(0);
 
-  const closeRef = useRef<() => void>(() => {});
-  const openRef  = useRef<() => void>(() => {});
+  const closeRef    = useRef<() => void>(() => {});
+  const openRef     = useRef<() => void>(() => {});
+  const onSwipingRef = useRef(onSwiping);
+  onSwipingRef.current = onSwiping;
 
   const close = useCallback(() => {
     isOpen.current = false;
@@ -83,8 +87,11 @@ export function SwipeableCard({
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dx) > 8,
+      onMoveShouldSetPanResponder: (_, { dx, dy }) => {
+        const horizontal = Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dx) > 8;
+        if (horizontal && dx < 0) onSwipingRef.current?.(true);
+        return horizontal;
+      },
       onPanResponderGrant: () => {
         startX.current = isOpen.current ? -REVEAL_WIDTH : 0;
       },
@@ -93,13 +100,14 @@ export function SwipeableCard({
         translateX.setValue(next);
       },
       onPanResponderRelease: (_, { dx }) => {
+        onSwipingRef.current?.(false);
         if (startX.current === 0) {
           dx < -5 ? openRef.current() : closeRef.current();
         } else {
           dx < -30 ? openRef.current() : closeRef.current();
         }
       },
-      onPanResponderTerminate: () => { closeRef.current(); },
+      onPanResponderTerminate: () => { onSwipingRef.current?.(false); closeRef.current(); },
       onPanResponderTerminationRequest: () => false,
     })
   ).current;
