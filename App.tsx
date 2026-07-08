@@ -828,13 +828,13 @@ export default function App() {
                 })}
               </View>
 
-              {/* Test mode button — pushed to far right */}
+              {/* Test mode button — icon only, pushed to far right */}
               <TouchableOpacity
-                style={[filterStyles.chip, { borderColor: pal.border }]}
+                style={s.iconBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => setTestModeVisible(true)}
               >
-                <Text style={[filterStyles.chipCount, { color: pal.sub }]}>Test Mode</Text>
-                <Ionicons name="school-outline" size={14} color={pal.sub} />
+                <Ionicons name="school-outline" size={22} color={pal.sub} />
               </TouchableOpacity>
             </View>
           )}
