@@ -1,8 +1,8 @@
-import { Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import type { Appearance, Palette } from '../types';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
@@ -38,12 +38,18 @@ interface Props {
   pal: Palette;
   language: string;
   onPickLanguage: (code: string) => void;
+  showFullCard: boolean;
+  onToggleShowFullCard: (v: boolean) => void;
+  verticalFlip: boolean;
+  onToggleVerticalFlip: (v: boolean) => void;
 }
 
 export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
   skinId, onPickSkin, isSubscribed, onUpgrade: _onUpgrade,
   onSubscribe, onRestore, onManageSubscription, pal, language, onPickLanguage,
+  showFullCard, onToggleShowFullCard,
+  verticalFlip, onToggleVerticalFlip,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
   const insets = useSafeAreaInsets();
@@ -54,6 +60,48 @@ export function SettingsModal({
   const [tutorialVisible, setTutorialVisible]     = useState(false);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
+
+  // ── Appearance-disabled toast ─────────────────────────────────────────────
+  const [hintShowing, setHintShowing] = useState(false);
+  const hintAnim  = useRef(new Animated.Value(0)).current;  // 0=hidden, 1=visible
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissHint = useCallback(() => {
+    if (hintTimer.current) { clearTimeout(hintTimer.current); hintTimer.current = null; }
+    Animated.parallel([
+      Animated.timing(hintAnim, { toValue: 0, duration: 220, useNativeDriver: false }),
+    ]).start(({ finished }) => { if (finished) setHintShowing(false); });
+  }, [hintAnim]);
+
+  const showHint = useCallback(() => {
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    setHintShowing(true);
+    Animated.spring(hintAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: false }).start();
+    hintTimer.current = setTimeout(dismissHint, 2500);
+  }, [hintAnim, dismissHint]);
+
+  // PanResponder on the toast: swipe up ≥ 28 px to dismiss immediately
+  const hintPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
+    onPanResponderMove: (_, g) => {
+      if (g.dy < 0) {
+        // Fade + lift proportional to swipe distance (cap at 80 px travel)
+        const progress = Math.max(0, 1 - (-g.dy) / 80);
+        hintAnim.setValue(progress);
+      }
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy < -28) {
+        dismissHint();
+      } else {
+        // Snap back and restart timer
+        Animated.spring(hintAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
+        if (hintTimer.current) clearTimeout(hintTimer.current);
+        hintTimer.current = setTimeout(dismissHint, 2500);
+      }
+    },
+  })).current;
 
   return (
     <Modal visible={visible} animationType="none" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -71,34 +119,38 @@ export function SettingsModal({
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
           {/* ── Appearance ───────────────────────────────────────────────── */}
-          {/* Disabled only for premium (non-solid) skins; solid colors allow appearance picks. */}
+          {/* Disabled only for premium (non-solid) skins; solid colors allow appearance picks.
+              When disabled, the row is still tappable and shows a hint toast. */}
           {(() => {
             const appearanceDisabled = !!skinId && !skinId.startsWith('solid_');
+            const buttons = (
+              <View style={[s.appearanceRow, appearanceDisabled ? { opacity: 0.38 } : null]}>
+                {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
+                  const active = appearance === mode;
+                  const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
+                  const icon =
+                    mode === 'light' ? 'sunny-outline' :
+                    mode === 'dark'  ? 'moon-outline'  :
+                                       'phone-portrait-outline';
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[s.appearanceBtn, { backgroundColor: active ? themeColor : pal.chip }]}
+                      onPress={() => appearanceDisabled ? showHint() : onPickAppearance(mode)}
+                    >
+                      <Ionicons name={icon as any} size={18} color={active ? '#fff' : pal.sub} />
+                      <Text style={[s.appearanceBtnText, { color: active ? '#fff' : pal.sub }]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
             return (
               <>
                 <View style={{ marginBottom: 12, marginTop: 24 }}>
                   <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
                 </View>
-                <View style={[s.appearanceRow, appearanceDisabled ? { opacity: 0.38 } : null]} pointerEvents={appearanceDisabled ? 'none' : 'auto'}>
-            {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
-              const active = appearance === mode;
-              const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
-              const icon =
-                mode === 'light' ? 'sunny-outline' :
-                mode === 'dark'  ? 'moon-outline'  :
-                                   'phone-portrait-outline';
-              return (
-                <TouchableOpacity
-                  key={mode}
-                  style={[s.appearanceBtn, { backgroundColor: active ? themeColor : pal.chip }]}
-                  onPress={() => onPickAppearance(mode)}
-                >
-                  <Ionicons name={icon as any} size={18} color={active ? '#fff' : pal.sub} />
-                  <Text style={[s.appearanceBtnText, { color: active ? '#fff' : pal.sub }]}>{label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-                </View>
+                {buttons}
               </>
             );
           })()}
@@ -137,6 +189,29 @@ export function SettingsModal({
           </TouchableOpacity>
 
           {/* ── Links ────────────────────────────────────────────────────── */}
+          <View style={[styles.divider, { backgroundColor: pal.border }]} />
+
+          {/* Card Behavior section */}
+          <View style={{ marginBottom: 12 }}>
+            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('card_behavior')}</Text>
+          </View>
+          <ToggleRow
+            label={t('show_full_card')}
+            description={t('show_full_card_desc')}
+            value={showFullCard}
+            onToggle={onToggleShowFullCard}
+            themeColor={themeColor}
+            pal={pal}
+          />
+          <ToggleRow
+            label={t('vertical_flip')}
+            description={t('vertical_flip_desc')}
+            value={verticalFlip}
+            onToggle={onToggleVerticalFlip}
+            themeColor={themeColor}
+            pal={pal}
+          />
+
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
           <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
@@ -190,6 +265,31 @@ export function SettingsModal({
           themeColor={themeColor}
         />
 
+        {/* Appearance-disabled hint toast — slides in below the header */}
+        {hintShowing && (
+          <Animated.View
+            style={[
+              styles.hintBanner,
+              {
+                top: insets.top + 56,
+                backgroundColor: pal.dialog,
+                borderColor: pal.border,
+                opacity: hintAnim,
+                transform: [{
+                  translateY: hintAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-56, 0],
+                  }),
+                }],
+              },
+            ]}
+            {...hintPan.panHandlers}
+          >
+            <Ionicons name="color-palette-outline" size={16} color={pal.sub} style={{ marginRight: 8 }} />
+            <Text style={[styles.hintText, { color: pal.text }]}>{t('appearance_solid_only')}</Text>
+          </Animated.View>
+        )}
+
       </View>
     </Modal>
   );
@@ -209,6 +309,28 @@ function SettingRow({ icon, label, value, onPress, pal }: {
         : <Ionicons name="chevron-forward" size={15} color={pal.sub} />
       }
     </TouchableOpacity>
+  );
+}
+
+// ── Toggle row ─────────────────────────────────────────────────────────────────
+function ToggleRow({ label, description, value, onToggle, themeColor, pal }: {
+  label: string; description: string; value: boolean;
+  onToggle: (v: boolean) => void; themeColor: string; pal: Palette;
+}) {
+  return (
+    <View style={styles.toggleRow}>
+      <View style={styles.toggleText}>
+        <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
+        <Text style={[styles.toggleDesc, { color: pal.sub }]}>{description}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: pal.chip, true: themeColor + '88' }}
+        thumbColor={value ? themeColor : pal.sub}
+        ios_backgroundColor={pal.chip}
+      />
+    </View>
   );
 }
 
@@ -232,4 +354,29 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
+
+  toggleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 },
+  toggleText: { flex: 1 },
+  toggleDesc: { fontSize: 12, marginTop: 2, lineHeight: 17 },
+
+  // Appearance-disabled toast
+  hintBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    zIndex: 200,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  hintText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

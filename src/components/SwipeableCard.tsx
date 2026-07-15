@@ -52,13 +52,14 @@ interface Props {
   showLevelLabel?: boolean;
   /** Called with true when a leftward swipe starts, false when the gesture ends. */
   onSwiping?: (active: boolean) => void;
+  showFullCard?: boolean;
 }
 
 export function SwipeableCard({
   item, isFlipped, themeColor, pal, voiceLocked, isSubscribed,
   onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
-  showLevelLabel = true, onSwiping,
+  showLevelLabel = true, onSwiping, showFullCard = false,
 }: Props) {
   const t = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -295,7 +296,7 @@ export function SwipeableCard({
         ]}
         {...(selectionMode ? {} : panResponder.panHandlers)}
       >
-        <View style={[styles.cardInner, { backgroundColor: isFlipped ? themeColor : selected ? themeColor + '20' : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
+        <View style={[styles.cardInner, { backgroundColor: isFlipped && !showFullCard ? themeColor : selected ? themeColor + '20' : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
           <TouchableOpacity
             style={[styles.cardFlipArea, { flex: 1 }]}
             onPress={selectionMode ? onToggleSelect : handleTap}
@@ -314,7 +315,33 @@ export function SwipeableCard({
               ) : null;
             })()}
 
-            {isFlipped ? (
+            {showFullCard && isFlipped ? (
+              <>
+                <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+                <View style={[styles.expandDivider, { backgroundColor: pal.border }]} />
+                <View style={styles.expandMeaningRow}>
+                  <Text style={[styles.expandMeaningText, { color: pal.text }]}>{item.meaning}</Text>
+                  <TouchableOpacity
+                    onPress={voiceLocked ? onVoiceLocked : speakMeaning}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ marginRight: -8 }}
+                  >
+                    {voiceLocked ? (
+                      <Ionicons name="lock-closed-outline" size={15} color={pal.sub} style={{ opacity: 0.6 }} />
+                    ) : (
+                      <Ionicons
+                        name={loadingVoice === 'meaning' ? 'volume-high' : 'volume-medium-outline'}
+                        size={17}
+                        color={loadingVoice === 'meaning' ? themeColor : pal.sub}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {!!item.note?.trim() && (
+                  <Text style={[styles.expandNoteText, { color: pal.sub }]}>{item.note}</Text>
+                )}
+              </>
+            ) : isFlipped ? (
               <>
                 <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
                 {!!item.note?.trim() && (
@@ -331,7 +358,7 @@ export function SwipeableCard({
             {!selectionMode && (
               <View style={styles.cornerBtns} pointerEvents="box-none">
                 <TouchableOpacity
-                  onPress={voiceLocked ? onVoiceLocked : (isFlipped ? speakMeaning : speakWord)}
+                  onPress={voiceLocked ? onVoiceLocked : (isFlipped && !showFullCard ? speakMeaning : speakWord)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   disabled={voiceLocked}
                 >
@@ -339,14 +366,14 @@ export function SwipeableCard({
                     <Ionicons
                       name="lock-closed-outline"
                       size={15}
-                      color={isFlipped ? 'rgba(255,255,255,0.5)' : pal.sub}
+                      color={isFlipped && !showFullCard ? 'rgba(255,255,255,0.5)' : pal.sub}
                       style={{ opacity: 0.6 }}
                     />
                   ) : (
                     <Ionicons
-                      name={loadingVoice === (isFlipped ? 'meaning' : 'word') ? 'volume-high' : 'volume-medium-outline'}
+                      name={loadingVoice === (isFlipped && !showFullCard ? 'meaning' : 'word') ? 'volume-high' : 'volume-medium-outline'}
                       size={17}
-                      color={isFlipped
+                      color={isFlipped && !showFullCard
                         ? (loadingVoice === 'meaning' ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.7)')
                         : (loadingVoice === 'word' ? themeColor : pal.sub)
                       }
@@ -482,7 +509,12 @@ const styles = StyleSheet.create({
 
   cardFlipArea: { paddingVertical: 16, paddingHorizontal: 18 },
   cardText: { fontSize: 18, fontWeight: '600' },
+  cardTextMeaning: { fontSize: 15, fontWeight: '400', marginTop: 4 },
   cardNote: { fontSize: 14, fontWeight: '400', marginTop: 8 },
+  expandDivider: { height: StyleSheet.hairlineWidth, marginVertical: 10, alignSelf: 'stretch' },
+  expandMeaningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  expandMeaningText: { flex: 1, fontSize: 15, fontWeight: '400' },
+  expandNoteText:    { fontSize: 13, fontWeight: '400', marginTop: 10 },
   cornerBtns: { position: 'absolute', top: 10, right: 10, alignItems: 'center', gap: 5 },
   cornerStripe: {
     position: 'absolute',

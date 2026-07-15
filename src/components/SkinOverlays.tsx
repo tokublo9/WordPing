@@ -419,40 +419,32 @@ function buildBeam(
   return { cx, cy, rotation: `${rotDeg.toFixed(2)}deg`, color, halfPeriod, delay, maxOp };
 }
 
+// 3 beams only (down from 4). Muted blue/cyan palette — no magenta or vivid purple.
+// maxOp 0.14–0.18 so beams stay well behind card content.
 const DIAG_BEAMS: DiagBeamConfig[] = [
-  buildBeam(0, 0, '#00E5FF', 2800, 0,    0.38), // top-left  → cyan
-  buildBeam(W, 0, '#FF00FF', 3200, 700,  0.34), // top-right → magenta
-  buildBeam(0, H, '#7B00FF', 3000, 1400, 0.30), // bot-left  → purple
-  buildBeam(W, H, '#00BFFF', 2600, 2100, 0.32), // bot-right → deep-sky
+  buildBeam(0, 0, '#00B8D9', 3200, 0,    0.18), // top-left  → muted cyan
+  buildBeam(W, 0, '#1A6DB5', 3800, 900,  0.14), // top-right → muted blue
+  buildBeam(W, H, '#006A80', 3400, 1800, 0.15), // bot-right → deep teal
 ];
 
 function DiagBeam({ spec }: { spec: DiagBeamConfig }) {
   const pulse  = usePulse(spec.halfPeriod, spec.delay);
   const lineOp = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, spec.maxOp] });
-  const glowOp = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, spec.maxOp * 0.35] });
 
+  // No glow halo layer — only the thin core line. The wide glow halos from
+  // multiple beams converging at center produced a circular ring artifact.
   return (
-    <>
-      {/* Soft colour glow (wider) */}
-      <Animated.View style={{
-        position: 'absolute',
-        left: spec.cx - 5, top: spec.cy - BEAM_L / 2,
-        width: 10, height: BEAM_L,
-        backgroundColor: spec.color, opacity: glowOp,
-        transform: [{ rotate: spec.rotation }],
-      }} />
-      {/* Bright white core */}
-      <Animated.View style={{
-        position: 'absolute',
-        left: spec.cx - 1, top: spec.cy - BEAM_L / 2,
-        width: 2, height: BEAM_L,
-        backgroundColor: '#ffffff', opacity: lineOp,
-        transform: [{ rotate: spec.rotation }],
-      }} />
-    </>
+    <Animated.View style={{
+      position: 'absolute',
+      left: spec.cx - 0.75, top: spec.cy - BEAM_L / 2,
+      width: 1.5, height: BEAM_L,
+      backgroundColor: spec.color, opacity: lineOp,
+      transform: [{ rotate: spec.rotation }],
+    }} />
   );
 }
 
+// Restored to original 8-particle configuration with original neon colors and opacity.
 interface NeonParticleSpec { xFrac: number; yFrac: number; size: number; color: string; maxOp: number; halfPeriod: number; delay: number; }
 const NEON_PARTICLES: NeonParticleSpec[] = [
   { xFrac: 0.12, yFrac: 0.17, size: 4, color: '#00E5FF', maxOp: 0.75, halfPeriod: 1500, delay: 0    },

@@ -9,7 +9,7 @@ import type { OnboardingChoices, Palette } from '../types';
 // ── Dev flag ──────────────────────────────────────────────────────────────────
 // Set to true to show onboarding on every launch (only takes effect in __DEV__).
 // Flip back to false before shipping.
-export const FORCE_SHOW_ONBOARDING = true;
+export const FORCE_SHOW_ONBOARDING = false;
 
 // ── Category list ─────────────────────────────────────────────────────────────
 

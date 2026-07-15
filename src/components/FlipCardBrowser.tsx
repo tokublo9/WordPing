@@ -29,6 +29,7 @@ interface Props {
   onMove: (card: WordCard) => void;
   onToggleNotif: (id: string) => void;
   showLevelLabel?: boolean;
+  verticalFlip?: boolean;
 }
 
 // Returns { curr, next, prev } slot indices given the current center slot.
@@ -56,7 +57,7 @@ function meaningFontSize(text: string): { fontSize: number; lineHeight: number }
   return { fontSize: 13, lineHeight: 18 };
 }
 
-export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif, showLevelLabel = true }: Props) {
+export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif, showLevelLabel = true, verticalFlip = false }: Props) {
   const t = useLang();
 
   // ── Three independent slot positions ──────────────────────────────────────
@@ -114,6 +115,8 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
   const frontOpacity = flipAnim.interpolate({ inputRange: [0.35, 0.5], outputRange: [1, 0],             extrapolate: 'clamp' });
   const backRotate   = flipAnim.interpolate({ inputRange: [0.5, 1],    outputRange: ['90deg', '0deg'],  extrapolate: 'clamp' });
   const backOpacity  = flipAnim.interpolate({ inputRange: [0.5, 0.65], outputRange: [0, 1],             extrapolate: 'clamp' });
+
+  const rotateKey = verticalFlip ? 'rotateX' : 'rotateY';
 
   useEffect(() => () => { stopPlayback(); }, []);
 
@@ -346,7 +349,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                 // Current card — flip + voice enabled.
                 <TouchableOpacity activeOpacity={0.95} onPress={doFlip} style={s.flipArea}>
                   <Animated.View
-                    style={[s.face, { opacity: frontOpacity, transform: [{ perspective: 900 }, { rotateY: frontRotate }] }]}
+                    style={[s.face, { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] }]}
                   >
                     <View style={[s.cardInner, { backgroundColor: pal.card }]}>
                       {stripe(c)}
@@ -359,7 +362,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                     </TouchableOpacity>
                   </Animated.View>
                   <Animated.View
-                    style={[s.face, s.faceAbsolute, { opacity: backOpacity, transform: [{ perspective: 900 }, { rotateY: backRotate }] }]}
+                    style={[s.face, s.faceAbsolute, { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] }]}
                   >
                     <View style={[s.cardInner, { backgroundColor: pal.card }]}>
                       <Text style={[s.meaningText, { color: pal.text, ...meaningFontSize(c.meaning) }]}>{c.meaning}</Text>

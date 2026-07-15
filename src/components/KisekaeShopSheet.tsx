@@ -40,7 +40,7 @@ const THUMB_H = Math.round(CARD_W * 1.3);
 
 // ── Shop data (ShopItem type lives in ThemeSkinPreview.tsx) ──────────────────
 
-const SHOP_ITEMS: ShopItem[] = [
+export const SHOP_ITEMS: ShopItem[] = [
   // ── Free (2) — always available without subscription ─────────────────────────
   { id: 'solid_blue',   name: 'Blue',  price: 0, category: 'solid', previewBg: '#EEF3FF', previewAccent: '#2563EB', previewEmoji: '💙', tags: ['minimal','bright','neutral'] },
   { id: 'solid_gray',   name: 'Gray',  price: 0, category: 'solid', previewBg: '#F3F4F6', previewAccent: '#6B7280', previewEmoji: '🩶', tags: ['minimal','neutral'] },

@@ -29,12 +29,13 @@ import { File, Directory, Paths } from 'expo-file-system';
 import { Audio } from 'expo-av';
 
 import type { Palette, WordCard } from '../types';
-import { useLang } from '../i18n';
+import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
 import { appStyles as s } from '../styles';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 
-const SCREEN_H = Dimensions.get('window').height;
+const SCREEN_H    = Dimensions.get('window').height;
+const AI_PICKER_H = Math.min(Math.round(SCREEN_H * 0.88), SCREEN_H - 56);
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -60,11 +61,8 @@ function chipLabel(code: string | undefined): string {
   return code ? `${entry.flag} ${code.split('-')[0].toUpperCase()}` : `${entry.flag} Auto`;
 }
 
-// Languages for meaning generation (no "Auto" — a target language is always required)
-const GEN_LANGUAGES = TTS_LANGUAGES.filter(l => l.code !== undefined) as { code: string; flag: string; label: string }[];
-
 function genChipLabel(code: string): string {
-  const entry = GEN_LANGUAGES.find(l => l.code === code) ?? GEN_LANGUAGES[0];
+  const entry = SUPPORTED_LANGUAGES.find(l => l.code === code) ?? SUPPORTED_LANGUAGES[0];
   return entry.flag;
 }
 
@@ -113,7 +111,7 @@ export function WordModal({
   const [pickerFor, setPickerFor] = useState<'word' | 'meaning' | 'genLang' | 'exampleLang' | 'breakdownLang' | 'meaningTransLang' | 'noteTransLang' | null>(null);
 
   // meaning generation
-  const [genLang, setGenLang]         = useState('ja-JP');
+  const [genLang, setGenLang]         = useState('ja');
   const [isGenerating, setIsGenerating] = useState(false);
 
   // example sentence generation
@@ -121,15 +119,15 @@ export function WordModal({
   const [isGeneratingExample, setIsGeneratingExample] = useState(false);
 
   // word breakdown
-  const [breakdownLang, setBreakdownLang]   = useState('ja-JP');
+  const [breakdownLang, setBreakdownLang]   = useState('ja');
   const [isBreakingDown, setIsBreakingDown] = useState(false);
 
   // translation
-  const [meaningTransLang, setMeaningTransLang]         = useState('ja-JP');
+  const [meaningTransLang, setMeaningTransLang]         = useState('ja');
   const [meaningTranslation, setMeaningTranslation]     = useState('');
   const [meaningTransCollapsed, setMeaningTransCollapsed] = useState(false);
   const [isTranslatingMeaning, setIsTranslatingMeaning] = useState(false);
-  const [noteTransLang, setNoteTransLang]               = useState('ja-JP');
+  const [noteTransLang, setNoteTransLang]               = useState('ja');
   const [noteTranslation, setNoteTranslation]           = useState('');
   const [noteTransCollapsed, setNoteTransCollapsed]     = useState(false);
   const [isTranslatingNote, setIsTranslatingNote]       = useState(false);
@@ -276,6 +274,29 @@ export function WordModal({
   const slideY          = useRef(new Animated.Value(SCREEN_H)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
+  // AI language picker animation
+  const aiPickerSlideY     = useRef(new Animated.Value(AI_PICKER_H)).current;
+  const aiPickerBackdropOp = useRef(new Animated.Value(0)).current;
+  const isAIPicker = pickerFor !== null && pickerFor !== 'word' && pickerFor !== 'meaning';
+
+  useEffect(() => {
+    if (isAIPicker) {
+      aiPickerSlideY.setValue(AI_PICKER_H);
+      aiPickerBackdropOp.setValue(0);
+      Animated.parallel([
+        Animated.timing(aiPickerBackdropOp, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(aiPickerSlideY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isAIPicker]);
+
+  const closeAIPicker = () => {
+    Animated.parallel([
+      Animated.timing(aiPickerBackdropOp, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(aiPickerSlideY, { toValue: AI_PICKER_H, duration: 220, useNativeDriver: true }),
+    ]).start(() => setPickerFor(null));
+  };
+
   useEffect(() => {
     if (visible) {
       slideY.setValue(SCREEN_H);
@@ -312,10 +333,15 @@ export function WordModal({
     else if (pickerFor === 'meaning') onChangeMeaningLang(code);
     else if (pickerFor === 'genLang') setGenLang(code ?? 'en-US');
     else if (pickerFor === 'exampleLang') setExampleLang(code ?? 'en-US');
-    else if (pickerFor === 'breakdownLang') setBreakdownLang(code ?? 'ja-JP');
-    else if (pickerFor === 'meaningTransLang') { setMeaningTransLang(code ?? 'ja-JP'); setMeaningTranslation(''); }
-    else if (pickerFor === 'noteTransLang') { setNoteTransLang(code ?? 'ja-JP'); setNoteTranslation(''); }
-    setPickerFor(null);
+    else if (pickerFor === 'breakdownLang') setBreakdownLang(code ?? 'ja');
+    else if (pickerFor === 'meaningTransLang') { setMeaningTransLang(code ?? 'ja'); setMeaningTranslation(''); }
+    else if (pickerFor === 'noteTransLang') { setNoteTransLang(code ?? 'ja'); setNoteTranslation(''); }
+    // TTS pickers close immediately; AI pickers animate out
+    if (pickerFor === 'word' || pickerFor === 'meaning') {
+      setPickerFor(null);
+    } else {
+      closeAIPicker();
+    }
   };
 
   const handleGenerate = async () => {
@@ -820,8 +846,8 @@ export function WordModal({
         </View>
       )}
 
-      {/* Language picker sheet */}
-      {pickerFor !== null && (
+      {/* TTS language picker (word / meaning fields only) */}
+      {(pickerFor === 'word' || pickerFor === 'meaning') && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
           <TouchableOpacity
             style={styles.pickerBackdrop}
@@ -832,23 +858,80 @@ export function WordModal({
               activeOpacity={1}
               style={[styles.pickerSheet, { backgroundColor: pal.dialog, paddingBottom: insets.bottom + 8 }]}
             >
-              {(pickerFor === 'genLang' || pickerFor === 'exampleLang' || pickerFor === 'breakdownLang' || pickerFor === 'meaningTransLang' || pickerFor === 'noteTransLang' ? GEN_LANGUAGES : TTS_LANGUAGES).map(lang => {
-                const selected = lang.code === selectedLang;
-                return (
-                  <TouchableOpacity
-                    key={lang.code ?? '__auto__'}
-                    style={[styles.pickerRow, selected && { backgroundColor: themeColor + '18' }]}
-                    onPress={() => onPickLang(lang.code)}
-                  >
-                    <Text style={styles.pickerFlag}>{lang.flag}</Text>
-                    <Text style={[styles.pickerLabel, { color: pal.text }]}>{lang.label}</Text>
-                    {selected && <Ionicons name="checkmark" size={18} color={themeColor} />}
-                  </TouchableOpacity>
-                );
-              })}
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                {TTS_LANGUAGES.map(lang => {
+                  const selected = lang.code === selectedLang;
+                  return (
+                    <TouchableOpacity
+                      key={lang.code ?? '__auto__'}
+                      style={[styles.pickerRow, selected && { backgroundColor: themeColor + '18' }]}
+                      onPress={() => onPickLang(lang.code)}
+                    >
+                      <Text style={styles.pickerFlag}>{lang.flag}</Text>
+                      <Text style={[styles.pickerLabel, { color: pal.text }]}>{lang.label}</Text>
+                      {selected && <Ionicons name="checkmark" size={18} color={themeColor} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
+      )}
+
+      {/* AI language picker — animated bottom sheet (matches LanguageModal design) */}
+      {isAIPicker && (
+        <>
+          <Animated.View
+            style={[StyleSheet.absoluteFillObject, styles.aiPickerBackdrop, { opacity: aiPickerBackdropOp }]}
+          >
+            <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeAIPicker} />
+          </Animated.View>
+          <Animated.View
+            style={[
+              styles.aiPickerSheet,
+              { height: AI_PICKER_H, backgroundColor: pal.dialog, transform: [{ translateY: aiPickerSlideY }] },
+            ]}
+          >
+            <View style={styles.aiPickerDragWrap} pointerEvents="none">
+              <View style={[styles.aiPickerDragPill, { backgroundColor: pal.sub }]} />
+            </View>
+            <Text style={[styles.aiPickerTitle, { color: pal.text }]}>{t('language')}</Text>
+            <ScrollView style={styles.aiPickerList} showsVerticalScrollIndicator={false} bounces={false}>
+              {SUPPORTED_LANGUAGES.map((lang, i) => {
+                const selected = lang.code === selectedLang;
+                return (
+                  <View key={lang.code}>
+                    <TouchableOpacity
+                      style={[styles.aiPickerRow, selected && { backgroundColor: themeColor + '15' }]}
+                      onPress={() => onPickLang(lang.code)}
+                      activeOpacity={0.55}
+                    >
+                      <Text style={styles.aiPickerFlag}>{lang.flag}</Text>
+                      <Text
+                        style={[
+                          styles.aiPickerName,
+                          { color: selected ? themeColor : pal.text },
+                          selected && styles.aiPickerNameSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {lang.name}
+                      </Text>
+                      {selected && <Ionicons name="checkmark" size={16} color={themeColor} />}
+                    </TouchableOpacity>
+                    {i < SUPPORTED_LANGUAGES.length - 1 && (
+                      <View style={[styles.aiPickerDivider, { backgroundColor: pal.border }]} />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={styles.aiPickerCancel} onPress={closeAIPicker}>
+              <Text style={[styles.aiPickerCancelText, { color: pal.sub }]}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </>
       )}
     </Modal>
   );
@@ -1017,7 +1100,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  // ── Language picker ──────────────────────────────────────────────────────────
+  // ── TTS language picker (word / meaning) ────────────────────────────────────
   pickerBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -1027,6 +1110,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
+    maxHeight: Math.round(SCREEN_H * 0.65),
   },
   pickerRow: {
     flexDirection: 'row',
@@ -1037,6 +1121,32 @@ const styles = StyleSheet.create({
   },
   pickerFlag:  { fontSize: 22 },
   pickerLabel: { flex: 1, fontSize: 16 },
+
+  // ── AI language picker (animated bottom sheet, matches LanguageModal) ────────
+  aiPickerBackdrop: { backgroundColor: 'rgba(0,0,0,0.5)' },
+  aiPickerSheet: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    flexDirection: 'column',
+  },
+  aiPickerDragWrap:    { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
+  aiPickerDragPill:    { width: 40, height: 4, borderRadius: 2, opacity: 0.3 },
+  aiPickerTitle:       { fontSize: 20, fontWeight: '700', marginTop: 8, marginBottom: 8 },
+  aiPickerList:        { flex: 1 },
+  aiPickerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 14, paddingVertical: 13, paddingHorizontal: 8, borderRadius: 10,
+  },
+  aiPickerFlag:         { fontSize: 24 },
+  aiPickerName:         { flex: 1, fontSize: 15 },
+  aiPickerNameSelected: { fontWeight: '600' },
+  aiPickerDivider:      { height: StyleSheet.hairlineWidth, marginHorizontal: 4 },
+  aiPickerCancel:       { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
+  aiPickerCancelText:   { fontSize: 15 },
 
   // ── Keyboard toolbar ─────────────────────────────────────────────────────────
   kbToolbar: {

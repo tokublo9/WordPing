@@ -448,3 +448,6 @@ export const REVEAL_WIDTH = 220;
 
 export const FREE_WORD_LIMIT = 30;
 export const FREE_VOICE_LIMIT = 10;
+
+export const SHOW_FULL_CARD_KEY = 'card_show_full';
+export const VERTICAL_FLIP_KEY  = 'card_vertical_flip';

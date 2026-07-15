@@ -23,6 +23,7 @@ import type { Appearance, Folder, FolderNotifSettings, OnboardingChoices, WordCa
 import {
   DARK, DEFAULT_LANGUAGE,
   DEFAULT_THEME, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, ONBOARDING_KEY, SKINS,
+  SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
 import { appStyles as s } from './src/styles';
@@ -60,6 +61,30 @@ import {
 } from './src/components/SkinOverlays';
 
 const ALL_LEVEL_KEYS = ['perfect', 'good', 'slightly', 'unknown', 'none'] as const;
+
+// Localized names for the Welcome folder, keyed by nativeLang BCP-47 code.
+const WELCOME_FOLDER_NAMES: Record<string, string> = {
+  'en-US': 'Welcome to WordPing',
+  'ja-JP': 'WordPingへようこそ',
+  'ko-KR': 'WordPing에 오신 것을 환영합니다',
+  'zh-CN': '欢迎使用WordPing',
+  'es-ES': 'Bienvenido a WordPing',
+  'fr-FR': 'Bienvenue dans WordPing',
+  'de-DE': 'Willkommen bei WordPing',
+  'it-IT': 'Benvenuto in WordPing',
+  'pt-BR': 'Bem-vindo ao WordPing',
+  'ru-RU': 'Добро пожаловать в WordPing',
+  'ar':    'أهلاً بك في WordPing',
+  'hi-IN': 'WordPing में आपका स्वागत है',
+  'tr-TR': "WordPing'e Hoş Geldiniz",
+  'nl-NL': 'Welkom bij WordPing',
+  'vi-VN': 'Chào mừng đến với WordPing',
+  'th-TH': 'ยินดีต้อนรับสู่ WordPing',
+  'id-ID': 'Selamat Datang di WordPing',
+  'pl-PL': 'Witaj w WordPing',
+  'el-GR': 'Καλώς ήρθατε στο WordPing',
+  'sv-SE': 'Välkommen till WordPing',
+};
 
 // Translations for the 4 tutorial cards in the Welcome folder.
 // Keys match the BCP-47 codes used in OnboardingModal's language list.
@@ -235,6 +260,8 @@ export default function App() {
   const [appearance, setAppearance] = useState<Appearance>('system');
   const [skinId, setSkinId] = useState<string | null>(null);
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
+  const [showFullCard, setShowFullCard] = useState(false);
+  const [verticalFlip, setVerticalFlip] = useState(false);
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 
   const [wordModalVisible, setWordModalVisible] = useState(false);
@@ -255,6 +282,8 @@ export default function App() {
   const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
+  const [learnLang, setLearnLang]     = useState<string | null>(null);
+  const [nativeLang, setNativeLang]   = useState('en-US');
   const [movePickerVisible, setMovePickerVisible] = useState(false);
   const [pendingMoveIds, setPendingMoveIds] = useState<string[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -486,8 +515,22 @@ export default function App() {
       setCards(migratedCards);
       setFolders(migratedFolders);
       applySettings(local.settings);
+      const [rawShowFull, rawVertFlip] = await Promise.all([
+        AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
+        AsyncStorage.getItem(VERTICAL_FLIP_KEY),
+      ]);
+      // Only enable from the exact stored string 'true'; any other value stays OFF.
+      if (rawShowFull === 'true') setShowFullCard(true);
+      if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
       setSettingsLoaded(true);
       const obRaw = await AsyncStorage.getItem(ONBOARDING_KEY);
+      if (obRaw !== null) {
+        try {
+          const ob: OnboardingChoices = JSON.parse(obRaw);
+          if (ob.learningLang && ob.learningLang !== 'other') setLearnLang(ob.learningLang);
+          if (ob.nativeLang && ob.nativeLang !== 'other') setNativeLang(ob.nativeLang);
+        } catch {}
+      }
       const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
       // Only navigate into the Welcome folder immediately when onboarding won't be shown.
       // If onboarding will cover the screen, currentFolderId is set in onComplete instead,
@@ -511,6 +554,16 @@ export default function App() {
     foldersRef.current = folders;
     persistFolders(folders);
   }, [folders]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(SHOW_FULL_CARD_KEY, showFullCard ? 'true' : 'false');
+  }, [showFullCard]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false');
+  }, [verticalFlip]);
 
   // ── Notifications ───────────────────────────────────────────────────────────
   const updateFolderNotif = (patch: Partial<FolderNotifSettings>) => {
@@ -728,6 +781,7 @@ export default function App() {
       onToggleSelect={() => toggleSelect(item.id)}
       showLevelLabel={showLevelLabels}
       onSwiping={(active) => setCardScrollEnabled(!active)}
+      showFullCard={showFullCard}
     />
   );
 
@@ -1068,6 +1122,7 @@ export default function App() {
               onMove={card => openMovePicker([card.id])}
               onToggleNotif={toggleCardNotif}
               showLevelLabel={showLevelLabels}
+              verticalFlip={verticalFlip}
             />
           ) : (
             <FlatList
@@ -1079,7 +1134,7 @@ export default function App() {
                 s.list,
                 { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selectionMode ? SEL_BAR_H : 0) },
               ]}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
               scrollEnabled={cardScrollEnabled}
               keyboardShouldPersistTaps="handled"
               onScrollBeginDrag={() => closeOpenCard.current?.()}
@@ -1218,6 +1273,10 @@ export default function App() {
         pal={pal}
         language={language}
         onPickLanguage={pickLanguage}
+        showFullCard={showFullCard}
+        onToggleShowFullCard={setShowFullCard}
+        verticalFlip={verticalFlip}
+        onToggleVerticalFlip={setVerticalFlip}
       />
 
       <PaywallModal
@@ -1240,6 +1299,8 @@ export default function App() {
         themeColor={activeThemeColor}
         pal={pal}
         isSubscribed={isSubscribed}
+        learningLang={learnLang ?? undefined}
+        nativeLang={nativeLang}
       />
 
       {/* Three-dot popup menu */}
@@ -1368,6 +1429,8 @@ export default function App() {
         themeColor={activeThemeColor}
         onComplete={async (choices) => {
           await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(choices));
+          if (choices.learningLang && choices.learningLang !== 'other') setLearnLang(choices.learningLang);
+          if (choices.nativeLang && choices.nativeLang !== 'other') setNativeLang(choices.nativeLang);
           // Default UI language to the user's chosen explanation language.
           const uiLang = BCP47_TO_UI_LANG[choices.nativeLang];
           if (uiLang) setLanguage(uiLang);
@@ -1377,6 +1440,11 @@ export default function App() {
             const withoutPlaceholders = prev.filter(c => !WELCOME_CARD_IDS.includes(c.id));
             return [...buildWelcomeCards(choices), ...withoutPlaceholders];
           });
+          // Rename the Welcome folder to the user's native language.
+          const localizedFolderName = WELCOME_FOLDER_NAMES[choices.nativeLang] ?? WELCOME_FOLDER_NAMES['en-US'];
+          setFolders(prev => prev.map(f =>
+            f.id === WELCOME_FOLDER_ID ? { ...f, name: localizedFolderName } : f
+          ));
           setCurrentFolderId(WELCOME_FOLDER_ID);
           setShowOnboarding(false);
         }}
