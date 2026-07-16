@@ -87,7 +87,12 @@ export type TranslationKey =
   | 'ai_tools_title' | 'ai_tools_desc'
   | 'themes_all_included' | 'themes_switch_desc'
   | 'upgrade_to_basic'
-  | 'appearance_solid_only';
+  | 'appearance_solid_only'
+  | 'notif_conflict_body' | 'notif_conflict_enable'
+  | 'err_audio_import' | 'err_audio_play'
+  | 'err_title_error' | 'err_title_playback'
+  | 'err_ai_title' | 'err_ai_meaning' | 'err_ai_example' | 'err_ai_breakdown'
+  | 'err_translate_title' | 'err_translate_body';
 
 type Dict = Record<TranslationKey, string>;
 
@@ -322,6 +327,18 @@ const enUS: Dict = {
   themes_switch_desc: 'Choose any theme and switch whenever you like.',
   upgrade_to_basic: 'Upgrade to Basic',
   appearance_solid_only: 'Appearance can only be changed when using a Solid Color theme.',
+  notif_conflict_body: 'Notifications are already enabled for "{0}". Switch to "{1}"?',
+  notif_conflict_enable: 'Enable',
+  err_audio_import: 'Could not import the audio file.',
+  err_audio_play: 'Could not play the audio file.',
+  err_title_error: 'Error',
+  err_title_playback: 'Playback Error',
+  err_ai_title: 'Generation Failed',
+  err_ai_meaning: 'Could not generate meaning. Please check your connection.',
+  err_ai_example: 'Could not generate example. Please check your connection.',
+  err_ai_breakdown: 'Could not generate breakdown. Please check your connection.',
+  err_translate_title: 'Translation Failed',
+  err_translate_body: 'Could not translate. Please check your connection.',
 };
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
@@ -555,6 +572,18 @@ const ja: Dict = {
   themes_switch_desc: 'いつでも好きなテーマに切り替え可能。',
   upgrade_to_basic: 'ベーシックにアップグレード',
   appearance_solid_only: 'Solid Colorテーマのときのみ、外観を変更できます。',
+  notif_conflict_body: '「{0}」の通知がすでに有効です。「{1}」に切り替えますか？',
+  notif_conflict_enable: '有効にする',
+  err_audio_import: '音声ファイルをインポートできませんでした。',
+  err_audio_play: '音声ファイルを再生できませんでした。',
+  err_title_error: 'エラー',
+  err_title_playback: '再生エラー',
+  err_ai_title: '生成に失敗しました',
+  err_ai_meaning: '意味を生成できませんでした。接続を確認してください。',
+  err_ai_example: '例文を生成できませんでした。接続を確認してください。',
+  err_ai_breakdown: '解析を生成できませんでした。接続を確認してください。',
+  err_translate_title: '翻訳に失敗しました',
+  err_translate_body: '翻訳できませんでした。接続を確認してください。',
 };
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
@@ -788,6 +817,18 @@ const ko: Dict = {
   themes_switch_desc: '언제든지 원하는 테마로 바꾼 수 있습니다.',
   upgrade_to_basic: '베이직으로 업그레이드',
   appearance_solid_only: '외관은 Solid Color 테마에서만 변경할 수 있습니다.',
+  notif_conflict_body: '"{0}"의 알림이 이미 활성화되어 있습니다. "{1}"으로 전환할까요?',
+  notif_conflict_enable: '활성화',
+  err_audio_import: '오디오 파일을 가져올 수 없습니다.',
+  err_audio_play: '오디오 파일을 재생할 수 없습니다.',
+  err_title_error: '오류',
+  err_title_playback: '재생 오류',
+  err_ai_title: '생성 실패',
+  err_ai_meaning: '의미를 생성할 수 없습니다. 연결을 확인해주세요.',
+  err_ai_example: '예문을 생성할 수 없습니다. 연결을 확인해주세요.',
+  err_ai_breakdown: '분석을 생성할 수 없습니다. 연결을 확인해주세요.',
+  err_translate_title: '번역 실패',
+  err_translate_body: '번역할 수 없습니다. 연결을 확인해주세요.',
 };
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
@@ -1021,6 +1062,18 @@ const zhCN: Dict = {
   themes_switch_desc: '随时切换到任意主题。',
   upgrade_to_basic: '升级到基础版',
   appearance_solid_only: '外观仅在使用纯色主题时才能更改。',
+  notif_conflict_body: '"{0}"的通知已启用。切换到"{1}"？',
+  notif_conflict_enable: '启用',
+  err_audio_import: '无法导入音频文件。',
+  err_audio_play: '无法播放音频文件。',
+  err_title_error: '错误',
+  err_title_playback: '播放错误',
+  err_ai_title: '生成失败',
+  err_ai_meaning: '无法生成含义。请检查您的网络连接。',
+  err_ai_example: '无法生成例句。请检查您的网络连接。',
+  err_ai_breakdown: '无法生成词语分析。请检查您的网络连接。',
+  err_translate_title: '翻译失败',
+  err_translate_body: '无法翻译。请检查您的网络连接。',
 };
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
@@ -1254,6 +1307,18 @@ const es: Dict = {
   themes_switch_desc: 'Cambia entre cualquier tema cuando quieras.',
   upgrade_to_basic: 'Actualizar a Basic',
   appearance_solid_only: 'La apariencia solo puede cambiarse al usar un tema de color sólido.',
+  notif_conflict_body: 'Las notificaciones ya están activadas para "{0}". ¿Cambiar a "{1}"?',
+  notif_conflict_enable: 'Activar',
+  err_audio_import: 'No se pudo importar el archivo de audio.',
+  err_audio_play: 'No se pudo reproducir el archivo de audio.',
+  err_title_error: 'Error',
+  err_title_playback: 'Error de reproducción',
+  err_ai_title: 'Error de generación',
+  err_ai_meaning: 'No se pudo generar el significado. Comprueba tu conexión.',
+  err_ai_example: 'No se pudo generar el ejemplo. Comprueba tu conexión.',
+  err_ai_breakdown: 'No se pudo generar el análisis. Comprueba tu conexión.',
+  err_translate_title: 'Error de traducción',
+  err_translate_body: 'No se pudo traducir. Comprueba tu conexión.',
 };
 
 // ── French ─────────────────────────────────────────────────────────────────────
@@ -1487,6 +1552,18 @@ const fr: Dict = {
   themes_switch_desc: 'Changez de thème quand vous voulez.',
   upgrade_to_basic: 'Passer au Basic',
   appearance_solid_only: "L'apparence ne peut être modifiée qu'avec un thème de couleur unie.",
+  notif_conflict_body: 'Les notifications sont déjà activées pour « {0} ». Passer à « {1} » ?',
+  notif_conflict_enable: 'Activer',
+  err_audio_import: "Impossible d'importer le fichier audio.",
+  err_audio_play: 'Impossible de lire le fichier audio.',
+  err_title_error: 'Erreur',
+  err_title_playback: 'Erreur de lecture',
+  err_ai_title: 'Échec de génération',
+  err_ai_meaning: 'Impossible de générer la signification. Vérifiez votre connexion.',
+  err_ai_example: "Impossible de générer l'exemple. Vérifiez votre connexion.",
+  err_ai_breakdown: "Impossible de générer l'analyse. Vérifiez votre connexion.",
+  err_translate_title: 'Échec de traduction',
+  err_translate_body: 'Impossible de traduire. Vérifiez votre connexion.',
 };
 
 // ── German ─────────────────────────────────────────────────────────────────────
@@ -1720,6 +1797,18 @@ const de: Dict = {
   themes_switch_desc: 'Wechsle jederzeit zwischen beliebigen Themen.',
   upgrade_to_basic: 'Auf Basic upgraden',
   appearance_solid_only: 'Das Erscheinungsbild lässt sich nur mit einem einfarbigen Design ändern.',
+  notif_conflict_body: 'Benachrichtigungen sind bereits für „{0}" aktiviert. Zu „{1}" wechseln?',
+  notif_conflict_enable: 'Aktivieren',
+  err_audio_import: 'Die Audiodatei konnte nicht importiert werden.',
+  err_audio_play: 'Die Audiodatei konnte nicht abgespielt werden.',
+  err_title_error: 'Fehler',
+  err_title_playback: 'Wiedergabefehler',
+  err_ai_title: 'Generierung fehlgeschlagen',
+  err_ai_meaning: 'Bedeutung konnte nicht generiert werden. Bitte Verbindung prüfen.',
+  err_ai_example: 'Beispiel konnte nicht generiert werden. Bitte Verbindung prüfen.',
+  err_ai_breakdown: 'Analyse konnte nicht generiert werden. Bitte Verbindung prüfen.',
+  err_translate_title: 'Übersetzung fehlgeschlagen',
+  err_translate_body: 'Übersetzung nicht möglich. Bitte Verbindung prüfen.',
 };
 
 // ── Italian ────────────────────────────────────────────────────────────────────
@@ -1953,6 +2042,18 @@ const it: Dict = {
   themes_switch_desc: "Passa da un tema all'altro quando vuoi.",
   upgrade_to_basic: 'Passa a Basic',
   appearance_solid_only: "L'aspetto può essere modificato solo con un tema a colore solido.",
+  notif_conflict_body: 'Le notifiche sono già attive per "{0}". Passare a "{1}"?',
+  notif_conflict_enable: 'Attiva',
+  err_audio_import: 'Impossibile importare il file audio.',
+  err_audio_play: 'Impossibile riprodurre il file audio.',
+  err_title_error: 'Errore',
+  err_title_playback: 'Errore di riproduzione',
+  err_ai_title: 'Generazione fallita',
+  err_ai_meaning: 'Impossibile generare il significato. Controlla la connessione.',
+  err_ai_example: "Impossibile generare l'esempio. Controlla la connessione.",
+  err_ai_breakdown: "Impossibile generare l'analisi. Controlla la connessione.",
+  err_translate_title: 'Traduzione fallita',
+  err_translate_body: 'Impossibile tradurre. Controlla la connessione.',
 };
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
@@ -2186,6 +2287,18 @@ const ptBR: Dict = {
   themes_switch_desc: 'Mude entre qualquer tema a qualquer hora.',
   upgrade_to_basic: 'Fazer upgrade para Basic',
   appearance_solid_only: 'A aparência só pode ser alterada ao usar um tema de cor sólida.',
+  notif_conflict_body: 'As notificações já estão ativas para "{0}". Mudar para "{1}"?',
+  notif_conflict_enable: 'Ativar',
+  err_audio_import: 'Não foi possível importar o arquivo de áudio.',
+  err_audio_play: 'Não foi possível reproduzir o arquivo de áudio.',
+  err_title_error: 'Erro',
+  err_title_playback: 'Erro de reprodução',
+  err_ai_title: 'Falha na geração',
+  err_ai_meaning: 'Não foi possível gerar o significado. Verifique sua conexão.',
+  err_ai_example: 'Não foi possível gerar o exemplo. Verifique sua conexão.',
+  err_ai_breakdown: 'Não foi possível gerar a análise. Verifique sua conexão.',
+  err_translate_title: 'Falha na tradução',
+  err_translate_body: 'Não foi possível traduzir. Verifique sua conexão.',
 };
 
 // ── Russian ────────────────────────────────────────────────────────────────────
@@ -2298,6 +2411,18 @@ const ru: Dict = {
   themes_switch_desc: 'Меняйте тему когда угодно.',
   upgrade_to_basic: 'Перейти на Basic',
   appearance_solid_only: 'Внешний вид можно изменить только с однотонной темой.',
+  notif_conflict_body: 'Уведомления уже включены для «{0}». Переключиться на «{1}»?',
+  notif_conflict_enable: 'Включить',
+  err_audio_import: 'Не удалось импортировать аудиофайл.',
+  err_audio_play: 'Не удалось воспроизвести аудиофайл.',
+  err_title_error: 'Ошибка',
+  err_title_playback: 'Ошибка воспроизведения',
+  err_ai_title: 'Ошибка генерации',
+  err_ai_meaning: 'Не удалось сгенерировать значение. Проверьте соединение.',
+  err_ai_example: 'Не удалось сгенерировать пример. Проверьте соединение.',
+  err_ai_breakdown: 'Не удалось сгенерировать разбор. Проверьте соединение.',
+  err_translate_title: 'Ошибка перевода',
+  err_translate_body: 'Не удалось перевести. Проверьте соединение.',
 };
 
 // ── Arabic ─────────────────────────────────────────────────────────────────────
@@ -2411,6 +2536,18 @@ const ar: Dict = {
   themes_switch_desc: 'بدّل بين أي ثيم في أي وقت.',
   upgrade_to_basic: 'الترقية إلى Basic',
   appearance_solid_only: 'يمكن تغيير المظهر فقط عند استخدام ثيم اللون الصلب.',
+  notif_conflict_body: 'الإشعارات مفعّلة بالفعل لـ "{0}". التبديل إلى "{1}"؟',
+  notif_conflict_enable: 'تفعيل',
+  err_audio_import: 'تعذر استيراد ملف الصوت.',
+  err_audio_play: 'تعذر تشغيل ملف الصوت.',
+  err_title_error: 'خطأ',
+  err_title_playback: 'خطأ في التشغيل',
+  err_ai_title: 'فشل التوليد',
+  err_ai_meaning: 'تعذر توليد المعنى. تحقق من اتصالك.',
+  err_ai_example: 'تعذر توليد المثال. تحقق من اتصالك.',
+  err_ai_breakdown: 'تعذر توليد التحليل. تحقق من اتصالك.',
+  err_translate_title: 'فشل الترجمة',
+  err_translate_body: 'تعذر الترجمة. تحقق من اتصالك.',
 };
 
 // ── Hindi ──────────────────────────────────────────────────────────────────────
@@ -2524,6 +2661,18 @@ const hi: Dict = {
   themes_switch_desc: 'कभी भी किसी भी थीम पर स्विच करें।',
   upgrade_to_basic: 'Basic में अपग्रेड करें',
   appearance_solid_only: 'Solid Color थीम का उपयोग करते समय ही उपस्थिति बदली जा सकती है।',
+  notif_conflict_body: '"{0}" के लिए सूचनाएं पहले से सक्षम हैं। "{1}" पर स्विच करें?',
+  notif_conflict_enable: 'सक्षम करें',
+  err_audio_import: 'ऑडियो फ़ाइल आयात नहीं हो सकी।',
+  err_audio_play: 'ऑडियो फ़ाइल चला नहीं सकते।',
+  err_title_error: 'त्रुटि',
+  err_title_playback: 'प्लेबैक त्रुटि',
+  err_ai_title: 'उत्पन्न करने में विफल',
+  err_ai_meaning: 'अर्थ उत्पन्न नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
+  err_ai_example: 'उदाहरण उत्पन्न नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
+  err_ai_breakdown: 'विश्लेषण उत्पन्न नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
+  err_translate_title: 'अनुवाद विफल',
+  err_translate_body: 'अनुवाद नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
 };
 
 // ── Turkish ────────────────────────────────────────────────────────────────────
@@ -2637,6 +2786,18 @@ const tr: Dict = {
   themes_switch_desc: 'İstediğiniz zaman herhangi bir temaya geçin.',
   upgrade_to_basic: "Basic'e geç",
   appearance_solid_only: 'Görünüm yalnızca Solid Color teması kullanılırken değiştirilebilir.',
+  notif_conflict_body: '"{0}" için bildirimler zaten etkin. "{1}" olarak değiştir?',
+  notif_conflict_enable: 'Etkinleştir',
+  err_audio_import: 'Ses dosyası içe aktarılamadı.',
+  err_audio_play: 'Ses dosyası oynatılamadı.',
+  err_title_error: 'Hata',
+  err_title_playback: 'Oynatma Hatası',
+  err_ai_title: 'Oluşturma Başarısız',
+  err_ai_meaning: 'Anlam oluşturulamadı. Lütfen bağlantınızı kontrol edin.',
+  err_ai_example: 'Örnek oluşturulamadı. Lütfen bağlantınızı kontrol edin.',
+  err_ai_breakdown: 'Çözümleme oluşturulamadı. Lütfen bağlantınızı kontrol edin.',
+  err_translate_title: 'Çeviri Başarısız',
+  err_translate_body: 'Çeviri yapılamadı. Lütfen bağlantınızı kontrol edin.',
 };
 
 // ── Dutch ──────────────────────────────────────────────────────────────────────
@@ -2750,6 +2911,18 @@ const nl: Dict = {
   themes_switch_desc: 'Wissel op elk moment van thema.',
   upgrade_to_basic: 'Upgraden naar Basic',
   appearance_solid_only: 'Uiterlijk kan alleen worden gewijzigd bij een effen kleurenthema.',
+  notif_conflict_body: 'Meldingen zijn al ingeschakeld voor "{0}". Overschakelen naar "{1}"?',
+  notif_conflict_enable: 'Inschakelen',
+  err_audio_import: 'Audiobestand kon niet worden geïmporteerd.',
+  err_audio_play: 'Audiobestand kon niet worden afgespeeld.',
+  err_title_error: 'Fout',
+  err_title_playback: 'Afspeelfout',
+  err_ai_title: 'Generatie mislukt',
+  err_ai_meaning: 'Kon betekenis niet genereren. Controleer je verbinding.',
+  err_ai_example: 'Kon voorbeeld niet genereren. Controleer je verbinding.',
+  err_ai_breakdown: 'Kon analyse niet genereren. Controleer je verbinding.',
+  err_translate_title: 'Vertaling mislukt',
+  err_translate_body: 'Kon niet vertalen. Controleer je verbinding.',
 };
 
 // ── Vietnamese ────────────────────────────────────────────────────────────────
@@ -2862,6 +3035,18 @@ const vi: Dict = {
   themes_switch_desc: 'Chuyển đổi giữa bất kỳ chủ đề nào, bất cứ lúc nào.',
   upgrade_to_basic: 'Nâng cấp lên Basic',
   appearance_solid_only: 'Giao diện chỉ có thể thay đổi khi dùng chủ đề Solid Color.',
+  notif_conflict_body: 'Thông báo đã bật cho "{0}". Chuyển sang "{1}"?',
+  notif_conflict_enable: 'Bật',
+  err_audio_import: 'Không thể nhập tệp âm thanh.',
+  err_audio_play: 'Không thể phát tệp âm thanh.',
+  err_title_error: 'Lỗi',
+  err_title_playback: 'Lỗi phát',
+  err_ai_title: 'Tạo thất bại',
+  err_ai_meaning: 'Không thể tạo nghĩa. Vui lòng kiểm tra kết nối.',
+  err_ai_example: 'Không thể tạo ví dụ. Vui lòng kiểm tra kết nối.',
+  err_ai_breakdown: 'Không thể tạo phân tích. Vui lòng kiểm tra kết nối.',
+  err_translate_title: 'Dịch thất bại',
+  err_translate_body: 'Không thể dịch. Vui lòng kiểm tra kết nối.',
 };
 
 // ── Thai ───────────────────────────────────────────────────────────────────────
@@ -2974,6 +3159,18 @@ const th: Dict = {
   themes_switch_desc: 'สลับธีมได้ตลอดเวลา',
   upgrade_to_basic: 'อัปเกรดเป็น Basic',
   appearance_solid_only: 'เปลี่ยนรูปลักษณ์ได้เฉพาะเมื่อใช้ธีม Solid Color เท่านั้น',
+  notif_conflict_body: 'การแจ้งเตือนเปิดใช้งานสำหรับ "{0}" แล้ว เปลี่ยนเป็น "{1}" หรือไม่?',
+  notif_conflict_enable: 'เปิดใช้งาน',
+  err_audio_import: 'ไม่สามารถนำเข้าไฟล์เสียงได้',
+  err_audio_play: 'ไม่สามารถเล่นไฟล์เสียงได้',
+  err_title_error: 'ข้อผิดพลาด',
+  err_title_playback: 'ข้อผิดพลาดการเล่น',
+  err_ai_title: 'การสร้างล้มเหลว',
+  err_ai_meaning: 'ไม่สามารถสร้างความหมายได้ กรุณาตรวจสอบการเชื่อมต่อ',
+  err_ai_example: 'ไม่สามารถสร้างตัวอย่างได้ กรุณาตรวจสอบการเชื่อมต่อ',
+  err_ai_breakdown: 'ไม่สามารถสร้างการวิเคราะห์ได้ กรุณาตรวจสอบการเชื่อมต่อ',
+  err_translate_title: 'การแปลล้มเหลว',
+  err_translate_body: 'ไม่สามารถแปลได้ กรุณาตรวจสอบการเชื่อมต่อ',
 };
 
 // ── Indonesian ─────────────────────────────────────────────────────────────────
@@ -3086,6 +3283,18 @@ const id: Dict = {
   themes_switch_desc: 'Ganti tema kapan saja.',
   upgrade_to_basic: 'Upgrade ke Basic',
   appearance_solid_only: 'Tampilan hanya bisa diubah saat menggunakan tema Solid Color.',
+  notif_conflict_body: 'Notifikasi sudah aktif untuk "{0}". Beralih ke "{1}"?',
+  notif_conflict_enable: 'Aktifkan',
+  err_audio_import: 'Tidak dapat mengimpor file audio.',
+  err_audio_play: 'Tidak dapat memutar file audio.',
+  err_title_error: 'Error',
+  err_title_playback: 'Error Pemutaran',
+  err_ai_title: 'Pembuatan Gagal',
+  err_ai_meaning: 'Tidak dapat membuat arti. Periksa koneksi Anda.',
+  err_ai_example: 'Tidak dapat membuat contoh. Periksa koneksi Anda.',
+  err_ai_breakdown: 'Tidak dapat membuat analisis. Periksa koneksi Anda.',
+  err_translate_title: 'Terjemahan Gagal',
+  err_translate_body: 'Tidak dapat menerjemahkan. Periksa koneksi Anda.',
 };
 
 // ── Polish ─────────────────────────────────────────────────────────────────────
@@ -3198,6 +3407,18 @@ const pl: Dict = {
   themes_switch_desc: 'Przełączaj się między dowolnymi motywami w dowolnej chwili.',
   upgrade_to_basic: 'Przejdź na Basic',
   appearance_solid_only: 'Wygląd można zmienić tylko przy motywie jednokolorowym.',
+  notif_conflict_body: 'Powiadomienia są już włączone dla „{0}". Przełączyć na „{1}"?',
+  notif_conflict_enable: 'Włącz',
+  err_audio_import: 'Nie można zaimportować pliku audio.',
+  err_audio_play: 'Nie można odtworzyć pliku audio.',
+  err_title_error: 'Błąd',
+  err_title_playback: 'Błąd odtwarzania',
+  err_ai_title: 'Generowanie nie powiodło się',
+  err_ai_meaning: 'Nie można wygenerować znaczenia. Sprawdź połączenie.',
+  err_ai_example: 'Nie można wygenerować przykładu. Sprawdź połączenie.',
+  err_ai_breakdown: 'Nie można wygenerować analizy. Sprawdź połączenie.',
+  err_translate_title: 'Tłumaczenie nie powiodło się',
+  err_translate_body: 'Nie można przetłumaczyć. Sprawdź połączenie.',
 };
 
 // ── Greek ──────────────────────────────────────────────────────────────────────
@@ -3310,6 +3531,18 @@ const el: Dict = {
   themes_switch_desc: 'Αλλάξτε θέμα όποτε θέλετε.',
   upgrade_to_basic: 'Αναβάθμιση σε Basic',
   appearance_solid_only: 'Η εμφάνιση μπορεί να αλλάξει μόνο με μονόχρωμο θέμα.',
+  notif_conflict_body: 'Οι ειδοποιήσεις είναι ήδη ενεργοποιημένες για το "{0}". Εναλλαγή στο "{1}";',
+  notif_conflict_enable: 'Ενεργοποίηση',
+  err_audio_import: 'Δεν ήταν δυνατή η εισαγωγή του αρχείου ήχου.',
+  err_audio_play: 'Δεν ήταν δυνατή η αναπαραγωγή του αρχείου ήχου.',
+  err_title_error: 'Σφάλμα',
+  err_title_playback: 'Σφάλμα αναπαραγωγής',
+  err_ai_title: 'Αποτυχία δημιουργίας',
+  err_ai_meaning: 'Δεν ήταν δυνατή η δημιουργία σημασίας. Ελέγξτε τη σύνδεσή σας.',
+  err_ai_example: 'Δεν ήταν δυνατή η δημιουργία παραδείγματος. Ελέγξτε τη σύνδεσή σας.',
+  err_ai_breakdown: 'Δεν ήταν δυνατή η ανάλυση. Ελέγξτε τη σύνδεσή σας.',
+  err_translate_title: 'Αποτυχία μετάφρασης',
+  err_translate_body: 'Δεν ήταν δυνατή η μετάφραση. Ελέγξτε τη σύνδεσή σας.',
 };
 
 // ── Swedish ────────────────────────────────────────────────────────────────────
@@ -3422,6 +3655,18 @@ const sv: Dict = {
   themes_switch_desc: 'Byt tema när du vill.',
   upgrade_to_basic: 'Uppgradera till Basic',
   appearance_solid_only: 'Utseendet kan bara ändras med ett enfärgat tema.',
+  notif_conflict_body: 'Aviseringar är redan aktiverade för "{0}". Byta till "{1}"?',
+  notif_conflict_enable: 'Aktivera',
+  err_audio_import: 'Det gick inte att importera ljudfilen.',
+  err_audio_play: 'Det gick inte att spela upp ljudfilen.',
+  err_title_error: 'Fel',
+  err_title_playback: 'Uppspelningsfel',
+  err_ai_title: 'Generering misslyckades',
+  err_ai_meaning: 'Det gick inte att generera betydelsen. Kontrollera din anslutning.',
+  err_ai_example: 'Det gick inte att generera exemplet. Kontrollera din anslutning.',
+  err_ai_breakdown: 'Det gick inte att generera analysen. Kontrollera din anslutning.',
+  err_translate_title: 'Översättning misslyckades',
+  err_translate_body: 'Det gick inte att översätta. Kontrollera din anslutning.',
 };
 
 // ── Registry ───────────────────────────────────────────────────────────────────

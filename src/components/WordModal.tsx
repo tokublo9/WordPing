@@ -193,7 +193,7 @@ export function WordModal({
         new File(asset.uri).copy(destFile);
         onChangeAudioUri(destFile.uri);
       } catch {
-        Alert.alert('Error', 'Could not import the audio file.');
+        Alert.alert(t('err_title_error'), t('err_audio_import'));
       }
       return;
     }
@@ -223,7 +223,7 @@ export function WordModal({
         }
       });
     } catch {
-      Alert.alert('Playback error', 'Could not play the audio file.');
+      Alert.alert(t('err_title_playback'), t('err_audio_play'));
       setIsPlayingAudio(false);
     }
   };
@@ -354,9 +354,9 @@ export function WordModal({
       onChangeMeaning(result);
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
-        ? 'Quota exceeded. Please try again later.'
-        : 'Could not generate meaning. Please check your connection.';
-      Alert.alert('Generation failed', msg);
+        ? t('quota_exceeded_msg')
+        : t('err_ai_meaning');
+      Alert.alert(t('err_ai_title'), msg);
     } finally {
       setIsGenerating(false);
     }
@@ -372,9 +372,9 @@ export function WordModal({
       onChangeNote(result);
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
-        ? 'Quota exceeded. Please try again later.'
-        : 'Could not generate example. Please check your connection.';
-      Alert.alert('Generation failed', msg);
+        ? t('quota_exceeded_msg')
+        : t('err_ai_example');
+      Alert.alert(t('err_ai_title'), msg);
     } finally {
       setIsGeneratingExample(false);
     }
@@ -389,9 +389,9 @@ export function WordModal({
       onChangeNote(await generateBreakdown(trimmed, breakdownLang));
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
-        ? 'Quota exceeded. Please try again later.'
-        : 'Could not generate breakdown. Please check your connection.';
-      Alert.alert('Generation failed', msg);
+        ? t('quota_exceeded_msg')
+        : t('err_ai_breakdown');
+      Alert.alert(t('err_ai_title'), msg);
     } finally {
       setIsBreakingDown(false);
     }
@@ -407,9 +407,9 @@ export function WordModal({
       setMeaningTransCollapsed(false);
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
-        ? 'Quota exceeded. Please try again later.'
-        : 'Could not translate. Please check your connection.';
-      Alert.alert('Translation failed', msg);
+        ? t('quota_exceeded_msg')
+        : t('err_translate_body');
+      Alert.alert(t('err_translate_title'), msg);
     } finally {
       setIsTranslatingMeaning(false);
     }
@@ -425,9 +425,9 @@ export function WordModal({
       setNoteTransCollapsed(false);
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
-        ? 'Quota exceeded. Please try again later.'
-        : 'Could not translate. Please check your connection.';
-      Alert.alert('Translation failed', msg);
+        ? t('quota_exceeded_msg')
+        : t('err_translate_body');
+      Alert.alert(t('err_translate_title'), msg);
     } finally {
       setIsTranslatingNote(false);
     }

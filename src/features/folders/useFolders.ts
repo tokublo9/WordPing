@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, WordCard } from '../../types';
 
 export interface UseFoldersParams {
+  folders: Folder[];
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   setCards: Dispatch<SetStateAction<WordCard[]>>;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
@@ -32,7 +33,7 @@ export interface UseFoldersReturn {
   moveCardsToFolder(targetFolderId: string): void;
 }
 
-export function useFolders({ setFolders, setCards, setMenuVisible }: UseFoldersParams): UseFoldersReturn {
+export function useFolders({ folders, setFolders, setCards, setMenuVisible }: UseFoldersParams): UseFoldersReturn {
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [folderReorderMode, setFolderReorderMode] = useState(false);
@@ -69,7 +70,19 @@ export function useFolders({ setFolders, setCards, setMenuVisible }: UseFoldersP
   };
 
   const deleteSelectedFolders = () => {
-    setFolders(prev => prev.filter(f => !selectedFolderIds.has(f.id)));
+    const surviving = folders.filter(f => !selectedFolderIds.has(f.id));
+    if (surviving.length > 0) {
+      setFolders(surviving);
+      setCards(prev => prev.map(c =>
+        c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: surviving[0].id } : c
+      ));
+    } else {
+      const fallback: Folder = { id: Date.now().toString(), name: 'My Words', createdAt: Date.now() };
+      setFolders([fallback]);
+      setCards(prev => prev.map(c =>
+        c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: fallback.id } : c
+      ));
+    }
     exitFolderSelectionMode();
   };
 
@@ -79,7 +92,15 @@ export function useFolders({ setFolders, setCards, setMenuVisible }: UseFoldersP
   };
 
   const deleteFolder = (id: string) => {
-    setFolders(prev => prev.filter(f => f.id !== id));
+    const remaining = folders.filter(f => f.id !== id);
+    if (remaining.length > 0) {
+      setFolders(remaining);
+      setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: remaining[0].id } : c));
+    } else {
+      const fallback: Folder = { id: Date.now().toString(), name: 'My Words', createdAt: Date.now() };
+      setFolders([fallback]);
+      setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: fallback.id } : c));
+    }
   };
 
   const renameFolder = (id: string, name: string, icon: string) => {

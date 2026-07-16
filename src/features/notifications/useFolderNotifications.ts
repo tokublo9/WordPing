@@ -68,13 +68,14 @@ export function useFolderNotifications({
     const targetName   = currentFolder?.name ?? '';
     const conflictName = conflicting.name;
     const conflictId   = conflicting.id;
+    const body = t('notif_conflict_body').replace('{0}', conflictName).replace('{1}', targetName);
     Alert.alert(
       t('notifications'),
-      `Notifications are already enabled for "${conflictName}". Enable for "${targetName}" instead?`,
+      body,
       [
         { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Enable',
+          text: t('notif_conflict_enable'),
           onPress: () => {
             setFolders(prev => prev.map(f => {
               if (f.id === currentFolderId) {

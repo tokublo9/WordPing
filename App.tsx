@@ -82,7 +82,7 @@ export default function App() {
     enterFolderSelectionMode, exitFolderSelectionMode, toggleFolderSelect,
     deleteSelectedFolders, enterFolderReorderMode, exitFolderReorderMode,
     createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
-  } = useFolders({ setFolders, setCards, setMenuVisible });
+  } = useFolders({ folders, setFolders, setCards, setMenuVisible });
 
   const {
     flipped, toggleFlip,

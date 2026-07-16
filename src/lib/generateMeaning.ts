@@ -21,9 +21,17 @@ const LANG_NAMES: Record<string, string> = {
   'sv':    'Swedish',
 };
 
+const MAX_AI_INPUT = 500;
+
 async function callOpenAI(messages: Array<{ role: string; content: string }>): Promise<string> {
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   if (!apiKey) throw new Error('EXPO_PUBLIC_OPENAI_API_KEY is not set');
+
+  const capped = messages.map(m =>
+    m.role === 'user' && m.content.length > MAX_AI_INPUT
+      ? { ...m, content: m.content.slice(0, MAX_AI_INPUT) }
+      : m
+  );
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -31,7 +39,7 @@ async function callOpenAI(messages: Array<{ role: string; content: string }>): P
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ model: 'gpt-4o-mini', messages, max_tokens: 150, temperature: 0.5 }),
+    body: JSON.stringify({ model: 'gpt-4o-mini', messages: capped, max_tokens: 150, temperature: 0.5 }),
   });
 
   if (!res.ok) {

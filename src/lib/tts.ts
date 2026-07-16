@@ -36,9 +36,12 @@ async function toBase64(buffer: ArrayBuffer): Promise<string> {
   return btoa(bin);
 }
 
+const MAX_TTS_INPUT = 500;
+
 function fetchBase64(text: string): Promise<string> {
-  if (base64Cache.has(text)) return Promise.resolve(base64Cache.get(text)!);
-  if (inFlight.has(text))   return inFlight.get(text)!;
+  const safe = text.length > MAX_TTS_INPUT ? text.slice(0, MAX_TTS_INPUT) : text;
+  if (base64Cache.has(safe)) return Promise.resolve(base64Cache.get(safe)!);
+  if (inFlight.has(safe))   return inFlight.get(safe)!;
 
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   if (!apiKey) return Promise.reject(new Error('EXPO_PUBLIC_OPENAI_API_KEY is not set'));
@@ -49,24 +52,24 @@ function fetchBase64(text: string): Promise<string> {
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini-tts',
-        input: text,
+        input: safe,
         voice: 'marin',
         response_format: 'wav',
         instructions: 'Speak in an emotive and friendly tone.',
       }),
     });
     if (!res.ok) {
-      inFlight.delete(text);
+      inFlight.delete(safe);
       if (res.status === 429) throw new Error('quota_exceeded');
       throw new Error(`OpenAI TTS failed: ${res.status}`);
     }
     const b64 = await toBase64(await res.arrayBuffer());
-    base64Cache.set(text, b64);
-    inFlight.delete(text);
+    base64Cache.set(safe, b64);
+    inFlight.delete(safe);
     return b64;
   })();
 
-  inFlight.set(text, p);
+  inFlight.set(safe, p);
   return p;
 }
 
@@ -201,7 +204,8 @@ async function speakWithAI(text: string): Promise<void> {
  */
 export async function preloadAI(text: string, isPro: boolean): Promise<void> {
   if (!isPro) return;
-  if (base64Cache.has(text) || inFlight.has(text)) return;
+  const safe = text.length > MAX_TTS_INPUT ? text.slice(0, MAX_TTS_INPUT) : text;
+  if (base64Cache.has(safe) || inFlight.has(safe)) return;
   try { await fetchBase64(text); } catch {}
 }
 
