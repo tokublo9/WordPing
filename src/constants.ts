@@ -37,10 +37,8 @@ export const DEFAULT_INTERVAL = 1800;
 export const SKIN_KEY = 'theme_skin';
 export const DEVICE_ID_KEY = 'device_id';
 export const CARDS_KEY = 'vocabulary_cards';
-export const INTERVAL_KEY = 'notif_interval_seconds';
 export const THEME_KEY = 'theme_color';
 export const APPEARANCE_KEY = 'appearance';
-export const DISPLAY_ONLY_WORD_KEY = 'notification_display_only_word';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 
@@ -439,7 +437,6 @@ export const SKINS: ThemeSkin[] = [...LEGACY_SKINS, ...SOLID_SKINS, ...PREMIUM_S
 
 export const FOLDERS_KEY      = 'wordping_folders';
 export const ONBOARDING_KEY   = 'wordping_onboarding';
-export const NOTIF_FOLDER_KEY = 'wordping_notif_folder';
 export const LANGUAGE_KEY = 'app_language';
 export const DEFAULT_LANGUAGE = 'en-US';
 

@@ -37,7 +37,7 @@ import { SettingsModal } from './src/components/SettingsModal';
 import { ReorderableList } from './src/components/ReorderableList';
 import { SwipeableFolder } from './src/components/SwipeableFolder';
 import { FolderCustomizeModal } from './src/components/FolderCustomizeModal';
-import { AdBannerPlaceholder, AdSquarePlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBannerPlaceholder';
+import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBannerPlaceholder';
 import { TestModeScreen } from './src/components/TestModeScreen';
 import { FlipCardBrowser } from './src/components/FlipCardBrowser';
 import { FolderPickerSheet } from './src/components/FolderPickerSheet';
@@ -61,6 +61,8 @@ import {
 } from './src/components/SkinOverlays';
 
 const ALL_LEVEL_KEYS = ['perfect', 'good', 'slightly', 'unknown', 'none'] as const;
+
+const LEVEL_ORDER: Record<string, number> = { perfect: 0, good: 1, slightly: 2, unknown: 3 };
 
 // Localized names for the Welcome folder, keyed by nativeLang BCP-47 code.
 const WELCOME_FOLDER_NAMES: Record<string, string> = {
@@ -349,8 +351,6 @@ export default function App() {
     setSelectionMode(false);
     setSelectedIds(new Set());
   };
-
-  const LEVEL_ORDER: Record<string, number> = { perfect: 0, good: 1, slightly: 2, unknown: 3 };
 
   const handleSortByLevel = () => {
     const nextDir = reorderSortDir === 'asc' ? 'desc' : 'asc';
