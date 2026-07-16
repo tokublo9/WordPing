@@ -4,7 +4,6 @@ import {
   Alert,
   Animated,
   Dimensions,
-  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +13,7 @@ import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, FolderNotifSettings } from './src/types';
 import {
-  DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, LIGHT, ONBOARDING_KEY, SKINS,
+  FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY,
   SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
@@ -30,9 +29,9 @@ import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { AppModals } from './src/app/AppModals';
 import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
+import { useThemeController } from './src/features/themes/useThemeController';
 
 export default function App() {
-  const systemScheme = useColorScheme();
   const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
 
   const {
@@ -142,16 +141,12 @@ export default function App() {
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Free users may activate solid_blue and solid_gray; all other skins require a subscription.
-  const activeSkin = SKINS.find(s => s.id === skinId && (isSubscribed || FREE_SKIN_IDS.has(s.id))) ?? null;
-  // Solid-color skins are simple color themes — the user's Appearance (Light/Dark/System) still
-  // applies. Only premium image/wallpaper skins force their own fixed palette and dark-bar setting.
-  const isSolidSkin = !!activeSkin?.id.startsWith('solid_');
-  const isDark = (activeSkin && !isSolidSkin)
-    ? activeSkin.darkStatusBar
-    : appearance === 'system' ? systemScheme === 'dark' : appearance === 'dark';
-  const pal = (activeSkin && !isSolidSkin) ? activeSkin.palette : isDark ? DARK : LIGHT;
-  const activeThemeColor = activeSkin ? activeSkin.themeColor : themeColor;
+  const { activeSkin, isDark, pal, activeThemeColor } = useThemeController({
+    skinId,
+    themeColor,
+    appearance,
+    isSubscribed,
+  });
 
   useEffect(() => {
     if (!hasLoaded.current) return;
