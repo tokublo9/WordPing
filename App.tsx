@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, persistFolders, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
-import type { Appearance, Folder, FolderNotifSettings, OnboardingChoices, WordCard } from './src/types';
+import type { Appearance, Folder, FolderNotifSettings } from './src/types';
 import {
   DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, LIGHT, ONBOARDING_KEY, SKINS,
   SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
@@ -25,16 +25,7 @@ import {
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
-import { WordModal } from './src/components/WordModal';
-import { NotificationModal } from './src/components/NotificationModal';
-import { PaywallModal } from './src/components/PaywallModal';
-import { ProSheet } from './src/components/ProSheet';
-import { SettingsModal } from './src/components/SettingsModal';
-import { FolderCustomizeModal } from './src/components/FolderCustomizeModal';
-import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBannerPlaceholder';
-import { TestModeScreen } from './src/components/TestModeScreen';
-import { FolderPickerSheet } from './src/components/FolderPickerSheet';
-import { OnboardingModal } from './src/components/OnboardingModal';
+import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
 import { SkinPatternOverlay } from './src/components/SkinPatternOverlay';
 import { SkinWallpaperOverlay } from './src/components/SkinWallpaperOverlay';
 import { DeepSeaOverlay } from './src/components/DeepSeaOverlay';
@@ -57,6 +48,7 @@ import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScree
 import { WordListScreen } from './src/screens/WordListScreen/WordListScreen';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
+import { AppModals } from './src/app/AppModals';
 import { useFolders } from './src/features/folders/useFolders';
 
 export default function App() {
@@ -281,7 +273,6 @@ export default function App() {
     }
   }, [isSubscribed, isSubscriptionLoaded, settingsLoaded, skinId, themeColor]);
 
-  const pickTheme = (color: string) => setThemeColor(color);
   const pickAppearance = (mode: Appearance) => setAppearance(mode);
   const pickLanguage = (code: string) => setLanguage(code);
 
@@ -435,94 +426,122 @@ export default function App() {
 
       {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
 
-      <WordModal
-        visible={wordModalVisible}
-        onClose={() => setWordModalVisible(false)}
-        editingCard={editingCard}
-        word={word}
-        onChangeWord={setWord}
-        meaning={meaning}
-        onChangeMeaning={setMeaning}
-        note={note}
-        onChangeNote={setNote}
-        onSave={saveCard}
+      <AppModals
         pal={pal}
         themeColor={activeThemeColor}
+        rawThemeColor={themeColor}
         isSubscribed={isSubscribed}
-        wordLang={wordFieldLang}
-        onChangeWordLang={setWordFieldLang}
-        meaningLang={meaningFieldLang}
-        onChangeMeaningLang={setMeaningFieldLang}
-        audioUri={wordAudioUri}
-        onChangeAudioUri={setWordAudioUri}
-        audioSpeed={wordAudioSpeed}
-        onChangeAudioSpeed={setWordAudioSpeed}
-        audioVolume={wordAudioVolume}
-        onChangeAudioVolume={setWordAudioVolume}
-      />
-
-      <NotificationModal
-        visible={notificationModalVisible}
-        onClose={() => setNotificationModalVisible(false)}
-        intervalSeconds={folderNotifSettings.intervalSeconds}
-        onPickInterval={handlePickInterval}
-        displayOnlyWord={folderNotifSettings.displayOnlyWord}
-        onToggleDisplayOnlyWord={(value) => updateFolderNotif({ displayOnlyWord: value })}
-        pal={pal}
-        themeColor={activeThemeColor}
-        onTest={() => {
-          const eligible = folderCards.filter(c => !c.notifOff);
-          if (eligible.length === 0) return;
-          const card = eligible[Math.floor(Math.random() * eligible.length)];
-          sendTestNotification(card, folderNotifSettings.displayOnlyWord);
+        subscribe={subscribe}
+        restore={restore}
+        onManageSubscription={__DEV__ ? unsubscribe : undefined}
+        wordModal={{
+          visible: wordModalVisible,
+          onClose: () => setWordModalVisible(false),
+          editingCard,
+          word,
+          onChangeWord: setWord,
+          meaning,
+          onChangeMeaning: setMeaning,
+          note,
+          onChangeNote: setNote,
+          onSave: saveCard,
+          wordLang: wordFieldLang,
+          onChangeWordLang: setWordFieldLang,
+          meaningLang: meaningFieldLang,
+          onChangeMeaningLang: setMeaningFieldLang,
+          audioUri: wordAudioUri,
+          onChangeAudioUri: setWordAudioUri,
+          audioSpeed: wordAudioSpeed,
+          onChangeAudioSpeed: setWordAudioSpeed,
+          audioVolume: wordAudioVolume,
+          onChangeAudioVolume: setWordAudioVolume,
         }}
-      />
-
-      <SettingsModal
-        visible={settingsModalVisible}
-        onClose={() => setSettingsModalVisible(false)}
-        themeColor={activeThemeColor}
-        appearance={appearance}
-        onPickAppearance={pickAppearance}
-        skinId={skinId}
-        onPickSkin={setSkinId}
-        isSubscribed={isSubscribed}
-        onUpgrade={() => { setSettingsModalVisible(false); openPaywall('words'); }}
-        onSubscribe={subscribe}
-        onRestore={restore}
-        // DEV ONLY: Temporary subscription downgrade for testing. Remove before release.
-        onManageSubscription={__DEV__ ? unsubscribe : undefined}
-        pal={pal}
-        language={language}
-        onPickLanguage={pickLanguage}
-        showFullCard={showFullCard}
-        onToggleShowFullCard={setShowFullCard}
-        verticalFlip={verticalFlip}
-        onToggleVerticalFlip={setVerticalFlip}
-      />
-
-      <PaywallModal
-        visible={paywallVisible}
-        reason={paywallReason}
-        onClose={() => setPaywallVisible(false)}
-        onSubscribe={subscribe}
-        onRestore={restore}
-        pal={pal}
-        themeColor={themeColor}
-      />
-
-      <ProSheet
-        visible={proSheetVisible}
-        onClose={() => setProSheetVisible(false)}
-        onSubscribe={subscribe}
-        onRestore={restore}
-        // DEV ONLY: Temporary subscription downgrade for testing. Remove before release.
-        onManageSubscription={__DEV__ ? unsubscribe : undefined}
-        themeColor={activeThemeColor}
-        pal={pal}
-        isSubscribed={isSubscribed}
-        learningLang={learnLang ?? undefined}
-        nativeLang={nativeLang}
+        notifModal={{
+          visible: notificationModalVisible,
+          onClose: () => setNotificationModalVisible(false),
+          intervalSeconds: folderNotifSettings.intervalSeconds,
+          onPickInterval: handlePickInterval,
+          displayOnlyWord: folderNotifSettings.displayOnlyWord,
+          onToggleDisplayOnlyWord: (value) => updateFolderNotif({ displayOnlyWord: value }),
+          onTest: () => {
+            const eligible = folderCards.filter(c => !c.notifOff);
+            if (eligible.length === 0) return;
+            const card = eligible[Math.floor(Math.random() * eligible.length)];
+            sendTestNotification(card, folderNotifSettings.displayOnlyWord);
+          },
+        }}
+        settingsModal={{
+          visible: settingsModalVisible,
+          onClose: () => setSettingsModalVisible(false),
+          appearance,
+          onPickAppearance: pickAppearance,
+          skinId,
+          onPickSkin: setSkinId,
+          onUpgrade: () => { setSettingsModalVisible(false); openPaywall('words'); },
+          language,
+          onPickLanguage: pickLanguage,
+          showFullCard,
+          onToggleShowFullCard: setShowFullCard,
+          verticalFlip,
+          onToggleVerticalFlip: setVerticalFlip,
+        }}
+        paywallModal={{
+          visible: paywallVisible,
+          reason: paywallReason,
+          onClose: () => setPaywallVisible(false),
+        }}
+        proSheet={{
+          visible: proSheetVisible,
+          onClose: () => setProSheetVisible(false),
+          learningLang: learnLang ?? undefined,
+          nativeLang,
+        }}
+        folderAdd={{
+          visible: addingFolder,
+          onClose: () => setAddingFolder(false),
+          onCreate: createFolder,
+        }}
+        folderEdit={{
+          folder: editingFolder,
+          onClose: () => setEditingFolder(null),
+          onSave: (name, icon) => { if (editingFolder) renameFolder(editingFolder.id, name, icon); },
+        }}
+        testMode={{
+          visible: testModeVisible,
+          cards: filteredFolderCards,
+          onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
+          onClose: () => setTestModeVisible(false),
+        }}
+        movePicker={{
+          visible: movePickerVisible,
+          onClose: () => setMovePickerVisible(false),
+          folders,
+          currentFolderId,
+          onSelect: (folderId) => {
+            moveCardsToFolder(folderId);
+            if (selectionMode) exitSelectionMode();
+          },
+        }}
+        onboarding={{
+          visible: showOnboarding,
+          onComplete: async (choices) => {
+            await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(choices));
+            if (choices.learningLang && choices.learningLang !== 'other') setLearnLang(choices.learningLang);
+            if (choices.nativeLang && choices.nativeLang !== 'other') setNativeLang(choices.nativeLang);
+            const uiLang = BCP47_TO_UI_LANG[choices.nativeLang];
+            if (uiLang) setLanguage(uiLang);
+            setCards(prev => {
+              const withoutPlaceholders = prev.filter(c => !WELCOME_CARD_IDS.includes(c.id));
+              return [...buildWelcomeCards(choices), ...withoutPlaceholders];
+            });
+            const localizedFolderName = WELCOME_FOLDER_NAMES[choices.nativeLang] ?? WELCOME_FOLDER_NAMES['en-US'];
+            setFolders(prev => prev.map(f =>
+              f.id === WELCOME_FOLDER_ID ? { ...f, name: localizedFolderName } : f
+            ));
+            setCurrentFolderId(WELCOME_FOLDER_ID);
+            setShowOnboarding(false);
+          },
+        }}
       />
 
       {/* Three-dot popup menu */}
@@ -589,89 +608,6 @@ export default function App() {
         </View>
       </Modal>
 
-      <FolderCustomizeModal
-        visible={addingFolder}
-        mode="edit"
-        isNew
-        currentValue="folder-outline"
-        folderName=""
-        onSelect={() => {}}
-        onSaveEdit={(name, icon) => { createFolder(name, icon); }}
-        onClose={() => setAddingFolder(false)}
-        pal={pal}
-        themeColor={activeThemeColor}
-        isSubscribed={isSubscribed}
-      />
-
-      <FolderCustomizeModal
-        visible={editingFolder !== null}
-        mode="edit"
-        currentValue={editingFolder?.icon ?? 'folder-outline'}
-        folderName={editingFolder?.name ?? ''}
-        onSelect={() => {}}
-        onSaveEdit={(name, icon) => {
-          if (!editingFolder) return;
-          renameFolder(editingFolder.id, name, icon);
-        }}
-        onClose={() => setEditingFolder(null)}
-        pal={pal}
-        themeColor={activeThemeColor}
-        isSubscribed={isSubscribed}
-      />
-
-      {testModeVisible && (
-        <TestModeScreen
-          cards={filteredFolderCards}
-          onUpdateCard={(id, patch) =>
-            setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
-          }
-          onClose={() => setTestModeVisible(false)}
-          pal={pal}
-          themeColor={activeThemeColor}
-          isSubscribed={isSubscribed}
-        />
-      )}
-
-      <FolderPickerSheet
-        visible={movePickerVisible}
-        onClose={() => setMovePickerVisible(false)}
-        folders={folders}
-        currentFolderId={currentFolderId}
-        pal={pal}
-        themeColor={activeThemeColor}
-        onSelect={(folderId) => {
-          moveCardsToFolder(folderId);
-          if (selectionMode) exitSelectionMode();
-        }}
-        isSubscribed={isSubscribed}
-      />
-
-      <OnboardingModal
-        visible={showOnboarding}
-        pal={pal}
-        themeColor={activeThemeColor}
-        onComplete={async (choices) => {
-          await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(choices));
-          if (choices.learningLang && choices.learningLang !== 'other') setLearnLang(choices.learningLang);
-          if (choices.nativeLang && choices.nativeLang !== 'other') setNativeLang(choices.nativeLang);
-          // Default UI language to the user's chosen explanation language.
-          const uiLang = BCP47_TO_UI_LANG[choices.nativeLang];
-          if (uiLang) setLanguage(uiLang);
-          // Replace placeholder welcome cards with localized versions,
-          // then batch everything so the modal close has no intermediate flash.
-          setCards(prev => {
-            const withoutPlaceholders = prev.filter(c => !WELCOME_CARD_IDS.includes(c.id));
-            return [...buildWelcomeCards(choices), ...withoutPlaceholders];
-          });
-          // Rename the Welcome folder to the user's native language.
-          const localizedFolderName = WELCOME_FOLDER_NAMES[choices.nativeLang] ?? WELCOME_FOLDER_NAMES['en-US'];
-          setFolders(prev => prev.map(f =>
-            f.id === WELCOME_FOLDER_ID ? { ...f, name: localizedFolderName } : f
-          ));
-          setCurrentFolderId(WELCOME_FOLDER_ID);
-          setShowOnboarding(false);
-        }}
-      />
     </SafeAreaView>
     </SafeAreaProvider>
     </LangContext.Provider>
