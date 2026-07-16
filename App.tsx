@@ -11,12 +11,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, persistFolders, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
-import type { Appearance, Folder, FolderNotifSettings } from './src/types';
+import type { Appearance, Folder } from './src/types';
 import {
   FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY,
   SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
-import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
+import { rescheduleAllNotifications } from './src/notifications';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
@@ -30,6 +30,7 @@ import { AppModals } from './src/app/AppModals';
 import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
 import { useThemeController } from './src/features/themes/useThemeController';
+import { useFolderNotifications } from './src/features/notifications/useFolderNotifications';
 
 export default function App() {
   const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
@@ -112,9 +113,23 @@ export default function App() {
     onWordLimitReached: () => { setPaywallReason('words'); setPaywallVisible(true); },
   });
 
-  const currentFolder      = folders.find(f => f.id === currentFolderId) ?? null;
-  const folderNotifSettings: FolderNotifSettings = currentFolder?.notifSettings ?? { intervalSeconds: 0, displayOnlyWord: false };
-  const notificationsEnabled = folderNotifSettings.intervalSeconds > 0;
+  const currentFolder = folders.find(f => f.id === currentFolderId) ?? null;
+
+  const {
+    folderNotifSettings,
+    notificationsEnabled,
+    updateFolderNotif,
+    handlePickInterval,
+    sendTestForCurrentFolder,
+  } = useFolderNotifications({
+    folders,
+    setFolders,
+    currentFolderId,
+    notificationGranted,
+    setNotificationGranted,
+    folderCards,
+    t,
+  });
 
   const openPaywall = (reason: 'words' | 'voice') => {
     setPaywallReason(reason);
@@ -169,64 +184,6 @@ export default function App() {
     if (!hasLoaded.current) return;
     AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false');
   }, [verticalFlip]);
-
-  // ── Notifications ───────────────────────────────────────────────────────────
-  const updateFolderNotif = (patch: Partial<FolderNotifSettings>) => {
-    if (!currentFolderId) return;
-    setFolders(prev => prev.map(f => {
-      if (f.id !== currentFolderId) return f;
-      const cur: FolderNotifSettings = f.notifSettings ?? { intervalSeconds: 0, displayOnlyWord: false };
-      return { ...f, notifSettings: { ...cur, ...patch } };
-    }));
-  };
-
-  const handlePickInterval = (seconds: number) => {
-    if (seconds === 0) {
-      updateFolderNotif({ intervalSeconds: 0 });
-      return;
-    }
-    if (!notificationGranted) {
-      requestPermission().then(granted => {
-        setNotificationGranted(granted);
-        if (!granted) return;
-        updateFolderNotif({ intervalSeconds: seconds });
-      });
-      return;
-    }
-    const conflicting = folders.find(
-      f => f.id !== currentFolderId && (f.notifSettings?.intervalSeconds ?? 0) > 0
-    );
-    if (!conflicting) {
-      updateFolderNotif({ intervalSeconds: seconds });
-      return;
-    }
-    const targetName   = currentFolder?.name ?? '';
-    const conflictName = conflicting.name;
-    const conflictId   = conflicting.id;
-    Alert.alert(
-      t('notifications'),
-      `Notifications are already enabled for "${conflictName}". Enable for "${targetName}" instead?`,
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: 'Enable',
-          onPress: () => {
-            setFolders(prev => prev.map(f => {
-              if (f.id === currentFolderId) {
-                const cur: FolderNotifSettings = f.notifSettings ?? { intervalSeconds: 0, displayOnlyWord: false };
-                return { ...f, notifSettings: { ...cur, intervalSeconds: seconds } };
-              }
-              if (f.id === conflictId) {
-                const cur: FolderNotifSettings = f.notifSettings ?? { intervalSeconds: 0, displayOnlyWord: false };
-                return { ...f, notifSettings: { ...cur, intervalSeconds: 0 } };
-              }
-              return f;
-            }));
-          },
-        },
-      ]
-    );
-  };
 
   // ── Theme ────────────────────────────────────────────────────────────────────
 
@@ -416,12 +373,7 @@ export default function App() {
           onPickInterval: handlePickInterval,
           displayOnlyWord: folderNotifSettings.displayOnlyWord,
           onToggleDisplayOnlyWord: (value) => updateFolderNotif({ displayOnlyWord: value }),
-          onTest: () => {
-            const eligible = folderCards.filter(c => !c.notifOff);
-            if (eligible.length === 0) return;
-            const card = eligible[Math.floor(Math.random() * eligible.length)];
-            sendTestNotification(card, folderNotifSettings.displayOnlyWord);
-          },
+          onTest: sendTestForCurrentFolder,
         }}
         settingsModal={{
           visible: settingsModalVisible,
