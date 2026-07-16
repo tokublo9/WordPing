@@ -61,6 +61,7 @@ import {
 import { ALL_LEVEL_KEYS, LEVEL_ORDER, LEVEL_FILTER_OPTIONS } from './src/features/cards/levels';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
+import { useFolders } from './src/features/folders/useFolders';
 
 export default function App() {
   const systemScheme = useColorScheme();
@@ -106,18 +107,20 @@ export default function App() {
   const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
-  const [movePickerVisible, setMovePickerVisible] = useState(false);
-  const [pendingMoveIds, setPendingMoveIds] = useState<string[]>([]);
 
   // ── Folder navigation ────────────────────────────────────────────────────────
   const [addingFolder, setAddingFolder] = useState(false);
-  const [folderSelectionMode, setFolderSelectionMode] = useState(false);
-  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
-  const [folderReorderMode, setFolderReorderMode] = useState(false);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const folderMenuBtnRef = useRef<View>(null);
   const closeOpenFolder = useRef<(() => void) | null>(null);
   const [menuContext, setMenuContext] = useState<'cards' | 'folders'>('cards');
+  const {
+    folderSelectionMode, selectedFolderIds, folderReorderMode,
+    movePickerVisible, setMovePickerVisible,
+    enterFolderSelectionMode, exitFolderSelectionMode, toggleFolderSelect,
+    deleteSelectedFolders, enterFolderReorderMode, exitFolderReorderMode,
+    createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
+  } = useFolders({ setFolders, setCards, setMenuVisible });
 
   const currentFolder      = folders.find(f => f.id === currentFolderId) ?? null;
   const folderCards        = currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [];
@@ -232,39 +235,6 @@ export default function App() {
     });
   };
 
-  const enterFolderSelectionMode = () => {
-    setSelectedFolderIds(new Set());
-    setFolderSelectionMode(true);
-    setFolderReorderMode(false);
-    setMenuVisible(false);
-  };
-
-  const exitFolderSelectionMode = () => {
-    setFolderSelectionMode(false);
-    setSelectedFolderIds(new Set());
-  };
-
-  const toggleFolderSelect = (id: string) => {
-    setSelectedFolderIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const deleteSelectedFolders = () => {
-    setFolders(prev => prev.filter(f => !selectedFolderIds.has(f.id)));
-    exitFolderSelectionMode();
-  };
-
-  const enterFolderReorderMode = () => {
-    setFolderReorderMode(true);
-    setFolderSelectionMode(false);
-    setSelectedFolderIds(new Set());
-    setMenuVisible(false);
-  };
-
-  const exitFolderReorderMode = () => setFolderReorderMode(false);
 
   const [editingCard, setEditingCard] = useState<WordCard | null>(null);
   const [word, setWord] = useState('');
@@ -451,16 +421,6 @@ export default function App() {
     setFlipped(prev => { const n = new Set(prev); n.delete(id); return n; });
   };
 
-  const openMovePicker = (ids: string[]) => {
-    setPendingMoveIds(ids);
-    setMovePickerVisible(true);
-  };
-
-  const moveCardsToFolder = (targetFolderId: string) => {
-    setCards(prev => prev.map(c => pendingMoveIds.includes(c.id) ? { ...c, folderId: targetFolderId } : c));
-    if (selectionMode) exitSelectionMode();
-  };
-
   const toggleCardNotif = (id: string) => {
     setCards(prev => prev.map(c => c.id === id ? { ...c, notifOff: !c.notifOff } : c));
   };
@@ -482,11 +442,6 @@ export default function App() {
     if (closeOpenFolder.current !== close) closeOpenFolder.current?.();
     closeOpenFolder.current = close;
   }, []);
-
-  const createFolder = (name: string, icon = 'folder-outline') => {
-    const folder: Folder = { id: Date.now().toString(), name, icon, createdAt: Date.now() };
-    setFolders(prev => [...prev, folder]);
-  };
 
   const openFolder = (id: string) => {
     closeOpenFolder.current?.();
@@ -549,7 +504,7 @@ export default function App() {
         onOpen={handleFolderOpen}
         onPress={() => openFolder(item.id)}
         onEdit={() => setEditingFolder(item)}
-        onDelete={() => setFolders(prev => prev.filter(f => f.id !== item.id))}
+        onDelete={() => deleteFolder(item.id)}
         selectionMode={folderSelectionMode}
         selected={selectedFolderIds.has(item.id)}
         onToggleSelect={() => toggleFolderSelect(item.id)}
@@ -1138,9 +1093,7 @@ export default function App() {
         onSelect={() => {}}
         onSaveEdit={(name, icon) => {
           if (!editingFolder) return;
-          setFolders(prev => prev.map(f =>
-            f.id === editingFolder.id ? { ...f, name, icon } : f
-          ));
+          renameFolder(editingFolder.id, name, icon);
         }}
         onClose={() => setEditingFolder(null)}
         pal={pal}
@@ -1168,7 +1121,10 @@ export default function App() {
         currentFolderId={currentFolderId}
         pal={pal}
         themeColor={activeThemeColor}
-        onSelect={moveCardsToFolder}
+        onSelect={(folderId) => {
+          moveCardsToFolder(folderId);
+          if (selectionMode) exitSelectionMode();
+        }}
         isSubscribed={isSubscribed}
       />
 
