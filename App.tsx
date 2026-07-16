@@ -4,41 +4,35 @@ import {
   Alert,
   Animated,
   Dimensions,
-  FlatList,
   Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, persistFolders, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, FolderNotifSettings, OnboardingChoices, WordCard } from './src/types';
 import {
-  DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, LIGHT, ONBOARDING_KEY, SKINS,
+  DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, LIGHT, ONBOARDING_KEY, SKINS,
   SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
-import { SwipeableCard } from './src/components/SwipeableCard';
 import { WordModal } from './src/components/WordModal';
 import { NotificationModal } from './src/components/NotificationModal';
 import { PaywallModal } from './src/components/PaywallModal';
 import { ProSheet } from './src/components/ProSheet';
 import { SettingsModal } from './src/components/SettingsModal';
-import { ReorderableList } from './src/components/ReorderableList';
-import { SwipeableFolder } from './src/components/SwipeableFolder';
 import { FolderCustomizeModal } from './src/components/FolderCustomizeModal';
 import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBannerPlaceholder';
 import { TestModeScreen } from './src/components/TestModeScreen';
-import { FlipCardBrowser } from './src/components/FlipCardBrowser';
 import { FolderPickerSheet } from './src/components/FolderPickerSheet';
 import { OnboardingModal } from './src/components/OnboardingModal';
 import { SkinPatternOverlay } from './src/components/SkinPatternOverlay';
@@ -58,8 +52,9 @@ import {
   SnowMountainOverlay,
   SunsetOverlay,
 } from './src/components/SkinOverlays';
-import { LEVEL_FILTER_OPTIONS } from './src/features/cards/levels';
 import { useCards } from './src/features/cards/useCards';
+import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScreen';
+import { WordListScreen } from './src/screens/WordListScreen/WordListScreen';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useFolders } from './src/features/folders/useFolders';
@@ -314,55 +309,6 @@ export default function App() {
     scrollY.setValue(0);
   };
 
-  const SEL_BAR_H = 68;
-
-  const renderCard = ({ item, index }: { item: WordCard; index: number }) => (
-    <SwipeableCard
-      item={item}
-      isFlipped={flipped.has(item.id)}
-      themeColor={activeThemeColor}
-      pal={pal}
-      voiceLocked={!isSubscribed && index >= FREE_VOICE_LIMIT}
-      isSubscribed={isSubscribed}
-      onFlip={() => toggleFlip(item.id)}
-      onEdit={() => openEdit(item)}
-      onDelete={() => deleteCard(item.id)}
-      onMove={() => openMovePicker([item.id])}
-      onToggleNotif={() => toggleCardNotif(item.id)}
-      onVoiceLocked={() => openPaywall('voice')}
-      onOpen={handleCardOpen}
-      openCardRef={closeOpenCard}
-      selectionMode={selectionMode}
-      selected={selectedIds.has(item.id)}
-      onToggleSelect={() => toggleSelect(item.id)}
-      showLevelLabel={showLevelLabels}
-      onSwiping={(active) => setCardScrollEnabled(!active)}
-      showFullCard={showFullCard}
-    />
-  );
-
-  const renderFolderItem = ({ item }: { item: Folder }) => {
-    const count       = cards.filter(c => c.folderId === item.id).length;
-    const folderColor = activeThemeColor;
-    const folderIcon  = item.icon ?? 'folder-outline';
-    return (
-      <SwipeableFolder
-        folder={item}
-        cardCount={count}
-        pal={pal}
-        themeColor={activeThemeColor}
-        folderColor={folderColor}
-        folderIcon={folderIcon}
-        onOpen={handleFolderOpen}
-        onPress={() => openFolder(item.id)}
-        onEdit={() => setEditingFolder(item)}
-        onDelete={() => deleteFolder(item.id)}
-        selectionMode={folderSelectionMode}
-        selected={selectedFolderIds.has(item.id)}
-        onToggleSelect={() => toggleFolderSelect(item.id)}
-      />
-    );
-  };
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -394,377 +340,97 @@ export default function App() {
       {activeSkin?.id === 'skin_rain'      && <RainyWindowOverlay />}
       {activeSkin?.id === 'skin_paw'       && <AnimalOverlay />}
 
-      {/* ── Header ─────────────────────────────────────────────────────────────── */}
       {currentFolderId === null ? (
-        /* Folder list header — 3 modes */
-        folderSelectionMode ? (
-          <View style={s.header}>
-            <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
-              {selectedFolderIds.size} {t('selected')}
-            </Text>
-            <TouchableOpacity style={s.iconBtn} onPress={exitFolderSelectionMode}>
-              <Text style={{ color: activeThemeColor, fontSize: 16, fontWeight: '600' }}>
-                {t('cancel')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : folderReorderMode ? (
-          <View style={s.header}>
-            <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
-              {t('reorder_cards')}
-            </Text>
-            <TouchableOpacity style={s.iconBtn} onPress={exitFolderReorderMode}>
-              <Text style={{ color: activeThemeColor, fontSize: 16, fontWeight: '600' }}>
-                {t('done')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={s.header}>
-            <Text style={[s.title, { color: pal.text }]}>WordMemo</Text>
-            <View style={s.headerIcons}>
-              <TouchableOpacity style={s.iconBtn} onPress={() => setAddingFolder(true)}>
-                <MaterialCommunityIcons name="folder-plus-outline" size={22} color={pal.sub} />
-              </TouchableOpacity>
-              <View ref={folderMenuBtnRef}>
-                <TouchableOpacity style={s.iconBtn} onPress={openFolderMenu}>
-                  <Ionicons name="ellipsis-vertical" size={22} color={pal.sub} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )
+        <FolderListScreen
+          pal={pal}
+          themeColor={activeThemeColor}
+          isSubscribed={isSubscribed}
+          folders={folders}
+          cards={cards}
+          selection={{
+            active: folderSelectionMode,
+            selectedIds: selectedFolderIds,
+            onToggle: toggleFolderSelect,
+            onExit: exitFolderSelectionMode,
+            onDelete: deleteSelectedFolders,
+          }}
+          reorder={{
+            active: folderReorderMode,
+            onExit: exitFolderReorderMode,
+            onReorder: (orderedIds) =>
+              setFolders(prev => orderedIds.map(id => prev.find(f => f.id === id)!)),
+          }}
+          actions={{
+            onOpenFolder: openFolder,
+            onAddFolder: () => setAddingFolder(true),
+            onEditFolder: setEditingFolder,
+            onDeleteFolder: deleteFolder,
+            onOpenMenu: openFolderMenu,
+          }}
+          menuBtnRef={folderMenuBtnRef}
+          closeOpenFolder={closeOpenFolder}
+          onFolderOpen={handleFolderOpen}
+        />
       ) : (
-        /* Inside-folder header */
-        <View style={s.header} onTouchStart={() => closeOpenCard.current?.()}>
-          {selectionMode ? (
-            <>
-              <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
-                {selectedIds.size} {t('selected')}
-              </Text>
-              <TouchableOpacity style={s.iconBtn} onPress={exitSelectionMode}>
-                <Text style={{ color: activeThemeColor, fontSize: 16, fontWeight: '600' }}>
-                  {t('cancel')}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : reorderMode ? (
-            <>
-              <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
-                {t('reorder_cards')}
-              </Text>
-              <TouchableOpacity style={s.iconBtn} onPress={exitReorderMode}>
-                <Text style={{ color: activeThemeColor, fontSize: 16, fontWeight: '600' }}>
-                  {t('done')}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: -4 }}>
-                <TouchableOpacity
-                  style={{ paddingRight: 4, paddingVertical: 0 }}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}
-                  onPress={goBackToFolders}
-                >
-                  <Ionicons name="chevron-back" size={24} color={pal.text} />
-                </TouchableOpacity>
-                <Text style={[s.title, { color: pal.text, flex: 1 }]} numberOfLines={1}>
-                  {currentFolder?.name ?? ''}
-                </Text>
-              </View>
-              <View style={s.headerIcons}>
-                <TouchableOpacity
-                  style={s.iconBtn}
-                  onPress={() => setNotificationModalVisible(true)}
-                >
-                  <Ionicons
-                    name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
-                    size={22}
-                    color={notificationsEnabled ? activeThemeColor : pal.sub}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.iconBtn}
-                  onPress={() => setCardViewMode(m => m === 'list' ? 'flip' : 'list')}
-                >
-                  <Ionicons
-                    name={cardViewMode === 'flip' ? 'list-outline' : 'albums-outline'}
-                    size={22}
-                    color={pal.sub}
-                  />
-                </TouchableOpacity>
-                <View ref={menuBtnRef}>
-                  <TouchableOpacity style={s.iconBtn} onPress={openMenu}>
-                    <Ionicons name="ellipsis-vertical" size={22} color={pal.sub} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </>
-          )}
-        </View>
-      )}
-
-      {/* ── Content ─────────────────────────────────────────────────────────────── */}
-      {currentFolderId === null ? (
-        /* Folder list */
-        <>
-          {/* Folder count — mirrors the wordCount row on the card screen for visual alignment */}
-          <Text style={[s.wordCount, { color: pal.sub }]}>
-            {folders.length} {t(folders.length === 1 ? 'folders_singular' : 'folders_plural')}
-          </Text>
-
-          {folders.length === 0 ? (
-          <View style={s.empty}>
-            <View style={[emptyIconWrap, { backgroundColor: activeThemeColor + '18' }]}>
-              <Ionicons name="folder-outline" size={40} color={activeThemeColor} />
-            </View>
-            <Text style={[s.emptyTitle, { color: pal.text }]}>{t('no_folders_title')}</Text>
-            <Text style={[s.emptyHint,  { color: pal.sub  }]}>{t('no_folders_hint')}</Text>
-          </View>
-        ) : folderReorderMode ? (
-          <ReorderableList
-            cards={folders.map(f => ({ id: f.id, word: f.name, meaning: '', note: '' }))}
-            onReorder={reordered =>
-              setFolders(prev => reordered.map(c => prev.find(f => f.id === c.id)!))
-            }
-            pal={pal}
-            themeColor={activeThemeColor}
-            extraPaddingBottom={isSubscribed ? 0 : AD_BANNER_HEIGHT}
-            folderData={Object.fromEntries(
-              folders.map(f => [
-                f.id,
-                {
-                  icon:      f.icon  ?? 'folder-outline',
-                  color:     activeThemeColor,
-                  cardCount: cards.filter(c => c.folderId === f.id).length,
-                },
-              ])
-            )}
-          />
-        ) : (
-          <>
-            <FlatList
-              data={folders}
-              keyExtractor={f => f.id}
-              renderItem={renderFolderItem}
-              ListFooterComponent={undefined}
-              contentContainerStyle={[
-                s.list,
-                { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (folderSelectionMode ? SEL_BAR_H : 0) },
-              ]}
-              showsVerticalScrollIndicator={false}
-            />
-            {/* Folder selection bar */}
-            {folderSelectionMode && (
-              <View style={[selStyles.bar, { backgroundColor: pal.dialog, borderTopColor: pal.border }]}>
-                <TouchableOpacity
-                  style={selStyles.barBtn}
-                  onPress={deleteSelectedFolders}
-                  disabled={selectedFolderIds.size === 0}
-                >
-                  <Ionicons name="trash-outline" size={20} color={selectedFolderIds.size === 0 ? pal.sub : '#E05C5C'} />
-                  <Text style={[selStyles.barLabel, { color: selectedFolderIds.size === 0 ? pal.sub : '#E05C5C' }]}>
-                    {t('delete')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )
-        }
-      </>
-      ) : (
-        /* Card list inside folder */
-        <>
-          <View onTouchStart={() => closeOpenCard.current?.()}>
-            <Text style={[s.wordCount, { color: pal.sub }]}>
-              {isFilterActive
-                ? `${filteredFolderCards.length} / ${folderCards.length}`
-                : folderCards.length}{' '}
-              {t(folderCards.length === 1 ? 'words_singular' : 'words_plural')}
-            </Text>
-          </View>
-
-          {/* Level filter chips + test mode button */}
-          {folderCards.length > 0 && !selectionMode && !reorderMode && showLevelLabels && (
-            <View style={filterStyles.bar} onTouchStart={() => closeOpenCard.current?.()}>
-              {/* Level filter chips */}
-              <View style={filterStyles.chipGroup}>
-                {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
-                  const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
-                  const on = levelFilter.has(level);
-                  return (
-                    <TouchableOpacity
-                      key={level}
-                      style={[filterStyles.chip, { borderColor: on ? color : pal.border }]}
-                      onPress={() => toggleLevelFilter(level)}
-                    >
-                      {icon === '◎'
-                        ? <Text style={{ fontSize: 14, color: on ? color : '#9CA3AF', lineHeight: 15 }}>◎</Text>
-                        : icon != null
-                        ? <Ionicons name={icon as any} size={13} color={on ? color : '#9CA3AF'} />
-                        : null
-                      }
-                      <Text style={[filterStyles.chipCount, { color: on ? color : '#9CA3AF' }]}>
-                        {count}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Test mode button — icon only, pushed to far right */}
-              <TouchableOpacity
-                style={s.iconBtn}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                onPress={() => setTestModeVisible(true)}
-              >
-                <Ionicons name="school-outline" size={22} color={pal.sub} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {folderCards.length === 0 ? (
-            <View style={s.empty}>
-              <View style={[emptyIconWrap, { backgroundColor: activeThemeColor + '18' }]}>
-                <Ionicons name="book-outline" size={40} color={activeThemeColor} />
-              </View>
-              <Text style={[s.emptyTitle, { color: pal.text }]}>{t('no_words_title')}</Text>
-              <Text style={[s.emptyHint,  { color: pal.sub  }]}>{t('no_words_hint')}</Text>
-            </View>
-          ) : reorderMode ? (
-            <>
-              <View style={reorderToolStyles.toolbar}>
-                <TouchableOpacity
-                  style={[reorderToolStyles.btn, { backgroundColor: pal.card, borderColor: pal.border }]}
-                  onPress={handleSortByLevel}
-                >
-                  <Text style={[reorderToolStyles.btnText, { color: reorderSortDir != null ? activeThemeColor : pal.text }]}>
-                    {t(reorderSortDir === 'asc' ? 'reorder_sort_least_first' : 'reorder_sort_best_first')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[reorderToolStyles.btn, { backgroundColor: pal.card, borderColor: pal.border }]}
-                  onPress={handleResetOrder}
-                >
-                  <Ionicons name="refresh-outline" size={15} color={pal.sub} />
-                  <Text style={[reorderToolStyles.btnText, { color: pal.sub }]}>{t('reorder_original')}</Text>
-                </TouchableOpacity>
-              </View>
-              <ReorderableList
-                cards={folderCards}
-                onReorder={reorderedFolderCards => {
-                  setCards(prev => [
-                    ...reorderedFolderCards,
-                    ...prev.filter(c => c.folderId !== currentFolderId),
-                  ]);
-                }}
-                pal={pal}
-                themeColor={activeThemeColor}
-                extraPaddingBottom={isSubscribed ? 0 : AD_BANNER_HEIGHT}
-                showLevelLabel={showLevelLabels}
-              />
-            </>
-          ) : cardViewMode === 'flip' ? (
-            <FlipCardBrowser
-              key={Array.from(levelFilter).sort().join(',')}
-              cards={filteredFolderCards}
-              pal={pal}
-              themeColor={activeThemeColor}
-              isSubscribed={isSubscribed}
-              onEdit={openEdit}
-              onDelete={deleteCard}
-              onMove={card => openMovePicker([card.id])}
-              onToggleNotif={toggleCardNotif}
-              showLevelLabel={showLevelLabels}
-              verticalFlip={verticalFlip}
-            />
-          ) : (
-            <FlatList
-              data={filteredFolderCards}
-              keyExtractor={c => c.id}
-              renderItem={renderCard}
-              style={{ flex: 1 }}
-              contentContainerStyle={[
-                s.list,
-                { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selectionMode ? SEL_BAR_H : 0) },
-              ]}
-              showsVerticalScrollIndicator={true}
-              scrollEnabled={cardScrollEnabled}
-              keyboardShouldPersistTaps="handled"
-              onScrollBeginDrag={() => closeOpenCard.current?.()}
-              scrollEventThrottle={16}
-              onScroll={activeSkin?.id === 'skin_deep_sea'
-                ? Animated.event(
-                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                    { useNativeDriver: false }
-                  )
-                : undefined}
-              ListFooterComponent={
-                <TouchableWithoutFeedback onPress={() => closeOpenCard.current?.()}>
-                  <View style={{ height: 300 }} />
-                </TouchableWithoutFeedback>
-              }
-            />
-          )}
-
-          {/* Selection action bar */}
-          {selectionMode && (
-            <View style={[selStyles.bar, { backgroundColor: pal.dialog, borderTopColor: pal.border }]}>
-              <TouchableOpacity
-                style={selStyles.barBtn}
-                onPress={() => setNotifForSelected(false)}
-                disabled={selectedIds.size === 0}
-              >
-                <Ionicons name="notifications-outline" size={20} color={selectedIds.size === 0 ? pal.sub : activeThemeColor} />
-                <Text style={[selStyles.barLabel, { color: selectedIds.size === 0 ? pal.sub : activeThemeColor }]}>
-                  {t('notif_on')}
-                </Text>
-              </TouchableOpacity>
-              <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
-              <TouchableOpacity
-                style={selStyles.barBtn}
-                onPress={() => setNotifForSelected(true)}
-                disabled={selectedIds.size === 0}
-              >
-                <Ionicons name="notifications-off-outline" size={20} color={pal.sub} />
-                <Text style={[selStyles.barLabel, { color: pal.sub }]}>{t('notif_off_action')}</Text>
-              </TouchableOpacity>
-              <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
-              <TouchableOpacity
-                style={selStyles.barBtn}
-                onPress={() => openMovePicker([...selectedIds])}
-                disabled={selectedIds.size === 0}
-              >
-                <Ionicons name="folder-outline" size={20} color={selectedIds.size === 0 ? pal.sub : activeThemeColor} />
-                <Text style={[selStyles.barLabel, { color: selectedIds.size === 0 ? pal.sub : activeThemeColor }]}>
-                  {t('move')}
-                </Text>
-              </TouchableOpacity>
-              <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
-              <TouchableOpacity
-                style={selStyles.barBtn}
-                onPress={deleteSelected}
-                disabled={selectedIds.size === 0}
-              >
-                <Ionicons name="trash-outline" size={20} color={selectedIds.size === 0 ? pal.sub : '#E05C5C'} />
-                <Text style={[selStyles.barLabel, { color: selectedIds.size === 0 ? pal.sub : '#E05C5C' }]}>
-                  {t('delete')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {!selectionMode && !reorderMode && (
-            <TouchableOpacity
-              style={[s.fab, { bottom: (isSubscribed ? 16 : AD_BANNER_HEIGHT) + 48, backgroundColor: activeThemeColor, shadowColor: activeThemeColor }]}
-              onPress={openAdd}
-            >
-              <Text style={s.fabText}>+</Text>
-            </TouchableOpacity>
-          )}
-        </>
+        <WordListScreen
+          pal={pal}
+          themeColor={activeThemeColor}
+          isSubscribed={isSubscribed}
+          scrollY={scrollY}
+          deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
+          currentFolder={currentFolder}
+          folderCards={folderCards}
+          filteredFolderCards={filteredFolderCards}
+          showFullCard={showFullCard}
+          verticalFlip={verticalFlip}
+          notificationsEnabled={notificationsEnabled}
+          cardViewMode={cardViewMode}
+          onToggleViewMode={() => setCardViewMode(m => m === 'list' ? 'flip' : 'list')}
+          levelFilter={levelFilter}
+          isFilterActive={isFilterActive}
+          showLevelLabels={showLevelLabels}
+          onToggleLevelFilter={toggleLevelFilter}
+          flipped={flipped}
+          cardScrollEnabled={cardScrollEnabled}
+          closeOpenCard={closeOpenCard}
+          onCardOpen={handleCardOpen}
+          onSwiping={(active) => setCardScrollEnabled(!active)}
+          selection={{
+            active: selectionMode,
+            selectedIds,
+            onToggle: toggleSelect,
+            onExit: exitSelectionMode,
+            onSetNotif: setNotifForSelected,
+            onMoveSelected: () => openMovePicker([...selectedIds]),
+            onDelete: deleteSelected,
+          }}
+          reorder={{
+            active: reorderMode,
+            sortDir: reorderSortDir,
+            onSortByLevel: handleSortByLevel,
+            onResetOrder: handleResetOrder,
+            onReorder: (reorderedCards) =>
+              setCards(prev => [
+                ...reorderedCards,
+                ...prev.filter(c => c.folderId !== currentFolderId),
+              ]),
+            onExit: exitReorderMode,
+          }}
+          actions={{
+            onGoBack: goBackToFolders,
+            onOpenNotifications: () => setNotificationModalVisible(true),
+            onOpenMenu: openMenu,
+            onOpenTestMode: () => setTestModeVisible(true),
+            onFlip: toggleFlip,
+            onEdit: openEdit,
+            onDelete: deleteCard,
+            onMove: openMovePicker,
+            onToggleNotif: toggleCardNotif,
+            onVoiceLocked: () => openPaywall('voice'),
+            onOpenAdd: openAdd,
+          }}
+          menuBtnRef={menuBtnRef}
+        />
       )}
 
       {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
@@ -1011,80 +677,6 @@ export default function App() {
     </LangContext.Provider>
   );
 }
-
-const emptyIconWrap = {
-  width: 80, height: 80, borderRadius: 24,
-  alignItems: 'center' as const, justifyContent: 'center' as const,
-  marginBottom: 20,
-};
-
-const selStyles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    height: 68,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  barBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  barLabel: { fontSize: 11, fontWeight: '600' },
-  barDivider: { width: StyleSheet.hairlineWidth },
-});
-
-const filterStyles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-  },
-  chipGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipCount: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
-
-const reorderToolStyles = StyleSheet.create({
-  toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-  },
-  btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  btnText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-});
 
 const menuStyles = StyleSheet.create({
   card: {
