@@ -86,11 +86,16 @@ export function useAppBootstrap({
 
   useEffect(() => {
     let cancelled = false;
+    // Open while run() is in progress; closed in finally so that a slow Supabase
+    // response arriving after bootstrap completes does not overwrite runtime state.
+    let bootstrapActive = true;
 
-    // Supabase remote callback: fires asynchronously, long after local load.
-    // Guarded against post-unmount execution.
+    // Supabase remote callback: fires asynchronously, potentially after bootstrap
+    // has finalized and the user has already made changes. Guarded by both flags:
+    // - cancelled: component has unmounted
+    // - bootstrapActive: bootstrap window is still open
     const handleRemoteData = (remote: AppData) => {
-      if (cancelled) return;
+      if (cancelled || !bootstrapActive) return;
       applySettings(remote.settings);
       const { cards: migratedCards } = migrateCards(remote.cards, foldersRef.current);
       setCards(migratedCards);
@@ -189,6 +194,9 @@ export function useAppBootstrap({
         }
       })
       .finally(() => {
+        // Close the remote restore window before anything else. Any Supabase
+        // response arriving from this point on is dropped by handleRemoteData.
+        bootstrapActive = false;
         // Always finalize the persistence gate, regardless of success or failure.
         // hasLoaded is a ref — safe to write after unmount.
         hasLoaded.current = true;
