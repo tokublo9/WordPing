@@ -21,7 +21,7 @@ import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, FolderNotifSettings, OnboardingChoices, WordCard } from './src/types';
 import {
-  DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, ONBOARDING_KEY, SKINS,
+  DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, LIGHT, ONBOARDING_KEY, SKINS,
   SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
@@ -58,7 +58,8 @@ import {
   SnowMountainOverlay,
   SunsetOverlay,
 } from './src/components/SkinOverlays';
-import { ALL_LEVEL_KEYS, LEVEL_ORDER, LEVEL_FILTER_OPTIONS } from './src/features/cards/levels';
+import { LEVEL_FILTER_OPTIONS } from './src/features/cards/levels';
+import { useCards } from './src/features/cards/useCards';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useFolders } from './src/features/folders/useFolders';
@@ -86,24 +87,13 @@ export default function App() {
     hasLoaded,
   } = useAppBootstrap();
 
-  const [flipped, setFlipped] = useState<Set<string>>(new Set());
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 
-  const [wordModalVisible, setWordModalVisible] = useState(false);
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
-  const [testModeVisible, setTestModeVisible] = useState(false);
-  const [cardViewMode, setCardViewMode] = useState<'list' | 'flip'>('list');
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
   const menuBtnRef = useRef<View>(null);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [reorderMode, setReorderMode] = useState(false);
-  const [reorderSortDir, setReorderSortDir] = useState<'asc' | 'desc' | null>(null);
-  const originalFolderCards = useRef<WordCard[]>([]);
-  const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(ALL_LEVEL_KEYS));
-  const [showLevelLabels, setShowLevelLabels] = useState(true);
   const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
@@ -122,101 +112,47 @@ export default function App() {
     createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
   } = useFolders({ setFolders, setCards, setMenuVisible });
 
+  const {
+    flipped, toggleFlip,
+    selectionMode, selectedIds,
+    enterSelectionMode, exitSelectionMode, toggleSelect, deleteSelected, setNotifForSelected,
+    reorderMode, reorderSortDir,
+    enterReorderMode, exitReorderMode, handleSortByLevel, handleResetOrder,
+    levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
+    showLevelLabels, setShowLevelLabels,
+    folderCards, filteredFolderCards,
+    cardViewMode, setCardViewMode,
+    cardScrollEnabled, setCardScrollEnabled,
+    closeOpenCard, handleCardOpen,
+    wordModalVisible, setWordModalVisible,
+    editingCard,
+    word, setWord,
+    meaning, setMeaning,
+    note, setNote,
+    wordFieldLang, setWordFieldLang,
+    meaningFieldLang, setMeaningFieldLang,
+    wordAudioUri, setWordAudioUri,
+    wordAudioSpeed, setWordAudioSpeed,
+    wordAudioVolume, setWordAudioVolume,
+    openAdd, openEdit, saveCard, deleteCard, toggleCardNotif,
+    testModeVisible, setTestModeVisible,
+  } = useCards({
+    cards,
+    setCards,
+    currentFolderId,
+    isSubscribed,
+    language,
+    setMenuVisible,
+    onWordLimitReached: () => { setPaywallReason('words'); setPaywallVisible(true); },
+  });
+
   const currentFolder      = folders.find(f => f.id === currentFolderId) ?? null;
-  const folderCards        = currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [];
   const folderNotifSettings: FolderNotifSettings = currentFolder?.notifSettings ?? { intervalSeconds: 0, displayOnlyWord: false };
   const notificationsEnabled = folderNotifSettings.intervalSeconds > 0;
-
-  const isFilterActive        = levelFilter.size < ALL_LEVEL_KEYS.length;
-  const filteredFolderCards   = isFilterActive
-    ? folderCards.filter(c => levelFilter.has(c.testLevel ?? 'none'))
-    : folderCards;
-
-  const toggleLevelFilter = (level: string) => {
-    setLevelFilter(prev => {
-      const next = new Set(prev);
-      next.has(level) ? next.delete(level) : next.add(level);
-      return next;
-    });
-  };
 
   const openPaywall = (reason: 'words' | 'voice') => {
     setPaywallReason(reason);
     setPaywallVisible(true);
-  };
-
-  const enterSelectionMode = () => {
-    setSelectedIds(new Set());
-    setSelectionMode(true);
-    setReorderMode(false);
-    setMenuVisible(false);
-    setCardViewMode('list');
-  };
-
-  const enterReorderMode = () => {
-    setReorderMode(true);
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-    setMenuVisible(false);
-    setCardViewMode('list');
-    originalFolderCards.current = folderCards;
-  };
-
-  const exitReorderMode = () => {
-    setReorderMode(false);
-    setReorderSortDir(null);
-  };
-
-  const exitSelectionMode = () => {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  };
-
-  const handleSortByLevel = () => {
-    const nextDir = reorderSortDir === 'asc' ? 'desc' : 'asc';
-    setReorderSortDir(nextDir);
-    const sorted = [...folderCards].sort((a, b) => {
-      const la = a.testLevel != null ? (LEVEL_ORDER[a.testLevel] ?? 4) : 4;
-      const lb = b.testLevel != null ? (LEVEL_ORDER[b.testLevel] ?? 4) : 4;
-      return nextDir === 'asc' ? la - lb : lb - la;
-    });
-    setCards(prev => [
-      ...sorted,
-      ...prev.filter(c => c.folderId !== currentFolderId),
-    ]);
-  };
-
-  const handleResetOrder = () => {
-    const orig = originalFolderCards.current;
-    if (!orig.length) return;
-    setCards(prev => [
-      ...orig,
-      ...prev.filter(c => c.folderId !== currentFolderId),
-    ]);
-    setReorderSortDir(null);
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const deleteSelected = () => {
-    setCards(prev => prev.filter(c => !selectedIds.has(c.id)));
-    setFlipped(prev => {
-      const next = new Set(prev);
-      selectedIds.forEach(id => next.delete(id));
-      return next;
-    });
-    exitSelectionMode();
-  };
-
-  const setNotifForSelected = (notifOff: boolean) => {
-    setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, notifOff } : c));
-    exitSelectionMode();
   };
 
   const openMenu = () => {
@@ -236,18 +172,6 @@ export default function App() {
   };
 
 
-  const [editingCard, setEditingCard] = useState<WordCard | null>(null);
-  const [word, setWord] = useState('');
-  const [meaning, setMeaning] = useState('');
-  const [note, setNote] = useState('');
-  const [wordFieldLang, setWordFieldLang] = useState<string | undefined>(undefined);
-  const [meaningFieldLang, setMeaningFieldLang] = useState<string | undefined>(undefined);
-  const [wordAudioUri, setWordAudioUri] = useState<string | undefined>(undefined);
-  const [wordAudioSpeed, setWordAudioSpeed] = useState(1.0);
-  const [wordAudioVolume, setWordAudioVolume] = useState(1.0);
-
-  const closeOpenCard = useRef<(() => void) | null>(null);
-  const [cardScrollEnabled, setCardScrollEnabled] = useState(true);
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -366,78 +290,6 @@ export default function App() {
   const pickAppearance = (mode: Appearance) => setAppearance(mode);
   const pickLanguage = (code: string) => setLanguage(code);
 
-  // ── Cards ────────────────────────────────────────────────────────────────────
-  const openAdd = () => {
-    closeOpenCard.current?.();
-    setEditingCard(null);
-    setWord('');
-    setMeaning('');
-    setNote('');
-    setWordFieldLang(undefined);
-    setMeaningFieldLang(undefined);
-    setWordAudioUri(undefined);
-    setWordAudioSpeed(1.0);
-    setWordAudioVolume(1.0);
-    setWordModalVisible(true);
-  };
-
-  const openEdit = (card: WordCard) => {
-    setEditingCard(card);
-    setWord(card.word);
-    setMeaning(card.meaning);
-    setNote(card.note ?? '');
-    setWordFieldLang(card.wordLang);
-    setMeaningFieldLang(card.meaningLang);
-    setWordAudioUri(card.audioUri);
-    setWordAudioSpeed(card.audioSpeed ?? 1.0);
-    setWordAudioVolume(card.audioVolume ?? 1.0);
-    setWordModalVisible(true);
-  };
-
-  const saveCard = () => {
-    if (!word.trim()) { Alert.alert(t('alert_enter_word')); return; }
-    if (!editingCard && !isSubscribed && cards.length >= FREE_WORD_LIMIT) {
-      setWordModalVisible(false);
-      openPaywall('words');
-      return;
-    }
-    if (editingCard) {
-      setCards(prev => prev.map(c =>
-        c.id === editingCard.id
-          ? { ...c, word: word.trim(), meaning: meaning.trim(), note: note.trim(), wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri, audioSpeed: wordAudioSpeed, audioVolume: wordAudioVolume }
-          : c
-      ));
-    } else {
-      setCards(prev => [
-        ...prev,
-        { id: Date.now().toString(), word: word.trim(), meaning: meaning.trim(), note: note.trim(), folderId: currentFolderId ?? undefined, wordLang: wordFieldLang, meaningLang: meaningFieldLang, audioUri: wordAudioUri, audioSpeed: wordAudioSpeed, audioVolume: wordAudioVolume },
-      ]);
-    }
-    setWordModalVisible(false);
-  };
-
-  const deleteCard = (id: string) => {
-    setCards(prev => prev.filter(c => c.id !== id));
-    setFlipped(prev => { const n = new Set(prev); n.delete(id); return n; });
-  };
-
-  const toggleCardNotif = (id: string) => {
-    setCards(prev => prev.map(c => c.id === id ? { ...c, notifOff: !c.notifOff } : c));
-  };
-
-  const toggleFlip = (id: string) => {
-    setFlipped(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const handleCardOpen = useCallback((close: () => void) => {
-    if (closeOpenCard.current !== close) closeOpenCard.current?.();
-    closeOpenCard.current = close;
-  }, []);
-
   const handleFolderOpen = useCallback((close: () => void) => {
     if (closeOpenFolder.current !== close) closeOpenFolder.current?.();
     closeOpenFolder.current = close;
@@ -457,7 +309,7 @@ export default function App() {
     exitSelectionMode();
     exitReorderMode();
     setCurrentFolderId(null);
-    setLevelFilter(new Set(ALL_LEVEL_KEYS));
+    resetLevelFilter();
     // Reset depth gradient to ocean surface when navigating away from word list.
     scrollY.setValue(0);
   };
