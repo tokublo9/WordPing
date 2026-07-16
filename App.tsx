@@ -4,15 +4,10 @@ import {
   Alert,
   Animated,
   Dimensions,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
   useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, persistFolders, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
@@ -33,6 +28,7 @@ import { WordListScreen } from './src/screens/WordListScreen/WordListScreen';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { AppModals } from './src/app/AppModals';
+import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
 
 export default function App() {
@@ -506,69 +502,18 @@ export default function App() {
         }}
       />
 
-      {/* Three-dot popup menu */}
-      <Modal
+      <AppContextMenu
         visible={menuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMenuVisible(false)}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={0}
-          onPress={() => setMenuVisible(false)}
-        />
-        <View style={[
-          menuStyles.card,
-          { top: menuAnchor.top, right: menuAnchor.right, backgroundColor: pal.dialog, borderWidth: 1, borderColor: pal.border },
-        ]}>
-          {/* Group 1: Management actions */}
-          <TouchableOpacity
-            style={menuStyles.item}
-            onPress={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
-          >
-            <Ionicons name="checkmark-circle-outline" size={17} color={pal.text} />
-            <Text style={[menuStyles.itemText, { color: pal.text }]}>{t('select_entries')}</Text>
-          </TouchableOpacity>
-          <View style={[menuStyles.sep, { backgroundColor: pal.border }]} />
-          <TouchableOpacity
-            style={menuStyles.item}
-            onPress={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
-          >
-            <Ionicons name="swap-vertical-outline" size={17} color={pal.text} />
-            <Text style={[menuStyles.itemText, { color: pal.text }]}>{t('reorder_cards')}</Text>
-          </TouchableOpacity>
-          {menuContext === 'cards' && (
-            <>
-              <View style={[menuStyles.sep, { backgroundColor: pal.border }]} />
-              <TouchableOpacity
-                style={menuStyles.item}
-                onPress={() => { setShowLevelLabels(v => !v); setMenuVisible(false); }}
-              >
-                <Ionicons
-                  name={showLevelLabels ? 'eye-off-outline' : 'eye-outline'}
-                  size={17}
-                  color={pal.text}
-                />
-                <Text style={[menuStyles.itemText, { color: pal.text }]}>
-                  {t(showLevelLabels ? 'hide_level_labels' : 'show_level_labels')}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {/* Thicker divider before settings group */}
-          <View style={[menuStyles.groupSep, { backgroundColor: pal.border }]} />
-
-          <TouchableOpacity
-            style={menuStyles.item}
-            onPress={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
-          >
-            <Ionicons name="settings-outline" size={17} color={pal.text} />
-            <Text style={[menuStyles.itemText, { color: pal.text }]}>{t('settings')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+        anchor={menuAnchor}
+        context={menuContext}
+        pal={pal}
+        showLevelLabels={showLevelLabels}
+        onDismiss={() => setMenuVisible(false)}
+        onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
+        onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
+        onToggleLevelLabels={() => { setShowLevelLabels(v => !v); setMenuVisible(false); }}
+        onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
+      />
 
     </SafeAreaView>
     </SafeAreaProvider>
@@ -576,27 +521,4 @@ export default function App() {
   );
 }
 
-const menuStyles = StyleSheet.create({
-  card: {
-    position: 'absolute',
-    minWidth: 190,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-  },
-  itemText: { fontSize: 15 },
-  sep:      { height: StyleSheet.hairlineWidth },
-  groupSep: { height: 3 },
-});
 
