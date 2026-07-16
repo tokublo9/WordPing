@@ -355,6 +355,8 @@ export function WordModal({
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
+        : e instanceof Error && e.message === 'input_too_long'
+        ? t('err_input_too_long')
         : t('err_ai_meaning');
       Alert.alert(t('err_ai_title'), msg);
     } finally {
@@ -373,6 +375,8 @@ export function WordModal({
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
+        : e instanceof Error && e.message === 'input_too_long'
+        ? t('err_input_too_long')
         : t('err_ai_example');
       Alert.alert(t('err_ai_title'), msg);
     } finally {
@@ -390,6 +394,8 @@ export function WordModal({
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
+        : e instanceof Error && e.message === 'input_too_long'
+        ? t('err_input_too_long')
         : t('err_ai_breakdown');
       Alert.alert(t('err_ai_title'), msg);
     } finally {
@@ -408,6 +414,8 @@ export function WordModal({
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
+        : e instanceof Error && e.message === 'input_too_long'
+        ? t('err_input_too_long')
         : t('err_translate_body');
       Alert.alert(t('err_translate_title'), msg);
     } finally {
@@ -426,6 +434,8 @@ export function WordModal({
     } catch (e: unknown) {
       const msg = e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
+        : e instanceof Error && e.message === 'input_too_long'
+        ? t('err_input_too_long')
         : t('err_translate_body');
       Alert.alert(t('err_translate_title'), msg);
     } finally {

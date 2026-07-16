@@ -92,7 +92,8 @@ export type TranslationKey =
   | 'err_audio_import' | 'err_audio_play'
   | 'err_title_error' | 'err_title_playback'
   | 'err_ai_title' | 'err_ai_meaning' | 'err_ai_example' | 'err_ai_breakdown'
-  | 'err_translate_title' | 'err_translate_body';
+  | 'err_translate_title' | 'err_translate_body'
+  | 'err_input_too_long';
 
 type Dict = Record<TranslationKey, string>;
 
@@ -339,6 +340,7 @@ const enUS: Dict = {
   err_ai_breakdown: 'Could not generate breakdown. Please check your connection.',
   err_translate_title: 'Translation Failed',
   err_translate_body: 'Could not translate. Please check your connection.',
+  err_input_too_long: 'Text is too long. Please shorten it to 500 characters or less.',
 };
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
@@ -584,6 +586,7 @@ const ja: Dict = {
   err_ai_breakdown: '解析を生成できませんでした。接続を確認してください。',
   err_translate_title: '翻訳に失敗しました',
   err_translate_body: '翻訳できませんでした。接続を確認してください。',
+  err_input_too_long: 'テキストが長すぎます。500文字以内に短くしてください。',
 };
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
@@ -829,6 +832,7 @@ const ko: Dict = {
   err_ai_breakdown: '분석을 생성할 수 없습니다. 연결을 확인해주세요.',
   err_translate_title: '번역 실패',
   err_translate_body: '번역할 수 없습니다. 연결을 확인해주세요.',
+  err_input_too_long: '텍스트가 너무 깁니다. 500자 이하로 줄여주세요.',
 };
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
@@ -1074,6 +1078,7 @@ const zhCN: Dict = {
   err_ai_breakdown: '无法生成词语分析。请检查您的网络连接。',
   err_translate_title: '翻译失败',
   err_translate_body: '无法翻译。请检查您的网络连接。',
+  err_input_too_long: '文本过长，请缩短到500个字符以内。',
 };
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
@@ -1319,6 +1324,7 @@ const es: Dict = {
   err_ai_breakdown: 'No se pudo generar el análisis. Comprueba tu conexión.',
   err_translate_title: 'Error de traducción',
   err_translate_body: 'No se pudo traducir. Comprueba tu conexión.',
+  err_input_too_long: 'El texto es demasiado largo. Acórtalo a 500 caracteres o menos.',
 };
 
 // ── French ─────────────────────────────────────────────────────────────────────
@@ -1564,6 +1570,7 @@ const fr: Dict = {
   err_ai_breakdown: "Impossible de générer l'analyse. Vérifiez votre connexion.",
   err_translate_title: 'Échec de traduction',
   err_translate_body: 'Impossible de traduire. Vérifiez votre connexion.',
+  err_input_too_long: 'Le texte est trop long. Raccourcissez-le à 500 caractères maximum.',
 };
 
 // ── German ─────────────────────────────────────────────────────────────────────
@@ -1809,6 +1816,7 @@ const de: Dict = {
   err_ai_breakdown: 'Analyse konnte nicht generiert werden. Bitte Verbindung prüfen.',
   err_translate_title: 'Übersetzung fehlgeschlagen',
   err_translate_body: 'Übersetzung nicht möglich. Bitte Verbindung prüfen.',
+  err_input_too_long: 'Der Text ist zu lang. Bitte kürzen Sie ihn auf 500 Zeichen oder weniger.',
 };
 
 // ── Italian ────────────────────────────────────────────────────────────────────
@@ -2054,6 +2062,7 @@ const it: Dict = {
   err_ai_breakdown: "Impossibile generare l'analisi. Controlla la connessione.",
   err_translate_title: 'Traduzione fallita',
   err_translate_body: 'Impossibile tradurre. Controlla la connessione.',
+  err_input_too_long: 'Il testo è troppo lungo. Accorcialo a 500 caratteri o meno.',
 };
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
@@ -2299,6 +2308,7 @@ const ptBR: Dict = {
   err_ai_breakdown: 'Não foi possível gerar a análise. Verifique sua conexão.',
   err_translate_title: 'Falha na tradução',
   err_translate_body: 'Não foi possível traduzir. Verifique sua conexão.',
+  err_input_too_long: 'O texto é longo demais. Encurte para 500 caracteres ou menos.',
 };
 
 // ── Russian ────────────────────────────────────────────────────────────────────
@@ -2423,6 +2433,7 @@ const ru: Dict = {
   err_ai_breakdown: 'Не удалось сгенерировать разбор. Проверьте соединение.',
   err_translate_title: 'Ошибка перевода',
   err_translate_body: 'Не удалось перевести. Проверьте соединение.',
+  err_input_too_long: 'Текст слишком длинный. Сократите его до 500 символов или меньше.',
 };
 
 // ── Arabic ─────────────────────────────────────────────────────────────────────
@@ -2548,6 +2559,7 @@ const ar: Dict = {
   err_ai_breakdown: 'تعذر توليد التحليل. تحقق من اتصالك.',
   err_translate_title: 'فشل الترجمة',
   err_translate_body: 'تعذر الترجمة. تحقق من اتصالك.',
+  err_input_too_long: 'النص طويل جداً. يرجى تقصيره إلى 500 حرف أو أقل.',
 };
 
 // ── Hindi ──────────────────────────────────────────────────────────────────────
@@ -2673,6 +2685,7 @@ const hi: Dict = {
   err_ai_breakdown: 'विश्लेषण उत्पन्न नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
   err_translate_title: 'अनुवाद विफल',
   err_translate_body: 'अनुवाद नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
+  err_input_too_long: 'टेक्स्ट बहुत लंबा है। कृपया इसे 500 अक्षरों या उससे कम में छोटा करें।',
 };
 
 // ── Turkish ────────────────────────────────────────────────────────────────────
@@ -2798,6 +2811,7 @@ const tr: Dict = {
   err_ai_breakdown: 'Çözümleme oluşturulamadı. Lütfen bağlantınızı kontrol edin.',
   err_translate_title: 'Çeviri Başarısız',
   err_translate_body: 'Çeviri yapılamadı. Lütfen bağlantınızı kontrol edin.',
+  err_input_too_long: 'Metin çok uzun. Lütfen 500 karakter veya daha az olacak şekilde kısaltın.',
 };
 
 // ── Dutch ──────────────────────────────────────────────────────────────────────
@@ -2923,6 +2937,7 @@ const nl: Dict = {
   err_ai_breakdown: 'Kon analyse niet genereren. Controleer je verbinding.',
   err_translate_title: 'Vertaling mislukt',
   err_translate_body: 'Kon niet vertalen. Controleer je verbinding.',
+  err_input_too_long: 'De tekst is te lang. Verkort hem tot 500 tekens of minder.',
 };
 
 // ── Vietnamese ────────────────────────────────────────────────────────────────
@@ -3047,6 +3062,7 @@ const vi: Dict = {
   err_ai_breakdown: 'Không thể tạo phân tích. Vui lòng kiểm tra kết nối.',
   err_translate_title: 'Dịch thất bại',
   err_translate_body: 'Không thể dịch. Vui lòng kiểm tra kết nối.',
+  err_input_too_long: 'Văn bản quá dài. Vui lòng rút ngắn xuống 500 ký tự hoặc ít hơn.',
 };
 
 // ── Thai ───────────────────────────────────────────────────────────────────────
@@ -3171,6 +3187,7 @@ const th: Dict = {
   err_ai_breakdown: 'ไม่สามารถสร้างการวิเคราะห์ได้ กรุณาตรวจสอบการเชื่อมต่อ',
   err_translate_title: 'การแปลล้มเหลว',
   err_translate_body: 'ไม่สามารถแปลได้ กรุณาตรวจสอบการเชื่อมต่อ',
+  err_input_too_long: 'ข้อความยาวเกินไป กรุณาย่อให้เหลือ 500 ตัวอักษรหรือน้อยกว่า',
 };
 
 // ── Indonesian ─────────────────────────────────────────────────────────────────
@@ -3295,6 +3312,7 @@ const id: Dict = {
   err_ai_breakdown: 'Tidak dapat membuat analisis. Periksa koneksi Anda.',
   err_translate_title: 'Terjemahan Gagal',
   err_translate_body: 'Tidak dapat menerjemahkan. Periksa koneksi Anda.',
+  err_input_too_long: 'Teks terlalu panjang. Harap persingkat menjadi 500 karakter atau kurang.',
 };
 
 // ── Polish ─────────────────────────────────────────────────────────────────────
@@ -3419,6 +3437,7 @@ const pl: Dict = {
   err_ai_breakdown: 'Nie można wygenerować analizy. Sprawdź połączenie.',
   err_translate_title: 'Tłumaczenie nie powiodło się',
   err_translate_body: 'Nie można przetłumaczyć. Sprawdź połączenie.',
+  err_input_too_long: 'Tekst jest za długi. Skróć go do 500 znaków lub mniej.',
 };
 
 // ── Greek ──────────────────────────────────────────────────────────────────────
@@ -3543,6 +3562,7 @@ const el: Dict = {
   err_ai_breakdown: 'Δεν ήταν δυνατή η ανάλυση. Ελέγξτε τη σύνδεσή σας.',
   err_translate_title: 'Αποτυχία μετάφρασης',
   err_translate_body: 'Δεν ήταν δυνατή η μετάφραση. Ελέγξτε τη σύνδεσή σας.',
+  err_input_too_long: 'Το κείμενο είναι πολύ μακρύ. Συντομεύστε το σε 500 χαρακτήρες ή λιγότερο.',
 };
 
 // ── Swedish ────────────────────────────────────────────────────────────────────
@@ -3667,6 +3687,7 @@ const sv: Dict = {
   err_ai_breakdown: 'Det gick inte att generera analysen. Kontrollera din anslutning.',
   err_translate_title: 'Översättning misslyckades',
   err_translate_body: 'Det gick inte att översätta. Kontrollera din anslutning.',
+  err_input_too_long: 'Texten är för lång. Förkorta den till 500 tecken eller färre.',
 };
 
 // ── Registry ───────────────────────────────────────────────────────────────────
