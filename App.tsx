@@ -26,23 +26,7 @@ import { requestPermission, rescheduleAllNotifications, sendTestNotification } f
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
-import { SkinPatternOverlay } from './src/components/SkinPatternOverlay';
-import { SkinWallpaperOverlay } from './src/components/SkinWallpaperOverlay';
-import { DeepSeaOverlay } from './src/components/DeepSeaOverlay';
-import {
-  AnimalOverlay,
-  AuroraOverlay,
-  BeautifulWoodsOverlay,
-  CoffeeHouseOverlay,
-  CyberNeonOverlay,
-  GalaxyOverlay,
-  GreenNatureOverlay,
-  RainyWindowOverlay,
-  RosesOverlay,
-  SakuraOverlay,
-  SnowMountainOverlay,
-  SunsetOverlay,
-} from './src/components/SkinOverlays';
+import { AppOverlays } from './src/app/AppOverlays';
 import { useCards } from './src/features/cards/useCards';
 import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScreen';
 import { WordListScreen } from './src/screens/WordListScreen/WordListScreen';
@@ -307,29 +291,7 @@ export default function App() {
     <SafeAreaProvider>
     <SafeAreaView style={[s.root, { backgroundColor: pal.bg }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {activeSkin?.patternType && (
-        <SkinPatternOverlay patternType={activeSkin.patternType} />
-      )}
-      {activeSkin?.wallpaperImage && (
-        <SkinWallpaperOverlay
-          image={activeSkin.wallpaperImage}
-          blurIntensity={activeSkin.wallpaperBlur}
-          overlayColor={activeSkin.wallpaperOverlayColor}
-        />
-      )}
-      {activeSkin?.id === 'skin_deep_sea'  && <DeepSeaOverlay scrollY={scrollY} />}
-      {activeSkin?.id === 'skin_leaf_blur' && <GreenNatureOverlay />}
-      {activeSkin?.id === 'shop_woods'     && <BeautifulWoodsOverlay />}
-      {activeSkin?.id === 'shop_roses'     && <RosesOverlay />}
-      {activeSkin?.id === 'skin_sunset'    && <SunsetOverlay />}
-      {activeSkin?.id === 'skin_sakura'    && <SakuraOverlay />}
-      {activeSkin?.id === 'skin_galaxy'    && <GalaxyOverlay />}
-      {activeSkin?.id === 'skin_snow'      && <SnowMountainOverlay />}
-      {activeSkin?.id === 'skin_cyber'     && <CyberNeonOverlay />}
-      {activeSkin?.id === 'skin_coffee'    && <CoffeeHouseOverlay />}
-      {activeSkin?.id === 'skin_aurora'    && <AuroraOverlay />}
-      {activeSkin?.id === 'skin_rain'      && <RainyWindowOverlay />}
-      {activeSkin?.id === 'skin_paw'       && <AnimalOverlay />}
+      <AppOverlays activeSkin={activeSkin} scrollY={scrollY} />
 
       {currentFolderId === null ? (
         <FolderListScreen
