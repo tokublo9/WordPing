@@ -24,6 +24,7 @@ import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScree
 import { WordListScreen } from './src/screens/WordListScreen/WordListScreen';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
+import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
 import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
@@ -36,9 +37,6 @@ export default function App() {
   const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
 
   const {
-    cards, setCards,
-    folders, setFolders,
-    foldersRef,
     themeColor, setThemeColor,
     appearance, setAppearance,
     skinId, setSkinId,
@@ -46,13 +44,20 @@ export default function App() {
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     settingsLoaded,
+    applySettings, markSettingsLoaded,
+  } = useAppSettings();
+
+  const {
+    cards, setCards,
+    folders, setFolders,
+    foldersRef,
     learnLang, setLearnLang,
     nativeLang, setNativeLang,
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
     hasLoaded,
-  } = useAppBootstrap();
+  } = useAppBootstrap({ applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 

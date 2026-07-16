@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Appearance, Folder, OnboardingChoices, WordCard } from '../types';
-import {
-  DEFAULT_LANGUAGE,
-  DEFAULT_THEME,
-  ONBOARDING_KEY,
-  SHOW_FULL_CARD_KEY,
-  VERTICAL_FLIP_KEY,
-} from '../constants';
+import type { Folder, OnboardingChoices, WordCard } from '../types';
+import { ONBOARDING_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
 import {
   bootstrapData,
   DEFAULT_FOLDER_ID,
@@ -47,25 +41,19 @@ function parseOnboarding(raw: string): OnboardingChoices | null {
   }
 }
 
+export interface UseAppBootstrapParams {
+  applySettings(s: Settings): void;
+  markSettingsLoaded(): void;
+  setShowFullCard(v: boolean): void;
+  setVerticalFlip(v: boolean): void;
+}
+
 export interface AppBootstrapState {
   cards: WordCard[];
   setCards: Dispatch<SetStateAction<WordCard[]>>;
   folders: Folder[];
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   foldersRef: MutableRefObject<Folder[]>;
-  themeColor: string;
-  setThemeColor: Dispatch<SetStateAction<string>>;
-  appearance: Appearance;
-  setAppearance: Dispatch<SetStateAction<Appearance>>;
-  skinId: string | null;
-  setSkinId: Dispatch<SetStateAction<string | null>>;
-  language: string;
-  setLanguage: Dispatch<SetStateAction<string>>;
-  showFullCard: boolean;
-  setShowFullCard: Dispatch<SetStateAction<boolean>>;
-  verticalFlip: boolean;
-  setVerticalFlip: Dispatch<SetStateAction<boolean>>;
-  settingsLoaded: boolean;
   learnLang: string | null;
   setLearnLang: Dispatch<SetStateAction<string | null>>;
   nativeLang: string;
@@ -79,16 +67,14 @@ export interface AppBootstrapState {
   hasLoaded: MutableRefObject<boolean>;
 }
 
-export function useAppBootstrap(): AppBootstrapState {
+export function useAppBootstrap({
+  applySettings,
+  markSettingsLoaded,
+  setShowFullCard,
+  setVerticalFlip,
+}: UseAppBootstrapParams): AppBootstrapState {
   const [cards, setCards] = useState<WordCard[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [themeColor, setThemeColor] = useState(DEFAULT_THEME);
-  const [appearance, setAppearance] = useState<Appearance>('system');
-  const [skinId, setSkinId] = useState<string | null>(null);
-  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
-  const [showFullCard, setShowFullCard] = useState(false);
-  const [verticalFlip, setVerticalFlip] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [learnLang, setLearnLang] = useState<string | null>(null);
   const [nativeLang, setNativeLang] = useState('en-US');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -99,13 +85,6 @@ export function useAppBootstrap(): AppBootstrapState {
   const foldersRef = useRef<Folder[]>([]);
 
   useEffect(() => {
-    const applySettings = (s: Settings) => {
-      setThemeColor(s.themeColor);
-      setAppearance(s.appearance);
-      setSkinId(s.skinId ?? null);
-      setLanguage(s.language ?? DEFAULT_LANGUAGE);
-    };
-
     const handleRemoteData = (remote: AppData) => {
       applySettings(remote.settings);
       const { cards: migratedCards } = migrateCards(remote.cards, foldersRef.current);
@@ -124,7 +103,7 @@ export function useAppBootstrap(): AppBootstrapState {
       } catch (e) {
         if (__DEV__) console.error('[bootstrap] local data load failed:', e);
         // Guarantee the app is usable even when local storage is unreadable.
-        setSettingsLoaded(true);
+        markSettingsLoaded();
         hasLoaded.current = true;
         return;
       }
@@ -157,7 +136,7 @@ export function useAppBootstrap(): AppBootstrapState {
       if (rawShowFull === 'true') setShowFullCard(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
 
-      setSettingsLoaded(true);
+      markSettingsLoaded();
 
       // ── Phase 3: Onboarding state ─────────────────────────────────────────────
       if (obRaw !== null) {
@@ -169,9 +148,6 @@ export function useAppBootstrap(): AppBootstrapState {
       }
 
       // ── Phase 4: Initial navigation decision ──────────────────────────────────
-      // Only navigate into the Welcome folder when onboarding won't be shown.
-      // If onboarding will cover the screen, currentFolderId is set in onComplete
-      // instead, so the Welcome folder becomes visible only after the modal closes.
       const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
       if (local.isFirstLaunch && !showingOnboarding) setCurrentFolderId(WELCOME_FOLDER_ID);
       if (showingOnboarding) setShowOnboarding(true);
@@ -187,13 +163,6 @@ export function useAppBootstrap(): AppBootstrapState {
     cards, setCards,
     folders, setFolders,
     foldersRef,
-    themeColor, setThemeColor,
-    appearance, setAppearance,
-    skinId, setSkinId,
-    language, setLanguage,
-    showFullCard, setShowFullCard,
-    verticalFlip, setVerticalFlip,
-    settingsLoaded,
     learnLang, setLearnLang,
     nativeLang, setNativeLang,
     currentFolderId, setCurrentFolderId,
