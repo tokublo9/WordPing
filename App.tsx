@@ -16,13 +16,12 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { bootstrapData, persist, readFolders, persistFolders, DEFAULT_FOLDER_ID, WELCOME_FOLDER_ID } from './src/lib/db';
+import { persist, persistFolders, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, FolderNotifSettings, OnboardingChoices, WordCard } from './src/types';
 import {
-  DARK, DEFAULT_LANGUAGE,
-  DEFAULT_THEME, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, ONBOARDING_KEY, SKINS,
+  DARK, FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_VOICE_LIMIT, FREE_WORD_LIMIT, LIGHT, ONBOARDING_KEY, SKINS,
   SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
 import { requestPermission, rescheduleAllNotifications, sendTestNotification } from './src/notifications';
@@ -41,7 +40,7 @@ import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './src/components/AdBanner
 import { TestModeScreen } from './src/components/TestModeScreen';
 import { FlipCardBrowser } from './src/components/FlipCardBrowser';
 import { FolderPickerSheet } from './src/components/FolderPickerSheet';
-import { OnboardingModal, FORCE_SHOW_ONBOARDING } from './src/components/OnboardingModal';
+import { OnboardingModal } from './src/components/OnboardingModal';
 import { SkinPatternOverlay } from './src/components/SkinPatternOverlay';
 import { SkinWallpaperOverlay } from './src/components/SkinWallpaperOverlay';
 import { DeepSeaOverlay } from './src/components/DeepSeaOverlay';
@@ -61,21 +60,32 @@ import {
 } from './src/components/SkinOverlays';
 import { ALL_LEVEL_KEYS, LEVEL_ORDER, LEVEL_FILTER_OPTIONS } from './src/features/cards/levels';
 import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
+import { useAppBootstrap } from './src/app/useAppBootstrap';
 
 export default function App() {
   const systemScheme = useColorScheme();
   const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
 
-  const [cards, setCards] = useState<WordCard[]>([]);
+  const {
+    cards, setCards,
+    folders, setFolders,
+    foldersRef,
+    themeColor, setThemeColor,
+    appearance, setAppearance,
+    skinId, setSkinId,
+    language, setLanguage,
+    showFullCard, setShowFullCard,
+    verticalFlip, setVerticalFlip,
+    settingsLoaded,
+    learnLang, setLearnLang,
+    nativeLang, setNativeLang,
+    currentFolderId, setCurrentFolderId,
+    showOnboarding, setShowOnboarding,
+    notificationGranted, setNotificationGranted,
+    hasLoaded,
+  } = useAppBootstrap();
+
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
-  const [notificationGranted, setNotificationGranted] = useState(false);
-  const [themeColor, setThemeColor] = useState(DEFAULT_THEME);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [appearance, setAppearance] = useState<Appearance>('system');
-  const [skinId, setSkinId] = useState<string | null>(null);
-  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
-  const [showFullCard, setShowFullCard] = useState(false);
-  const [verticalFlip, setVerticalFlip] = useState(false);
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 
   const [wordModalVisible, setWordModalVisible] = useState(false);
@@ -96,15 +106,10 @@ export default function App() {
   const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
-  const [learnLang, setLearnLang]     = useState<string | null>(null);
-  const [nativeLang, setNativeLang]   = useState('en-US');
   const [movePickerVisible, setMovePickerVisible] = useState(false);
   const [pendingMoveIds, setPendingMoveIds] = useState<string[]>([]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // ── Folder navigation ────────────────────────────────────────────────────────
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [addingFolder, setAddingFolder] = useState(false);
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
@@ -273,7 +278,6 @@ export default function App() {
 
   const closeOpenCard = useRef<(() => void) | null>(null);
   const [cardScrollEnabled, setCardScrollEnabled] = useState(true);
-  const hasLoaded = useRef(false);
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -287,81 +291,6 @@ export default function App() {
     : appearance === 'system' ? systemScheme === 'dark' : appearance === 'dark';
   const pal = (activeSkin && !isSolidSkin) ? activeSkin.palette : isDark ? DARK : LIGHT;
   const activeThemeColor = activeSkin ? activeSkin.themeColor : themeColor;
-  // ── Persist & load ──────────────────────────────────────────────────────────
-  // Ref so the Supabase remote callback can access up-to-date folders
-  const foldersRef = useRef<Folder[]>([]);
-
-  useEffect(() => {
-    const applySettings = (s: { themeColor: string; appearance: Appearance; skinId: string | null; language: string }) => {
-      setThemeColor(s.themeColor);
-      setAppearance(s.appearance);
-      setSkinId(s.skinId ?? null);
-      setLanguage(s.language ?? DEFAULT_LANGUAGE);
-    };
-
-    // Migration helper for existing users upgrading from pre-folder versions:
-    // any card that still lacks a folderId is assigned to the first available folder.
-    const migrate = (rawCards: WordCard[], existingFolders: Folder[]): { cards: WordCard[]; folders: Folder[] } => {
-      if (!rawCards.some(c => !c.folderId)) return { cards: rawCards, folders: existingFolders };
-      let finalFolders = existingFolders;
-      if (finalFolders.length === 0) {
-        finalFolders = [{ id: DEFAULT_FOLDER_ID, name: 'My Words', createdAt: Date.now() }];
-        persistFolders(finalFolders);
-      }
-      const firstId = finalFolders[0].id;
-      return { cards: rawCards.map(c => c.folderId ? c : { ...c, folderId: firstId }), folders: finalFolders };
-    };
-
-    // Sequential: bootstrapData writes the default folder before readFolders() runs,
-    // so on first launch readFolders() returns the seeded "My Words" folder.
-    (async () => {
-      try {
-        const local = await bootstrapData((remote) => {
-          applySettings(remote.settings);
-          const { cards: migratedCards } = migrate(remote.cards, foldersRef.current);
-          setCards(migratedCards);
-        });
-        const storedFolders = await readFolders();
-
-        const { cards: migratedCards, folders: migratedFolders } = migrate(local.cards, storedFolders);
-        foldersRef.current = migratedFolders;
-        setCards(migratedCards);
-        setFolders(migratedFolders);
-        applySettings(local.settings);
-        const [rawShowFull, rawVertFlip] = await Promise.all([
-          AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
-          AsyncStorage.getItem(VERTICAL_FLIP_KEY),
-        ]);
-        // Only enable from the exact stored string 'true'; any other value stays OFF.
-        if (rawShowFull === 'true') setShowFullCard(true);
-        if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
-        setSettingsLoaded(true);
-        const obRaw = await AsyncStorage.getItem(ONBOARDING_KEY);
-        if (obRaw !== null) {
-          try {
-            const ob: OnboardingChoices = JSON.parse(obRaw);
-            if (ob.learningLang && ob.learningLang !== 'other') setLearnLang(ob.learningLang);
-            if (ob.nativeLang && ob.nativeLang !== 'other') setNativeLang(ob.nativeLang);
-          } catch {}
-        }
-        const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
-        // Only navigate into the Welcome folder immediately when onboarding won't be shown.
-        // If onboarding will cover the screen, currentFolderId is set in onComplete instead,
-        // so the Welcome folder only becomes visible after the modal has fully closed.
-        if (local.isFirstLaunch && !showingOnboarding) setCurrentFolderId(WELCOME_FOLDER_ID);
-        if (showingOnboarding) setShowOnboarding(true);
-        hasLoaded.current = true;
-      } catch (e) {
-        // Startup failed (e.g. corrupt AsyncStorage). Mark as loaded so the app
-        // is usable rather than stuck on a blank screen.
-        console.error('Startup error:', e);
-        setSettingsLoaded(true);
-        hasLoaded.current = true;
-      }
-    })();
-
-    requestPermission().then(setNotificationGranted);
-  }, []);
 
   useEffect(() => {
     if (!hasLoaded.current) return;
