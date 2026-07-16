@@ -185,7 +185,7 @@ WordMemo/
 
 ## iOS Bundle ID
 
-`com.daiki0219.english-app`
+`com.daiki0219.wordmemo`
 
 ---
 
