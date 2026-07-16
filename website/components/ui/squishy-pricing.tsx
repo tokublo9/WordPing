@@ -34,7 +34,7 @@ const PLANS = [
     name: 'Basic',
     price: 'Coming Soon',
     period: null,
-    description: 'Unlock the full WordPing experience.',
+    description: 'Unlock the full WordMemo experience.',
     color: '#8B5CF6',
     featured: true,
     features: [

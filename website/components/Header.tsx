@@ -32,9 +32,9 @@ export default function Header() {
         {/* Logo */}
         <a href="#" className="flex items-center gap-2.5">
           <div className="overflow-hidden rounded-xl" style={{ width: 32, height: 32 }}>
-            <Image src="/icon.png" alt="WordPing" width={32} height={32} className="object-cover" />
+            <Image src="/icon.png" alt="WordMemo" width={32} height={32} className="object-cover" />
           </div>
-          <span className="text-base font-bold" style={{ color: 'var(--text)' }}>WordPing</span>
+          <span className="text-base font-bold" style={{ color: 'var(--text)' }}>WordMemo</span>
         </a>
 
         {/* Nav */}

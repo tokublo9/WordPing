@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordPing — Learn English Smarter",
+    "title": "WordMemo — Learn English Smarter",
     "description": "A smart flashcard app with daily reminders, beautiful themes, and AI-powered meanings for serious English learners."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "Available on iOS · Coming Soon",
     "titleLine1": "Learn words through",
     "titleHighlight": "smart reminders.",
-    "subtitle": "WordPing helps you remember vocabulary through simple flashcards and daily push notifications — study anywhere, anytime.",
+    "subtitle": "WordMemo helps you remember vocabulary through simple flashcards and daily push notifications — study anywhere, anytime.",
     "cta": "Coming Soon on the App Store",
     "ctaNote": "Free to download"
   },
@@ -46,12 +46,12 @@
     "steps": {
       "1": { "title": "Add a word", "desc": "Save any English word or phrase you encounter. One tap is all it takes." },
       "2": { "title": "Write meaning & note", "desc": "Add your own translation and a personal note to make the word stick." },
-      "3": { "title": "Get reminders", "desc": "WordPing sends push notifications so you never forget to study." },
+      "3": { "title": "Get reminders", "desc": "WordMemo sends push notifications so you never forget to study." },
       "4": { "title": "Review anytime", "desc": "Flip cards, take tests, and reinforce your vocabulary at your own pace." }
     }
   },
   "premium": {
-    "badge": "WordPing Basic",
+    "badge": "WordMemo Basic",
     "title": "Unlock the full experience.",
     "subtitle": "More colors, premium wallpaper skins, and deeper personalization.",
     "colors_title": "11+ theme colors",
@@ -63,13 +63,13 @@
     "cta": "Coming soon"
   },
   "cta": {
-    "title": "WordPing is coming soon.",
+    "title": "WordMemo is coming soon.",
     "subtitle": "Be the first to know when it launches on the App Store.",
     "button": "Coming Soon on the App Store",
     "note": "Free to download"
   },
   "footer": {
     "tagline": "Built for learners who mean it.",
-    "rights": "© 2025 WordPing. All rights reserved."
+    "rights": "© 2025 WordMemo. All rights reserved."
   }
 }

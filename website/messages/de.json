@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordPing — Englisch intelligenter lernen",
+    "title": "WordMemo — Englisch intelligenter lernen",
     "description": "Lernkarten, tägliche Erinnerungen und KI-generierte Bedeutungen zum effektiven Englischlernen."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "Für iOS · Bald verfügbar",
     "titleLine1": "Wörter lernen mit",
     "titleHighlight": "smarten Erinnerungen.",
-    "subtitle": "WordPing hilft dir, Vokabular durch Lernkarten und tägliche Push-Benachrichtigungen zu behalten – überall und jederzeit.",
+    "subtitle": "WordMemo hilft dir, Vokabular durch Lernkarten und tägliche Push-Benachrichtigungen zu behalten – überall und jederzeit.",
     "cta": "Bald im App Store",
     "ctaNote": "Kostenlos herunterladen"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "Erinnerungen erhalten",
-        "desc": "WordPing sendet Push-Benachrichtigungen, damit du nie vergisst zu lernen."
+        "desc": "WordMemo sendet Push-Benachrichtigungen, damit du nie vergisst zu lernen."
       },
       "4": {
         "title": "Jederzeit wiederholen",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordPing Basic",
+    "badge": "WordMemo Basic",
     "title": "Erlebe das vollständige Erlebnis.",
     "subtitle": "Mehr Farben, Premium-Wallpaper-Skins und tiefere Personalisierung.",
     "colors_title": "11+ Themenfarben",
@@ -75,13 +75,13 @@
     "cta": "Bald verfügbar"
   },
   "cta": {
-    "title": "WordPing kommt bald.",
+    "title": "WordMemo kommt bald.",
     "subtitle": "Sei der Erste, der erfährt, wenn es im App Store erscheint.",
     "button": "Bald im App Store",
     "note": "Kostenlos herunterladen"
   },
   "footer": {
     "tagline": "Entwickelt für ernsthafte Lernende.",
-    "rights": "© 2025 WordPing. Alle Rechte vorbehalten."
+    "rights": "© 2025 WordMemo. Alle Rechte vorbehalten."
   }
 }

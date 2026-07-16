@@ -276,7 +276,7 @@ export function ThemeDetailsSheet({
               <>
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: displayItem.previewBg }]} />
                 <View style={[StyleSheet.absoluteFill, s.heroCardCenter]}>
-                  <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordPing</Text>
+                  <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordMemo</Text>
                 </View>
               </>
             )}

@@ -1,10 +1,10 @@
-# CLAUDE.md — WordPing Development Guide
+# CLAUDE.md — WordMemo Development Guide
 
 ## 1. Project Overview
 
-WordPing is a mobile vocabulary learning app built with Expo / React Native.
+WordMemo is a mobile vocabulary learning app built with Expo / React Native.
 
-Users add words they want to remember. WordPing helps them review those words through flip cards and scheduled push notifications throughout the day.
+Users add words they want to remember. WordMemo helps them review those words through flip cards and scheduled push notifications throughout the day.
 
 **Keep the app simple, clean, fast, and easy to understand. Do not add complexity that does not serve this goal.**
 
@@ -26,7 +26,7 @@ When fixing a bug:
 
 ## 3. App Name
 
-The app name is **WordPing**. Do not rename it. Do not use old names like Vocabulary, Memora, or Wordloop.
+The app name is **WordMemo**. Do not rename it. Do not use old names like WordPing, Vocabulary, Memora, or Wordloop.
 
 ---
 

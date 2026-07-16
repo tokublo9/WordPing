@@ -132,7 +132,7 @@ const SkinCard = memo(function SkinCard({
           <>
             <View style={[StyleSheet.absoluteFill, { backgroundColor: item.previewBg }]} />
             <View style={[StyleSheet.absoluteFill, styles.wordPingCenter]}>
-              <Text style={[styles.cardWordPing, { color: item.previewAccent }]}>WordPing</Text>
+              <Text style={[styles.cardWordPing, { color: item.previewAccent }]}>WordMemo</Text>
             </View>
           </>
         )}

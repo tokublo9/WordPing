@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordPing — 英単語をスマートに学ぶ",
+    "title": "WordMemo — 英単語をスマートに学ぶ",
     "description": "プッシュ通知・フラッシュカード・AIによる意味生成で、英単語の学習をもっと効率的に。"
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "iOS対応 · もうすぐリリース",
     "titleLine1": "スマートな通知で",
     "titleHighlight": "単語を覚える。",
-    "subtitle": "WordPingはフラッシュカードと毎日のプッシュ通知で、英単語の記憶を徹底サポートします。",
+    "subtitle": "WordMemoはフラッシュカードと毎日のプッシュ通知で、英単語の記憶を徹底サポートします。",
     "cta": "App Storeでもうすぐ公開",
     "ctaNote": "無料でダウンロード"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "通知を受け取る",
-        "desc": "WordPingがプッシュ通知を送るので、学習を忘れません。"
+        "desc": "WordMemoがプッシュ通知を送るので、学習を忘れません。"
       },
       "4": {
         "title": "いつでも復習",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordPing Basic",
+    "badge": "WordMemo Basic",
     "title": "フル機能を解放する。",
     "subtitle": "より多くのカラー、プレミアムスキン、充実したカスタマイズ。",
     "colors_title": "11種類以上のテーマカラー",
@@ -75,13 +75,13 @@
     "cta": "もうすぐ公開"
   },
   "cta": {
-    "title": "WordPingはもうすぐ登場。",
+    "title": "WordMemoはもうすぐ登場。",
     "subtitle": "App Storeへのリリース情報をいち早くお届けします。",
     "button": "App Storeでもうすぐ公開",
     "note": "無料でダウンロード"
   },
   "footer": {
     "tagline": "本気で学ぶ人のために作られたアプリ。",
-    "rights": "© 2025 WordPing. All rights reserved."
+    "rights": "© 2025 WordMemo. All rights reserved."
   }
 }

@@ -1,8 +1,8 @@
-# WordPing
+# WordMemo
 
 A vocabulary learning app for iOS built with Expo and React Native.
 
-Users add words they want to remember. WordPing helps them review those words through flip cards and scheduled push notifications throughout the day.
+Users add words they want to remember. WordMemo helps them review those words through flip cards and scheduled push notifications throughout the day.
 
 ---
 
@@ -101,7 +101,7 @@ Supabase credentials are configured inside `src/lib/supabase.ts`.
 ## Project Structure
 
 ```
-WordPing/
+WordMemo/
 ├── App.tsx                         # Root component — all state, handlers, and render
 ├── index.ts                        # Entry point (registerRootComponent)
 ├── src/

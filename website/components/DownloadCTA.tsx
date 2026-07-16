@@ -51,7 +51,7 @@ export default function DownloadCTA() {
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icon.png" alt="WordPing" width={56} height={56} className="rounded-2xl" />
+              <img src="/icon.png" alt="WordMemo" width={56} height={56} className="rounded-2xl" />
             </div>
           </div>
 

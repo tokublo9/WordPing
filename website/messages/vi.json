@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordPing — Học tiếng Anh thông minh hơn",
+    "title": "WordMemo — Học tiếng Anh thông minh hơn",
     "description": "Flashcard, nhắc nhở hàng ngày và nghĩa từ AI giúp bạn học từ vựng tiếng Anh hiệu quả."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "Có trên iOS · Sắp ra mắt",
     "titleLine1": "Học từ qua",
     "titleHighlight": "nhắc nhở thông minh.",
-    "subtitle": "WordPing giúp bạn ghi nhớ từ vựng qua flashcard và thông báo đẩy hàng ngày — học mọi lúc, mọi nơi.",
+    "subtitle": "WordMemo giúp bạn ghi nhớ từ vựng qua flashcard và thông báo đẩy hàng ngày — học mọi lúc, mọi nơi.",
     "cta": "Sắp có trên App Store",
     "ctaNote": "Tải miễn phí"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "Nhận nhắc nhở",
-        "desc": "WordPing gửi thông báo đẩy để bạn không bao giờ quên học."
+        "desc": "WordMemo gửi thông báo đẩy để bạn không bao giờ quên học."
       },
       "4": {
         "title": "Ôn tập bất cứ lúc nào",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordPing Basic",
+    "badge": "WordMemo Basic",
     "title": "Mở khóa trải nghiệm đầy đủ.",
     "subtitle": "Nhiều màu hơn, skin nền cao cấp và cá nhân hóa sâu hơn.",
     "colors_title": "11+ màu chủ đề",
@@ -75,13 +75,13 @@
     "cta": "Sắp ra mắt"
   },
   "cta": {
-    "title": "WordPing sắp ra mắt.",
+    "title": "WordMemo sắp ra mắt.",
     "subtitle": "Hãy là người đầu tiên biết khi ứng dụng lên App Store.",
     "button": "Sắp có trên App Store",
     "note": "Tải miễn phí"
   },
   "footer": {
     "tagline": "Xây dựng cho người học nghiêm túc.",
-    "rights": "© 2025 WordPing. Bảo lưu mọi quyền."
+    "rights": "© 2025 WordMemo. Bảo lưu mọi quyền."
   }
 }

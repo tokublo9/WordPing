@@ -14,7 +14,7 @@ export const WELCOME_FOLDER_ID  = 'wp-welcome';
 
 // Shown on a genuine first install. Supabase data replaces these in the background.
 const DEFAULT_FOLDERS: Folder[] = [
-  { id: WELCOME_FOLDER_ID, name: 'Welcome to WordPing', createdAt: 1 },
+  { id: WELCOME_FOLDER_ID, name: 'Welcome to WordMemo', createdAt: 1 },
 ];
 
 // English placeholders — replaced with localized content when onboarding completes.
@@ -48,13 +48,39 @@ function generateUUID(): string {
  * Returns the authenticated anonymous user's UUID, signing in if needed.
  * Falls back to a locally generated UUID when offline so the app still
  * works without a network connection (Supabase sync will be skipped).
+ *
+ * The resolved ID is cached for the lifetime of the process. This ensures
+ * every call within one app session uses the same identity regardless of
+ * whether a background signInAnonymously() completes later and stores a
+ * Supabase session to AsyncStorage.
  */
-async function getDeviceId(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user?.id) return session.user.id;
+const TIMEOUT = Symbol('timeout');
+let _cachedDeviceId: string | null = null;
 
-  const { data, error } = await supabase.auth.signInAnonymously();
-  if (!error && data.user?.id) return data.user.id;
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMEOUT> {
+  return Promise.race([promise, new Promise<typeof TIMEOUT>(resolve => setTimeout(() => resolve(TIMEOUT), ms))]);
+}
+
+async function getDeviceId(): Promise<string> {
+  if (_cachedDeviceId) return _cachedDeviceId;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      _cachedDeviceId = session.user.id;
+      return _cachedDeviceId;
+    }
+
+    // 5-second timeout prevents an unreachable Supabase server from blocking
+    // the entire startup chain indefinitely (fetch has no built-in timeout).
+    const result = await withTimeout(supabase.auth.signInAnonymously(), 5000);
+    if (result !== TIMEOUT && !result.error && result.data.user?.id) {
+      _cachedDeviceId = result.data.user.id;
+      return _cachedDeviceId;
+    }
+  } catch {
+    // getSession or signInAnonymously threw — fall through to local ID.
+  }
 
   // Offline fallback — Supabase calls will be rejected by RLS until the
   // user comes back online and a real anonymous session is established.
@@ -63,7 +89,8 @@ async function getDeviceId(): Promise<string> {
     id = generateUUID();
     await AsyncStorage.setItem(DEVICE_ID_KEY, id);
   }
-  return id;
+  _cachedDeviceId = id;
+  return _cachedDeviceId;
 }
 
 async function readLocal(): Promise<AppData> {

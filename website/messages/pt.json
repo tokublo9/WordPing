@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordPing — Aprenda inglês de forma mais inteligente",
+    "title": "WordMemo — Aprenda inglês de forma mais inteligente",
     "description": "Flashcards, lembretes diários e significados gerados por IA para dominar o vocabulário inglês."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "Disponível no iOS · Em breve",
     "titleLine1": "Aprenda palavras com",
     "titleHighlight": "lembretes inteligentes.",
-    "subtitle": "WordPing ajuda você a memorizar vocabulário com flashcards e notificações push diárias — estude em qualquer lugar.",
+    "subtitle": "WordMemo ajuda você a memorizar vocabulário com flashcards e notificações push diárias — estude em qualquer lugar.",
     "cta": "Em breve na App Store",
     "ctaNote": "Download gratuito"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "Receba lembretes",
-        "desc": "WordPing envia notificações push para que você nunca esqueça de estudar."
+        "desc": "WordMemo envia notificações push para que você nunca esqueça de estudar."
       },
       "4": {
         "title": "Revise quando quiser",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordPing Basic",
+    "badge": "WordMemo Basic",
     "title": "Desbloqueie a experiência completa.",
     "subtitle": "Mais cores, skins de fundo premium e personalização profunda.",
     "colors_title": "11+ cores de tema",
@@ -75,13 +75,13 @@
     "cta": "Em breve"
   },
   "cta": {
-    "title": "WordPing chega em breve.",
+    "title": "WordMemo chega em breve.",
     "subtitle": "Seja o primeiro a saber quando chegar à App Store.",
     "button": "Em breve na App Store",
     "note": "Download gratuito"
   },
   "footer": {
     "tagline": "Feito para quem aprende de verdade.",
-    "rights": "© 2025 WordPing. Todos os direitos reservados."
+    "rights": "© 2025 WordMemo. Todos os direitos reservados."
   }
 }

@@ -64,26 +64,26 @@ const ALL_LEVEL_KEYS = ['perfect', 'good', 'slightly', 'unknown', 'none'] as con
 
 // Localized names for the Welcome folder, keyed by nativeLang BCP-47 code.
 const WELCOME_FOLDER_NAMES: Record<string, string> = {
-  'en-US': 'Welcome to WordPing',
-  'ja-JP': 'WordPingへようこそ',
-  'ko-KR': 'WordPing에 오신 것을 환영합니다',
-  'zh-CN': '欢迎使用WordPing',
-  'es-ES': 'Bienvenido a WordPing',
-  'fr-FR': 'Bienvenue dans WordPing',
-  'de-DE': 'Willkommen bei WordPing',
-  'it-IT': 'Benvenuto in WordPing',
-  'pt-BR': 'Bem-vindo ao WordPing',
-  'ru-RU': 'Добро пожаловать в WordPing',
-  'ar':    'أهلاً بك في WordPing',
-  'hi-IN': 'WordPing में आपका स्वागत है',
-  'tr-TR': "WordPing'e Hoş Geldiniz",
-  'nl-NL': 'Welkom bij WordPing',
-  'vi-VN': 'Chào mừng đến với WordPing',
-  'th-TH': 'ยินดีต้อนรับสู่ WordPing',
-  'id-ID': 'Selamat Datang di WordPing',
-  'pl-PL': 'Witaj w WordPing',
-  'el-GR': 'Καλώς ήρθατε στο WordPing',
-  'sv-SE': 'Välkommen till WordPing',
+  'en-US': 'Welcome to WordMemo',
+  'ja-JP': 'WordMemoへようこそ',
+  'ko-KR': 'WordMemo에 오신 것을 환영합니다',
+  'zh-CN': '欢迎使用WordMemo',
+  'es-ES': 'Bienvenido a WordMemo',
+  'fr-FR': 'Bienvenue dans WordMemo',
+  'de-DE': 'Willkommen bei WordMemo',
+  'it-IT': 'Benvenuto in WordMemo',
+  'pt-BR': 'Bem-vindo ao WordMemo',
+  'ru-RU': 'Добро пожаловать в WordMemo',
+  'ar':    'أهلاً بك في WordMemo',
+  'hi-IN': 'WordMemo में आपका स्वागत है',
+  'tr-TR': "WordMemo'ya Hoş Geldiniz",
+  'nl-NL': 'Welkom bij WordMemo',
+  'vi-VN': 'Chào mừng đến với WordMemo',
+  'th-TH': 'ยินดีต้อนรับสู่ WordMemo',
+  'id-ID': 'Selamat Datang di WordMemo',
+  'pl-PL': 'Witaj w WordMemo',
+  'el-GR': 'Καλώς ήρθατε στο WordMemo',
+  'sv-SE': 'Välkommen till WordMemo',
 };
 
 // Translations for the 4 tutorial cards in the Welcome folder.
@@ -503,41 +503,49 @@ export default function App() {
     // Sequential: bootstrapData writes the default folder before readFolders() runs,
     // so on first launch readFolders() returns the seeded "My Words" folder.
     (async () => {
-      const local = await bootstrapData((remote) => {
-        applySettings(remote.settings);
-        const { cards: migratedCards } = migrate(remote.cards, foldersRef.current);
-        setCards(migratedCards);
-      });
-      const storedFolders = await readFolders();
+      try {
+        const local = await bootstrapData((remote) => {
+          applySettings(remote.settings);
+          const { cards: migratedCards } = migrate(remote.cards, foldersRef.current);
+          setCards(migratedCards);
+        });
+        const storedFolders = await readFolders();
 
-      const { cards: migratedCards, folders: migratedFolders } = migrate(local.cards, storedFolders);
-      foldersRef.current = migratedFolders;
-      setCards(migratedCards);
-      setFolders(migratedFolders);
-      applySettings(local.settings);
-      const [rawShowFull, rawVertFlip] = await Promise.all([
-        AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
-        AsyncStorage.getItem(VERTICAL_FLIP_KEY),
-      ]);
-      // Only enable from the exact stored string 'true'; any other value stays OFF.
-      if (rawShowFull === 'true') setShowFullCard(true);
-      if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
-      setSettingsLoaded(true);
-      const obRaw = await AsyncStorage.getItem(ONBOARDING_KEY);
-      if (obRaw !== null) {
-        try {
-          const ob: OnboardingChoices = JSON.parse(obRaw);
-          if (ob.learningLang && ob.learningLang !== 'other') setLearnLang(ob.learningLang);
-          if (ob.nativeLang && ob.nativeLang !== 'other') setNativeLang(ob.nativeLang);
-        } catch {}
+        const { cards: migratedCards, folders: migratedFolders } = migrate(local.cards, storedFolders);
+        foldersRef.current = migratedFolders;
+        setCards(migratedCards);
+        setFolders(migratedFolders);
+        applySettings(local.settings);
+        const [rawShowFull, rawVertFlip] = await Promise.all([
+          AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
+          AsyncStorage.getItem(VERTICAL_FLIP_KEY),
+        ]);
+        // Only enable from the exact stored string 'true'; any other value stays OFF.
+        if (rawShowFull === 'true') setShowFullCard(true);
+        if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
+        setSettingsLoaded(true);
+        const obRaw = await AsyncStorage.getItem(ONBOARDING_KEY);
+        if (obRaw !== null) {
+          try {
+            const ob: OnboardingChoices = JSON.parse(obRaw);
+            if (ob.learningLang && ob.learningLang !== 'other') setLearnLang(ob.learningLang);
+            if (ob.nativeLang && ob.nativeLang !== 'other') setNativeLang(ob.nativeLang);
+          } catch {}
+        }
+        const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
+        // Only navigate into the Welcome folder immediately when onboarding won't be shown.
+        // If onboarding will cover the screen, currentFolderId is set in onComplete instead,
+        // so the Welcome folder only becomes visible after the modal has fully closed.
+        if (local.isFirstLaunch && !showingOnboarding) setCurrentFolderId(WELCOME_FOLDER_ID);
+        if (showingOnboarding) setShowOnboarding(true);
+        hasLoaded.current = true;
+      } catch (e) {
+        // Startup failed (e.g. corrupt AsyncStorage). Mark as loaded so the app
+        // is usable rather than stuck on a blank screen.
+        console.error('Startup error:', e);
+        setSettingsLoaded(true);
+        hasLoaded.current = true;
       }
-      const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
-      // Only navigate into the Welcome folder immediately when onboarding won't be shown.
-      // If onboarding will cover the screen, currentFolderId is set in onComplete instead,
-      // so the Welcome folder only becomes visible after the modal has fully closed.
-      if (local.isFirstLaunch && !showingOnboarding) setCurrentFolderId(WELCOME_FOLDER_ID);
-      if (showingOnboarding) setShowOnboarding(true);
-      hasLoaded.current = true;
     })();
 
     requestPermission().then(setNotificationGranted);
@@ -865,7 +873,7 @@ export default function App() {
           </View>
         ) : (
           <View style={s.header}>
-            <Text style={[s.title, { color: pal.text }]}>WordPing</Text>
+            <Text style={[s.title, { color: pal.text }]}>WordMemo</Text>
             <View style={s.headerIcons}>
               <TouchableOpacity style={s.iconBtn} onPress={() => setAddingFolder(true)}>
                 <MaterialCommunityIcons name="folder-plus-outline" size={22} color={pal.sub} />

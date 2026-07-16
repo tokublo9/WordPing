@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "WordPing",
-    "slug": "wordping",
+    "name": "WordMemo",
+    "slug": "wordmemo",
     "owner": "daiki0219",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
-    "scheme": "wordping",
+    "scheme": "wordmemo",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -39,14 +39,14 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.daiki0219.wordping",
+      "bundleIdentifier": "com.daiki0219.wordmemo",
       "buildNumber": "1",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.daiki0219.wordping",
+      "package": "com.daiki0219.wordmemo",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",

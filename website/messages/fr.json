@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordPing — Apprenez l'anglais intelligemment",
+    "title": "WordMemo — Apprenez l'anglais intelligemment",
     "description": "Flashcards, rappels quotidiens et significations générées par IA pour maîtriser le vocabulaire anglais."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "Disponible sur iOS · Bientôt",
     "titleLine1": "Apprenez des mots grâce à",
     "titleHighlight": "des rappels intelligents.",
-    "subtitle": "WordPing vous aide à mémoriser le vocabulaire grâce à des flashcards et des notifications push quotidiennes.",
+    "subtitle": "WordMemo vous aide à mémoriser le vocabulaire grâce à des flashcards et des notifications push quotidiennes.",
     "cta": "Bientôt sur l'App Store",
     "ctaNote": "Téléchargement gratuit"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "Recevez des rappels",
-        "desc": "WordPing envoie des notifications pour que vous n'oubliiez jamais d'étudier."
+        "desc": "WordMemo envoie des notifications pour que vous n'oubliiez jamais d'étudier."
       },
       "4": {
         "title": "Révisez quand vous voulez",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordPing Basic",
+    "badge": "WordMemo Basic",
     "title": "Débloquez l'expérience complète.",
     "subtitle": "Plus de couleurs, des skins premium et une personnalisation approfondie.",
     "colors_title": "11+ couleurs de thème",
@@ -75,13 +75,13 @@
     "cta": "Bientôt disponible"
   },
   "cta": {
-    "title": "WordPing arrive bientôt.",
+    "title": "WordMemo arrive bientôt.",
     "subtitle": "Soyez le premier à savoir quand il arrive sur l'App Store.",
     "button": "Bientôt sur l'App Store",
     "note": "Téléchargement gratuit"
   },
   "footer": {
     "tagline": "Conçu pour ceux qui apprennent sérieusement.",
-    "rights": "© 2025 WordPing. Tous droits réservés."
+    "rights": "© 2025 WordMemo. Tous droits réservés."
   }
 }

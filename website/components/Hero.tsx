@@ -164,7 +164,7 @@ export default function Hero() {
                 >
                   <Image
                     src="/images/notification-lock-screen.png"
-                    alt="WordPing notification on iPhone lock screen"
+                    alt="WordMemo notification on iPhone lock screen"
                     width={390}
                     height={844}
                     className="block w-full"
@@ -211,7 +211,7 @@ export default function Hero() {
                 >
                   <Image
                     src="/images/word-list.png"
-                    alt="WordPing word list screen"
+                    alt="WordMemo word list screen"
                     width={390}
                     height={844}
                     className="block w-full"

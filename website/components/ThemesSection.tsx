@@ -61,7 +61,7 @@ export default function ThemesSection() {
             className="mx-auto mt-4 max-w-lg text-base leading-relaxed"
             style={{ color: 'var(--text-sub)' }}
           >
-            WordPing lets you customize your learning space with clean colors and beautiful premium skins.
+            WordMemo lets you customize your learning space with clean colors and beautiful premium skins.
             Make it feel like yours.
           </p>
         </motion.div>
@@ -86,7 +86,7 @@ export default function ThemesSection() {
             >
               <Image
                 src="/images/theme-shop.png"
-                alt="WordPing Theme Shop"
+                alt="WordMemo Theme Shop"
                 width={390}
                 height={844}
                 className="block w-full"

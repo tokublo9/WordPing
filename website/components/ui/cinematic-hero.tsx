@@ -171,13 +171,13 @@ export interface CinematicHeroProps extends React.HTMLAttributes<HTMLDivElement>
 }
 
 export function CinematicHero({
-  brandName = "WordPing",
+  brandName = "WordMemo",
   tagline1 = "Learn new words,",
   tagline2 = "never forget them.",
   cardHeading = "Vocabulary, on autopilot.",
   cardDescription = (
     <>
-      <span className="text-white font-semibold">WordPing</span> helps you build
+      <span className="text-white font-semibold">WordMemo</span> helps you build
       vocabulary with flip cards and smart push notifications — delivered
       throughout the day so new words stick without the effort.
     </>
@@ -185,7 +185,7 @@ export function CinematicHero({
   metricValue = 150,
   metricLabel = "Words Learned",
   ctaHeading = "Start learning today.",
-  ctaDescription = "Add words you want to remember. WordPing reminds you throughout the day until they stick.",
+  ctaDescription = "Add words you want to remember. WordMemo reminds you throughout the day until they stick.",
   className,
   ...props
 }: CinematicHeroProps) {
