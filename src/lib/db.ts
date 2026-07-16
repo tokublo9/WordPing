@@ -6,6 +6,7 @@ import {
   FOLDERS_KEY, LANGUAGE_KEY, SKIN_KEY, THEME_KEY,
 } from '../constants';
 import { supabase } from './supabase';
+import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 
 const SEEDED_KEY = 'wordping_seeded';
 
@@ -271,8 +272,8 @@ export async function bootstrapData(onRemoteData: (data: AppData) => void): Prom
  * (fire-and-forget), then syncs to Supabase in the background.
  */
 export function persist(data: AppData): void {
-  writeLocal(data);
-  upsertRemote(data);
+  writeLocal(data).catch(e => reportSideEffectFailure('persist:local', e));
+  upsertRemote(data).catch(e => reportSideEffectFailure('persist:remote', e));
 }
 
 // ── Folder storage (local-only, not synced to Supabase) ──────────────────────
@@ -283,5 +284,6 @@ export async function readFolders(): Promise<Folder[]> {
 }
 
 export function persistFolders(folders: Folder[]): void {
-  AsyncStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+  AsyncStorage.setItem(FOLDERS_KEY, JSON.stringify(folders))
+    .catch(e => reportSideEffectFailure('persistFolders', e));
 }

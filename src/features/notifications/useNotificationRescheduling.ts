@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import type { Folder, WordCard } from '../../types';
 import { rescheduleAllNotifications } from '../../notifications';
+import { reportSideEffectFailure } from '../../utils/reportSideEffectFailure';
 
 export interface UseNotificationReschedulingParams {
   cards: WordCard[];
@@ -19,6 +20,7 @@ export function useNotificationRescheduling({
   useEffect(() => {
     if (!hasLoaded.current) return;
     if (!notificationGranted) return;
-    rescheduleAllNotifications(cards, folders);
+    rescheduleAllNotifications(cards, folders)
+      .catch(e => reportSideEffectFailure('rescheduleAllNotifications', e));
   }, [cards, folders, notificationGranted]);
 }

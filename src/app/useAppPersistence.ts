@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Appearance, Folder, WordCard } from '../types';
 import { SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
 import { persist, persistFolders } from '../lib/db';
+import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 
 export interface UseAppPersistenceParams {
   cards: WordCard[];
@@ -45,11 +46,13 @@ export function useAppPersistence({
 
   useEffect(() => {
     if (!hasLoaded.current) return;
-    AsyncStorage.setItem(SHOW_FULL_CARD_KEY, showFullCard ? 'true' : 'false');
+    AsyncStorage.setItem(SHOW_FULL_CARD_KEY, showFullCard ? 'true' : 'false')
+      .catch(e => reportSideEffectFailure('setShowFullCard', e));
   }, [showFullCard]);
 
   useEffect(() => {
     if (!hasLoaded.current) return;
-    AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false');
+    AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false')
+      .catch(e => reportSideEffectFailure('setVerticalFlip', e));
   }, [verticalFlip]);
 }
