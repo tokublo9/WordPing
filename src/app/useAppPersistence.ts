@@ -1,0 +1,55 @@
+import { useEffect } from 'react';
+import type { MutableRefObject } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Appearance, Folder, WordCard } from '../types';
+import { SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
+import { persist, persistFolders } from '../lib/db';
+
+export interface UseAppPersistenceParams {
+  cards: WordCard[];
+  folders: Folder[];
+  foldersRef: MutableRefObject<Folder[]>;
+  themeColor: string;
+  appearance: Appearance;
+  skinId: string | null;
+  language: string;
+  showFullCard: boolean;
+  verticalFlip: boolean;
+  hasLoaded: MutableRefObject<boolean>;
+}
+
+export function useAppPersistence({
+  cards,
+  folders,
+  foldersRef,
+  themeColor,
+  appearance,
+  skinId,
+  language,
+  showFullCard,
+  verticalFlip,
+  hasLoaded,
+}: UseAppPersistenceParams): void {
+  // Persist cards + settings whenever any of them change.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    persist({ cards, settings: { themeColor, appearance, skinId, language } });
+  }, [cards, themeColor, appearance, skinId, language]);
+
+  // Keep foldersRef in sync and persist folders.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    foldersRef.current = folders;
+    persistFolders(folders);
+  }, [folders]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(SHOW_FULL_CARD_KEY, showFullCard ? 'true' : 'false');
+  }, [showFullCard]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false');
+  }, [verticalFlip]);
+}

@@ -8,15 +8,13 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { persist, persistFolders, WELCOME_FOLDER_ID } from './src/lib/db';
+import { WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder } from './src/types';
 import {
   FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY,
-  SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY,
 } from './src/constants';
-import { rescheduleAllNotifications } from './src/notifications';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
@@ -31,6 +29,8 @@ import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
 import { useThemeController } from './src/features/themes/useThemeController';
 import { useFolderNotifications } from './src/features/notifications/useFolderNotifications';
+import { useNotificationRescheduling } from './src/features/notifications/useNotificationRescheduling';
+import { useAppPersistence } from './src/app/useAppPersistence';
 
 export default function App() {
   const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
@@ -163,27 +163,14 @@ export default function App() {
     isSubscribed,
   });
 
-  useEffect(() => {
-    if (!hasLoaded.current) return;
-    persist({ cards, settings: { themeColor, appearance, skinId, language } });
-    if (notificationGranted) rescheduleAllNotifications(cards, folders);
-  }, [cards, notificationGranted, themeColor, appearance, skinId, language, folders]);
+  useAppPersistence({
+    cards, folders, foldersRef,
+    themeColor, appearance, skinId, language,
+    showFullCard, verticalFlip,
+    hasLoaded,
+  });
 
-  useEffect(() => {
-    if (!hasLoaded.current) return;
-    foldersRef.current = folders;
-    persistFolders(folders);
-  }, [folders]);
-
-  useEffect(() => {
-    if (!hasLoaded.current) return;
-    AsyncStorage.setItem(SHOW_FULL_CARD_KEY, showFullCard ? 'true' : 'false');
-  }, [showFullCard]);
-
-  useEffect(() => {
-    if (!hasLoaded.current) return;
-    AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false');
-  }, [verticalFlip]);
+  useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
 
   // ── Theme ────────────────────────────────────────────────────────────────────
 
