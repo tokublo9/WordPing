@@ -85,14 +85,19 @@ export function useAppBootstrap({
   const foldersRef = useRef<Folder[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    // Supabase remote callback: fires asynchronously, long after local load.
+    // Guarded against post-unmount execution.
     const handleRemoteData = (remote: AppData) => {
+      if (cancelled) return;
       applySettings(remote.settings);
       const { cards: migratedCards } = migrateCards(remote.cards, foldersRef.current);
       setCards(migratedCards);
     };
 
-    (async () => {
-      // ── Phase 1: Critical local path ──────────────────────────────────────────
+    const run = async () => {
+      // ── Phase 1: Critical local path ────────────────────────────────────────
       // bootstrapData must complete before readFolders: on first launch it writes
       // the default FOLDERS_KEY entry so readFolders() sees it immediately after.
       let local: Awaited<ReturnType<typeof bootstrapData>>;
@@ -101,12 +106,18 @@ export function useAppBootstrap({
         local = await bootstrapData(handleRemoteData);
         storedFolders = await readFolders();
       } catch (e) {
-        if (__DEV__) console.error('[bootstrap] local data load failed:', e);
-        // Guarantee the app is usable even when local storage is unreadable.
-        markSettingsLoaded();
-        hasLoaded.current = true;
+        if (__DEV__) {
+          console.error(
+            '[bootstrap] local data load failed:',
+            e instanceof Error ? e.name : 'UnknownError',
+          );
+        }
+        // Return early; the finally block will call markSettingsLoaded and
+        // set hasLoaded so the app remains usable with default state.
         return;
       }
+
+      if (cancelled) return;
 
       const { cards: migratedCards, folders: migratedFolders } = migrateCards(
         local.cards,
@@ -117,7 +128,7 @@ export function useAppBootstrap({
       setFolders(migratedFolders);
       applySettings(local.settings);
 
-      // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────────
+      // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────
       let rawShowFull: string | null = null;
       let rawVertFlip: string | null = null;
       let obRaw: string | null = null;
@@ -128,17 +139,27 @@ export function useAppBootstrap({
           AsyncStorage.getItem(ONBOARDING_KEY),
         ]);
       } catch (e) {
-        if (__DEV__) console.warn('[bootstrap] UI preferences load failed:', e);
+        if (__DEV__) {
+          console.warn(
+            '[bootstrap] UI preferences load failed:',
+            e instanceof Error ? e.name : 'UnknownError',
+          );
+        }
         // Non-critical: defaults apply. Continue to navigation.
       }
 
-      // Only enable from the exact stored string 'true'; any other value stays OFF.
+      if (cancelled) return;
+
       if (rawShowFull === 'true') setShowFullCard(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
 
+      // Mark settings ready as early as possible so the subscription enforcement
+      // effect can fire without waiting for onboarding/navigation phases.
+      // The finally block calls markSettingsLoaded too as a safety net, making
+      // this call idempotent on the happy path.
       markSettingsLoaded();
 
-      // ── Phase 3: Onboarding state ─────────────────────────────────────────────
+      // ── Phase 3: Onboarding state ──────────────────────────────────────────
       if (obRaw !== null) {
         const ob = parseOnboarding(obRaw);
         if (ob) {
@@ -147,16 +168,43 @@ export function useAppBootstrap({
         }
       }
 
-      // ── Phase 4: Initial navigation decision ──────────────────────────────────
+      // ── Phase 4: Initial navigation decision ──────────────────────────────
+      // Only navigate into the Welcome folder when onboarding won't be shown.
+      // If onboarding will cover the screen, currentFolderId is set in onComplete
+      // instead, so the Welcome folder becomes visible only after the modal closes.
       const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
       if (local.isFirstLaunch && !showingOnboarding) setCurrentFolderId(WELCOME_FOLDER_ID);
       if (showingOnboarding) setShowOnboarding(true);
+    };
 
-      hasLoaded.current = true;
-    })();
+    run()
+      .catch(e => {
+        // Unexpected error after Phase 1 succeeded. Logged for diagnostics only;
+        // finally block below ensures the app reaches a usable state.
+        if (__DEV__) {
+          console.error(
+            '[bootstrap] unexpected error:',
+            e instanceof Error ? e.name : 'UnknownError',
+          );
+        }
+      })
+      .finally(() => {
+        // Always finalize the persistence gate, regardless of success or failure.
+        // hasLoaded is a ref — safe to write after unmount.
+        hasLoaded.current = true;
+        // markSettingsLoaded calls a state setter; only call it if still mounted.
+        // On the happy path it was already called above (idempotent).
+        if (!cancelled) markSettingsLoaded();
+      });
 
     // Notification permission runs concurrently with the data startup path.
-    requestPermission().then(setNotificationGranted);
+    requestPermission().then(granted => {
+      if (!cancelled) setNotificationGranted(granted);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return {
