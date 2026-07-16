@@ -37,6 +37,71 @@ export interface AppData {
   settings: Settings;
 }
 
+// ── Parsing helpers ──────────────────────────────────────────────────────────
+
+// Wraps JSON.parse so a syntax error never throws past this boundary.
+// Returns null on failure; the caller decides the fallback.
+function safeParseJSON(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    if (__DEV__) console.warn('[db] JSON parse failed:', (e as Error).message);
+    return null;
+  }
+}
+
+// A WordCard is valid only when its four required string fields are present.
+// Optional fields (notifOff, folderId, testLevel, …) are passed through as-is.
+function isValidCard(x: unknown): x is WordCard {
+  if (!x || typeof x !== 'object') return false;
+  const c = x as Record<string, unknown>;
+  return (
+    typeof c.id       === 'string' && c.id.length > 0 &&
+    typeof c.word     === 'string' &&
+    typeof c.meaning  === 'string' &&
+    typeof c.note     === 'string'
+  );
+}
+
+// Accepts any value and returns only the records that pass isValidCard.
+// Invalid records are dropped; the valid remainder is returned unchanged.
+function parseCardArray(raw: unknown): WordCard[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidCard) as WordCard[];
+}
+
+function isValidFolder(x: unknown): x is Folder {
+  if (!x || typeof x !== 'object') return false;
+  const f = x as Record<string, unknown>;
+  return (
+    typeof f.id        === 'string' && f.id.length > 0 &&
+    typeof f.name      === 'string' &&
+    typeof f.createdAt === 'number'
+  );
+}
+
+function parseFolderArray(raw: unknown): Folder[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidFolder) as Folder[];
+}
+
+// Normalizes a settings blob that arrives as a single object (Supabase restore).
+// Individual AsyncStorage values are already typed strings — use them directly.
+// Unknown or missing fields fall back to their default values.
+function normalizeSettings(raw: unknown): Settings {
+  const s = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return {
+    themeColor: typeof s.themeColor === 'string' ? s.themeColor : DEFAULT_THEME,
+    appearance: (s.appearance === 'light' || s.appearance === 'dark' || s.appearance === 'system')
+      ? (s.appearance as Appearance)
+      : 'system',
+    skinId:     typeof s.skinId   === 'string' ? s.skinId   : null,
+    language:   typeof s.language === 'string' ? s.language : DEFAULT_LANGUAGE,
+  };
+}
+
+// ── Identity ─────────────────────────────────────────────────────────────────
+
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0;
@@ -57,8 +122,8 @@ function generateUUID(): string {
 const TIMEOUT = Symbol('timeout');
 let _cachedDeviceId: string | null = null;
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMEOUT> {
-  return Promise.race([promise, new Promise<typeof TIMEOUT>(resolve => setTimeout(() => resolve(TIMEOUT), ms))]);
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T | typeof TIMEOUT> {
+  return Promise.race([Promise.resolve(promise), new Promise<typeof TIMEOUT>(resolve => setTimeout(() => resolve(TIMEOUT), ms))]);
 }
 
 async function getDeviceId(): Promise<string> {
@@ -93,6 +158,8 @@ async function getDeviceId(): Promise<string> {
   return _cachedDeviceId;
 }
 
+// ── Local storage ─────────────────────────────────────────────────────────────
+
 async function readLocal(): Promise<AppData> {
   const [rawCards, rawTheme, rawAppearance, rawSkinId, rawLanguage] =
     await Promise.all([
@@ -104,7 +171,7 @@ async function readLocal(): Promise<AppData> {
     ]);
 
   return {
-    cards: rawCards ? (JSON.parse(rawCards) as WordCard[]) : [],
+    cards: rawCards ? parseCardArray(safeParseJSON(rawCards)) : [],
     settings: {
       themeColor: rawTheme ?? DEFAULT_THEME,
       appearance: (rawAppearance as Appearance | null) ?? 'system',
@@ -125,15 +192,30 @@ async function writeLocal(data: AppData): Promise<void> {
   ]);
 }
 
+// ── Remote sync ───────────────────────────────────────────────────────────────
+
 async function upsertRemote(data: AppData): Promise<void> {
   const deviceId = await getDeviceId();
-  await supabase.from('device_data').upsert({
-    device_id: deviceId,
-    cards: data.cards,
-    settings: data.settings,
-    synced_at: new Date().toISOString(),
-  });
+  const result = await withTimeout(
+    supabase.from('device_data').upsert({
+      device_id: deviceId,
+      cards: data.cards,
+      settings: data.settings,
+      synced_at: new Date().toISOString(),
+    }),
+    8000,
+  );
+  if (__DEV__) {
+    if (result === TIMEOUT) {
+      console.warn('[db] upsertRemote timed out after 8 s');
+    } else if (result.error) {
+      // Log the error code only — never log message, card content, or tokens.
+      console.warn('[db] upsertRemote error:', result.error.code);
+    }
+  }
 }
+
+// ── Bootstrap ────────────────────────────────────────────────────────────────
 
 export interface BootstrapResult extends AppData {
   isFirstLaunch: boolean;
@@ -173,8 +255,8 @@ export async function bootstrapData(onRemoteData: (data: AppData) => void): Prom
       .then(({ data, error }) => {
         if (error || !data) return;
         const remote: AppData = {
-          cards: data.cards as WordCard[],
-          settings: data.settings as Settings,
+          cards: parseCardArray(data.cards),
+          settings: normalizeSettings(data.settings),
         };
         writeLocal(remote);
         onRemoteData(remote);
@@ -197,7 +279,7 @@ export function persist(data: AppData): void {
 
 export async function readFolders(): Promise<Folder[]> {
   const raw = await AsyncStorage.getItem(FOLDERS_KEY);
-  return raw ? (JSON.parse(raw) as Folder[]) : [];
+  return raw ? parseFolderArray(safeParseJSON(raw)) : [];
 }
 
 export function persistFolders(folders: Folder[]): void {
