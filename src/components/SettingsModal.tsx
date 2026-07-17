@@ -14,10 +14,10 @@ import { ProSheet } from './ProSheet';
 import { TutorialModal } from './TutorialModal';
 
 // TODO: replace with real URLs before release
-const PRIVACY_URL  = 'https://wordmemo.app/privacy';
-const TERMS_URL    = 'https://wordmemo.app/terms';
+const PRIVACY_URL  = 'https://wordping.app/privacy';
+const TERMS_URL    = 'https://wordping.app/terms';
 const CONTACT_MAIL = 'mailto:tokumoto.daiki.0219@gmail.com';
-const LICENSE_URL  = 'https://wordmemo.app/license';
+const LICENSE_URL  = 'https://wordping.app/license';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 

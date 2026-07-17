@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordMemo — Belajar Bahasa Inggris Lebih Cerdas",
+    "title": "WordPing — Belajar Bahasa Inggris Lebih Cerdas",
     "description": "Flashcard, pengingat harian, dan arti kata berbasis AI untuk menguasai kosakata bahasa Inggris."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "Tersedia di iOS · Segera Hadir",
     "titleLine1": "Pelajari kata dengan",
     "titleHighlight": "pengingat cerdas.",
-    "subtitle": "WordMemo membantu Anda mengingat kosakata melalui flashcard dan notifikasi push harian — belajar kapan saja, di mana saja.",
+    "subtitle": "WordPing membantu Anda mengingat kosakata melalui flashcard dan notifikasi push harian — belajar kapan saja, di mana saja.",
     "cta": "Segera di App Store",
     "ctaNote": "Unduh gratis"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "Terima pengingat",
-        "desc": "WordMemo mengirim notifikasi push agar Anda tidak lupa belajar."
+        "desc": "WordPing mengirim notifikasi push agar Anda tidak lupa belajar."
       },
       "4": {
         "title": "Ulang kapan saja",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordMemo Basic",
+    "badge": "WordPing Basic",
     "title": "Buka pengalaman lengkap.",
     "subtitle": "Lebih banyak warna, skin wallpaper premium, dan personalisasi mendalam.",
     "colors_title": "11+ warna tema",
@@ -75,13 +75,13 @@
     "cta": "Segera hadir"
   },
   "cta": {
-    "title": "WordMemo segera hadir.",
+    "title": "WordPing segera hadir.",
     "subtitle": "Jadilah yang pertama mengetahui saat diluncurkan di App Store.",
     "button": "Segera di App Store",
     "note": "Unduh gratis"
   },
   "footer": {
     "tagline": "Dibuat untuk pelajar yang serius.",
-    "rights": "© 2025 WordMemo. Semua hak dilindungi."
+    "rights": "© 2025 WordPing. Semua hak dilindungi."
   }
 }

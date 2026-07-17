@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordMemo — 智能英语单词学习",
+    "title": "WordPing — 智能英语单词学习",
     "description": "通过AI释义、单词卡片和每日提醒，高效记忆英语词汇。"
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "iOS版 · 即将上线",
     "titleLine1": "通过智能提醒",
     "titleHighlight": "记住单词。",
-    "subtitle": "WordMemo通过闪卡和每日推送通知帮助你记忆英语词汇——随时随地学习。",
+    "subtitle": "WordPing通过闪卡和每日推送通知帮助你记忆英语词汇——随时随地学习。",
     "cta": "即将登陆App Store",
     "ctaNote": "免费下载"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "接收提醒",
-        "desc": "WordMemo发送推送通知，让你不忘学习。"
+        "desc": "WordPing发送推送通知，让你不忘学习。"
       },
       "4": {
         "title": "随时复习",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordMemo Basic",
+    "badge": "WordPing Basic",
     "title": "解锁完整体验。",
     "subtitle": "更多颜色、高级壁纸皮肤和深度个性化设置。",
     "colors_title": "11种以上主题颜色",
@@ -75,13 +75,13 @@
     "cta": "即将推出"
   },
   "cta": {
-    "title": "WordMemo即将上线。",
+    "title": "WordPing即将上线。",
     "subtitle": "第一时间获取App Store上线通知。",
     "button": "即将登陆App Store",
     "note": "免费下载"
   },
   "footer": {
     "tagline": "为认真学习者而生。",
-    "rights": "© 2025 WordMemo. 保留所有权利。"
+    "rights": "© 2025 WordPing. 保留所有权利。"
   }
 }

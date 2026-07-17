@@ -276,7 +276,7 @@ export function ThemeDetailsSheet({
               <>
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: displayItem.previewBg }]} />
                 <View style={[StyleSheet.absoluteFill, s.heroCardCenter]}>
-                  <Text style={[s.heroCardWordMemo, { color: displayItem.previewAccent }]}>WordMemo</Text>
+                  <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordPing</Text>
                 </View>
               </>
             )}
@@ -392,7 +392,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   heroCardCenter: { alignItems: 'center', justifyContent: 'center' },
-  heroCardWordMemo: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+  heroCardWordPing: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
   appliedBadge: {
     position: 'absolute', top: 8, right: 8,
     width: 22, height: 22, borderRadius: 11,

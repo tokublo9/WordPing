@@ -10,9 +10,9 @@ export default function Footer() {
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="flex items-center gap-2.5">
             <div className="overflow-hidden rounded-xl" style={{ width: 28, height: 28 }}>
-              <Image src="/icon.png" alt="WordMemo" width={28} height={28} className="object-cover" />
+              <Image src="/icon.png" alt="WordPing" width={28} height={28} className="object-cover" />
             </div>
-            <span className="font-bold" style={{ color: 'var(--text)' }}>WordMemo</span>
+            <span className="font-bold" style={{ color: 'var(--text)' }}>WordPing</span>
           </div>
 
           <div className="flex items-center gap-6">

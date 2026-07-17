@@ -114,7 +114,7 @@ export function FolderListScreen({
     </View>
   ) : (
     <View style={s.header}>
-      <Text style={[s.title, { color: pal.text }]}>WordMemo</Text>
+      <Text style={[s.title, { color: pal.text }]}>WordPing</Text>
       <View style={s.headerIcons}>
         <TouchableOpacity style={s.iconBtn} onPress={actions.onAddFolder}>
           <MaterialCommunityIcons name="folder-plus-outline" size={22} color={pal.sub} />

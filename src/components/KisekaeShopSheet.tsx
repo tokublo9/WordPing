@@ -132,7 +132,7 @@ const SkinCard = memo(function SkinCard({
           <>
             <View style={[StyleSheet.absoluteFill, { backgroundColor: item.previewBg }]} />
             <View style={[StyleSheet.absoluteFill, styles.wordMemoCenter]}>
-              <Text style={[styles.cardWordMemo, { color: item.previewAccent }]}>WordMemo</Text>
+              <Text style={[styles.cardWordPing, { color: item.previewAccent }]}>WordPing</Text>
             </View>
           </>
         )}
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   wordMemoCenter: { alignItems: 'center', justifyContent: 'center' },
-  cardWordMemo:   { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  cardWordPing:   { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   cardName:       { fontSize: 11, fontWeight: '600', marginBottom: 2, textAlign: 'center' },
   cardPrice:      { fontSize: 11, fontWeight: '500', textAlign: 'center' },
 

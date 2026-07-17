@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "WordMemo — 스마트하게 영어 단어 학습",
+    "title": "WordPing — 스마트하게 영어 단어 학습",
     "description": "AI 의미 생성, 플래시카드, 매일 푸시 알림으로 영어 어휘를 효율적으로 학습하세요."
   },
   "nav": {
@@ -13,7 +13,7 @@
     "badge": "iOS 지원 · 출시 예정",
     "titleLine1": "스마트 알림으로",
     "titleHighlight": "단어를 기억하세요.",
-    "subtitle": "WordMemo은 플래시카드와 매일 푸시 알림으로 영어 어휘 기억을 도와줍니다.",
+    "subtitle": "WordPing은 플래시카드와 매일 푸시 알림으로 영어 어휘 기억을 도와줍니다.",
     "cta": "App Store 출시 예정",
     "ctaNote": "무료 다운로드"
   },
@@ -54,7 +54,7 @@
       },
       "3": {
         "title": "알림 받기",
-        "desc": "WordMemo이 푸시 알림을 보내 학습을 잊지 않도록 도와줍니다."
+        "desc": "WordPing이 푸시 알림을 보내 학습을 잊지 않도록 도와줍니다."
       },
       "4": {
         "title": "언제든 복습",
@@ -63,7 +63,7 @@
     }
   },
   "premium": {
-    "badge": "WordMemo Basic",
+    "badge": "WordPing Basic",
     "title": "전체 기능을 경험하세요.",
     "subtitle": "더 많은 색상, 프리미엄 스킨, 깊은 개인화.",
     "colors_title": "11가지 이상 테마 색상",
@@ -75,13 +75,13 @@
     "cta": "출시 예정"
   },
   "cta": {
-    "title": "WordMemo, 곧 출시됩니다.",
+    "title": "WordPing, 곧 출시됩니다.",
     "subtitle": "App Store 출시 소식을 가장 먼저 받아보세요.",
     "button": "App Store 출시 예정",
     "note": "무료 다운로드"
   },
   "footer": {
     "tagline": "진지한 학습자를 위한 앱.",
-    "rights": "© 2025 WordMemo. All rights reserved."
+    "rights": "© 2025 WordPing. All rights reserved."
   }
 }

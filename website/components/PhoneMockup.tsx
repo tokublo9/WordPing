@@ -76,7 +76,7 @@ export default function PhoneMockup() {
               >
                 WP
               </div>
-              <span style={{ color: '#e8e8ff', fontSize: 12, fontWeight: 700 }}>WordMemo</span>
+              <span style={{ color: '#e8e8ff', fontSize: 12, fontWeight: 700 }}>WordPing</span>
             </div>
             <span style={{ color: '#4a4a7a', fontSize: 13 }}>⚙</span>
           </div>

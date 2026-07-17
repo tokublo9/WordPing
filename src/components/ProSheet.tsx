@@ -21,7 +21,7 @@ import { SHOP_ITEMS } from './KisekaeShopSheet';
 
 const { height: SH, width: SW } = Dimensions.get('window');
 
-// The Basic Plan screen always uses WordMemo blue regardless of the user's current theme.
+// The Basic Plan screen always uses WordPing blue regardless of the user's current theme.
 const PLAN_BLUE = FREE_THEME_COLOR;
 
 // ── Demo word + sentence ──────────────────────────────────────────────────────
