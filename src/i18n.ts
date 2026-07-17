@@ -93,7 +93,8 @@ export type TranslationKey =
   | 'err_title_error' | 'err_title_playback'
   | 'err_ai_title' | 'err_ai_meaning' | 'err_ai_example' | 'err_ai_breakdown'
   | 'err_translate_title' | 'err_translate_body'
-  | 'err_input_too_long';
+  | 'err_input_too_long'
+  | 'default_folder_name';
 
 type Dict = Record<TranslationKey, string>;
 
@@ -341,6 +342,7 @@ const enUS: Dict = {
   err_translate_title: 'Translation Failed',
   err_translate_body: 'Could not translate. Please check your connection.',
   err_input_too_long: 'Text is too long. Please shorten it to 500 characters or less.',
+  default_folder_name: 'My Words',
 };
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
@@ -587,6 +589,7 @@ const ja: Dict = {
   err_translate_title: '翻訳に失敗しました',
   err_translate_body: '翻訳できませんでした。接続を確認してください。',
   err_input_too_long: 'テキストが長すぎます。500文字以内に短くしてください。',
+  default_folder_name: 'マイワード',
 };
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
@@ -833,6 +836,7 @@ const ko: Dict = {
   err_translate_title: '번역 실패',
   err_translate_body: '번역할 수 없습니다. 연결을 확인해주세요.',
   err_input_too_long: '텍스트가 너무 깁니다. 500자 이하로 줄여주세요.',
+  default_folder_name: '내 단어장',
 };
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
@@ -1079,6 +1083,7 @@ const zhCN: Dict = {
   err_translate_title: '翻译失败',
   err_translate_body: '无法翻译。请检查您的网络连接。',
   err_input_too_long: '文本过长，请缩短到500个字符以内。',
+  default_folder_name: '我的单词',
 };
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
@@ -1325,6 +1330,7 @@ const es: Dict = {
   err_translate_title: 'Error de traducción',
   err_translate_body: 'No se pudo traducir. Comprueba tu conexión.',
   err_input_too_long: 'El texto es demasiado largo. Acórtalo a 500 caracteres o menos.',
+  default_folder_name: 'Mis palabras',
 };
 
 // ── French ─────────────────────────────────────────────────────────────────────
@@ -1571,6 +1577,7 @@ const fr: Dict = {
   err_translate_title: 'Échec de traduction',
   err_translate_body: 'Impossible de traduire. Vérifiez votre connexion.',
   err_input_too_long: 'Le texte est trop long. Raccourcissez-le à 500 caractères maximum.',
+  default_folder_name: 'Mes mots',
 };
 
 // ── German ─────────────────────────────────────────────────────────────────────
@@ -1817,6 +1824,7 @@ const de: Dict = {
   err_translate_title: 'Übersetzung fehlgeschlagen',
   err_translate_body: 'Übersetzung nicht möglich. Bitte Verbindung prüfen.',
   err_input_too_long: 'Der Text ist zu lang. Bitte kürzen Sie ihn auf 500 Zeichen oder weniger.',
+  default_folder_name: 'Meine Wörter',
 };
 
 // ── Italian ────────────────────────────────────────────────────────────────────
@@ -2063,6 +2071,7 @@ const it: Dict = {
   err_translate_title: 'Traduzione fallita',
   err_translate_body: 'Impossibile tradurre. Controlla la connessione.',
   err_input_too_long: 'Il testo è troppo lungo. Accorcialo a 500 caratteri o meno.',
+  default_folder_name: 'Le mie parole',
 };
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
@@ -2309,6 +2318,7 @@ const ptBR: Dict = {
   err_translate_title: 'Falha na tradução',
   err_translate_body: 'Não foi possível traduzir. Verifique sua conexão.',
   err_input_too_long: 'O texto é longo demais. Encurte para 500 caracteres ou menos.',
+  default_folder_name: 'Minhas palavras',
 };
 
 // ── Russian ────────────────────────────────────────────────────────────────────
@@ -2434,6 +2444,7 @@ const ru: Dict = {
   err_translate_title: 'Ошибка перевода',
   err_translate_body: 'Не удалось перевести. Проверьте соединение.',
   err_input_too_long: 'Текст слишком длинный. Сократите его до 500 символов или меньше.',
+  default_folder_name: 'Мои слова',
 };
 
 // ── Arabic ─────────────────────────────────────────────────────────────────────
@@ -2560,6 +2571,7 @@ const ar: Dict = {
   err_translate_title: 'فشل الترجمة',
   err_translate_body: 'تعذر الترجمة. تحقق من اتصالك.',
   err_input_too_long: 'النص طويل جداً. يرجى تقصيره إلى 500 حرف أو أقل.',
+  default_folder_name: 'كلماتي',
 };
 
 // ── Hindi ──────────────────────────────────────────────────────────────────────
@@ -2686,6 +2698,7 @@ const hi: Dict = {
   err_translate_title: 'अनुवाद विफल',
   err_translate_body: 'अनुवाद नहीं हो सका। कृपया अपना कनेक्शन जांचें।',
   err_input_too_long: 'टेक्स्ट बहुत लंबा है। कृपया इसे 500 अक्षरों या उससे कम में छोटा करें।',
+  default_folder_name: 'मेरे शब्द',
 };
 
 // ── Turkish ────────────────────────────────────────────────────────────────────
@@ -2812,6 +2825,7 @@ const tr: Dict = {
   err_translate_title: 'Çeviri Başarısız',
   err_translate_body: 'Çeviri yapılamadı. Lütfen bağlantınızı kontrol edin.',
   err_input_too_long: 'Metin çok uzun. Lütfen 500 karakter veya daha az olacak şekilde kısaltın.',
+  default_folder_name: 'Kelimelerim',
 };
 
 // ── Dutch ──────────────────────────────────────────────────────────────────────
@@ -2938,6 +2952,7 @@ const nl: Dict = {
   err_translate_title: 'Vertaling mislukt',
   err_translate_body: 'Kon niet vertalen. Controleer je verbinding.',
   err_input_too_long: 'De tekst is te lang. Verkort hem tot 500 tekens of minder.',
+  default_folder_name: 'Mijn woorden',
 };
 
 // ── Vietnamese ────────────────────────────────────────────────────────────────
@@ -3063,6 +3078,7 @@ const vi: Dict = {
   err_translate_title: 'Dịch thất bại',
   err_translate_body: 'Không thể dịch. Vui lòng kiểm tra kết nối.',
   err_input_too_long: 'Văn bản quá dài. Vui lòng rút ngắn xuống 500 ký tự hoặc ít hơn.',
+  default_folder_name: 'Từ của tôi',
 };
 
 // ── Thai ───────────────────────────────────────────────────────────────────────
@@ -3188,6 +3204,7 @@ const th: Dict = {
   err_translate_title: 'การแปลล้มเหลว',
   err_translate_body: 'ไม่สามารถแปลได้ กรุณาตรวจสอบการเชื่อมต่อ',
   err_input_too_long: 'ข้อความยาวเกินไป กรุณาย่อให้เหลือ 500 ตัวอักษรหรือน้อยกว่า',
+  default_folder_name: 'คำศัพท์ของฉัน',
 };
 
 // ── Indonesian ─────────────────────────────────────────────────────────────────
@@ -3313,6 +3330,7 @@ const id: Dict = {
   err_translate_title: 'Terjemahan Gagal',
   err_translate_body: 'Tidak dapat menerjemahkan. Periksa koneksi Anda.',
   err_input_too_long: 'Teks terlalu panjang. Harap persingkat menjadi 500 karakter atau kurang.',
+  default_folder_name: 'Kata-kata Saya',
 };
 
 // ── Polish ─────────────────────────────────────────────────────────────────────
@@ -3438,6 +3456,7 @@ const pl: Dict = {
   err_translate_title: 'Tłumaczenie nie powiodło się',
   err_translate_body: 'Nie można przetłumaczyć. Sprawdź połączenie.',
   err_input_too_long: 'Tekst jest za długi. Skróć go do 500 znaków lub mniej.',
+  default_folder_name: 'Moje słowa',
 };
 
 // ── Greek ──────────────────────────────────────────────────────────────────────
@@ -3563,6 +3582,7 @@ const el: Dict = {
   err_translate_title: 'Αποτυχία μετάφρασης',
   err_translate_body: 'Δεν ήταν δυνατή η μετάφραση. Ελέγξτε τη σύνδεσή σας.',
   err_input_too_long: 'Το κείμενο είναι πολύ μακρύ. Συντομεύστε το σε 500 χαρακτήρες ή λιγότερο.',
+  default_folder_name: 'Οι λέξεις μου',
 };
 
 // ── Swedish ────────────────────────────────────────────────────────────────────
@@ -3688,6 +3708,7 @@ const sv: Dict = {
   err_translate_title: 'Översättning misslyckades',
   err_translate_body: 'Det gick inte att översätta. Kontrollera din anslutning.',
   err_input_too_long: 'Texten är för lång. Förkorta den till 500 tecken eller färre.',
+  default_folder_name: 'Mina ord',
 };
 
 // ── Registry ───────────────────────────────────────────────────────────────────

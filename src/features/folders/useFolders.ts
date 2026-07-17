@@ -4,6 +4,7 @@ import type { Folder, WordCard } from '../../types';
 
 export interface UseFoldersParams {
   folders: Folder[];
+  fallbackFolderName: string;
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   setCards: Dispatch<SetStateAction<WordCard[]>>;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
@@ -33,7 +34,7 @@ export interface UseFoldersReturn {
   moveCardsToFolder(targetFolderId: string): void;
 }
 
-export function useFolders({ folders, setFolders, setCards, setMenuVisible }: UseFoldersParams): UseFoldersReturn {
+export function useFolders({ folders, fallbackFolderName, setFolders, setCards, setMenuVisible }: UseFoldersParams): UseFoldersReturn {
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [folderReorderMode, setFolderReorderMode] = useState(false);
@@ -77,7 +78,7 @@ export function useFolders({ folders, setFolders, setCards, setMenuVisible }: Us
         c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: surviving[0].id } : c
       ));
     } else {
-      const fallback: Folder = { id: Date.now().toString(), name: 'My Words', createdAt: Date.now() };
+      const fallback: Folder = { id: Date.now().toString(), name: fallbackFolderName, createdAt: Date.now() };
       setFolders([fallback]);
       setCards(prev => prev.map(c =>
         c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: fallback.id } : c
@@ -97,7 +98,7 @@ export function useFolders({ folders, setFolders, setCards, setMenuVisible }: Us
       setFolders(remaining);
       setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: remaining[0].id } : c));
     } else {
-      const fallback: Folder = { id: Date.now().toString(), name: 'My Words', createdAt: Date.now() };
+      const fallback: Folder = { id: Date.now().toString(), name: fallbackFolderName, createdAt: Date.now() };
       setFolders([fallback]);
       setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: fallback.id } : c));
     }
