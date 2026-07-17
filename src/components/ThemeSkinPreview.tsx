@@ -1,4 +1,4 @@
-import { Dimensions, ImageBackground, StyleSheet, View } from 'react-native';
+import { Dimensions, Image, ImageBackground, StyleSheet, View } from 'react-native';
 import { memo } from 'react';
 
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,7 +20,6 @@ export interface ShopItem {
   previewBg: string;
   previewAccent: string;
   previewEmoji: string;
-  tags: string[];
 }
 
 // ── Static geometry data ──────────────────────────────────────────────────────
@@ -85,6 +84,74 @@ export const PV_PAWS: { x: number; y: number; rot: number; s: number }[] = [
   { x: 0.82, y: 0.20, rot: -8,  s: 0.78 },
 ];
 export const PV_PAW_COLOR = 'rgba(141,104,84,0.52)';
+
+export const THEME_SCREENSHOTS: Partial<Record<string, number>> = {
+  solid_blue:      require('../../screenshots/theme/blue/blue1.png'),
+  solid_gray:      require('../../screenshots/theme/gray/gray1.png'),
+  solid_green:     require('../../screenshots/theme/green/green1.png'),
+  solid_pink:      require('../../screenshots/theme/pink/pink1.png'),
+  solid_purple:    require('../../screenshots/theme/purple/purple1.png'),
+  solid_sky:       require('../../screenshots/theme/skyblue/skyblue1.png'),
+  solid_mint:      require('../../screenshots/theme/mint/mint1.png'),
+  solid_red:       require('../../screenshots/theme/red/red1.png'),
+  solid_orange:    require('../../screenshots/theme/orange/orange1.png'),
+  solid_yellow:    require('../../screenshots/theme/yellow/yellow1.png'),
+  solid_beige:     require('../../screenshots/theme/beige/beige1.png'),
+  solid_teal:      require('../../screenshots/theme/teal/teal1.png'),
+  skin_deep_sea:   require('../../screenshots/theme/deepsea/deepsea1.png'),
+  skin_leaf_blur:  require('../../screenshots/theme/greennature/greennature1.png'),
+  skin_sakura:     require('../../screenshots/theme/sakura/sakura1.png'),
+  skin_snow:       require('../../screenshots/theme/snowmountain/snowmountain1.png'),
+  shop_roses:      require('../../screenshots/theme/roses/roses1.png'),
+  skin_coffee:     require('../../screenshots/theme/coffeehouse/coffeehouse1.png'),
+  skin_paw:        require('../../screenshots/theme/animals/animals1.png'),
+  skin_night_city: require('../../screenshots/theme/nightcity/nightcity1.png'),
+  skin_sunset:     require('../../screenshots/theme/sunset/sunset1.png'),
+};
+
+export const THEME_SCREENSHOTS_FLIP: Partial<Record<string, number>> = {
+  solid_blue:      require('../../screenshots/theme/blue/blue2.png'),
+  solid_gray:      require('../../screenshots/theme/gray/gray2.png'),
+  solid_green:     require('../../screenshots/theme/green/green2.png'),
+  solid_pink:      require('../../screenshots/theme/pink/pink2.png'),
+  solid_purple:    require('../../screenshots/theme/purple/purple2.png'),
+  solid_sky:       require('../../screenshots/theme/skyblue/skyblue2.png'),
+  solid_mint:      require('../../screenshots/theme/mint/mint2.png'),
+  solid_red:       require('../../screenshots/theme/red/red2.png'),
+  solid_orange:    require('../../screenshots/theme/orange/orange2.png'),
+  solid_yellow:    require('../../screenshots/theme/yellow/yellow2.png'),
+  solid_beige:     require('../../screenshots/theme/beige/beige2.png'),
+  solid_teal:      require('../../screenshots/theme/teal/teal2.png'),
+  skin_deep_sea:   require('../../screenshots/theme/deepsea/deepsea2.png'),
+  skin_leaf_blur:  require('../../screenshots/theme/greennature/greennature2.png'),
+  skin_sakura:     require('../../screenshots/theme/sakura/sakura2.png'),
+  skin_snow:       require('../../screenshots/theme/snowmountain/snowmountain2.png'),
+  shop_roses:      require('../../screenshots/theme/roses/roses2.png'),
+  skin_coffee:     require('../../screenshots/theme/coffeehouse/coffeehouse2.png'),
+  skin_paw:        require('../../screenshots/theme/animals/animals2.png'),
+  skin_night_city: require('../../screenshots/theme/nightcity/nightcity2.png'),
+  skin_sunset:     require('../../screenshots/theme/sunset/sunset2.png'),
+};
+
+// Video previews — only themes that ship .mov files appear here.
+// Takes priority over the PNG screenshot maps in ThemeDetailsSheet.
+export const THEME_VIDEOS: Partial<Record<string, number>> = {
+  skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea1.mov'),
+  skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy1.mov'),
+  skin_aurora:    require('../../screenshots/theme/aurora/aurora1.mov'),
+  skin_cyber:     require('../../screenshots/theme/cyberneon/cyberneon1.mov'),
+  shop_woods:     require('../../screenshots/theme/beautifulwoods/beautifulwoods1.mov'),
+  skin_rain:      require('../../screenshots/theme/rainywindow/rainywindow1.mov'),
+};
+
+export const THEME_VIDEOS_FLIP: Partial<Record<string, number>> = {
+  skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea2.mov'),
+  skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy2.mov'),
+  skin_aurora:    require('../../screenshots/theme/aurora/aurora2.mov'),
+  skin_cyber:     require('../../screenshots/theme/cyberneon/cyberneon2.mov'),
+  shop_woods:     require('../../screenshots/theme/beautifulwoods/beautifulwoods2.mov'),
+  skin_rain:      require('../../screenshots/theme/rainywindow/rainywindow2.mov'),
+};
 
 // ── PremiumSkinPreview ────────────────────────────────────────────────────────
 // Static miniature that mirrors each premium skin's actual in-app appearance.

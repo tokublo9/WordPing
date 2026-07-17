@@ -74,21 +74,32 @@ export function SwipeableFolder({
     })
   ).current;
 
-  // ── Long-press floating menu ─────────────────────────────────────────────────
+  // ── Long-press lift ──────────────────────────────────────────────────────────
   const [lifted, setLifted] = useState<LiftedLayout | null>(null);
+  const liftScale = useRef(new Animated.Value(1)).current;
 
   const handleLongPress = () => {
     if (isOpen.current) return;
     rowRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+      liftScale.setValue(0.97);
       setLifted({ pageX, pageY, width, height });
+      Animated.spring(liftScale, {
+        toValue: 1.03,
+        useNativeDriver: true,
+        tension: 180,
+        friction: 7,
+      }).start();
     });
   };
 
-  const dismissLifted = () => setLifted(null);
+  const dismissLifted = () => {
+    setLifted(null);
+    liftScale.setValue(1);
+  };
 
   const menuBelow = lifted ? lifted.pageY + lifted.height + MENU_H + 16 < SCREEN_H : true;
   const menuTop   = lifted
-    ? menuBelow ? lifted.pageY + lifted.height + 6 : lifted.pageY - MENU_H - 6
+    ? menuBelow ? lifted.pageY + lifted.height + 10 : lifted.pageY - MENU_H - 10
     : 0;
 
   const handleEdit = () => { dismissLifted(); onEdit(); };
@@ -181,8 +192,8 @@ export function SwipeableFolder({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Long-press floating menu — Edit and Delete */}
-      {lifted && (
+      {/* Long-press overlay */}
+      {!selectionMode && lifted && (
         <Modal visible transparent animationType="fade" onRequestClose={dismissLifted}>
           <View style={StyleSheet.absoluteFill}>
             <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
@@ -190,13 +201,41 @@ export function SwipeableFolder({
 
             <TouchableOpacity style={StyleSheet.absoluteFill} onPress={dismissLifted} activeOpacity={1} />
 
+            {/* Lifted folder row clone */}
+            <Animated.View
+              style={[
+                styles.liftedRow,
+                {
+                  left: lifted.pageX,
+                  top: lifted.pageY,
+                  width: lifted.width,
+                  backgroundColor: pal.card,
+                  transform: [{ scale: liftScale }],
+                },
+              ]}
+            >
+              <View style={[styles.iconWrap, { backgroundColor: folderColor + '22' }]}>
+                <Ionicons name={folderIcon as any} size={22} color={folderColor} />
+              </View>
+              <View style={styles.textBlock}>
+                <Text style={[styles.name, { color: pal.text }]} numberOfLines={1}>{folder.name}</Text>
+                <Text style={[styles.count, { color: pal.sub }]}>
+                  {cardCount} {t(cardCount === 1 ? 'words_singular' : 'words_plural')}
+                </Text>
+              </View>
+              {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
+                <Ionicons name="notifications" size={19} color={themeColor} style={styles.notifIcon} />
+              )}
+            </Animated.View>
+
+            {/* Action menu */}
             <View style={[
               styles.menu,
               { backgroundColor: pal.dialog, left: lifted.pageX, top: menuTop, width: lifted.width },
             ]}>
-              <MenuRow icon="pencil-outline" label={t('edit_folder')} pal={pal} onPress={handleEdit} />
+              <MenuRow icon="pencil-outline" label={t('edit_folder')}   pal={pal} onPress={handleEdit} />
               <Sep pal={pal} />
-              <MenuRow icon="trash-outline" label={t('delete_folder')} pal={pal} color="#E05C5C" onPress={handleDelete} />
+              <MenuRow icon="trash-outline"  label={t('delete_folder')} pal={pal} color="#E05C5C" onPress={handleDelete} />
             </View>
           </View>
         </Modal>
@@ -259,6 +298,21 @@ const styles = StyleSheet.create({
   count: { fontSize: 13 },
   notifIcon: { marginRight: 6 },
 
+  // Long-press overlay
+  liftedRow: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 14,
+  },
   menu: {
     position: 'absolute', borderRadius: 14, overflow: 'hidden',
     shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10,

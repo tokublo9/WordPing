@@ -1,6 +1,8 @@
 import {
   Animated,
   Dimensions,
+  Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,12 +11,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 import type { Palette, ThemeSkin } from '../types';
 import { type TranslationKey, useLang } from '../i18n';
 import { SKINS } from '../constants';
-import { type ShopItem, PremiumSkinPreview } from './ThemeSkinPreview';
+import { type ShopItem, PremiumSkinPreview, THEME_SCREENSHOTS, THEME_SCREENSHOTS_FLIP, THEME_VIDEOS, THEME_VIDEOS_FLIP } from './ThemeSkinPreview';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const H_PAD = 20;
@@ -23,9 +26,10 @@ const H_PAD = 20;
 const HERO_CARD_W = Math.round((SCREEN_W - H_PAD * 2) * 0.42);
 const HERO_CARD_H = Math.round(HERO_CARD_W * 1.3);
 
-// Gallery mini-screen dimensions
-const MINI_W = 88;
-const MINI_H = Math.round(MINI_W * 1.78); // ~9:16 portrait
+// Gallery preview dimensions — two frames side-by-side, aspect ratio matches screenshots (1260×2736)
+const PREVIEW_GAP = 12;
+const PREVIEW_W   = Math.floor((SCREEN_W - H_PAD * 2 - PREVIEW_GAP) / 2);
+const PREVIEW_H   = Math.round(PREVIEW_W * 2736 / 1260);
 
 // Returns true when a hex color is perceptually very dark (luma < 50)
 function isDarkBg(hex: string): boolean {
@@ -37,107 +41,254 @@ function isDarkBg(hex: string): boolean {
   return r * 0.299 + g * 0.587 + b * 0.114 < 50;
 }
 
-// ── Feature tag meta ──────────────────────────────────────────────────────────
+// ── Fullscreen media viewer ───────────────────────────────────────────────────
 
-const TAG_META: Record<string, { emoji: string; labelKey: TranslationKey }> = {
-  wallpaper: { emoji: '🖼️', labelKey: 'tag_wallpaper' },
-  blur:      { emoji: '✨', labelKey: 'tag_blur' },
-  animated:  { emoji: '💫', labelKey: 'tag_animated' },
-  dark_bg:   { emoji: '🌙', labelKey: 'tag_dark_bg' },
-  bright:    { emoji: '☀️', labelKey: 'tag_bright' },
-  cozy:      { emoji: '🍵', labelKey: 'tag_cozy' },
-  nature:    { emoji: '🌿', labelKey: 'tag_nature' },
-  space:     { emoji: '🌌', labelKey: 'tag_space' },
-  minimal:   { emoji: '🎨', labelKey: 'tag_minimal' },
-  neon:      { emoji: '⚡', labelKey: 'tag_neon' },
-  ocean:     { emoji: '🌊', labelKey: 'tag_ocean' },
-  floral:    { emoji: '🌸', labelKey: 'tag_floral' },
-  seasonal:  { emoji: '❄️', labelKey: 'tag_seasonal' },
-  aurora:    { emoji: '🌠', labelKey: 'tag_aurora' },
-  city:      { emoji: '🌃', labelKey: 'tag_city' },
-  rain:      { emoji: '🌧️', labelKey: 'tag_rain' },
-  colorful:  { emoji: '🌈', labelKey: 'tag_colorful' },
-  neutral:   { emoji: '🩶', labelKey: 'tag_neutral' },
-};
+type FullscreenMedia =
+  | { type: 'image'; source: number }
+  | { type: 'video'; source: number };
+
+const FullscreenVideo = memo(function FullscreenVideo({ source }: { source: number }) {
+  const [ready, setReady] = useState(false);
+
+  const player = useVideoPlayer(source, p => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+
+  useEffect(() => {
+    if (player.status === 'readyToPlay') setReady(true);
+    const sub = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') setReady(true);
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  // No manual pause() on unmount — useVideoPlayer releases the native player
+  // automatically, which stops playback. Calling pause() after release throws
+  // NativeSharedObjectNotFoundException.
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: SCREEN_W, height: SCREEN_H, opacity: ready ? 1 : 0 }}
+      contentFit="contain"
+      nativeControls={false}
+    />
+  );
+});
+
+function FullscreenViewer({
+  media, onClose,
+}: {
+  media: FullscreenMedia | null;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  // Reset image-loaded gate whenever the source changes
+  useEffect(() => { setImgLoaded(false); }, [media?.source]);
+
+  return (
+    <Modal
+      visible={media !== null}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={fsStyles.backdrop}>
+        {/* Tap dark area to close */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+        {/* Media (non-interactive so taps reach the backdrop behind) */}
+        <View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}
+        >
+          {media?.type === 'image' && (
+            <Image
+              key={media.source}
+              source={media.source}
+              style={{ width: SCREEN_W, height: SCREEN_H, opacity: imgLoaded ? 1 : 0 }}
+              resizeMode="contain"
+              onLoad={() => setImgLoaded(true)}
+            />
+          )}
+          {media?.type === 'video' && (
+            <FullscreenVideo key={media.source} source={media.source} />
+          )}
+        </View>
+        {/* Close button */}
+        <TouchableOpacity
+          style={[fsStyles.closeBtn, { top: insets.top + 10 }]}
+          onPress={onClose}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
 
 // ── Mini screen gallery ───────────────────────────────────────────────────────
 
-type GalleryScreen = 'wordlist' | 'flipmode' | 'testmode' | 'folders';
+type GalleryScreen = 'wordlist' | 'flipmode';
 
 const GALLERY_SCREENS: { key: GalleryScreen; labelKey: TranslationKey }[] = [
-  { key: 'wordlist',  labelKey: 'theme_preview_wordlist'  },
-  { key: 'flipmode',  labelKey: 'theme_preview_flipmode'  },
-  { key: 'testmode',  labelKey: 'theme_preview_testmode'  },
-  { key: 'folders',   labelKey: 'theme_preview_folders'   },
+  { key: 'wordlist', labelKey: 'theme_preview_wordlist' },
+  { key: 'flipmode', labelKey: 'theme_preview_flipmode' },
 ];
 
+// Renders a looping, muted video preview. `active` mirrors whether the parent
+// sheet is open — false causes a pause so the video doesn't run while hidden.
+// Hidden (opacity 0) until the player reports readyToPlay to prevent flash.
+const VideoFrame = memo(function VideoFrame({
+  source, width, height, active, onReady,
+}: {
+  source: number;
+  width: number;
+  height: number;
+  active: boolean;
+  onReady?: () => void;
+}) {
+  const [ready, setReady] = useState(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
+  const player = useVideoPlayer(source, p => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+
+  useEffect(() => {
+    const markReady = () => { setReady(true); onReadyRef.current?.(); };
+    if (player.status === 'readyToPlay') { markReady(); }
+    const sub = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') markReady();
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  useEffect(() => {
+    if (active) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [active, player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width, height, opacity: ready ? 1 : 0 }}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+});
+
 const MiniScreen = memo(function MiniScreen({
-  screenKey, label, item, skinData,
+  screenKey, label, item, skinData, active, enabled, onReady, onPress,
 }: {
   screenKey: GalleryScreen;
   label: string;
   item: ShopItem;
   skinData: ThemeSkin | undefined;
+  active: boolean;
+  /** False = skip mounting media; frame renders empty until enabled. */
+  enabled: boolean;
+  onReady?: () => void;
+  onPress: (media: FullscreenMedia) => void;
 }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
   const bg = item.category === 'solid' ? item.previewBg : (skinData?.palette.bg ?? item.previewBg);
   const dark = isDarkBg(bg) || !!skinData?.wallpaperImage;
   const cardBg = dark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)';
   const headerBg = item.previewAccent + '50';
+  const video = screenKey === 'wordlist'
+    ? THEME_VIDEOS[item.id]
+    : THEME_VIDEOS_FLIP[item.id];
+  const screenshot = screenKey === 'wordlist'
+    ? THEME_SCREENSHOTS[item.id]
+    : THEME_SCREENSHOTS_FLIP[item.id];
+
+  const hasMedia = video != null || screenshot != null;
+  const handlePress = useCallback(() => {
+    if (video != null) {
+      onPress({ type: 'video', source: video });
+    } else if (screenshot != null) {
+      onPress({ type: 'image', source: screenshot });
+    }
+  }, [video, screenshot, onPress]);
+
+  // For themes that have no screenshot/video the fallback renders synchronously;
+  // signal ready immediately so the next gallery item can start loading.
+  useEffect(() => {
+    if (enabled && video == null && screenshot == null) {
+      onReadyRef.current?.();
+    }
+  }, [enabled, video, screenshot]);
 
   return (
     <View style={miniStyles.wrapper}>
-      <View style={[miniStyles.frame, { width: MINI_W, height: MINI_H }]}>
-        {/* Skin background */}
-        {item.category === 'premium' ? (
-          <PremiumSkinPreview item={item} skinData={skinData} width={MINI_W} height={MINI_H} />
+      <TouchableOpacity
+        style={[miniStyles.frame, { width: PREVIEW_W, height: PREVIEW_H }]}
+        onPress={handlePress}
+        activeOpacity={hasMedia ? 0.85 : 1}
+        disabled={!hasMedia}
+      >
+        {!enabled ? null : video != null ? (
+          <VideoFrame source={video} width={PREVIEW_W} height={PREVIEW_H} active={active} onReady={onReady} />
+        ) : screenshot ? (
+          <Image
+            source={screenshot}
+            style={{ width: PREVIEW_W, height: PREVIEW_H, opacity: imgLoaded ? 1 : 0 }}
+            resizeMode="cover"
+            onLoad={() => { setImgLoaded(true); onReadyRef.current?.(); }}
+          />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: bg }]} />
-        )}
-
-        {/* Header bar */}
-        <View style={[StyleSheet.absoluteFill]}>
-          <View style={{ height: 14, backgroundColor: headerBg }} />
-
-          {/* Screen-type content */}
-          <View style={{ flex: 1, padding: 5 }}>
-            {screenKey === 'wordlist' && (
-              <View style={{ gap: 4 }}>
-                {[0, 1, 2].map(i => (
-                  <View key={i} style={{ height: 22, borderRadius: 5, backgroundColor: cardBg }} />
-                ))}
-              </View>
+          <>
+            {/* Skin background */}
+            {item.category === 'premium' ? (
+              <PremiumSkinPreview item={item} skinData={skinData} width={PREVIEW_W} height={PREVIEW_H} />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: bg }]} />
             )}
 
-            {screenKey === 'flipmode' && (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ width: MINI_W - 18, height: 58, borderRadius: 8, backgroundColor: cardBg }} />
-              </View>
-            )}
+            {/* Header bar */}
+            <View style={StyleSheet.absoluteFill}>
+              <View style={{ height: 14, backgroundColor: headerBg }} />
 
-            {screenKey === 'testmode' && (
-              <View style={{ gap: 4 }}>
-                <View style={{ height: 18, borderRadius: 4, backgroundColor: cardBg, marginBottom: 4 }} />
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                  {[0, 1, 2, 3].map(i => (
-                    <View key={i} style={{ width: (MINI_W - 10 - 4) / 2, height: 26, borderRadius: 5, backgroundColor: cardBg }} />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {screenKey === 'folders' && (
-              <View style={{ gap: 5 }}>
-                {[0, 1].map(i => (
-                  <View key={i} style={{ height: 28, borderRadius: 6, backgroundColor: cardBg, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7 }}>
-                    <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: item.previewAccent + '70', marginRight: 5 }} />
-                    <View style={{ flex: 1, height: 7, borderRadius: 4, backgroundColor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)' }} />
+              {/* Screen-type content */}
+              <View style={{ flex: 1, padding: 5 }}>
+                {screenKey === 'wordlist' && (
+                  <View style={{ gap: 4 }}>
+                    {[0, 1, 2].map(i => (
+                      <View key={i} style={{ height: 22, borderRadius: 5, backgroundColor: cardBg }} />
+                    ))}
                   </View>
-                ))}
+                )}
+
+                {screenKey === 'flipmode' && (
+                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <View style={{ width: PREVIEW_W - 24, height: 80, borderRadius: 10, backgroundColor: cardBg }} />
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-        </View>
-      </View>
+            </View>
+          </>
+        )}
+      </TouchableOpacity>
       <Text style={miniStyles.label}>{label}</Text>
     </View>
   );
@@ -191,6 +342,24 @@ export function ThemeDetailsSheet({
     Animated.timing(slideX, { toValue: SCREEN_W, duration: 220, useNativeDriver: true })
       .start(() => onClose());
   }, [onClose, slideX]);
+
+  const [fullscreenMedia, setFullscreenMedia] = useState<FullscreenMedia | null>(null);
+  const handleMiniPress = useCallback((media: FullscreenMedia) => setFullscreenMedia(media), []);
+
+  // Close fullscreen viewer when the sheet itself is dismissed
+  useEffect(() => {
+    if (!item) setFullscreenMedia(null);
+  }, [item]);
+
+  // Sequential gallery loading: Wordlist loads first; Flipmode only after Wordlist is ready.
+  // Using an id-keyed value means flipmodeEnabled resets automatically when displayItem changes
+  // — no separate reset effect needed.
+  const [flipmodeEnabledForId, setFlipmodeEnabledForId] = useState<string | null>(null);
+  const flipmodeEnabled = flipmodeEnabledForId === displayItem?.id;
+
+  const handleWordlistReady = useCallback(() => {
+    if (displayItem) setFlipmodeEnabledForId(displayItem.id);
+  }, [displayItem]);
 
   const skinData = SKINS.find(s => s.id === displayItem?.id);
   const isApplied = displayItem ? effectiveSkinId === displayItem.id : false;
@@ -249,6 +418,7 @@ export function ThemeDetailsSheet({
         : null;
 
   return (
+    <>
     <Animated.View
       pointerEvents={item ? 'box-none' : 'none'}
       style={[StyleSheet.absoluteFillObject, s.sheet, { backgroundColor: pal.bg, transform: [{ translateX: slideX }] }]}
@@ -324,48 +494,33 @@ export function ThemeDetailsSheet({
           </View>
         </View>
 
-        {/* ── Feature tags ──────────────────────────────────────────────── */}
-        {displayItem.tags.length > 0 && (
-          <>
-            <View style={[s.divider, { backgroundColor: pal.border }]} />
-            <Text style={[s.sectionTitle, { color: pal.sub }]}>{t('theme_details_features')}</Text>
-            <View style={s.tagsWrap}>
-              {displayItem.tags.map(tag => {
-                const meta = TAG_META[tag];
-                if (!meta) return null;
-                return (
-                  <View key={tag} style={[s.tagChip, { backgroundColor: pal.chip }]}>
-                    <Text style={s.tagEmoji}>{meta.emoji}</Text>
-                    <Text style={[s.tagLabel, { color: pal.text }]}>{t(meta.labelKey)}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </>
-        )}
-
         {/* ── Preview gallery ───────────────────────────────────────────── */}
         <>
           <View style={[s.divider, { backgroundColor: pal.border }]} />
           <Text style={[s.sectionTitle, { color: pal.sub }]}>{t('theme_details_preview')}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.galleryContent}
-          >
+          <View style={s.galleryRow}>
             {GALLERY_SCREENS.map(({ key, labelKey }) => (
               <MiniScreen
-                key={key}
+                key={`${key}-${displayItem.id}`}
                 screenKey={key}
                 label={t(labelKey)}
                 item={displayItem}
                 skinData={skinData}
+                active={item !== null}
+                enabled={key === 'wordlist' ? true : flipmodeEnabled}
+                onReady={key === 'wordlist' ? handleWordlistReady : undefined}
+                onPress={handleMiniPress}
               />
             ))}
-          </ScrollView>
+          </View>
         </>
       </ScrollView>
     </Animated.View>
+    <FullscreenViewer
+      media={fullscreenMedia}
+      onClose={() => setFullscreenMedia(null)}
+    />
+    </>
   );
 }
 
@@ -425,12 +580,17 @@ const s = StyleSheet.create({
   divider:      { height: StyleSheet.hairlineWidth, marginVertical: 20 },
   sectionTitle: { fontSize: 13, fontWeight: '600', letterSpacing: 0.4, marginBottom: 12, textTransform: 'uppercase' },
 
-  // Tags
-  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tagChip:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  tagEmoji: { fontSize: 13 },
-  tagLabel: { fontSize: 13, fontWeight: '500' },
-
   // Gallery
-  galleryContent: { gap: 12, paddingBottom: 4, paddingRight: H_PAD },
+  galleryRow: { flexDirection: 'row', gap: PREVIEW_GAP },
+});
+
+const fsStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: '#000' },
+  closeBtn: {
+    position: 'absolute',
+    left: 16,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

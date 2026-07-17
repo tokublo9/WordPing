@@ -21,6 +21,7 @@ import { appStyles as s } from '../styles';
 import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
 
 const SCREEN_H = Dimensions.get('window').height;
+const SCREEN_W = Dimensions.get('window').width;
 
 export const FOLDER_ICONS = [
   'folder-outline',       'folder-open-outline',  'book-outline',
@@ -35,6 +36,8 @@ export const FOLDER_COLORS = [
   '#7C6BF8', '#3B82F6', '#EC4899', '#14B8A6',
   '#FF6B6B', '#F59E0B', '#10B981', '#6366F1',
 ];
+
+const ICON_CELL_W = 52;   // must match iconCell width
 
 interface Props {
   visible: boolean;
@@ -317,7 +320,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1, marginBottom: 8,
   },
   iconGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20,
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: 10, marginBottom: 20,
   },
   iconCell: {
     width: 52, height: 52, borderRadius: 14,

@@ -36,7 +36,8 @@
         }
       ],
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-video"
     ],
     "ios": {
       "supportsTablet": true,

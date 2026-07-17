@@ -197,6 +197,48 @@ async function speakWithAI(text: string): Promise<void> {
   });
 }
 
+// ── Custom audio (Basic plan, user-attached file) ─────────────────────────────
+
+/**
+ * Play a user-attached audio file at the given speed and volume.
+ * Integrates with the same stop/cancel machinery as speakFree / speakWithAI.
+ */
+export async function speakCustom(uri: string, speed: number, volume: number): Promise<void> {
+  const { createAudioPlayer, setAudioModeAsync } = audioLib();
+
+  stopCurrent();
+  const myEpoch = ++epoch;
+
+  try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
+
+  if (myEpoch !== epoch) throw new Error('cancelled');
+
+  const player = createAudioPlayer({ uri });
+  player.volume = Math.min(volume, 1.0);
+  player.playbackRate = speed;
+  player.shouldCorrectPitch = true;
+  currentPlayer = player;
+
+  return new Promise<void>((resolve, reject) => {
+    pendingReject = reject;
+
+    const finish = (err?: Error) => {
+      sub.remove();
+      try { player.remove(); } catch {}
+      if (currentPlayer === player) currentPlayer = null;
+      if (pendingReject === reject) pendingReject = null;
+      err ? reject(err) : resolve();
+    };
+
+    const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+      if (status.didJustFinish) finish();
+      else if (status.error) finish(new Error(`Playback error: ${status.error}`));
+    });
+
+    try { player.play(); } catch (e) { finish(e instanceof Error ? e : new Error(String(e))); }
+  });
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
