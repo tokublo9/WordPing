@@ -28,12 +28,14 @@ interface Props {
   selectionMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
+  isTestComplete?: boolean;
 }
 
 export function SwipeableFolder({
   folder, cardCount, pal, themeColor, folderColor, folderIcon,
   onOpen, onPress, onEdit, onDelete,
   selectionMode, selected, onToggleSelect,
+  isTestComplete = false,
 }: Props) {
   const t          = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -188,6 +190,14 @@ export function SwipeableFolder({
           {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
             <Ionicons name="notifications" size={19} color={themeColor} style={styles.notifIcon} />
           )}
+          {isTestComplete && (
+            <View style={styles.testCompleteWrap} accessibilityLabel="Test complete.">
+              <Ionicons name="school" size={19} color={themeColor} />
+              <View style={[styles.testCompleteBadge, { backgroundColor: themeColor }]}>
+                <Ionicons name="checkmark" size={7} color="#fff" />
+              </View>
+            </View>
+          )}
           {!selectionMode && <Ionicons name="chevron-forward" size={16} color={pal.sub} />}
         </TouchableOpacity>
       </Animated.View>
@@ -225,6 +235,14 @@ export function SwipeableFolder({
               </View>
               {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
                 <Ionicons name="notifications" size={19} color={themeColor} style={styles.notifIcon} />
+              )}
+              {isTestComplete && (
+                <View style={styles.testCompleteWrap} accessibilityLabel="Test complete.">
+                  <Ionicons name="school" size={19} color={themeColor} />
+                  <View style={[styles.testCompleteBadge, { backgroundColor: themeColor }]}>
+                    <Ionicons name="checkmark" size={7} color="#fff" />
+                  </View>
+                </View>
               )}
             </Animated.View>
 
@@ -297,6 +315,16 @@ const styles = StyleSheet.create({
   name:  { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   count: { fontSize: 13 },
   notifIcon: { marginRight: 6 },
+  testCompleteWrap: {
+    width: 24, height: 24,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 6,
+  },
+  testCompleteBadge: {
+    position: 'absolute', bottom: -2, right: -4,
+    width: 12, height: 12, borderRadius: 6,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   // Long-press overlay
   liftedRow: {

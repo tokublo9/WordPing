@@ -59,22 +59,27 @@ export function NotificationModal({
       <Animated.View style={[styles.sheetWrapper, { transform: [{ translateY: slideY }] }]}>
         <TouchableOpacity activeOpacity={1} style={[s.bottomSheet, { backgroundColor: pal.dialog }]}>
 
-          {/* Header row: title + Send Test button */}
+          {/* Header row: title + Send Test button + close */}
           <View style={styles.headerRow}>
             <Text style={[s.dialogTitle, { color: pal.text, marginBottom: 0 }]}>{t('notifications')}</Text>
-            <TouchableOpacity
-              style={styles.testBtn}
-              onPress={() => {
-                onTest();
-                setTestSent(true);
-                setTimeout(() => setTestSent(false), 4000);
-              }}
-            >
-              <Ionicons name="notifications-outline" size={13} color={pal.sub} />
-              <Text style={[styles.testBtnText, { color: pal.sub }]}>
-                {testSent ? t('test_sending') : t('test_send')}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.testBtn}
+                onPress={() => {
+                  onTest();
+                  setTestSent(true);
+                  setTimeout(() => setTestSent(false), 4000);
+                }}
+              >
+                <Ionicons name="notifications-outline" size={13} color={pal.sub} />
+                <Text style={[styles.testBtnText, { color: pal.sub }]}>
+                  {testSent ? t('test_sending') : t('test_send')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={22} color={pal.sub} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Interval options */}
@@ -122,9 +127,6 @@ export function NotificationModal({
             </View>
           </View>
 
-          <TouchableOpacity style={[s.cancelBtn, { marginTop: 6 }]} onPress={handleClose}>
-            <Text style={[s.cancelBtnText, { color: pal.sub }]}>{t('close')}</Text>
-          </TouchableOpacity>
         </TouchableOpacity>
       </Animated.View>
     </Modal>
@@ -139,6 +141,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   list: { marginBottom: 4 },
+  headerRight: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+  },
   testBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingVertical: 6, paddingHorizontal: 10,

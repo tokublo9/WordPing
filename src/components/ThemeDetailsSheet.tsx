@@ -43,11 +43,26 @@ function isDarkBg(hex: string): boolean {
 
 // ── Fullscreen media viewer ───────────────────────────────────────────────────
 
-type FullscreenMedia =
+type FullscreenEntry =
   | { type: 'image'; source: number }
-  | { type: 'video'; source: number };
+  | { type: 'video'; source: number }
+  | null;
 
-const FullscreenVideo = memo(function FullscreenVideo({ source }: { source: number }) {
+type ViewerState = { pages: [FullscreenEntry, FullscreenEntry]; startIndex: 0 | 1 } | null;
+
+const FullscreenImage = memo(function FullscreenImage({ source }: { source: number }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <Image
+      source={source}
+      style={[fsStyles.mediaFill, { opacity: loaded ? 1 : 0 }]}
+      resizeMode="contain"
+      onLoad={() => setLoaded(true)}
+    />
+  );
+});
+
+const FullscreenVideo = memo(function FullscreenVideo({ source, active }: { source: number; active: boolean }) {
   const [ready, setReady] = useState(false);
 
   const player = useVideoPlayer(source, p => {
@@ -64,14 +79,15 @@ const FullscreenVideo = memo(function FullscreenVideo({ source }: { source: numb
     return () => sub.remove();
   }, [player]);
 
-  // No manual pause() on unmount — useVideoPlayer releases the native player
-  // automatically, which stops playback. Calling pause() after release throws
-  // NativeSharedObjectNotFoundException.
+  // Pause/play based on active state. No cleanup — useVideoPlayer handles release.
+  useEffect(() => {
+    if (active) player.play(); else player.pause();
+  }, [active, player]);
 
   return (
     <VideoView
       player={player}
-      style={{ width: SCREEN_W, height: SCREEN_H, opacity: ready ? 1 : 0 }}
+      style={{ flex: 1, width: '100%', opacity: ready ? 1 : 0 }}
       contentFit="contain"
       nativeControls={false}
     />
@@ -79,58 +95,81 @@ const FullscreenVideo = memo(function FullscreenVideo({ source }: { source: numb
 });
 
 function FullscreenViewer({
-  media, onClose,
+  viewerState, onClose,
 }: {
-  media: FullscreenMedia | null;
+  viewerState: ViewerState;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [imgLoaded, setImgLoaded] = useState(false);
+  const [pagerKey, setPagerKey] = useState(0);
+  const [activePage, setActivePage] = useState<0 | 1>(0);
+  const prevOpenRef = useRef(false);
 
-  // Reset image-loaded gate whenever the source changes
-  useEffect(() => { setImgLoaded(false); }, [media?.source]);
+  const open = viewerState !== null;
+
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setPagerKey(k => k + 1);
+      setActivePage(viewerState!.startIndex);
+    }
+    prevOpenRef.current = open;
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const topBarH   = insets.top + 48;
+  const bottomH   = insets.bottom + 32;
+  const mediaH    = SCREEN_H - topBarH - bottomH;
+  const pages     = viewerState?.pages ?? ([null, null] as [FullscreenEntry, FullscreenEntry]);
+  const startX    = (viewerState?.startIndex ?? 0) * SCREEN_W;
 
   return (
     <Modal
-      visible={media !== null}
+      visible={open}
       transparent
       animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent
     >
       <View style={fsStyles.backdrop}>
-        {/* Tap dark area to close */}
+        {/* Top bar — tapping anywhere in it (including close icon) closes the viewer */}
         <TouchableOpacity
-          style={StyleSheet.absoluteFill}
+          style={[fsStyles.topBar, { paddingTop: insets.top }]}
           onPress={onClose}
           activeOpacity={1}
-        />
-        {/* Media (non-interactive so taps reach the backdrop behind) */}
-        <View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}
         >
-          {media?.type === 'image' && (
-            <Image
-              key={media.source}
-              source={media.source}
-              style={{ width: SCREEN_W, height: SCREEN_H, opacity: imgLoaded ? 1 : 0 }}
-              resizeMode="contain"
-              onLoad={() => setImgLoaded(true)}
-            />
-          )}
-          {media?.type === 'video' && (
-            <FullscreenVideo key={media.source} source={media.source} />
-          )}
-        </View>
-        {/* Close button */}
-        <TouchableOpacity
-          style={[fsStyles.closeBtn, { top: insets.top + 10 }]}
-          onPress={onClose}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={22} color="#fff" />
+          <View style={fsStyles.closeBtn}>
+            <Ionicons name="close" size={22} color="#fff" />
+          </View>
         </TouchableOpacity>
+
+        {/* Swipeable pager — scrolling between the two screens */}
+        <ScrollView
+          key={pagerKey}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          bounces={false}
+          contentOffset={{ x: startX, y: 0 }}
+          onMomentumScrollEnd={e => {
+            const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W) as 0 | 1;
+            setActivePage(page);
+          }}
+          style={{ width: SCREEN_W, height: mediaH }}
+        >
+          {pages.map((entry, i) => (
+            <View key={i} style={{ width: SCREEN_W, height: mediaH }}>
+              {entry?.type === 'video' && (
+                <FullscreenVideo source={entry.source} active={open && activePage === i} />
+              )}
+              {entry?.type === 'image' && (
+                <FullscreenImage source={entry.source} />
+              )}
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Bottom safe-area spacer — tapping closes */}
+        <TouchableOpacity style={{ height: bottomH }} onPress={onClose} activeOpacity={1} />
       </View>
     </Modal>
   );
@@ -205,7 +244,7 @@ const MiniScreen = memo(function MiniScreen({
   /** False = skip mounting media; frame renders empty until enabled. */
   enabled: boolean;
   onReady?: () => void;
-  onPress: (media: FullscreenMedia) => void;
+  onPress: (startIndex: 0 | 1) => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const onReadyRef = useRef(onReady);
@@ -223,13 +262,10 @@ const MiniScreen = memo(function MiniScreen({
     : THEME_SCREENSHOTS_FLIP[item.id];
 
   const hasMedia = video != null || screenshot != null;
+  const startIndex: 0 | 1 = screenKey === 'wordlist' ? 0 : 1;
   const handlePress = useCallback(() => {
-    if (video != null) {
-      onPress({ type: 'video', source: video });
-    } else if (screenshot != null) {
-      onPress({ type: 'image', source: screenshot });
-    }
-  }, [video, screenshot, onPress]);
+    if (hasMedia) onPress(startIndex);
+  }, [hasMedia, startIndex, onPress]);
 
   // For themes that have no screenshot/video the fallback renders synchronously;
   // signal ready immediately so the next gallery item can start loading.
@@ -343,12 +379,22 @@ export function ThemeDetailsSheet({
       .start(() => onClose());
   }, [onClose, slideX]);
 
-  const [fullscreenMedia, setFullscreenMedia] = useState<FullscreenMedia | null>(null);
-  const handleMiniPress = useCallback((media: FullscreenMedia) => setFullscreenMedia(media), []);
+  const [viewerState, setViewerState] = useState<ViewerState>(null);
+
+  const handleMiniPress = useCallback((startIndex: 0 | 1) => {
+    if (!displayItem) return;
+    const wlVideo      = THEME_VIDEOS[displayItem.id];
+    const wlShot       = THEME_SCREENSHOTS[displayItem.id];
+    const flipVideo    = THEME_VIDEOS_FLIP[displayItem.id];
+    const flipShot     = THEME_SCREENSHOTS_FLIP[displayItem.id];
+    const wlEntry: FullscreenEntry   = wlVideo   != null ? { type: 'video', source: wlVideo }   : wlShot   != null ? { type: 'image', source: wlShot }   : null;
+    const flipEntry: FullscreenEntry = flipVideo  != null ? { type: 'video', source: flipVideo }  : flipShot  != null ? { type: 'image', source: flipShot }  : null;
+    setViewerState({ pages: [wlEntry, flipEntry], startIndex });
+  }, [displayItem]);
 
   // Close fullscreen viewer when the sheet itself is dismissed
   useEffect(() => {
-    if (!item) setFullscreenMedia(null);
+    if (!item) setViewerState(null);
   }, [item]);
 
   // Sequential gallery loading: Wordlist loads first; Flipmode only after Wordlist is ready.
@@ -517,8 +563,8 @@ export function ThemeDetailsSheet({
       </ScrollView>
     </Animated.View>
     <FullscreenViewer
-      media={fullscreenMedia}
-      onClose={() => setFullscreenMedia(null)}
+      viewerState={viewerState}
+      onClose={() => setViewerState(null)}
     />
     </>
   );
@@ -585,12 +631,10 @@ const s = StyleSheet.create({
 });
 
 const fsStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: '#000' },
-  closeBtn: {
-    position: 'absolute',
-    left: 16,
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  backdrop:  { flex: 1, backgroundColor: '#000' },
+  layout:    { flex: 1 },
+  topBar:    { paddingBottom: 8, paddingHorizontal: 16, alignItems: 'flex-start' },
+  closeBtn:  { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  mediaArea: { flex: 1 },
+  mediaFill: { flex: 1, width: '100%' },
 });

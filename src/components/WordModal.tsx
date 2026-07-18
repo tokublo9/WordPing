@@ -30,12 +30,12 @@ import { Audio } from 'expo-av';
 
 import type { Palette, WordCard } from '../types';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
+import { LanguageModal } from './LanguageModal';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
 import { appStyles as s } from '../styles';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 
-const SCREEN_H    = Dimensions.get('window').height;
-const AI_PICKER_H = Math.min(Math.round(SCREEN_H * 0.88), SCREEN_H - 56);
+const SCREEN_H = Dimensions.get('window').height;
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -93,6 +93,7 @@ interface Props {
   onChangeAudioSpeed: (v: number) => void;
   audioVolume: number;
   onChangeAudioVolume: (v: number) => void;
+  hideAiTools?: boolean;
 }
 
 export function WordModal({
@@ -103,6 +104,7 @@ export function WordModal({
   audioUri, onChangeAudioUri,
   audioSpeed, onChangeAudioSpeed,
   audioVolume, onChangeAudioVolume,
+  hideAiTools = false,
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
@@ -229,17 +231,24 @@ export function WordModal({
   };
 
   const handleClearAudio = () => {
-    Alert.alert('Remove audio', 'Remove the audio from this card?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive', onPress: () => {
-          soundRef.current?.unloadAsync().catch(() => {});
-          soundRef.current = null;
-          setIsPlayingAudio(false);
-          onChangeAudioUri(undefined);
-        },
-      },
-    ]);
+    const doRemove = () => {
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      setIsPlayingAudio(false);
+      setAudioSettingsExpanded(false);
+      onChangeAudioUri(undefined);
+      onChangeAudioSpeed(1.0);
+      onChangeAudioVolume(1.0);
+    };
+    // Only ask for confirmation when editing an existing saved word.
+    if (editingCard) {
+      Alert.alert(t('remove_audio'), t('remove_audio_confirm'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: doRemove },
+      ]);
+    } else {
+      doRemove();
+    }
   };
 
   // keyboard height for floating Save toolbar
@@ -274,27 +283,22 @@ export function WordModal({
   const slideY          = useRef(new Animated.Value(SCREEN_H)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  // AI language picker animation
-  const aiPickerSlideY     = useRef(new Animated.Value(AI_PICKER_H)).current;
-  const aiPickerBackdropOp = useRef(new Animated.Value(0)).current;
   const isAIPicker = pickerFor !== null && pickerFor !== 'word' && pickerFor !== 'meaning';
 
-  useEffect(() => {
-    if (isAIPicker) {
-      aiPickerSlideY.setValue(AI_PICKER_H);
-      aiPickerBackdropOp.setValue(0);
-      Animated.parallel([
-        Animated.timing(aiPickerBackdropOp, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(aiPickerSlideY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [isAIPicker]);
+  // Selected language for the AI language picker
+  const selectedAILang: string =
+    pickerFor === 'exampleLang'     ? exampleLang
+    : pickerFor === 'breakdownLang'   ? breakdownLang
+    : pickerFor === 'meaningTransLang' ? meaningTransLang
+    : pickerFor === 'noteTransLang'   ? noteTransLang
+    : genLang;
 
-  const closeAIPicker = () => {
-    Animated.parallel([
-      Animated.timing(aiPickerBackdropOp, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(aiPickerSlideY, { toValue: AI_PICKER_H, duration: 220, useNativeDriver: true }),
-    ]).start(() => setPickerFor(null));
+  const pickAILang = (code: string) => {
+    if (pickerFor === 'genLang')          setGenLang(code);
+    else if (pickerFor === 'exampleLang') setExampleLang(code);
+    else if (pickerFor === 'breakdownLang') setBreakdownLang(code);
+    else if (pickerFor === 'meaningTransLang') { setMeaningTransLang(code); setMeaningTranslation(''); }
+    else if (pickerFor === 'noteTransLang')    { setNoteTransLang(code);    setNoteTranslation(''); }
   };
 
   useEffect(() => {
@@ -321,27 +325,11 @@ export function WordModal({
     ]).start(() => onClose());
   };
 
-  const selectedLang = pickerFor === 'word' ? wordLang
-    : pickerFor === 'meaning' ? meaningLang
-    : pickerFor === 'exampleLang' ? exampleLang
-    : pickerFor === 'breakdownLang' ? breakdownLang
-    : pickerFor === 'meaningTransLang' ? meaningTransLang
-    : pickerFor === 'noteTransLang' ? noteTransLang
-    : genLang;
-  const onPickLang = (code: string | undefined) => {
+  const selectedTTSLang = pickerFor === 'word' ? wordLang : meaningLang;
+  const onPickTTSLang = (code: string | undefined) => {
     if (pickerFor === 'word') onChangeWordLang(code);
     else if (pickerFor === 'meaning') onChangeMeaningLang(code);
-    else if (pickerFor === 'genLang') setGenLang(code ?? 'en-US');
-    else if (pickerFor === 'exampleLang') setExampleLang(code ?? 'en-US');
-    else if (pickerFor === 'breakdownLang') setBreakdownLang(code ?? 'ja');
-    else if (pickerFor === 'meaningTransLang') { setMeaningTransLang(code ?? 'ja'); setMeaningTranslation(''); }
-    else if (pickerFor === 'noteTransLang') { setNoteTransLang(code ?? 'ja'); setNoteTranslation(''); }
-    // TTS pickers close immediately; AI pickers animate out
-    if (pickerFor === 'word' || pickerFor === 'meaning') {
-      setPickerFor(null);
-    } else {
-      closeAIPicker();
-    }
+    setPickerFor(null);
   };
 
   const handleGenerate = async () => {
@@ -462,11 +450,6 @@ export function WordModal({
             {/* Sheet card */}
             <View style={[styles.sheetCard, { backgroundColor: pal.dialog, height: cardH }]}>
               <View style={{ flex: 1 }}>
-                {/* Drag handle */}
-                <View style={styles.handleArea}>
-                  <View style={[styles.handle, { backgroundColor: pal.border }]} />
-                </View>
-
                 {/* Header */}
                 <View style={styles.headerRow}>
                   <Text style={[styles.headerTitle, { color: pal.text }]}>
@@ -498,23 +481,34 @@ export function WordModal({
                     {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
                   </Text>
                   {isSubscribed && (
-                    <TouchableOpacity
-                      onPress={handleAudioButton}
-                      onLongPress={audioUri ? handleClearAudio : undefined}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={[
-                        styles.audioBtn,
-                        audioUri
-                          ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
-                          : { borderColor: pal.border },
-                      ]}
-                    >
-                      <Ionicons
-                        name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
-                        size={16}
-                        color={audioUri ? themeColor : pal.sub}
-                      />
-                    </TouchableOpacity>
+                    <View style={styles.audioBtnGroup}>
+                      {audioUri && (
+                        <TouchableOpacity
+                          onPress={handleClearAudio}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={t('remove_audio')}
+                          style={styles.audioRemoveBtn}
+                        >
+                          <Ionicons name="close-circle" size={18} color={pal.sub} />
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        onPress={handleAudioButton}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={[
+                          styles.audioBtn,
+                          audioUri
+                            ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
+                            : { borderColor: pal.border },
+                        ]}
+                      >
+                        <Ionicons
+                          name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
+                          size={16}
+                          color={audioUri ? themeColor : pal.sub}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
                 <View>
@@ -614,7 +608,7 @@ export function WordModal({
                 {/* Meaning field */}
                 <View style={[styles.fieldLabelRow, { marginTop: 8 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('meaning_label')}</Text>
-                  {isSubscribed && (
+                  {isSubscribed && !hideAiTools && (
                     <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
                       <TouchableOpacity
                         onPress={handleGenerate}
@@ -624,7 +618,7 @@ export function WordModal({
                       >
                         {isGenerating
                           ? <ActivityIndicator size="small" color={themeColor} />
-                          : <Text style={[styles.aiSegmentText, { color: themeColor }]}>AI Meaning</Text>
+                          : <Text style={[styles.aiSegmentText, { color: themeColor }]}>{t('btn_meaning')}</Text>
                         }
                       </TouchableOpacity>
                       <View style={[styles.aiDivider, { backgroundColor: themeColor + '40' }]} />
@@ -641,14 +635,14 @@ export function WordModal({
                 </View>
                 <View>
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && meaning.trim() ? 4 : 18 }]}
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && !hideAiTools && meaning.trim() ? 4 : 18 }]}
                     value={meaning}
                     onChangeText={onChangeMeaning}
                     multiline
                     scrollEnabled={false}
                   />
                 </View>
-                {isSubscribed && meaning.trim() ? (
+                {isSubscribed && !hideAiTools && meaning.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {meaningTranslation ? (
@@ -693,7 +687,7 @@ export function WordModal({
                 <View style={[styles.fieldLabelRow, { marginTop: 24 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('note_label')}</Text>
                   {/* Breakdown + AI Example — Basic Plan only */}
-                  {isSubscribed && (
+                  {isSubscribed && !hideAiTools && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       {/* Breakdown with lang selector */}
                       <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
@@ -728,7 +722,7 @@ export function WordModal({
                         >
                           {isGeneratingExample
                             ? <ActivityIndicator size="small" color={themeColor} />
-                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>AI Example</Text>
+                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>{t('btn_example')}</Text>
                           }
                         </TouchableOpacity>
                         <View style={[styles.aiDivider, { backgroundColor: themeColor + '40' }]} />
@@ -746,14 +740,14 @@ export function WordModal({
                 </View>
                 <View>
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && note.trim() ? 4 : 18 }]}
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && !hideAiTools && note.trim() ? 4 : 18 }]}
                     value={note}
                     onChangeText={onChangeNote}
                     multiline
                     scrollEnabled={false}
                   />
                 </View>
-                {isSubscribed && note.trim() ? (
+                {isSubscribed && !hideAiTools && note.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {noteTranslation ? (
@@ -870,12 +864,12 @@ export function WordModal({
             >
               <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
                 {TTS_LANGUAGES.map(lang => {
-                  const selected = lang.code === selectedLang;
+                  const selected = lang.code === selectedTTSLang;
                   return (
                     <TouchableOpacity
                       key={lang.code ?? '__auto__'}
                       style={[styles.pickerRow, selected && { backgroundColor: themeColor + '18' }]}
-                      onPress={() => onPickLang(lang.code)}
+                      onPress={() => onPickTTSLang(lang.code)}
                     >
                       <Text style={styles.pickerFlag}>{lang.flag}</Text>
                       <Text style={[styles.pickerLabel, { color: pal.text }]}>{lang.label}</Text>
@@ -889,60 +883,15 @@ export function WordModal({
         </Modal>
       )}
 
-      {/* AI language picker — animated bottom sheet (matches LanguageModal design) */}
-      {isAIPicker && (
-        <>
-          <Animated.View
-            style={[StyleSheet.absoluteFillObject, styles.aiPickerBackdrop, { opacity: aiPickerBackdropOp }]}
-          >
-            <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeAIPicker} />
-          </Animated.View>
-          <Animated.View
-            style={[
-              styles.aiPickerSheet,
-              { height: AI_PICKER_H, backgroundColor: pal.dialog, transform: [{ translateY: aiPickerSlideY }] },
-            ]}
-          >
-            <View style={styles.aiPickerDragWrap} pointerEvents="none">
-              <View style={[styles.aiPickerDragPill, { backgroundColor: pal.sub }]} />
-            </View>
-            <Text style={[styles.aiPickerTitle, { color: pal.text }]}>{t('language')}</Text>
-            <ScrollView style={styles.aiPickerList} showsVerticalScrollIndicator={false} bounces={false}>
-              {SUPPORTED_LANGUAGES.map((lang, i) => {
-                const selected = lang.code === selectedLang;
-                return (
-                  <View key={lang.code}>
-                    <TouchableOpacity
-                      style={[styles.aiPickerRow, selected && { backgroundColor: themeColor + '15' }]}
-                      onPress={() => onPickLang(lang.code)}
-                      activeOpacity={0.55}
-                    >
-                      <Text style={styles.aiPickerFlag}>{lang.flag}</Text>
-                      <Text
-                        style={[
-                          styles.aiPickerName,
-                          { color: selected ? themeColor : pal.text },
-                          selected && styles.aiPickerNameSelected,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {lang.name}
-                      </Text>
-                      {selected && <Ionicons name="checkmark" size={16} color={themeColor} />}
-                    </TouchableOpacity>
-                    {i < SUPPORTED_LANGUAGES.length - 1 && (
-                      <View style={[styles.aiPickerDivider, { backgroundColor: pal.border }]} />
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
-            <TouchableOpacity style={styles.aiPickerCancel} onPress={closeAIPicker}>
-              <Text style={[styles.aiPickerCancelText, { color: pal.sub }]}>{t('cancel')}</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </>
-      )}
+      {/* AI language picker — rendered inside this Modal so it stacks above it on iOS */}
+      <LanguageModal
+        visible={isAIPicker}
+        onClose={() => setPickerFor(null)}
+        language={selectedAILang}
+        onPickLanguage={pickAILang}
+        pal={pal}
+        themeColor={themeColor}
+      />
     </Modal>
   );
 }
@@ -970,6 +919,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
+    paddingTop: 20,
     marginBottom: 8,
   },
   headerTitle: {
@@ -1012,6 +962,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  audioBtnGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  audioRemoveBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   audioBtn: {
     width: 28,
@@ -1131,32 +1092,6 @@ const styles = StyleSheet.create({
   },
   pickerFlag:  { fontSize: 22 },
   pickerLabel: { flex: 1, fontSize: 16 },
-
-  // ── AI language picker (animated bottom sheet, matches LanguageModal) ────────
-  aiPickerBackdrop: { backgroundColor: 'rgba(0,0,0,0.5)' },
-  aiPickerSheet: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    flexDirection: 'column',
-  },
-  aiPickerDragWrap:    { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
-  aiPickerDragPill:    { width: 40, height: 4, borderRadius: 2, opacity: 0.3 },
-  aiPickerTitle:       { fontSize: 20, fontWeight: '700', marginTop: 8, marginBottom: 8 },
-  aiPickerList:        { flex: 1 },
-  aiPickerRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 14, paddingVertical: 13, paddingHorizontal: 8, borderRadius: 10,
-  },
-  aiPickerFlag:         { fontSize: 24 },
-  aiPickerName:         { flex: 1, fontSize: 15 },
-  aiPickerNameSelected: { fontWeight: '600' },
-  aiPickerDivider:      { height: StyleSheet.hairlineWidth, marginHorizontal: 4 },
-  aiPickerCancel:       { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
-  aiPickerCancelText:   { fontSize: 15 },
 
   // ── Keyboard toolbar ─────────────────────────────────────────────────────────
   kbToolbar: {

@@ -43,6 +43,7 @@ export default function App() {
     language, setLanguage,
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
+    hideAiTools, setHideAiTools,
     settingsLoaded,
     applySettings, markSettingsLoaded,
   } = useAppSettings();
@@ -57,7 +58,7 @@ export default function App() {
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
     hasLoaded,
-  } = useAppBootstrap({ applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip });
+  } = useAppBootstrap({ applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 
@@ -171,7 +172,7 @@ export default function App() {
   useAppPersistence({
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language,
-    showFullCard, verticalFlip,
+    showFullCard, verticalFlip, hideAiTools,
     hasLoaded,
   });
 
@@ -357,6 +358,7 @@ export default function App() {
           onChangeAudioSpeed: setWordAudioSpeed,
           audioVolume: wordAudioVolume,
           onChangeAudioVolume: setWordAudioVolume,
+          hideAiTools,
         }}
         notifModal={{
           visible: notificationModalVisible,
@@ -381,6 +383,8 @@ export default function App() {
           onToggleShowFullCard: setShowFullCard,
           verticalFlip,
           onToggleVerticalFlip: setVerticalFlip,
+          hideAiTools,
+          onToggleHideAiTools: setHideAiTools,
         }}
         paywallModal={{
           visible: paywallVisible,

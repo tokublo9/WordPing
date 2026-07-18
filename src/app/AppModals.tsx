@@ -44,6 +44,7 @@ export interface AppModalsProps {
     onChangeAudioSpeed: Dispatch<SetStateAction<number>>;
     audioVolume: number;
     onChangeAudioVolume: Dispatch<SetStateAction<number>>;
+    hideAiTools: boolean;
   };
 
   // NotificationModal
@@ -72,6 +73,8 @@ export interface AppModalsProps {
     onToggleShowFullCard: Dispatch<SetStateAction<boolean>>;
     verticalFlip: boolean;
     onToggleVerticalFlip: Dispatch<SetStateAction<boolean>>;
+    hideAiTools: boolean;
+    onToggleHideAiTools: Dispatch<SetStateAction<boolean>>;
   };
 
   // PaywallModal
@@ -161,6 +164,7 @@ export function AppModals({
         onChangeAudioSpeed={wordModal.onChangeAudioSpeed}
         audioVolume={wordModal.audioVolume}
         onChangeAudioVolume={wordModal.onChangeAudioVolume}
+        hideAiTools={wordModal.hideAiTools}
       />
 
       <NotificationModal
@@ -195,6 +199,8 @@ export function AppModals({
         onToggleShowFullCard={settingsModal.onToggleShowFullCard}
         verticalFlip={settingsModal.verticalFlip}
         onToggleVerticalFlip={settingsModal.onToggleVerticalFlip}
+        hideAiTools={settingsModal.hideAiTools}
+        onToggleHideAiTools={settingsModal.onToggleHideAiTools}
       />
 
       <PaywallModal

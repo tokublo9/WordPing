@@ -42,6 +42,8 @@ interface Props {
   onToggleShowFullCard: (v: boolean) => void;
   verticalFlip: boolean;
   onToggleVerticalFlip: (v: boolean) => void;
+  hideAiTools: boolean;
+  onToggleHideAiTools: (v: boolean) => void;
 }
 
 export function SettingsModal({
@@ -50,6 +52,7 @@ export function SettingsModal({
   onSubscribe, onRestore, onManageSubscription, pal, language, onPickLanguage,
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
+  hideAiTools, onToggleHideAiTools,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
   const insets = useSafeAreaInsets();
@@ -208,6 +211,14 @@ export function SettingsModal({
             description={t('vertical_flip_desc')}
             value={verticalFlip}
             onToggle={onToggleVerticalFlip}
+            themeColor={themeColor}
+            pal={pal}
+          />
+          <ToggleRow
+            label={t('hide_ai_tools')}
+            description={t('hide_ai_tools_desc')}
+            value={hideAiTools}
+            onToggle={onToggleHideAiTools}
             themeColor={themeColor}
             pal={pal}
           />

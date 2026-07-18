@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Folder, OnboardingChoices, WordCard } from '../types';
-import { ONBOARDING_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
+import { HIDE_AI_TOOLS_KEY, ONBOARDING_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
 import {
   bootstrapData,
   DEFAULT_FOLDER_ID,
@@ -46,6 +46,7 @@ export interface UseAppBootstrapParams {
   markSettingsLoaded(): void;
   setShowFullCard(v: boolean): void;
   setVerticalFlip(v: boolean): void;
+  setHideAiTools(v: boolean): void;
 }
 
 export interface AppBootstrapState {
@@ -72,6 +73,7 @@ export function useAppBootstrap({
   markSettingsLoaded,
   setShowFullCard,
   setVerticalFlip,
+  setHideAiTools,
 }: UseAppBootstrapParams): AppBootstrapState {
   const [cards, setCards] = useState<WordCard[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -136,11 +138,13 @@ export function useAppBootstrap({
       // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────
       let rawShowFull: string | null = null;
       let rawVertFlip: string | null = null;
+      let rawHideAi:  string | null = null;
       let obRaw: string | null = null;
       try {
-        [rawShowFull, rawVertFlip, obRaw] = await Promise.all([
+        [rawShowFull, rawVertFlip, rawHideAi, obRaw] = await Promise.all([
           AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
           AsyncStorage.getItem(VERTICAL_FLIP_KEY),
+          AsyncStorage.getItem(HIDE_AI_TOOLS_KEY),
           AsyncStorage.getItem(ONBOARDING_KEY),
         ]);
       } catch (e) {
@@ -157,6 +161,14 @@ export function useAppBootstrap({
 
       if (rawShowFull === 'true') setShowFullCard(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
+      if (rawHideAi !== null) {
+        setHideAiTools(rawHideAi === 'true');
+      } else if (obRaw !== null) {
+        // First launch after this feature ships — derive default from onboarding purpose:
+        // language learners see AI tools by default; other purposes hide them.
+        const ob = parseOnboarding(obRaw);
+        if (ob) setHideAiTools(ob.purpose !== 'language');
+      }
 
       // Mark settings ready as early as possible so the subscription enforcement
       // effect can fire without waiting for onboarding/navigation phases.

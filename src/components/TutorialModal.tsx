@@ -16,11 +16,13 @@ interface Props {
 }
 
 const STEP_KEYS: { icon: string; titleKey: TranslationKey; descKey: TranslationKey }[] = [
-  { icon: 'add-circle-outline',        titleKey: 'tut1_title', descKey: 'tut1_desc' },
-  { icon: 'hand-left-outline',         titleKey: 'tut2_title', descKey: 'tut2_desc' },
-  { icon: 'arrow-back-outline',        titleKey: 'tut3_title', descKey: 'tut3_desc' },
-  { icon: 'notifications-outline',     titleKey: 'tut4_title', descKey: 'tut4_desc' },
-  { icon: 'notifications-off-outline', titleKey: 'tut5_title', descKey: 'tut5_desc' },
+  { icon: 'folder-outline',        titleKey: 'tut1_title', descKey: 'tut1_desc' },
+  { icon: 'add-circle-outline',    titleKey: 'tut2_title', descKey: 'tut2_desc' },
+  { icon: 'albums-outline',        titleKey: 'tut3_title', descKey: 'tut3_desc' },
+  { icon: 'school-outline',        titleKey: 'tut4_title', descKey: 'tut4_desc' },
+  { icon: 'notifications-outline', titleKey: 'tut5_title', descKey: 'tut5_desc' },
+  { icon: 'volume-high-outline',   titleKey: 'tut6_title', descKey: 'tut6_desc' },
+  { icon: 'flash-outline',         titleKey: 'tut7_title', descKey: 'tut7_desc' },
 ];
 
 export function TutorialModal({ visible, onClose, pal, themeColor }: Props) {
@@ -89,7 +91,7 @@ export function TutorialModal({ visible, onClose, pal, themeColor }: Props) {
 }
 
 const styles = StyleSheet.create({
-  closeBtn: { position: 'absolute', right: 20, zIndex: 10, padding: 4 },
+  closeBtn: { position: 'absolute', left: 20, zIndex: 10, padding: 4 },
   content:  { paddingHorizontal: 24, paddingBottom: 56 },
 
   header: { alignItems: 'center', paddingBottom: 28 },

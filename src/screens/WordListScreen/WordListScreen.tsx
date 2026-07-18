@@ -221,6 +221,9 @@ export function WordListScreen({
   );
 
   // ── Level filter bar ──────────────────────────────────────────────────────────
+  const untestedCount = folderCards.filter(c => !c.testLevel).length;
+  const isTestComplete = folderCards.length > 0 && untestedCount === 0;
+
   const filterBar = folderCards.length > 0 && !selection.active && !reorder.active && showLevelLabels ? (
     <View style={filterStyles.bar} onTouchStart={() => closeOpenCard.current?.()}>
       <View style={filterStyles.chipGroup}>
@@ -250,8 +253,32 @@ export function WordListScreen({
         style={s.iconBtn}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         onPress={actions.onOpenTestMode}
+        accessibilityLabel={
+          isTestComplete
+            ? 'Test complete.'
+            : untestedCount > 0
+            ? `Test, ${untestedCount} remaining`
+            : 'Test'
+        }
       >
-        <Ionicons name="school-outline" size={22} color={pal.sub} />
+        <View>
+          <Ionicons
+            name={isTestComplete ? 'school' : 'school-outline'}
+            size={24}
+            color={isTestComplete ? themeColor : pal.sub}
+          />
+          {isTestComplete ? (
+            <View style={[filterStyles.testBadge, { backgroundColor: themeColor }]}>
+              <Ionicons name="checkmark" size={8} color="#fff" />
+            </View>
+          ) : untestedCount > 0 ? (
+            <View style={[filterStyles.testBadge, { backgroundColor: themeColor }]}>
+              <Text style={filterStyles.testBadgeText}>
+                {untestedCount > 99 ? '99+' : String(untestedCount)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </TouchableOpacity>
     </View>
   ) : null;
@@ -476,6 +503,23 @@ const filterStyles = StyleSheet.create({
   chipCount: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  testBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -5,
+    minWidth: 15,
+    height: 15,
+    borderRadius: 7,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  testBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#fff',
+    lineHeight: 12,
   },
 });
 

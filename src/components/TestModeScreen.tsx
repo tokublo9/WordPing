@@ -16,14 +16,19 @@ import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLang, type TranslationKey } from '../i18n';
-import { speak, stopPlayback } from '../lib/tts';
+import { speak, speakWordCard, stopPlayback } from '../lib/tts';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
+import {
+  FLIP_CARD_H, FLIP_CARD_RADIUS, FLIP_CARD_W,
+  FLIP_MEANING_FONT_SIZE, FLIP_MEANING_LINE_H,
+  FLIP_NOTE_FONT_SIZE, FLIP_NOTE_LINE_H, FLIP_NOTE_MARGIN_TOP,
+  FLIP_WORD_FONT_SIZE,
+} from '../constants';
+import { CardScrollFace } from './CardScrollFace';
 
 const TEST_MUTED_KEY = 'wordping_test_muted';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const CARD_W     = SCREEN_W - 32;
-const CARD_MIN_H = 220;
+const { height: SCREEN_H } = Dimensions.get('window');
 
 type AnswerKind = 'perfect' | 'good' | 'slightly' | 'unknown';
 
@@ -454,7 +459,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
     const current = queue[idx];
     if (!current?.word || muted) return;
     setPlaying(true);
-    speak(current.word, isSubscribed, current.wordLang)
+    speakWordCard(current, isSubscribed)
       .then(() => setPlaying(false))
       .catch(() => setPlaying(false));
   }, [idx, sessionKey, mutedLoaded, isSubscribed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -519,6 +524,15 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
     if (playing) { stopPlayback(); setPlaying(false); return; }
     setPlaying(true);
     speak(text, isSubscribed, lang)
+      .then(() => setPlaying(false))
+      .catch(() => setPlaying(false));
+  }, [muted, playing, isSubscribed]);
+
+  const speakWord = useCallback((card: WordCard) => {
+    if (muted) return;
+    if (playing) { stopPlayback(); setPlaying(false); return; }
+    setPlaying(true);
+    speakWordCard(card, isSubscribed)
       .then(() => setPlaying(false))
       .catch(() => setPlaying(false));
   }, [muted, playing, isSubscribed]);
@@ -671,57 +685,47 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
             {/* Word card */}
             <View style={s.cardCenter}>
               <Animated.View style={[s.cardFadeWrap, { opacity: cardOpacity }]}>
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  onPress={doToggleFlip}
-                  style={s.cardTouch}
-                >
-                  <View style={s.cardSlot}>
-                    {/* Front face */}
-                    <Animated.View
-                      style={[
-                        s.cardFace,
-                        { backgroundColor: pal.card },
-                        { opacity: frontOpacity, transform: [{ perspective: 900 }, { rotateY: frontRotate }] },
-                      ]}
+                <View style={s.cardSlot}>
+                  {/* Front face */}
+                  <Animated.View
+                    style={[
+                      s.cardFace,
+                      { backgroundColor: pal.card },
+                      { opacity: frontOpacity, transform: [{ perspective: 900 }, { rotateY: frontRotate }] },
+                    ]}
+                  >
+                    <CardScrollFace
+                      onFlip={doToggleFlip}
+                      onVoice={() => speakWord(card!)}
+                      voiceColor={themeColor}
+                      showVoice={!muted}
                     >
                       <Text style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>
-                      {!muted && (
-                        <TouchableOpacity
-                          style={s.voiceBtn}
-                          onPress={() => speakText(card!.word, card!.wordLang)}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="volume-medium-outline" size={20} color={themeColor} />
-                        </TouchableOpacity>
-                      )}
-                    </Animated.View>
+                    </CardScrollFace>
+                  </Animated.View>
 
-                    {/* Back face */}
-                    <Animated.View
-                      style={[
-                        s.cardFace,
-                        StyleSheet.absoluteFillObject,
-                        { backgroundColor: pal.card },
-                        { opacity: backOpacity, transform: [{ perspective: 900 }, { rotateY: backRotate }] },
-                      ]}
+                  {/* Back face */}
+                  <Animated.View
+                    style={[
+                      s.cardFace,
+                      StyleSheet.absoluteFillObject,
+                      { backgroundColor: pal.card },
+                      { opacity: backOpacity, transform: [{ perspective: 900 }, { rotateY: backRotate }] },
+                    ]}
+                  >
+                    <CardScrollFace
+                      onFlip={doToggleFlip}
+                      onVoice={() => speakText(card!.meaning, card!.meaningLang)}
+                      voiceColor={themeColor}
+                      showVoice={!muted}
                     >
                       <Text style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
                       {card!.note ? (
                         <Text style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
                       ) : null}
-                      {!muted && (
-                        <TouchableOpacity
-                          style={s.voiceBtn}
-                          onPress={() => speakText(card!.meaning, card!.meaningLang)}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons name="volume-medium-outline" size={20} color={themeColor} />
-                        </TouchableOpacity>
-                      )}
-                    </Animated.View>
-                  </View>
-                </TouchableOpacity>
+                    </CardScrollFace>
+                  </Animated.View>
+                </View>
               </Animated.View>
             </View>
           </View>
@@ -852,20 +856,17 @@ const s = StyleSheet.create({
   },
 
   cardFadeWrap: { alignItems: 'center' },
-  cardTouch:    { alignItems: 'center' },
 
   cardSlot: {
-    width: CARD_W,
-    minHeight: CARD_MIN_H,
+    width: FLIP_CARD_W,
+    height: FLIP_CARD_H,
     position: 'relative',
   },
   cardFace: {
-    width: CARD_W,
-    minHeight: CARD_MIN_H,
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: FLIP_CARD_W,
+    height: FLIP_CARD_H,
+    borderRadius: FLIP_CARD_RADIUS,
+    overflow: 'hidden',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.10,
     shadowRadius: 18,
@@ -873,33 +874,22 @@ const s = StyleSheet.create({
   },
 
   wordText: {
-    fontSize: 34,
+    fontSize: FLIP_WORD_FONT_SIZE,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: -0.5,
   },
   meaningText: {
-    fontSize: 19,
+    fontSize: FLIP_MEANING_FONT_SIZE,
     fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 27,
+    lineHeight: FLIP_MEANING_LINE_H,
   },
   noteText: {
-    fontSize: 14,
+    fontSize: FLIP_NOTE_FONT_SIZE,
     textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 24,
-  },
-
-  voiceBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    zIndex: 2,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    lineHeight: FLIP_NOTE_LINE_H,
+    marginTop: FLIP_NOTE_MARGIN_TOP,
   },
 
   // Answer buttons — stacked pill buttons

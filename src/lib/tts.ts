@@ -215,8 +215,7 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
 
   const player = createAudioPlayer({ uri });
   player.volume = Math.min(volume, 1.0);
-  player.playbackRate = speed;
-  player.shouldCorrectPitch = true;
+  player.setPlaybackRate(speed, 'medium');
   currentPlayer = player;
 
   return new Promise<void>((resolve, reject) => {
@@ -240,6 +239,19 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Speak the word side of a card. Uses custom audio when the card has one,
+ * otherwise falls back to standard TTS. Shared by all playback modes so
+ * the priority logic lives in one place.
+ */
+export function speakWordCard(
+  card: { audioUri?: string; audioSpeed?: number; audioVolume?: number; word: string; wordLang?: string },
+  isSubscribed: boolean,
+): Promise<void> {
+  if (card.audioUri) return speakCustom(card.audioUri, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0);
+  return speak(card.word, isSubscribed, card.wordLang);
+}
 
 /**
  * Warm the AI audio cache for the given text. No-op for free users so we

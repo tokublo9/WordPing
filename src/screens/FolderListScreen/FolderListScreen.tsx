@@ -66,8 +66,10 @@ export function FolderListScreen({
   const t = useLang();
 
   const renderFolderItem = useCallback(({ item }: { item: Folder }) => {
-    const count      = cards.filter(c => c.folderId === item.id).length;
-    const folderIcon = item.icon ?? 'folder-outline';
+    const folderCards    = cards.filter(c => c.folderId === item.id);
+    const count          = folderCards.length;
+    const isTestComplete = count > 0 && folderCards.every(c => !!c.testLevel);
+    const folderIcon     = item.icon ?? 'folder-outline';
     return (
       <SwipeableFolder
         folder={item}
@@ -83,6 +85,7 @@ export function FolderListScreen({
         selectionMode={selection.active}
         selected={selection.selectedIds.has(item.id)}
         onToggleSelect={() => selection.onToggle(item.id)}
+        isTestComplete={isTestComplete}
       />
     );
   // Stable deps: callbacks and primitives only. cards/folders trigger re-renders via FlatList data.

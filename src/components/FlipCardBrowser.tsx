@@ -10,13 +10,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
-import { speak as ttsSpeak, stopPlayback } from '../lib/tts';
+import { speak as ttsSpeak, speakWordCard, stopPlayback } from '../lib/tts';
 import { useLang } from '../i18n';
+import {
+  FLIP_CARD_H, FLIP_CARD_RADIUS, FLIP_CARD_W,
+  FLIP_MEANING_FONT_SIZE, FLIP_MEANING_LINE_H,
+  FLIP_NOTE_FONT_SIZE, FLIP_NOTE_LINE_H, FLIP_NOTE_MARGIN_TOP,
+  FLIP_WORD_FONT_SIZE,
+} from '../constants';
+import { CardScrollFace } from './CardScrollFace';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const CARD_W          = SCREEN_W - 48;
-const CARD_H          = 280;
-const CARD_MARGIN     = (SCREEN_W - CARD_W) / 2;
+const CARD_MARGIN     = (SCREEN_W - FLIP_CARD_W) / 2;
 const SWIPE_THRESHOLD = SCREEN_W * 0.25;
 
 interface Props {
@@ -38,24 +43,6 @@ function getSlots(curr: number) {
   return { curr, next: (curr + 1) % 3, prev: (curr + 2) % 3 };
 }
 
-// Font size computed from text length — single-pass, no re-measurement, no flash.
-// Thresholds are derived from card inner area: (SCREEN_W-48-56) × 224px at each size.
-// Default (32 / 22) is kept whenever the text fits; only reduced as much as needed.
-function wordFontSize(text: string): number {
-  const n = text.length;
-  if (n <= 40)  return 32;
-  if (n <= 65)  return 26;
-  if (n <= 100) return 20;
-  return 16;
-}
-
-function meaningFontSize(text: string): { fontSize: number; lineHeight: number } {
-  const n = text.length;
-  if (n <= 80)  return { fontSize: 22, lineHeight: 30 };
-  if (n <= 140) return { fontSize: 18, lineHeight: 25 };
-  if (n <= 200) return { fontSize: 15, lineHeight: 21 };
-  return { fontSize: 13, lineHeight: 18 };
-}
 
 export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif, showLevelLabel = true, verticalFlip = false }: Props) {
   const t = useLang();
@@ -146,10 +133,13 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
       .start(() => setFlipped(f => !f));
   }, [flipped, flipAnim]);
 
-  const speak = useCallback((text: string, lang?: string) => {
+  const speakCardSide = useCallback((side: 'word' | 'meaning', card: WordCard) => {
     if (playing) { stopPlayback(); setPlaying(false); return; }
     setPlaying(true);
-    ttsSpeak(text, isSubscribed, lang).then(() => setPlaying(false)).catch(() => setPlaying(false));
+    const p = side === 'word'
+      ? speakWordCard(card, isSubscribed)
+      : ttsSpeak(card.meaning, isSubscribed, card.meaningLang);
+    p.then(() => setPlaying(false)).catch(() => setPlaying(false));
   }, [playing, isSubscribed]);
 
   const handleDelete = useCallback(() => {
@@ -256,7 +246,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
   // ── Progress bar scrubber ─────────────────────────────────────────────────
 
-  const TRACK_W = CARD_W;
+  const TRACK_W = FLIP_CARD_W;
 
   const thumbX        = useRef(new Animated.Value(0)).current;
   const thumbXRef     = useRef(0);
@@ -346,40 +336,34 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
               {...(isCurr ? panResponder.panHandlers : undefined)}
             >
               {isCurr ? (
-                // Current card — flip + voice enabled.
-                <TouchableOpacity activeOpacity={0.95} onPress={doFlip} style={s.flipArea}>
+                // Pressable inside each CardScrollFace handles flip for taps.
+                // ScrollView inside CardScrollFace handles vertical scrolling.
+                // PanResponder on cardOuter handles horizontal card navigation.
+                // All three coexist because Pressable yields its responder to both
+                // the ScrollView (vertical) and the PanResponder (horizontal).
+                <>
                   <Animated.View
-                    style={[s.face, { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] }]}
+                    style={[s.face, { backgroundColor: pal.card }, { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] }]}
                   >
-                    <View style={[s.cardInner, { backgroundColor: pal.card }]}>
-                      {stripe(c)}
-                      <Text style={[s.wordText, { color: pal.text, fontSize: wordFontSize(c.word) }]}>
-                        {c.word}
-                      </Text>
-                    </View>
-                    <TouchableOpacity style={s.voiceBtn} onPress={() => speak(c.word, c.wordLang)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                      <Ionicons name={voiceIcon as any} size={20} color={themeColor} />
-                    </TouchableOpacity>
+                    <CardScrollFace onFlip={doFlip} onVoice={() => speakCardSide('word', c)} voiceColor={themeColor}>
+                      <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
+                    </CardScrollFace>
+                    {stripe(c)}
                   </Animated.View>
                   <Animated.View
-                    style={[s.face, s.faceAbsolute, { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] }]}
+                    style={[s.face, s.faceAbsolute, { backgroundColor: pal.card }, { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] }]}
                   >
-                    <View style={[s.cardInner, { backgroundColor: pal.card }]}>
-                      <Text style={[s.meaningText, { color: pal.text, ...meaningFontSize(c.meaning) }]}>{c.meaning}</Text>
+                    <CardScrollFace onFlip={doFlip} onVoice={() => speakCardSide('meaning', c)} voiceColor={themeColor}>
+                      <Text style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
                       {c.note ? <Text style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
-                    </View>
-                    <TouchableOpacity style={s.voiceBtn} onPress={() => speak(c.meaning, c.meaningLang)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                      <Ionicons name={voiceIcon as any} size={20} color={themeColor} />
-                    </TouchableOpacity>
+                    </CardScrollFace>
                   </Animated.View>
-                </TouchableOpacity>
+                </>
               ) : (
-                // Adjacent card — front face only, no interaction.
+                // Adjacent card — front face only, no interaction needed.
                 <View style={[s.cardInner, { backgroundColor: pal.card }]}>
                   {stripe(c)}
-                  <Text style={[s.wordText, { color: pal.text, fontSize: wordFontSize(c.word) }]}>
-                    {c.word}
-                  </Text>
+                  <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
                 </View>
               )}
 
@@ -452,37 +436,39 @@ const s = StyleSheet.create({
   },
   deckWrap: {
     width: SCREEN_W,
-    height: CARD_H,
+    height: FLIP_CARD_H,
   },
   cardOuter: {
     position: 'absolute',
     top: 0,
     left: CARD_MARGIN,
-    width: CARD_W,
-    height: CARD_H,
-    borderRadius: 20,
+    width: FLIP_CARD_W,
+    height: FLIP_CARD_H,
+    borderRadius: FLIP_CARD_RADIUS,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.10,
     shadowRadius: 18,
     elevation: 5,
   },
+  // Adjacent (non-interactive) preview cards — centred without scroll.
   cardInner: {
-    width: CARD_W,
-    height: CARD_H,
-    borderRadius: 20,
-    padding: 28,
+    width: FLIP_CARD_W,
+    height: FLIP_CARD_H,
+    borderRadius: FLIP_CARD_RADIUS,
+    paddingTop: 52,
+    paddingHorizontal: 28,
+    paddingBottom: 52,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  flipArea: {
-    width: CARD_W,
-    height: CARD_H,
-  },
+  // Each animated face — carries borderRadius + overflow so CardScrollFace is clipped.
   face: {
-    width: CARD_W,
-    height: CARD_H,
+    width: FLIP_CARD_W,
+    height: FLIP_CARD_H,
+    borderRadius: FLIP_CARD_RADIUS,
+    overflow: 'hidden',
   },
   faceAbsolute: {
     position: 'absolute',
@@ -490,32 +476,22 @@ const s = StyleSheet.create({
     left: 0,
   },
   wordText: {
-    fontSize: 32,
+    fontSize: FLIP_WORD_FONT_SIZE,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: -0.5,
   },
   meaningText: {
-    fontSize: 22,
+    fontSize: FLIP_MEANING_FONT_SIZE,
     fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 30,
+    lineHeight: FLIP_MEANING_LINE_H,
   },
   noteText: {
-    fontSize: 16,
+    fontSize: FLIP_NOTE_FONT_SIZE,
     textAlign: 'center',
-    lineHeight: 23,
-    marginTop: 20,
-  },
-  voiceBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    zIndex: 2,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    lineHeight: FLIP_NOTE_LINE_H,
+    marginTop: FLIP_NOTE_MARGIN_TOP,
   },
   notifOffBadge: {
     position: 'absolute',
@@ -556,7 +532,7 @@ const s = StyleSheet.create({
     fontWeight: '500',
   },
   progressWrap: {
-    width: CARD_W,
+    width: FLIP_CARD_W,
     height: 26,
     justifyContent: 'center',
     marginTop: 20,

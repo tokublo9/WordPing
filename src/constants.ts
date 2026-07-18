@@ -1,3 +1,4 @@
+import { Dimensions } from 'react-native';
 import type { IntervalOption, Palette, ThemeColor, ThemeSkin } from './types';
 
 export const INTERVAL_OPTIONS: IntervalOption[] = [
@@ -448,5 +449,22 @@ export const FREE_VOICE_LIMIT = 10;
 
 export const MAX_AI_INPUT_CHARS = 500;
 
-export const SHOW_FULL_CARD_KEY = 'card_show_full';
-export const VERTICAL_FLIP_KEY  = 'card_vertical_flip';
+export const SHOW_FULL_CARD_KEY  = 'card_show_full';
+export const VERTICAL_FLIP_KEY   = 'card_vertical_flip';
+export const HIDE_AI_TOOLS_KEY   = 'wordping_hide_ai_tools';
+
+// ── Flip / Test card shared geometry ─────────────────────────────────────────
+const { width: _SCREEN_W } = Dimensions.get('window');
+export const FLIP_CARD_W          = _SCREEN_W - 48;
+export const FLIP_CARD_H          = 280;
+export const FLIP_CARD_RADIUS     = 20;
+export const FLIP_CARD_PAD_H      = 28;
+export const FLIP_CARD_PAD_V      = 52;
+
+// Typography shared between Flip Mode and Test Mode
+export const FLIP_WORD_FONT_SIZE    = 26;
+export const FLIP_MEANING_FONT_SIZE = 22;
+export const FLIP_MEANING_LINE_H    = 30;
+export const FLIP_NOTE_FONT_SIZE    = 16;
+export const FLIP_NOTE_LINE_H       = 23;
+export const FLIP_NOTE_MARGIN_TOP   = 20;

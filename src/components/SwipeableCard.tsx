@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BlurView } from 'expo-blur';
-import { preloadAI, speak, speakCustom, stopPlayback } from '../lib/tts';
+import { preloadAI, speak, speakWordCard, stopPlayback } from '../lib/tts';
 
 import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
@@ -218,11 +218,7 @@ export function SwipeableCard({
     const seq = ++speakSeqRef.current;
     setVoiceState('word');
     try {
-      if (item.audioUri) {
-        await speakCustom(item.audioUri, item.audioSpeed ?? 1.0, item.audioVolume ?? 1.0);
-      } else {
-        await speak(item.word, isSubscribed, item.wordLang);
-      }
+      await speakWordCard(item, isSubscribed);
     } catch (e) { handleTTSError(e); }
     if (speakSeqRef.current === seq) setVoiceState(null);
   }, [item.word, item.wordLang, item.audioUri, item.audioSpeed, item.audioVolume, isSubscribed, setVoiceState, handleTTSError]);
@@ -513,7 +509,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  cardFlipArea: { paddingVertical: 16, paddingLeft: 18, paddingRight: 46 },
+  cardFlipArea: { paddingVertical: 16, paddingLeft: 18, paddingRight: 28 },
   cardText: { fontSize: 18, fontWeight: '600' },
   cardTextMeaning: { fontSize: 15, fontWeight: '400', marginTop: 4 },
   cardNote: { fontSize: 14, fontWeight: '400', marginTop: 8 },

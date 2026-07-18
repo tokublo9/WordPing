@@ -17,6 +17,8 @@ export interface AppSettingsState {
   setShowFullCard: Dispatch<SetStateAction<boolean>>;
   verticalFlip: boolean;
   setVerticalFlip: Dispatch<SetStateAction<boolean>>;
+  hideAiTools: boolean;
+  setHideAiTools: Dispatch<SetStateAction<boolean>>;
   settingsLoaded: boolean;
   // Called by useAppBootstrap after the async data load completes.
   applySettings(s: Settings): void;
@@ -30,6 +32,7 @@ export function useAppSettings(): AppSettingsState {
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [showFullCard, setShowFullCard] = useState(false);
   const [verticalFlip, setVerticalFlip] = useState(false);
+  const [hideAiTools, setHideAiTools]   = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const applySettings = useCallback((s: Settings) => {
@@ -48,6 +51,7 @@ export function useAppSettings(): AppSettingsState {
     language, setLanguage,
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
+    hideAiTools, setHideAiTools,
     settingsLoaded,
     applySettings,
     markSettingsLoaded,

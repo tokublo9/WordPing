@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Appearance, Folder, WordCard } from '../types';
-import { SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
+import { HIDE_AI_TOOLS_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
 import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 
@@ -16,6 +16,7 @@ export interface UseAppPersistenceParams {
   language: string;
   showFullCard: boolean;
   verticalFlip: boolean;
+  hideAiTools: boolean;
   hasLoaded: MutableRefObject<boolean>;
 }
 
@@ -29,6 +30,7 @@ export function useAppPersistence({
   language,
   showFullCard,
   verticalFlip,
+  hideAiTools,
   hasLoaded,
 }: UseAppPersistenceParams): void {
   // Persist cards + settings whenever any of them change.
@@ -55,4 +57,10 @@ export function useAppPersistence({
     AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setVerticalFlip', e));
   }, [verticalFlip]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(HIDE_AI_TOOLS_KEY, hideAiTools ? 'true' : 'false')
+      .catch(e => reportSideEffectFailure('setHideAiTools', e));
+  }, [hideAiTools]);
 }
