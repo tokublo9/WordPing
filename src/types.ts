@@ -14,6 +14,11 @@ export interface Folder {
 
 export type TestLevel = 'perfect' | 'good' | 'slightly' | 'unknown';
 
+export interface ReviewEntry {
+  ts: number;        // Unix ms timestamp of the review submission
+  rating: TestLevel; // stable rating ID — resolved to a label via i18n at display time
+}
+
 export interface WordCard {
   id: string;
   word: string;
@@ -24,6 +29,7 @@ export interface WordCard {
   testMastered?: boolean;
   testNextReview?: number; // Unix ms; if set and > Date.now(), skip in test queue
   testLevel?: TestLevel;
+  reviewHistory?: ReviewEntry[];
   wordLang?: string;    // BCP-47 locale for free device TTS (e.g. 'en-US', 'ja-JP')
   meaningLang?: string; // BCP-47 locale for free device TTS
   audioUri?: string;    // local file URI of a user-attached MP3 (Basic plan only)

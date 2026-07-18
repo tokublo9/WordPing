@@ -15,7 +15,7 @@ export const WELCOME_FOLDER_ID  = 'wp-welcome';
 
 // Shown on a genuine first install. Supabase data replaces these in the background.
 const DEFAULT_FOLDERS: Folder[] = [
-  { id: WELCOME_FOLDER_ID, name: 'Welcome to WordPing', createdAt: 1 },
+  { id: WELCOME_FOLDER_ID, name: 'Welcome!', createdAt: 1 },
 ];
 
 // English placeholders — replaced with localized content when onboarding completes.

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import type { Palette, WordCard } from '../types';
+import type { Palette, ReviewEntry, WordCard } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLang, type TranslationKey } from '../i18n';
 import { speak, speakWordCard, stopPlayback } from '../lib/tts';
@@ -313,11 +313,6 @@ function InfoSheet({
             }]}
           >
             <TouchableOpacity activeOpacity={1} style={{ flex: 1 }}>
-              {/* Drag handle */}
-              <View style={is.handleArea}>
-                <View style={is.handle} />
-              </View>
-
               {/* Header */}
               <View style={is.headerRow}>
                 <Text style={[is.title, { color: pal.text }]}>{t('test_info_title')}</Text>
@@ -371,11 +366,9 @@ function InfoSheet({
 const is = StyleSheet.create({
   sheetOuter: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 26, borderTopRightRadius: 26 },
-  handleArea: { paddingTop: 12, paddingBottom: 6, alignItems: 'center' },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#C0C0C0' },
   headerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 24, marginBottom: 14,
+    paddingHorizontal: 24, paddingTop: 20, marginBottom: 14,
   },
   title: { fontSize: 20, fontWeight: '700' },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
@@ -565,10 +558,13 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
     setPlaying(false);
 
     const now = Date.now();
-    if (kind === 'perfect')  onUpdateCard(card.id, { testMastered: true, testLevel: 'perfect' });
-    if (kind === 'good')     onUpdateCard(card.id, { testNextReview: now + 3 * 86_400_000, testLevel: 'good' });
-    if (kind === 'slightly') onUpdateCard(card.id, { testNextReview: now + 86_400_000, testLevel: 'slightly' });
-    if (kind === 'unknown')  onUpdateCard(card.id, { testLevel: 'unknown' });
+    const entry: ReviewEntry = { ts: now, rating: kind };
+    const reviewHistory: ReviewEntry[] = [...(card.reviewHistory ?? []), entry];
+
+    if (kind === 'perfect')  onUpdateCard(card.id, { testMastered: true, testLevel: 'perfect', reviewHistory });
+    if (kind === 'good')     onUpdateCard(card.id, { testNextReview: now + 3 * 86_400_000, testLevel: 'good', reviewHistory });
+    if (kind === 'slightly') onUpdateCard(card.id, { testNextReview: now + 86_400_000, testLevel: 'slightly', reviewHistory });
+    if (kind === 'unknown')  onUpdateCard(card.id, { testLevel: 'unknown', reviewHistory });
 
     Animated.timing(cardOpacity, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => {
       flipAnim.setValue(0);

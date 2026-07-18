@@ -1,6 +1,6 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Animated,
-  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,6 +17,8 @@ import { LEVEL_FILTER_OPTIONS } from '../../features/cards/levels';
 import { SwipeableCard } from '../../components/SwipeableCard';
 import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
+import { TestStatusIcon } from '../../components/TestStatusIcon';
+import { ScrollBar } from '../../components/ScrollBar';
 
 const SEL_BAR_H = 68;
 
@@ -115,6 +117,70 @@ export function WordListScreen({
 }: WordListScreenProps) {
   const t = useLang();
 
+  // ── Scrollbar (no React state on scroll — Animated.event drives everything) ──
+
+  // Animated scroll position for the scrollbar thumb — tracks on native thread.
+  const listScrollAnim = useRef(new Animated.Value(0)).current;
+  // Fade animated value — controlled by show/hide callbacks below.
+  const listFadeAnim   = useRef(new Animated.Value(0)).current;
+  // Timer ref for the auto-hide delay.
+  const listFadeTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Layout dimensions — only updated on resize, not on every scroll event.
+  const [listContentH, setListContentH] = useState(0);
+  const [listViewH,    setListViewH]    = useState(0);
+
+  // Refs that let the stable scroll event handler read the latest prop values.
+  const deepSeaSkinRef   = useRef(deepSeaSkin);
+  const deepSeaScrollRef = useRef(scrollY);
+  deepSeaSkinRef.current   = deepSeaSkin;
+  deepSeaScrollRef.current = scrollY;
+
+  // Stable scroll event — created once, never recreated.
+  const listScrollEvent = useRef(
+    Animated.event(
+      [{ nativeEvent: { contentOffset: { y: listScrollAnim } } }],
+      {
+        useNativeDriver: true,
+        // listener runs on JS thread at scrollEventThrottle cadence;
+        // used only to forward the value to the DeepSea skin animated value.
+        listener: (e: any) => {
+          if (deepSeaSkinRef.current) {
+            deepSeaScrollRef.current.setValue(e.nativeEvent.contentOffset.y);
+          }
+        },
+      }
+    )
+  ).current;
+
+  // Show the scrollbar thumb immediately.
+  const showScrollbar = useCallback(() => {
+    if (listFadeTimer.current) clearTimeout(listFadeTimer.current);
+    Animated.timing(listFadeAnim, { toValue: 0.55, duration: 80, useNativeDriver: true }).start();
+  }, [listFadeAnim]);
+
+  // Schedule the thumb to fade out after scrolling stops.
+  const scheduleHideScrollbar = useCallback(() => {
+    if (listFadeTimer.current) clearTimeout(listFadeTimer.current);
+    listFadeTimer.current = setTimeout(() => {
+      Animated.timing(listFadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+    }, 900);
+  }, [listFadeAnim]);
+
+  const handleScrollBeginDrag = useCallback(() => {
+    closeOpenCard.current?.();
+    showScrollbar();
+  }, [showScrollbar]);
+
+  // onScrollEndDrag fires before onMomentumScrollBegin — schedule hide and let
+  // handleMomentumScrollBegin cancel it if a momentum scroll follows.
+  const handleScrollEndDrag     = useCallback(() => { scheduleHideScrollbar(); }, [scheduleHideScrollbar]);
+  const handleMomentumScrollBegin = useCallback(() => { showScrollbar(); },          [showScrollbar]);
+  const handleMomentumScrollEnd   = useCallback(() => { scheduleHideScrollbar(); }, [scheduleHideScrollbar]);
+
+  // Cleanup timer on unmount.
+  useEffect(() => () => { if (listFadeTimer.current) clearTimeout(listFadeTimer.current); }, []);
+
   const renderCard = ({ item, index }: { item: WordCard; index: number }) => (
     <SwipeableCard
       item={item}
@@ -167,18 +233,19 @@ export function WordListScreen({
         </>
       ) : (
         <>
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: -4 }}>
-            <TouchableOpacity
-              style={{ paddingRight: 4, paddingVertical: 0 }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 4 }}
-              onPress={actions.onGoBack}
-            >
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: -4 }}
+            onPress={actions.onGoBack}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10 }}
+          >
+            <View style={{ paddingRight: 4 }}>
               <Ionicons name="chevron-back" size={24} color={pal.text} />
-            </TouchableOpacity>
+            </View>
             <Text style={[s.title, { color: pal.text, flex: 1 }]} numberOfLines={1}>
               {currentFolder?.name ?? ''}
             </Text>
-          </View>
+          </TouchableOpacity>
           <View style={s.headerIcons}>
             <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenNotifications}>
               <Ionicons
@@ -261,24 +328,12 @@ export function WordListScreen({
             : 'Test'
         }
       >
-        <View>
-          <Ionicons
-            name={isTestComplete ? 'school' : 'school-outline'}
-            size={24}
-            color={isTestComplete ? themeColor : pal.sub}
-          />
-          {isTestComplete ? (
-            <View style={[filterStyles.testBadge, { backgroundColor: themeColor }]}>
-              <Ionicons name="checkmark" size={8} color="#fff" />
-            </View>
-          ) : untestedCount > 0 ? (
-            <View style={[filterStyles.testBadge, { backgroundColor: themeColor }]}>
-              <Text style={filterStyles.testBadgeText}>
-                {untestedCount > 99 ? '99+' : String(untestedCount)}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        <TestStatusIcon
+          cardCount={folderCards.length}
+          untestedCount={untestedCount}
+          themeColor={themeColor}
+          pal={pal}
+        />
       </TouchableOpacity>
     </View>
   ) : null;
@@ -343,32 +398,41 @@ export function WordListScreen({
     );
   } else {
     cardContent = (
-      <FlatList
-        data={filteredFolderCards}
-        keyExtractor={c => c.id}
-        renderItem={renderCard}
-        style={{ flex: 1 }}
-        contentContainerStyle={[
-          s.list,
-          { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0) },
-        ]}
-        showsVerticalScrollIndicator={true}
-        scrollEnabled={cardScrollEnabled}
-        keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => closeOpenCard.current?.()}
-        scrollEventThrottle={16}
-        onScroll={deepSeaSkin
-          ? Animated.event(
-              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-              { useNativeDriver: false }
-            )
-          : undefined}
-        ListFooterComponent={
-          <TouchableWithoutFeedback onPress={() => closeOpenCard.current?.()}>
-            <View style={{ height: 300 }} />
-          </TouchableWithoutFeedback>
-        }
-      />
+      <View style={{ flex: 1 }}>
+        <Animated.FlatList<WordCard>
+          data={filteredFolderCards}
+          keyExtractor={c => c.id}
+          renderItem={renderCard}
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            s.list,
+            { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={cardScrollEnabled}
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={listScrollEvent}
+          onScrollBeginDrag={handleScrollBeginDrag}
+          onScrollEndDrag={handleScrollEndDrag}
+          onMomentumScrollBegin={handleMomentumScrollBegin}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+          onContentSizeChange={(_, h) => setListContentH(h)}
+          onLayout={e => setListViewH(e.nativeEvent.layout.height)}
+          ListFooterComponent={
+            <TouchableWithoutFeedback onPress={() => closeOpenCard.current?.()}>
+              <View style={{ height: 300 }} />
+            </TouchableWithoutFeedback>
+          }
+        />
+        <ScrollBar
+          scrollAnim={listScrollAnim}
+          contentH={listContentH}
+          viewH={listViewH}
+          fadeAnim={listFadeAnim}
+          color={pal.sub}
+        />
+      </View>
     );
   }
 
@@ -503,23 +567,6 @@ const filterStyles = StyleSheet.create({
   chipCount: {
     fontSize: 12,
     fontWeight: '600',
-  },
-  testBadge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -5,
-    minWidth: 15,
-    height: 15,
-    borderRadius: 7,
-    paddingHorizontal: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  testBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#fff',
-    lineHeight: 12,
   },
 });
 

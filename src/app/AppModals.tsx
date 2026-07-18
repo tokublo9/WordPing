@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { Appearance, Folder, OnboardingChoices, Palette, WordCard } from '../types';
+import type { Appearance, Folder, OnboardingChoices, Palette, ReviewEntry, WordCard } from '../types';
 import { WordModal } from '../components/WordModal';
 import { NotificationModal } from '../components/NotificationModal';
 import { SettingsModal } from '../components/SettingsModal';
@@ -45,6 +45,9 @@ export interface AppModalsProps {
     audioVolume: number;
     onChangeAudioVolume: Dispatch<SetStateAction<number>>;
     hideAiTools: boolean;
+    reviewHistory: ReviewEntry[];
+    testClearPending: boolean;
+    onResetAll(): void;
   };
 
   // NotificationModal
@@ -165,6 +168,9 @@ export function AppModals({
         audioVolume={wordModal.audioVolume}
         onChangeAudioVolume={wordModal.onChangeAudioVolume}
         hideAiTools={wordModal.hideAiTools}
+        reviewHistory={wordModal.reviewHistory}
+        testClearPending={wordModal.testClearPending}
+        onResetAll={wordModal.onResetAll}
       />
 
       <NotificationModal

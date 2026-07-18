@@ -26,6 +26,7 @@ export interface FolderListScreenProps {
   pal: Palette;
   themeColor: string;
   isSubscribed: boolean;
+  showLevelLabels: boolean;
 
   folders: Folder[];
   cards: WordCard[];
@@ -58,7 +59,7 @@ export interface FolderListScreenProps {
 }
 
 export function FolderListScreen({
-  pal, themeColor, isSubscribed,
+  pal, themeColor, isSubscribed, showLevelLabels,
   folders, cards,
   selection, reorder, actions,
   menuBtnRef, closeOpenFolder, onFolderOpen,
@@ -66,10 +67,10 @@ export function FolderListScreen({
   const t = useLang();
 
   const renderFolderItem = useCallback(({ item }: { item: Folder }) => {
-    const folderCards    = cards.filter(c => c.folderId === item.id);
-    const count          = folderCards.length;
-    const isTestComplete = count > 0 && folderCards.every(c => !!c.testLevel);
-    const folderIcon     = item.icon ?? 'folder-outline';
+    const folderCards   = cards.filter(c => c.folderId === item.id);
+    const count         = folderCards.length;
+    const untestedCount = folderCards.filter(c => !c.testLevel).length;
+    const folderIcon    = item.icon ?? 'folder-outline';
     return (
       <SwipeableFolder
         folder={item}
@@ -85,12 +86,13 @@ export function FolderListScreen({
         selectionMode={selection.active}
         selected={selection.selectedIds.has(item.id)}
         onToggleSelect={() => selection.onToggle(item.id)}
-        isTestComplete={isTestComplete}
+        untestedCount={untestedCount}
+        showLevelLabels={showLevelLabels}
       />
     );
   // Stable deps: callbacks and primitives only. cards/folders trigger re-renders via FlatList data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pal, themeColor, selection.active, selection.selectedIds, onFolderOpen, actions]);
+  }, [pal, themeColor, showLevelLabels, selection.active, selection.selectedIds, onFolderOpen, actions]);
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const header = selection.active ? (

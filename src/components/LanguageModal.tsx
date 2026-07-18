@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
+import { ScrollBar } from './ScrollBar';
 
 interface Props {
   visible: boolean;
@@ -27,10 +28,21 @@ export function LanguageModal({
   const slideY          = useRef(new Animated.Value(SHEET_H)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  // Custom scrollbar tracking
-  const [scrollY,  setScrollY]  = useState(0);
+  // Scrollbar — Animated.Value driven by Animated.event; no React state on scroll.
+  const scrollAnim = useRef(new Animated.Value(0)).current;
+  const scrollFade = useRef(new Animated.Value(0.28)).current; // constant: always visible at low opacity
+
+  // Layout dimensions for the scrollbar geometry (infrequent updates).
   const [contentH, setContentH] = useState(0);
   const [viewH,    setViewH]    = useState(0);
+
+  // Stable scroll event handler — created once.
+  const scrollEvent = useRef(
+    Animated.event(
+      [{ nativeEvent: { contentOffset: { y: scrollAnim } } }],
+      { useNativeDriver: true }
+    )
+  ).current;
 
   useEffect(() => {
     if (visible) {
@@ -54,12 +66,6 @@ export function LanguageModal({
     onPickLanguage(code);
     dismiss();
   };
-
-  // Scrollbar geometry
-  const showBar     = contentH > viewH + 4;
-  const barH        = showBar ? Math.max(32, (viewH / contentH) * viewH) : 0;
-  const maxScroll   = Math.max(1, contentH - viewH);
-  const barTop      = showBar ? (Math.min(scrollY, maxScroll) / maxScroll) * (viewH - barH) : 0;
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={dismiss}>
@@ -86,14 +92,14 @@ export function LanguageModal({
           </TouchableOpacity>
         </View>
 
-        {/* Language list with custom scrollbar */}
+        {/* Language list + absolute scrollbar overlay */}
         <View style={styles.listContainer}>
           <ScrollView
             style={styles.list}
             showsVerticalScrollIndicator={false}
             bounces={false}
             scrollEventThrottle={16}
-            onScroll={e => setScrollY(e.nativeEvent.contentOffset.y)}
+            onScroll={scrollEvent}
             onContentSizeChange={(_, h) => setContentH(h)}
             onLayout={e => setViewH(e.nativeEvent.layout.height)}
             contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 36 : 20 }}
@@ -131,17 +137,13 @@ export function LanguageModal({
             })}
           </ScrollView>
 
-          {/* Scrollbar track — fixed-width column, completely outside scroll content */}
-          <View style={styles.scrollbarTrack}>
-            {showBar && (
-              <View
-                style={[
-                  styles.scrollBar,
-                  { backgroundColor: pal.sub, height: barH, top: barTop },
-                ]}
-              />
-            )}
-          </View>
+          <ScrollBar
+            scrollAnim={scrollAnim}
+            contentH={contentH}
+            viewH={viewH}
+            fadeAnim={scrollFade}
+            color={pal.sub}
+          />
         </View>
       </Animated.View>
     </Modal>
@@ -171,19 +173,9 @@ const styles = StyleSheet.create({
 
   title: { fontSize: 20, fontWeight: '700' },
 
-  listContainer: { flex: 1, flexDirection: 'row' },
+  listContainer: { flex: 1 },
 
   list: { flex: 1 },
-
-  scrollbarTrack: { width: 10, position: 'relative' },
-
-  scrollBar: {
-    position: 'absolute',
-    right: 2,
-    width: 3,
-    borderRadius: 2,
-    opacity: 0.45,
-  },
 
   row: {
     flexDirection: 'row',

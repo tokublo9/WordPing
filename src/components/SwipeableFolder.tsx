@@ -28,14 +28,16 @@ interface Props {
   selectionMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
-  isTestComplete?: boolean;
+  untestedCount: number;
+  showLevelLabels?: boolean;
 }
 
 export function SwipeableFolder({
   folder, cardCount, pal, themeColor, folderColor, folderIcon,
   onOpen, onPress, onEdit, onDelete,
   selectionMode, selected, onToggleSelect,
-  isTestComplete = false,
+  untestedCount = 0,
+  showLevelLabels = true,
 }: Props) {
   const t          = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -178,24 +180,40 @@ export function SwipeableFolder({
           delayLongPress={380}
           activeOpacity={selectionMode ? 0.7 : 1}
         >
-          <View style={[styles.iconWrap, { backgroundColor: folderColor + '22' }]}>
-            <Ionicons name={folderIcon as any} size={22} color={folderColor} />
-          </View>
+          {selectionMode ? (
+            <View style={[styles.iconWrap, { backgroundColor: folderColor + '22' }]}>
+              <Ionicons name={folderIcon as any} size={22} color={folderColor} />
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => { isOpen.current ? close() : onEdit(); }}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+            >
+              <View style={[styles.iconWrap, { backgroundColor: folderColor + '22' }]}>
+                <Ionicons name={folderIcon as any} size={22} color={folderColor} />
+              </View>
+            </TouchableOpacity>
+          )}
           <View style={styles.textBlock}>
             <Text style={[styles.name, { color: pal.text }]} numberOfLines={1}>{folder.name}</Text>
             <Text style={[styles.count, { color: pal.sub }]}>
               {cardCount} {t(cardCount === 1 ? 'words_singular' : 'words_plural')}
             </Text>
           </View>
-          {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
-            <Ionicons name="notifications" size={19} color={themeColor} style={styles.notifIcon} />
-          )}
-          {isTestComplete && (
-            <View style={styles.testCompleteWrap} accessibilityLabel="Test complete.">
-              <Ionicons name="school" size={19} color={themeColor} />
-              <View style={[styles.testCompleteBadge, { backgroundColor: themeColor }]}>
-                <Ionicons name="checkmark" size={7} color="#fff" />
-              </View>
+          {((folder.notifSettings?.intervalSeconds ?? 0) > 0 || (showLevelLabels && cardCount > 0)) && (
+            <View style={styles.trailingIcons}>
+              {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
+                <Ionicons name="notifications" size={19} color={themeColor} />
+              )}
+              {showLevelLabels && (
+                <FolderTestBadge
+                  cardCount={cardCount}
+                  untestedCount={untestedCount}
+                  themeColor={themeColor}
+                  pal={pal}
+                />
+              )}
             </View>
           )}
           {!selectionMode && <Ionicons name="chevron-forward" size={16} color={pal.sub} />}
@@ -233,15 +251,19 @@ export function SwipeableFolder({
                   {cardCount} {t(cardCount === 1 ? 'words_singular' : 'words_plural')}
                 </Text>
               </View>
-              {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
-                <Ionicons name="notifications" size={19} color={themeColor} style={styles.notifIcon} />
-              )}
-              {isTestComplete && (
-                <View style={styles.testCompleteWrap} accessibilityLabel="Test complete.">
-                  <Ionicons name="school" size={19} color={themeColor} />
-                  <View style={[styles.testCompleteBadge, { backgroundColor: themeColor }]}>
-                    <Ionicons name="checkmark" size={7} color="#fff" />
-                  </View>
+              {((folder.notifSettings?.intervalSeconds ?? 0) > 0 || (showLevelLabels && cardCount > 0)) && (
+                <View style={styles.trailingIcons}>
+                  {(folder.notifSettings?.intervalSeconds ?? 0) > 0 && (
+                    <Ionicons name="notifications" size={19} color={themeColor} />
+                  )}
+                  {showLevelLabels && (
+                    <FolderTestBadge
+                      cardCount={cardCount}
+                      untestedCount={untestedCount}
+                      themeColor={themeColor}
+                      pal={pal}
+                    />
+                  )}
                 </View>
               )}
             </Animated.View>
@@ -251,13 +273,41 @@ export function SwipeableFolder({
               styles.menu,
               { backgroundColor: pal.dialog, left: lifted.pageX, top: menuTop, width: lifted.width },
             ]}>
-              <MenuRow icon="pencil-outline" label={t('edit_folder')}   pal={pal} onPress={handleEdit} />
+              <MenuRow icon="pencil-outline" label={t('edit')}   pal={pal} onPress={handleEdit} />
               <Sep pal={pal} />
-              <MenuRow icon="trash-outline"  label={t('delete_folder')} pal={pal} color="#E05C5C" onPress={handleDelete} />
+              <MenuRow icon="trash-outline"  label={t('delete')} pal={pal} color="#E05C5C" onPress={handleDelete} />
             </View>
           </View>
         </Modal>
       )}
+    </View>
+  );
+}
+
+// ── Folder test-status badge ─────────────────────────────────────────────────
+// Simpler than TestStatusIcon: no graduation cap — just a checkmark or count.
+function FolderTestBadge({ cardCount, untestedCount, themeColor, pal }: {
+  cardCount: number;
+  untestedCount: number;
+  themeColor: string;
+  pal: Palette;
+}) {
+  if (cardCount === 0) return null;
+  if (untestedCount === 0) {
+    return <Ionicons name="checkmark-circle" size={21} color={themeColor} />;
+  }
+  const over99 = untestedCount > 99;
+  const label  = over99 ? '99+' : String(untestedCount);
+  const twoDigit = !over99 && untestedCount >= 10;
+  return (
+    <View style={[
+      badgeStyles.circle,
+      over99 && badgeStyles.pill,
+      { backgroundColor: pal.card, borderColor: themeColor, borderWidth: 1 },
+    ]}>
+      <Text style={[badgeStyles.text, twoDigit && badgeStyles.textSm, { color: themeColor }]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -314,17 +364,7 @@ const styles = StyleSheet.create({
   textBlock: { flex: 1 },
   name:  { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   count: { fontSize: 13 },
-  notifIcon: { marginRight: 6 },
-  testCompleteWrap: {
-    width: 24, height: 24,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 6,
-  },
-  testCompleteBadge: {
-    position: 'absolute', bottom: -2, right: -4,
-    width: 12, height: 12, borderRadius: 6,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  trailingIcons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
   // Long-press overlay
   liftedRow: {
@@ -352,4 +392,18 @@ const styles = StyleSheet.create({
   },
   menuLabel: { fontSize: 15 },
   sep: { height: StyleSheet.hairlineWidth },
+});
+
+const badgeStyles = StyleSheet.create({
+  // Fixed square → perfect circle for counts 1–99.
+  circle: {
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  // Wider pill only for "99+" so the text stays readable.
+  pill: {
+    width: undefined, paddingHorizontal: 5,
+  },
+  text:   { fontSize: 11, fontWeight: '700', lineHeight: 13 },
+  textSm: { fontSize: 9 },
 });

@@ -28,8 +28,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File, Directory, Paths } from 'expo-file-system';
 import { Audio } from 'expo-av';
 
-import type { Palette, WordCard } from '../types';
-import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
+import type { Palette, ReviewEntry, TestLevel, WordCard } from '../types';
+import { SUPPORTED_LANGUAGES, useLang, type TranslationKey } from '../i18n';
 import { LanguageModal } from './LanguageModal';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
 import { appStyles as s } from '../styles';
@@ -39,6 +39,20 @@ const SCREEN_H = Dimensions.get('window').height;
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
+
+// Maps stable rating IDs to i18n label keys.
+const RATING_LABEL_KEYS: Record<TestLevel, TranslationKey> = {
+  perfect:  'test_know_perfectly',
+  good:     'test_know_good',
+  slightly: 'test_know_slightly',
+  unknown:  'test_dont_know',
+};
+const RATING_COLORS: Record<TestLevel, string> = {
+  perfect:  '#22c55e',
+  good:     '#3B82F6',
+  slightly: '#f59e0b',
+  unknown:  '#ef4444',
+};
 
 // ── TTS language options (BCP-47 codes supported by device TTS) ───────────────
 
@@ -94,6 +108,9 @@ interface Props {
   audioVolume: number;
   onChangeAudioVolume: (v: number) => void;
   hideAiTools?: boolean;
+  reviewHistory: ReviewEntry[];
+  testClearPending: boolean;
+  onResetAll(): void;
 }
 
 export function WordModal({
@@ -105,6 +122,9 @@ export function WordModal({
   audioSpeed, onChangeAudioSpeed,
   audioVolume, onChangeAudioVolume,
   hideAiTools = false,
+  reviewHistory,
+  testClearPending,
+  onResetAll,
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
@@ -160,6 +180,8 @@ export function WordModal({
   };
 
   // ── Audio ────────────────────────────────────────────────────────────────────
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioSettingsExpanded, setAudioSettingsExpanded] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -309,6 +331,7 @@ export function WordModal({
       setMeaningTransCollapsed(false);
       setNoteTranslation('');
       setNoteTransCollapsed(false);
+      setHistoryExpanded(false);
       Animated.parallel([
         Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: false }),
         Animated.timing(slideY, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
@@ -787,6 +810,83 @@ export function WordModal({
                     ) : null}
                   </View>
                 ) : null}
+                {/* Review History — only shown when editing an existing word */}
+                {editingCard && (
+                  <View style={[styles.historySection, { borderTopColor: pal.border }]}>
+                    <TouchableOpacity
+                      style={styles.historyHeader}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setHistoryExpanded(e => !e);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.historyTitle, { color: pal.text }]}>{t('review_history')}</Text>
+                        <Text style={[styles.historyCount, { color: pal.sub }]}>
+                          {reviewHistory.length === 1
+                            ? t('review_history_count_one')
+                            : t('review_history_count_other').replace('{n}', String(reviewHistory.length))}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={historyExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={pal.sub}
+                      />
+                    </TouchableOpacity>
+
+                    {historyExpanded && (
+                      <View style={styles.historyList}>
+                        {reviewHistory.length === 0 ? (
+                          <Text style={[styles.historyEmpty, { color: pal.sub }]}>
+                            {t('review_history_empty')}
+                          </Text>
+                        ) : (
+                          [...reviewHistory].reverse().map((entry, i) => (
+                            <View
+                              key={i}
+                              style={[styles.historyEntry, { borderBottomColor: pal.border }]}
+                            >
+                              <Text style={[styles.historyDate, { color: pal.sub }]}>
+                                {new Intl.DateTimeFormat(undefined, { month: 'numeric', day: 'numeric' }).format(new Date(entry.ts))}
+                              </Text>
+                              <Text style={[styles.historyRating, { color: RATING_COLORS[entry.rating] }]}>
+                                {t(RATING_LABEL_KEYS[entry.rating])}
+                              </Text>
+                            </View>
+                          ))
+                        )}
+
+                        {!testClearPending && (reviewHistory.length > 0 || editingCard?.testLevel != null) && (
+                          <TouchableOpacity
+                            style={[styles.historyResetBtn, { borderColor: pal.border }]}
+                            onPress={() => {
+                              Alert.alert(
+                                t('review_history_reset_title'),
+                                t('review_history_reset_body'),
+                                [
+                                  { text: t('cancel'), style: 'cancel' },
+                                  {
+                                    text: t('review_history_reset'),
+                                    style: 'destructive',
+                                    onPress: onResetAll,
+                                  },
+                                ]
+                              );
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="refresh-outline" size={13} color={pal.sub} />
+                            <Text style={[styles.historyResetText, { color: pal.sub }]}>
+                              {t('review_history_reset')}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
                 </View>
                 </TouchableWithoutFeedback>
                 </ScrollView>
@@ -1055,6 +1155,43 @@ const styles = StyleSheet.create({
   aiDivider: {
     width: StyleSheet.hairlineWidth,
   },
+
+  // ── Review History ───────────────────────────────────────────────────────────
+  historySection: {
+    marginTop: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 16,
+    marginBottom: 8,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  historyTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  historyCount: { fontSize: 13 },
+  historyList:  { marginTop: 10 },
+  historyEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  historyDate:   { fontSize: 14 },
+  historyRating: { fontSize: 14, fontWeight: '600' },
+  historyEmpty:  { fontSize: 14, paddingVertical: 12, textAlign: 'center' },
+  historyResetBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  historyResetText: { fontSize: 13, fontWeight: '500' },
 
   // ── Translation ──────────────────────────────────────────────────────────────
   transSection: {

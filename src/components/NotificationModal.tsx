@@ -64,7 +64,7 @@ export function NotificationModal({
             <Text style={[s.dialogTitle, { color: pal.text, marginBottom: 0 }]}>{t('notifications')}</Text>
             <View style={styles.headerRight}>
               <TouchableOpacity
-                style={styles.testBtn}
+                style={[styles.testBtn, { backgroundColor: pal.input, borderColor: pal.border }]}
                 onPress={() => {
                   onTest();
                   setTestSent(true);
@@ -142,11 +142,12 @@ const styles = StyleSheet.create({
   },
   list: { marginBottom: 4 },
   headerRight: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   testBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingVertical: 6, paddingHorizontal: 10,
+    borderRadius: 8, borderWidth: StyleSheet.hairlineWidth,
   },
   testBtnText: { fontSize: 12 },
 });

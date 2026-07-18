@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
-import type { WordCard } from '../../types';
+import type { ReviewEntry, WordCard } from '../../types';
 import { translate } from '../../i18n';
 import { ALL_LEVEL_KEYS, LEVEL_ORDER } from './levels';
 import { FREE_WORD_LIMIT } from '../../constants';
@@ -74,6 +74,10 @@ export interface UseCardsReturn {
   setWordAudioSpeed: Dispatch<SetStateAction<number>>;
   wordAudioVolume: number;
   setWordAudioVolume: Dispatch<SetStateAction<number>>;
+  // Review history (pending local state for the edit sheet)
+  reviewHistory: ReviewEntry[];
+  testClearPending: boolean;
+  resetWordReview(): void;
   // CRUD actions
   openAdd(): void;
   openEdit(card: WordCard): void;
@@ -113,6 +117,8 @@ export function useCards({
   const [wordAudioUri, setWordAudioUri] = useState<string | undefined>(undefined);
   const [wordAudioSpeed, setWordAudioSpeed] = useState(1.0);
   const [wordAudioVolume, setWordAudioVolume] = useState(1.0);
+  const [reviewHistory, setReviewHistory] = useState<ReviewEntry[]>([]);
+  const [testClearPending, setTestClearPending] = useState(false);
   const [wordModalVisible, setWordModalVisible] = useState(false);
   const [testModeVisible, setTestModeVisible] = useState(false);
   const [cardViewMode, setCardViewMode] = useState<'list' | 'flip'>('list');
@@ -241,6 +247,8 @@ export function useCards({
     setWordAudioUri(undefined);
     setWordAudioSpeed(1.0);
     setWordAudioVolume(1.0);
+    setReviewHistory([]);
+    setTestClearPending(false);
     setWordModalVisible(true);
   };
 
@@ -254,8 +262,15 @@ export function useCards({
     setWordAudioUri(card.audioUri);
     setWordAudioSpeed(card.audioSpeed ?? 1.0);
     setWordAudioVolume(card.audioVolume ?? 1.0);
+    setReviewHistory(card.reviewHistory ?? []);
+    setTestClearPending(false);
     setWordModalVisible(true);
   };
+
+  const resetWordReview = useCallback(() => {
+    setReviewHistory([]);
+    setTestClearPending(true);
+  }, []);
 
   const saveCard = () => {
     if (!word.trim()) {
@@ -280,6 +295,12 @@ export function useCards({
               audioUri: wordAudioUri,
               audioSpeed: wordAudioSpeed,
               audioVolume: wordAudioVolume,
+              reviewHistory,
+              ...(testClearPending ? {
+                testLevel: undefined,
+                testNextReview: undefined,
+                testMastered: undefined,
+              } : {}),
             }
           : c
       ));
@@ -334,6 +355,7 @@ export function useCards({
     wordAudioUri, setWordAudioUri,
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
+    reviewHistory, testClearPending, resetWordReview,
     openAdd, openEdit, saveCard, deleteCard, toggleCardNotif,
     testModeVisible, setTestModeVisible,
   };

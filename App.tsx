@@ -107,6 +107,7 @@ export default function App() {
     wordAudioUri, setWordAudioUri,
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
+    reviewHistory, testClearPending, resetWordReview,
     openAdd, openEdit, saveCard, deleteCard, toggleCardNotif,
     testModeVisible, setTestModeVisible,
   } = useCards({
@@ -239,6 +240,7 @@ export default function App() {
           pal={pal}
           themeColor={activeThemeColor}
           isSubscribed={isSubscribed}
+          showLevelLabels={showLevelLabels}
           folders={folders}
           cards={cards}
           selection={{
@@ -359,6 +361,9 @@ export default function App() {
           audioVolume: wordAudioVolume,
           onChangeAudioVolume: setWordAudioVolume,
           hideAiTools,
+          reviewHistory,
+          testClearPending,
+          onResetAll: resetWordReview,
         }}
         notifModal={{
           visible: notificationModalVisible,
@@ -409,7 +414,7 @@ export default function App() {
         }}
         testMode={{
           visible: testModeVisible,
-          cards: filteredFolderCards,
+          cards: folderCards,
           onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
           onClose: () => setTestModeVisible(false),
         }}
