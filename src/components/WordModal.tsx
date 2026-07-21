@@ -7,6 +7,7 @@ import {
   Keyboard,
   LayoutAnimation,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -21,7 +22,7 @@ import {
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -113,6 +114,10 @@ interface Props {
   reviewHistory: ReviewEntry[];
   testClearPending: boolean;
   onResetAll(): void;
+  /** Basic plan: true when the card doesn't already have a custom voice and 10 others do. */
+  basicVoiceLimitReached?: boolean;
+  /** Called when a non-Premium user taps the locked audio button. */
+  onUpgrade?: () => void;
 }
 
 export function WordModal({
@@ -127,6 +132,8 @@ export function WordModal({
   reviewHistory,
   testClearPending,
   onResetAll,
+  basicVoiceLimitReached = false,
+  onUpgrade,
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
@@ -180,6 +187,58 @@ export function WordModal({
   const handleDismissKeyboard = () => {
     if (!isScrollingRef.current) Keyboard.dismiss();
   };
+
+  // ── Top error / hint banner ──────────────────────────────────────────────────
+  // Shared banner: shows either the Basic voice limit or the locked-custom-voice error.
+  const [hintShowing, setHintShowing] = useState(false);
+  const [hintKey, setHintKey]   = useState<TranslationKey>('basic_voice_limit');
+  const [hintIcon, setHintIcon] = useState<ComponentProps<typeof Ionicons>['name']>('mic-outline');
+  const hintAnim  = useRef(new Animated.Value(0)).current;
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissHint = useCallback(() => {
+    if (hintTimer.current) { clearTimeout(hintTimer.current); hintTimer.current = null; }
+    Animated.timing(hintAnim, { toValue: 0, duration: 220, useNativeDriver: false })
+      .start(({ finished }) => { if (finished) setHintShowing(false); });
+  }, [hintAnim]);
+
+  const showHint = useCallback((key: TranslationKey, icon: ComponentProps<typeof Ionicons>['name']) => {
+    setHintKey(key);
+    setHintIcon(icon);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    setHintShowing(true);
+    Animated.spring(hintAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: false }).start();
+    hintTimer.current = setTimeout(dismissHint, 2500);
+  }, [hintAnim, dismissHint]);
+
+  // Non-Premium user tapped play on a custom voice saved while Premium.
+  const handleLockedVoicePlay = useCallback(() => {
+    Keyboard.dismiss();
+    showHint('custom_voice_locked_msg', 'warning');
+  }, [showHint]);
+
+  const hintPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
+    onPanResponderMove: (_, g) => {
+      if (g.dy < 0) hintAnim.setValue(Math.max(0, 1 - (-g.dy) / 80));
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy < -28) {
+        dismissHint();
+      } else {
+        Animated.spring(hintAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
+        if (hintTimer.current) clearTimeout(hintTimer.current);
+        hintTimer.current = setTimeout(dismissHint, 2500);
+      }
+    },
+  })).current;
+
+  const handleVoiceLangBtn = useCallback((field: 'word' | 'meaning') => {
+    if (basicVoiceLimitReached) { showHint('basic_voice_limit', 'mic-outline'); return; }
+    Keyboard.dismiss();
+    setPickerFor(field);
+  }, [basicVoiceLimitReached, showHint]);
 
   // ── Audio ────────────────────────────────────────────────────────────────────
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -350,6 +409,18 @@ export function WordModal({
     ]).start(() => onClose());
   };
 
+  // Tapping the Close button (or the backdrop) auto-saves the current changes.
+  // With nothing entered there is nothing to save, so we just close.
+  const handleCloseSave = () => {
+    Keyboard.dismiss();
+    setPickerFor(null);
+    if (!word.trim()) { handleClose(); return; }
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: false }),
+      Animated.timing(slideY, { toValue: SCREEN_H, duration: 220, useNativeDriver: false }),
+    ]).start(() => onSave());
+  };
+
   const selectedTTSLang = pickerFor === 'word' ? wordLang : meaningLang;
   const onPickTTSLang = (code: string | undefined) => {
     if (pickerFor === 'word') onChangeWordLang(code);
@@ -462,7 +533,7 @@ export function WordModal({
       <Animated.View
         style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdropOpacity }]}
       >
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={handleClose} />
+        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={handleCloseSave} />
       </Animated.View>
 
       {/* Sheet — stays fixed at bottom of screen */}
@@ -480,7 +551,7 @@ export function WordModal({
                   <Text style={[styles.headerTitle, { color: pal.text }]}>
                     {editingCard ? t('edit_word') : t('add_word')}
                   </Text>
-                  <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <TouchableOpacity onPress={handleCloseSave} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Ionicons name="close" size={22} color={pal.sub} />
                   </TouchableOpacity>
                 </View>
@@ -505,7 +576,7 @@ export function WordModal({
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>
                     {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
                   </Text>
-                  {isSubscribed && (
+                  {isPremium ? (
                     <View style={styles.audioBtnGroup}>
                       {audioUri && (
                         <TouchableOpacity
@@ -534,7 +605,27 @@ export function WordModal({
                         />
                       </TouchableOpacity>
                     </View>
-                  )}
+                  ) : audioUri ? (
+                    // Downgraded from Premium: keep the play + remove buttons only for a word
+                    // that already had a custom voice saved. Play shows the locked-voice message.
+                    <View style={styles.audioBtnGroup}>
+                      <TouchableOpacity
+                        onPress={handleClearAudio}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel={t('remove_audio')}
+                        style={styles.audioRemoveBtn}
+                      >
+                        <Ionicons name="close-circle" size={18} color={pal.sub} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleLockedVoicePlay}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={[styles.audioBtn, { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }]}
+                      >
+                        <Ionicons name="play-circle" size={16} color={themeColor} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </View>
                 <View>
                   <TextInput
@@ -546,8 +637,8 @@ export function WordModal({
                   />
                 </View>
 
-                {/* Audio playback settings — visible only when an audio file is attached */}
-                {isSubscribed && audioUri ? (
+                {/* Audio playback settings — visible only when an audio file is attached and user is Premium */}
+                {isPremium && audioUri ? (
                   <View style={[styles.audioSettings, { borderColor: pal.border, backgroundColor: pal.input }]}>
                     {/* Collapsible header */}
                     <TouchableOpacity
@@ -622,7 +713,8 @@ export function WordModal({
                 <View style={styles.swapRow}>
                   <TouchableOpacity
                     onPress={() => { const w = word; onChangeWord(meaning); onChangeMeaning(w); }}
-                    style={[styles.swapBtn, { borderColor: pal.border, backgroundColor: pal.chip }]}
+                    disabled={!word.trim() && !meaning.trim()}
+                    style={[styles.swapBtn, { borderColor: pal.border, backgroundColor: pal.chip, opacity: word.trim() || meaning.trim() ? 1 : 0.35 }]}
                     hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
                   >
                     <Ionicons name="swap-vertical" size={14} color={pal.sub} />
@@ -633,7 +725,8 @@ export function WordModal({
                 {/* Meaning field */}
                 <View style={[styles.fieldLabelRow, { marginTop: 8 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('meaning_label')}</Text>
-                  {isPremium && !hideAiTools && (
+                  <View style={styles.audioBtnGroup}>
+                    {isPremium && !hideAiTools && (
                     <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
                       <TouchableOpacity
                         onPress={handleGenerate}
@@ -657,6 +750,7 @@ export function WordModal({
                       </TouchableOpacity>
                     </View>
                   )}
+                  </View>
                 </View>
                 <View>
                   <TextInput
@@ -952,6 +1046,33 @@ export function WordModal({
         </View>
       )}
 
+      {/* Top error / hint banner — tap or swipe up to dismiss */}
+      {hintShowing && (
+        <Animated.View
+          style={[
+            styles.hintBanner,
+            {
+              top: insets.top + 8,
+              backgroundColor: pal.dialog,
+              borderColor: pal.border,
+              opacity: hintAnim,
+              transform: [{ translateY: hintAnim.interpolate({ inputRange: [0, 1], outputRange: [-56, 0] }) }],
+            },
+          ]}
+          {...hintPan.panHandlers}
+        >
+          <TouchableOpacity activeOpacity={0.85} onPress={dismissHint} style={styles.hintTouch}>
+            <Ionicons
+              name={hintIcon}
+              size={16}
+              color={hintIcon === 'warning' ? '#f59e0b' : pal.sub}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={[styles.hintText, { color: pal.text }]}>{t(hintKey)}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
       {/* TTS language picker (word / meaning fields only) */}
       {(pickerFor === 'word' || pickerFor === 'meaning') && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setPickerFor(null)}>
@@ -1070,6 +1191,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  langChip: {
+    height: 26,
+    paddingHorizontal: 8,
+    borderRadius: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  langChipText: { fontSize: 11, fontWeight: '600' },
   audioRemoveBtn: {
     width: 28,
     height: 28,
@@ -1258,4 +1388,25 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   kbBtnText: { fontSize: 15, fontWeight: '700' },
+
+  // Basic voice limit banner — same appearance as SettingsModal's hintBanner
+  hintBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    zIndex: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  hintTouch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  hintText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

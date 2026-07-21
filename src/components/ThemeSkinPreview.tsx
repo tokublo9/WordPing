@@ -159,12 +159,14 @@ export const THEME_VIDEOS_FLIP: Partial<Record<string, number>> = {
 // details hero, mini gallery frames, etc).
 
 export const PremiumSkinPreview = memo(function PremiumSkinPreview({
-  item, skinData, width, height,
+  item, skinData, width, height, disableBlur = false,
 }: {
   item: ShopItem;
   skinData: ThemeSkin | undefined;
   width: number;
   height: number;
+  /** When true, skip the wallpaper blur overlay so the image reads clearly. */
+  disableBlur?: boolean;
 }) {
   const W = width;
   const H = height;
@@ -175,7 +177,7 @@ export const PremiumSkinPreview = memo(function PremiumSkinPreview({
     return (
       <>
         <ImageBackground source={skinData.wallpaperImage} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        {(skinData.wallpaperBlur ?? 0) > 0 && (
+        {!disableBlur && (skinData.wallpaperBlur ?? 0) > 0 && (
           <BlurView
             intensity={Math.round(skinData.wallpaperBlur! * blurScale)}
             tint="light"

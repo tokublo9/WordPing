@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -21,6 +21,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { OnboardingChoices, Palette, ThemeSkin } from '../types';
 import { FREE_THEME_COLOR, ONBOARDING_KEY, SKINS } from '../constants';
 import { useLang, type TranslationKey } from '../i18n';
+import { formatPrice } from '../lib/pricing';
 import { speak, stopPlayback } from '../lib/tts';
 import {
   PremiumSkinPreview,
@@ -142,7 +143,7 @@ interface FeatureConfig {
 // sections show screenshots; Priority Support / Data Transfer use icon visuals.
 // `basic`/`premium` mirror the plan comparison table.
 const FEATURE_SECTIONS: FeatureConfig[] = [
-  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', icon: 'mic-outline',             accent: '#0891B2', basic: true,  premium: true },
+  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', icon: 'mic-outline',             accent: '#0891B2', basic: false, premium: true },
   { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
   { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
   { key: 'meaning',   titleKey: 'cmp_ai_meaning',       descKey: 'feat_meaning_desc',     image: PAYWALL_IMAGES.meaning,   icon: 'bulb-outline',        accent: '#0EA5E9', basic: false, premium: true },
@@ -339,7 +340,6 @@ const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardPro
               <Text style={av.title}>{aiLabel}</Text>
               <Ionicons name="sparkles" size={13} color={GOLD_MAIN} />
             </View>
-            <Text style={av.subtitle}>{t('ai_voice_promo_desc')}</Text>
           </View>
           <Waveform active={anyAiPlaying} color={PLAN_BLUE} height={22} barWidth={3} />
         </View>
@@ -352,6 +352,9 @@ const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardPro
         </View>
 
         <PlanLabels basic premium t={t} />
+
+        {/* Description moved below the Basic/Premium label */}
+        <Text style={av.subtitle}>{t('ai_voice_promo_desc')}</Text>
 
       </View>
     </View>
@@ -443,13 +446,14 @@ const FeatureSection = React.memo(function FeatureSection({
               <Text style={fs.title} numberOfLines={2}>{title}</Text>
               <Ionicons name="sparkles" size={12} color={GOLD_MAIN} />
             </View>
-            <Text style={fs.desc}>{description}</Text>
           </View>
         </View>
         {source != null
           ? <FeatureImage source={source} />
           : <FeatureIconVisual icon={icon} accent={accent} />}
         <PlanLabels basic={basic} premium={premium} t={t} />
+        {/* Description moved below the Basic/Premium label */}
+        <Text style={fs.desc}>{description}</Text>
       </View>
     </View>
   );
@@ -502,9 +506,6 @@ const LAST_REAL  = CLONES + N_TILES - 1;      // looped position of real index N
 const LOOP_TILES: GalleryTile[] = N_TILES > 1
   ? [...CAROUSEL_TILES.slice(N_TILES - CLONES), ...CAROUSEL_TILES, ...CAROUSEL_TILES.slice(0, CLONES)]
   : CAROUSEL_TILES;
-
-// Real theme index for a looped position.
-const realIndexOf = (position: number) => ((position - FIRST_REAL) % N_TILES + N_TILES) % N_TILES;
 
 // ── Accessibility / lifecycle hooks ───────────────────────────────────────────
 
@@ -578,7 +579,7 @@ const TileVideoPlayer = React.memo(function TileVideoPlayer({ source, width, hei
 // ── Carousel card ─────────────────────────────────────────────────────────────
 
 const CarouselCard = React.memo(function CarouselCard({
-  tile, position, scrollX, mounted, videoActive, onPress,
+  tile, position, scrollX, mounted, videoActive, onPress, pal,
 }: {
   tile: GalleryTile;
   position: number;
@@ -588,6 +589,7 @@ const CarouselCard = React.memo(function CarouselCard({
   /** This card is centered → its video plays. */
   videoActive: boolean;
   onPress: (item: ShopItem) => void;
+  pal: Palette;
 }) {
   const { item, media } = tile;
   const skinData = useMemo<ThemeSkin | undefined>(() => SKINS.find(sk => sk.id === item.id), [item.id]);
@@ -615,12 +617,13 @@ const CarouselCard = React.memo(function CarouselCard({
                 <TileVideoPlayer source={media.source} width={CARO_W} height={CARO_H} active={videoActive} />
               </>
             ))}
-
-          {/* Name legibility gradient + label */}
-          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={caro.nameGrad} pointerEvents="none" />
-          <Text style={caro.name} numberOfLines={1} pointerEvents="none">{item.name}</Text>
         </View>
       </Animated.View>
+
+      {/* Theme name — below the card so the preview stays fully unobstructed */}
+      <Animated.Text style={[caro.name, { color: pal.text, opacity }]} numberOfLines={1}>
+        {item.name}
+      </Animated.Text>
     </TouchableOpacity>
   );
 });
@@ -726,8 +729,6 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
     setInteracting(false);
   }, [setActive]);
 
-  const activeReal = realIndexOf(activeVirtual);
-
   return (
     <View style={[s.featureCard, { backgroundColor: pal.card, borderColor: pal.border, paddingHorizontal: 0 }]}>
 
@@ -743,7 +744,7 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
         decelerationRate="fast"
         snapToAlignment="start"
         contentOffset={{ x: FIRST_REAL * CARO_SLOT, y: 0 }}
-        contentContainerStyle={{ paddingHorizontal: CARO_INSET }}
+        contentContainerStyle={{ paddingHorizontal: CARO_INSET, paddingTop: 16, paddingBottom: 8 }}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
         scrollEventThrottle={16}
         onScrollBeginDrag={onBeginDrag}
@@ -751,31 +752,45 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
         onMomentumScrollEnd={onMomentumEnd}
         bounces={false}
       >
-        {LOOP_TILES.map((tile, position) => {
-          const real = realIndexOf(position);
-          const fwd  = (real - activeReal + N_TILES) % N_TILES;   // 0..N-1 forward distance
-          // Preload window: current + 3 ahead (covers the first four on open) and 1 behind.
-          const mounted = fwd <= 3 || fwd === N_TILES - 1;
-          return (
-            <CarouselCard
-              key={position}
-              tile={tile}
-              position={position}
-              scrollX={scrollX}
-              mounted={mounted}
-              videoActive={mediaActive && position === activeVirtual}
-              onPress={onOpenDetails}
-            />
-          );
-        })}
+        {LOOP_TILES.map((tile, position) => (
+          // Every tile stays mounted for the whole time the sheet is open, so all
+          // images/videos preload up-front and a swipe back shows instantly with no
+          // reload. They unmount (releasing players) only when the sheet closes.
+          <CarouselCard
+            key={position}
+            tile={tile}
+            position={position}
+            scrollX={scrollX}
+            mounted={visible}
+            videoActive={mediaActive && position === activeVirtual}
+            onPress={onOpenDetails}
+            pal={pal}
+          />
+        ))}
       </Animated.ScrollView>
 
-      <Text style={[s.cardDesc, { color: pal.sub, paddingHorizontal: CARD_PADDING, marginTop: 18 }]}>
-        {t('themes_switch_desc')}
-      </Text>
-
-      <View style={{ paddingHorizontal: CARD_PADDING }}>
+      <View style={{ paddingHorizontal: CARD_PADDING, marginTop: 18 }}>
         <PlanLabels basic premium t={t} />
+
+        {/* Value promo — polished Basic-plan blue banner beneath the plan labels */}
+        <View style={s.themePromo}>
+          <LinearGradient
+            colors={['#EFF5FF', '#DBE8FF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.themePromoBadge}>
+            <Ionicons name="pricetags" size={14} color="#fff" />
+          </LinearGradient>
+          <Text style={s.themePromoText}>{t('themes_value_promo')}</Text>
+          <Ionicons name="sparkles" size={14} color={BLUE_GRAD[1]} style={{ marginLeft: 10 }} />
+        </View>
+
+        {/* Description moved below the value promo */}
+        <Text style={[s.cardDesc, { color: pal.sub, marginTop: 14 }]}>
+          {t('themes_switch_desc')}
+        </Text>
       </View>
 
     </View>
@@ -814,7 +829,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
     { label: t('cmp_word_cards'),       free: t('cmp_val_unlimited'), basic: t('cmp_val_unlimited'), premium: t('cmp_val_unlimited') },
     { label: t('cmp_themes'),           free: '2',     basic: 'infinite', premium: 'infinite' },
     { label: t('cmp_ai_voice_hq'),      free: 'cross', basic: 'infinite',              premium: 'infinite' },
-    { label: t('cmp_custom_voice'),     free: 'cross', basic: t('cmp_val_10_words'), premium: 'infinite' },
+    { label: t('cmp_custom_voice'),     free: 'cross', basic: 'cross',               premium: 'infinite' },
     { label: t('cmp_ai_example'),       free: 'cross', basic: 'cross',                premium: 'infinite' },
     { label: t('cmp_ai_breakdown'),     free: 'cross', basic: 'cross',    premium: 'infinite' },
     { label: t('cmp_ai_meaning'),       free: 'cross', basic: 'cross',    premium: 'infinite' },
@@ -940,11 +955,9 @@ const FixedPurchaseBar = React.memo(({
                   {basicOwned && <Ionicons name="checkmark-circle" size={14} color="#fff" style={{ marginRight: 4 }} />}
                   <Text style={bar.btnName} numberOfLines={1}>{t('basic_plan_name')}</Text>
                 </View>
-                {basicOwned && (
-                  <Text style={bar.btnSub} numberOfLines={1} adjustsFontSizeToFit>
-                    {t('theme_details_owned_badge')}
-                  </Text>
-                )}
+                <Text style={bar.btnSub} numberOfLines={1} adjustsFontSizeToFit>
+                  {basicOwned ? t('theme_details_owned_badge') : `${formatPrice(320)}/month`}
+                </Text>
               </>
             )}
           </LinearGradient>
@@ -981,7 +994,7 @@ const FixedPurchaseBar = React.memo(({
                   </Text>
                 </View>
                 <Text style={[bar.btnSub, { color: HERO_DARK }]} numberOfLines={1} adjustsFontSizeToFit>
-                  {premiumOwned ? t('theme_details_owned_badge') : '$4.99/month'}
+                  {premiumOwned ? t('theme_details_owned_badge') : `${formatPrice(600)}/month`}
                 </Text>
               </>
             )}
@@ -1076,10 +1089,17 @@ export function ProSheet({
   const sampleKey = normalizeLangCode(resolvedSampleLang);
   const demo      = DEMO_SAMPLES[sampleKey] ?? DEMO_SAMPLES.en;
 
-  useEffect(() => {
+  // Set initial position synchronously before the first paint so the sheet
+  // never appears at an incorrect position when becoming visible.
+  useLayoutEffect(() => {
     if (visible) {
       slideY.setValue(SH);
       backdropO.setValue(0);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible) {
       Animated.parallel([
         Animated.timing(backdropO, { toValue: 1, duration: 220, useNativeDriver: true }),
         Animated.spring(slideY, { toValue: 0, tension: 60, friction: 11, useNativeDriver: true }),
@@ -1438,8 +1458,8 @@ const av = StyleSheet.create({
     borderColor: '#DBEAFE',
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  title: { fontSize: 18, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2 },
-  subtitle: { fontSize: 12, color: '#64748B', lineHeight: 16, marginTop: 3 },
+  title: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2, lineHeight: 27 },
+  subtitle: { fontSize: 14, color: '#64748B', lineHeight: 20, marginTop: 12 },
   panel: {
     borderRadius: 16,
     padding: 16,
@@ -1522,8 +1542,8 @@ const fs = StyleSheet.create({
     borderWidth: 1,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  title: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2 },
-  desc: { fontSize: 12.5, color: '#64748B', lineHeight: 17, marginTop: 3 },
+  title: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2, lineHeight: 27 },
+  desc: { fontSize: 14, color: '#64748B', lineHeight: 20, marginTop: 12 },
   imageShadow: {
     alignSelf: 'center',
     marginTop: 20,
@@ -1767,16 +1787,50 @@ const s = StyleSheet.create({
   cardTitle: {
     fontSize: 22,
     fontWeight: '800',
-    textAlign: 'center',
+    textAlign: 'left',
     letterSpacing: -0.3,
     lineHeight: 28,
     marginBottom: 20,
   },
   cardDesc: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
+    fontSize: 14,
+    textAlign: 'left',
+    lineHeight: 20,
     marginTop: 14,
+  },
+
+  // ── "Pays for itself" value promo (themes carousel) ─────────────────────────
+  themePromo: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BLUE_GRAD[1] + '66',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    overflow: 'hidden',
+  },
+  themePromoBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+    shadowColor: BLUE_GRAD[1],
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  themePromoText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+    letterSpacing: -0.1,
+    color: BASIC_ACCENT,
   },
 
   // ── AI Features explanation ─────────────────────────────────────────────────
@@ -2006,24 +2060,12 @@ const caro = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: CARO_MEDIA_BG,
   },
-  nameGrad: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: CARO_H * 0.4,
-  },
   name: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 11,
-    color: '#FFFFFF',
+    width: CARO_W,
+    marginTop: 12,
+    textAlign: 'left',
     fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
 });

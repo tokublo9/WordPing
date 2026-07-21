@@ -1,8 +1,8 @@
-import { Animated, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Appearance, Palette } from '../types';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
@@ -20,6 +20,7 @@ const CONTACT_MAIL = 'mailto:tokumoto.daiki.0219@gmail.com';
 const LICENSE_URL  = 'https://wordping.app/license';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
+const SW = Dimensions.get('window').width;
 
 interface Props {
   visible: boolean;
@@ -241,6 +242,19 @@ export function SettingsModal({
           themeColor={themeColor}
         />
 
+        <KisekaeShopSheet
+          visible={shopVisible}
+          onClose={() => setShopVisible(false)}
+          skinId={skinId}
+          onPickSkin={onPickSkin}
+          isSubscribed={isSubscribed}
+          pal={pal}
+          themeColor={themeColor}
+          onUpgrade={() => setProSheetVisible(true)}
+        />
+
+        {/* Rendered after the shop so Upgrade overlays Theme Details while the
+            selected theme remains mounted underneath. */}
         <ProSheet
           visible={proSheetVisible}
           onClose={() => setProSheetVisible(false)}
@@ -254,17 +268,6 @@ export function SettingsModal({
           isPremium={isPremium}
           skinId={skinId}
           onPickSkin={onPickSkin}
-        />
-
-        <KisekaeShopSheet
-          visible={shopVisible}
-          onClose={() => setShopVisible(false)}
-          skinId={skinId}
-          onPickSkin={onPickSkin}
-          isSubscribed={isSubscribed}
-          pal={pal}
-          themeColor={themeColor}
-          onUpgrade={() => setProSheetVisible(true)}
         />
 
         <TutorialModal
@@ -296,8 +299,10 @@ export function SettingsModal({
             ]}
             {...hintPan.panHandlers}
           >
-            <Ionicons name="color-palette-outline" size={16} color={pal.sub} style={{ marginRight: 8 }} />
-            <Text style={[styles.hintText, { color: pal.text }]}>{t('appearance_solid_only')}</Text>
+            <TouchableOpacity activeOpacity={0.85} onPress={dismissHint} style={styles.hintTouch}>
+              <Ionicons name="color-palette-outline" size={16} color={pal.sub} style={{ marginRight: 8 }} />
+              <Text style={[styles.hintText, { color: pal.text }]}>{t('appearance_solid_only')}</Text>
+            </TouchableOpacity>
           </Animated.View>
         )}
 
@@ -310,30 +315,49 @@ export function SettingsModal({
 function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: () => void; pal: Palette }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
+  const slideX = useRef(new Animated.Value(SW)).current;
+
+  useEffect(() => {
+    if (visible) {
+      slideX.setValue(SW);
+      Animated.spring(slideX, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
+    }
+  }, [visible]);
+
+  const dismiss = () => {
+    Animated.timing(slideX, { toValue: SW, duration: 220, useNativeDriver: true })
+      .start(() => onClose());
+  };
+
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <View style={[styles.screen, { backgroundColor: pal.bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <View style={[styles.header, { borderBottomColor: pal.border }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={pal.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: pal.text }]}>{t('app_info')}</Text>
-          <View style={styles.backBtn} />
-        </View>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
-            onPress={() => Linking.openURL(PRIVACY_URL)} />
-          <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
-            onPress={() => Linking.openURL(TERMS_URL)} />
-          <SettingRow icon="mail-outline" label={t('contact')} pal={pal}
-            onPress={() => Linking.openURL(CONTACT_MAIL)} />
-          <SettingRow icon="library-outline" label={t('license')} pal={pal}
-            onPress={() => Linking.openURL(LICENSE_URL)} />
-          <SettingRow icon="information-circle-outline" label={t('app_version')}
-            value={APP_VERSION} pal={pal} />
-        </ScrollView>
+    <Animated.View
+      style={[
+        StyleSheet.absoluteFillObject,
+        { backgroundColor: pal.bg, paddingTop: insets.top, paddingBottom: insets.bottom, transform: [{ translateX: slideX }] },
+      ]}
+    >
+      <View style={[styles.header, { borderBottomColor: pal.border }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-back" size={24} color={pal.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: pal.text }]}>{t('app_info')}</Text>
+        <View style={styles.backBtn} />
       </View>
-    </Modal>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
+          onPress={() => Linking.openURL(PRIVACY_URL)} />
+        <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
+          onPress={() => Linking.openURL(TERMS_URL)} />
+        <SettingRow icon="mail-outline" label={t('contact')} pal={pal}
+          onPress={() => Linking.openURL(CONTACT_MAIL)} />
+        <SettingRow icon="library-outline" label={t('license')} pal={pal}
+          onPress={() => Linking.openURL(LICENSE_URL)} />
+        <SettingRow icon="information-circle-outline" label={t('app_version')}
+          value={APP_VERSION} pal={pal} />
+      </ScrollView>
+    </Animated.View>
   );
 }
 
@@ -419,5 +443,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
+  hintTouch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   hintText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

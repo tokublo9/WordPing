@@ -53,6 +53,8 @@ interface Props {
   /** Called with true when a leftward swipe starts, false when the gesture ends. */
   onSwiping?: (active: boolean) => void;
   showFullCard?: boolean;
+  isPremium?: boolean;
+  onCustomVoiceLocked?: () => void;
 }
 
 export function SwipeableCard({
@@ -60,6 +62,7 @@ export function SwipeableCard({
   onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
   showLevelLabel = true, onSwiping, showFullCard = false,
+  isPremium = false, onCustomVoiceLocked,
 }: Props) {
   const t = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -209,6 +212,7 @@ export function SwipeableCard({
   }, [t]);
 
   const speakWord = useCallback(async () => {
+    if (item.audioUri && !isPremium) { onCustomVoiceLocked?.(); return; }
     if (loadingVoiceRef.current === 'word') {
       ++speakSeqRef.current; // invalidate the in-flight call's seq check
       stopPlayback();
@@ -221,7 +225,7 @@ export function SwipeableCard({
       await speakWordCard(item, isSubscribed);
     } catch (e) { handleTTSError(e); }
     if (speakSeqRef.current === seq) setVoiceState(null);
-  }, [item.word, item.wordLang, item.audioUri, item.audioSpeed, item.audioVolume, isSubscribed, setVoiceState, handleTTSError]);
+  }, [item.word, item.wordLang, item.audioUri, item.audioSpeed, item.audioVolume, isSubscribed, isPremium, onCustomVoiceLocked, setVoiceState, handleTTSError]);
 
   const speakMeaning = useCallback(async () => {
     if (loadingVoiceRef.current === 'meaning') {

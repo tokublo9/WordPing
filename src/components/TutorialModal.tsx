@@ -1,5 +1,5 @@
 import {
-  Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
 import { useLang, type TranslationKey } from '../i18n';
+
+const SW = Dimensions.get('window').width;
 
 interface Props {
   visible: boolean;
@@ -28,49 +30,51 @@ const STEP_KEYS: { icon: string; titleKey: TranslationKey; descKey: TranslationK
 export function TutorialModal({ visible, onClose, pal, themeColor }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
-  const slideY = useRef(new Animated.Value(900)).current;
+  const slideX = useRef(new Animated.Value(SW)).current;
 
   useEffect(() => {
     if (visible) {
-      slideY.setValue(900);
-      Animated.spring(slideY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
+      slideX.setValue(SW);
+      Animated.spring(slideX, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
     }
   }, [visible]);
 
   const dismiss = () => {
-    Animated.timing(slideY, { toValue: 900, duration: 240, useNativeDriver: true })
+    Animated.timing(slideX, { toValue: SW, duration: 220, useNativeDriver: true })
       .start(() => onClose());
   };
 
   if (!visible) return null;
 
-  const closeBtnTop = insets.top + 8;
-
   return (
     <Animated.View
       style={[
         StyleSheet.absoluteFillObject,
-        { backgroundColor: pal.bg, transform: [{ translateY: slideY }] },
+        { backgroundColor: pal.bg, paddingTop: insets.top, transform: [{ translateX: slideX }] },
       ]}
     >
-      <TouchableOpacity
-        style={[styles.closeBtn, { top: closeBtnTop }]}
-        onPress={dismiss}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="close" size={22} color={pal.sub} />
-      </TouchableOpacity>
+      {/* Navigation bar */}
+      <View style={[styles.navBar, { borderBottomColor: pal.border }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={dismiss}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={pal.text} />
+        </TouchableOpacity>
+        <Text style={[styles.navTitle, { color: pal.text }]}>{t('how_to_use')}</Text>
+        <View style={styles.backBtn} />
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingTop: closeBtnTop + 40 }]}
+        contentContainerStyle={styles.content}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Decorative icon */}
+        <View style={styles.iconHeader}>
           <View style={[styles.iconCircle, { backgroundColor: themeColor + '22' }]}>
             <Ionicons name="help-circle-outline" size={28} color={themeColor} />
           </View>
-          <Text style={[styles.title, { color: pal.text }]}>{t('how_to_use')}</Text>
         </View>
 
         {/* Steps */}
@@ -91,15 +95,24 @@ export function TutorialModal({ visible, onClose, pal, themeColor }: Props) {
 }
 
 const styles = StyleSheet.create({
-  closeBtn: { position: 'absolute', left: 20, zIndex: 10, padding: 4 },
-  content:  { paddingHorizontal: 24, paddingBottom: 56 },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backBtn:  { width: 44, alignItems: 'center' },
+  navTitle: { fontSize: 17, fontWeight: '600' },
 
-  header: { alignItems: 'center', paddingBottom: 28 },
+  content:    { paddingHorizontal: 24, paddingBottom: 56 },
+  iconHeader: { alignItems: 'center', paddingTop: 24, paddingBottom: 28 },
   iconCircle: {
     width: 60, height: 60, borderRadius: 30,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: 24, fontWeight: '700' },
 
   step: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 24 },
   iconWrap: {

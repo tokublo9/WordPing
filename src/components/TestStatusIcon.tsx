@@ -34,7 +34,7 @@ export function TestStatusIcon({ cardCount, untestedCount, themeColor, pal }: Pr
             <View style={[
               styles.badge,
               over99 && styles.badgePill,
-              { backgroundColor: themeColor, borderColor: '#fff', borderWidth: 1 },
+              { backgroundColor: themeColor, borderColor: themeColor, borderWidth: 1 },
             ]}>
               <Text style={[styles.badgeText, twoDigit && styles.badgeTextSm, { color: '#fff' }]}>
                 {label}
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     right: -5,
     width: 15,
     height: 15,
-    borderRadius: 7,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -33,7 +33,8 @@ export interface UseCardsReturn {
   reorderSortDir: 'asc' | 'desc' | null;
   enterReorderMode(): void;
   exitReorderMode(): void;
-  handleSortByLevel(): void;
+  cancelReorderMode(): void;
+  handleSortByLevel(dir: 'asc' | 'desc'): void;
   handleResetOrder(): void;
   // Level filter
   levelFilter: Set<string>;
@@ -184,6 +185,20 @@ export function useCards({
     setReorderSortDir(null);
   };
 
+  // Cancel: discard any reordering done this session, restoring the order captured
+  // when reorder mode was entered, then exit.
+  const cancelReorderMode = () => {
+    const orig = originalFolderCards.current;
+    if (orig.length) {
+      setCards(prev => [
+        ...orig,
+        ...prev.filter(c => c.folderId !== currentFolderId),
+      ]);
+    }
+    setReorderMode(false);
+    setReorderSortDir(null);
+  };
+
   const enterReorderMode = () => {
     setReorderMode(true);
     setSelectionMode(false);
@@ -193,13 +208,12 @@ export function useCards({
     originalFolderCards.current = folderCards;
   };
 
-  const handleSortByLevel = () => {
-    const nextDir = reorderSortDir === 'asc' ? 'desc' : 'asc';
-    setReorderSortDir(nextDir);
+  const handleSortByLevel = (dir: 'asc' | 'desc') => {
+    setReorderSortDir(dir);
     const sorted = [...folderCards].sort((a, b) => {
       const la = a.testLevel != null ? (LEVEL_ORDER[a.testLevel] ?? 4) : 4;
       const lb = b.testLevel != null ? (LEVEL_ORDER[b.testLevel] ?? 4) : 4;
-      return nextDir === 'asc' ? la - lb : lb - la;
+      return dir === 'asc' ? la - lb : lb - la;
     });
     setCards(prev => [
       ...sorted,
@@ -338,7 +352,7 @@ export function useCards({
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
-    enterReorderMode, exitReorderMode, handleSortByLevel, handleResetOrder,
+    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleResetOrder,
     levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,

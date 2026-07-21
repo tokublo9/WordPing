@@ -4,16 +4,21 @@ import {
   Alert,
   Animated,
   Dimensions,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder } from './src/types';
 import {
-  FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY,
+  BASIC_CUSTOM_VOICE_LIMIT, FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY,
 } from './src/constants';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
@@ -71,6 +76,32 @@ export default function App() {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
 
+  // ── Custom voice locked banner ────────────────────────────────────────────────
+  const insets = useSafeAreaInsets();
+  const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
+  const voiceBannerAnim = useRef(new Animated.Value(0)).current;
+  const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissVoiceBanner = useCallback(() => {
+    if (voiceBannerTimer.current) { clearTimeout(voiceBannerTimer.current); voiceBannerTimer.current = null; }
+    Animated.timing(voiceBannerAnim, { toValue: 0, duration: 220, useNativeDriver: true })
+      .start(({ finished }) => { if (finished) setVoiceBannerShowing(false); });
+  }, [voiceBannerAnim]);
+
+  const showVoiceLockBanner = useCallback(() => {
+    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
+    setVoiceBannerShowing(true);
+    Animated.spring(voiceBannerAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }).start();
+    voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
+  }, [voiceBannerAnim, dismissVoiceBanner]);
+
+  // Swipe the banner upward to dismiss it (tap-to-dismiss is on the banner itself).
+  const voiceBannerPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
+    onPanResponderRelease: (_, g) => { if (g.dy < -20) dismissVoiceBanner(); },
+  })).current;
+
   // ── Folder navigation ────────────────────────────────────────────────────────
   const [addingFolder, setAddingFolder] = useState(false);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
@@ -90,7 +121,7 @@ export default function App() {
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
-    enterReorderMode, exitReorderMode, handleSortByLevel, handleResetOrder,
+    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleResetOrder,
     levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
@@ -230,7 +261,6 @@ export default function App() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <LangContext.Provider value={t}>
-    <SafeAreaProvider>
     <SafeAreaView style={[s.root, { backgroundColor: pal.bg }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppOverlays activeSkin={activeSkin} scrollY={scrollY} />
@@ -272,6 +302,7 @@ export default function App() {
           pal={pal}
           themeColor={activeThemeColor}
           isSubscribed={isSubscribed}
+          isPremium={isPremium}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
           currentFolder={currentFolder}
@@ -311,6 +342,7 @@ export default function App() {
                 ...prev.filter(c => c.folderId !== currentFolderId),
               ]),
             onExit: exitReorderMode,
+            onCancel: cancelReorderMode,
           }}
           actions={{
             onGoBack: goBackToFolders,
@@ -323,6 +355,7 @@ export default function App() {
             onMove: openMovePicker,
             onToggleNotif: toggleCardNotif,
             onVoiceLocked: () => openPaywall('voice'),
+            onCustomVoiceLocked: showVoiceLockBanner,
             onOpenAdd: openAdd,
           }}
           menuBtnRef={menuBtnRef}
@@ -345,6 +378,8 @@ export default function App() {
           visible: wordModalVisible,
           onClose: () => setWordModalVisible(false),
           editingCard,
+          basicVoiceLimitReached: isSubscribed && !isPremium && !(editingCard?.wordLang || editingCard?.meaningLang) &&
+            cards.filter(c => (c.wordLang != null || c.meaningLang != null) && c.id !== editingCard?.id).length >= BASIC_CUSTOM_VOICE_LIMIT,
           word,
           onChangeWord: setWord,
           meaning,
@@ -366,6 +401,7 @@ export default function App() {
           reviewHistory,
           testClearPending,
           onResetAll: resetWordReview,
+          onUpgrade: () => setProSheetVisible(true),
         }}
         notifModal={{
           visible: notificationModalVisible,
@@ -467,10 +503,51 @@ export default function App() {
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />
 
+      {/* Custom voice locked banner — tap or swipe up to dismiss */}
+      {voiceBannerShowing && (
+        <Animated.View
+          style={[
+            bannerStyles.banner,
+            {
+              top: insets.top + 8,
+              backgroundColor: pal.dialog,
+              borderColor: pal.border,
+              opacity: voiceBannerAnim,
+              transform: [{ translateY: voiceBannerAnim.interpolate({ inputRange: [0, 1], outputRange: [-56, 0] }) }],
+            },
+          ]}
+          {...voiceBannerPan.panHandlers}
+        >
+          <TouchableOpacity activeOpacity={0.85} onPress={dismissVoiceBanner} style={bannerStyles.touch}>
+            <Ionicons name="warning" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
+            <Text style={[bannerStyles.text, { color: pal.text }]}>{t('custom_voice_locked_msg')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
     </SafeAreaView>
-    </SafeAreaProvider>
     </LangContext.Provider>
   );
 }
 
-
+const bannerStyles = StyleSheet.create({
+  banner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  touch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  text: { flex: 1, fontSize: 13, lineHeight: 18 },
+});

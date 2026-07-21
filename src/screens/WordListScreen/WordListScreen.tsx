@@ -12,7 +12,6 @@ import type { Folder, Palette, WordCard } from '../../types';
 import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
 import { AD_BANNER_HEIGHT } from '../../components/AdBannerPlaceholder';
-import { FREE_VOICE_LIMIT } from '../../constants';
 import { LEVEL_FILTER_OPTIONS } from '../../features/cards/levels';
 import { SwipeableCard } from '../../components/SwipeableCard';
 import { ReorderableList } from '../../components/ReorderableList';
@@ -21,6 +20,11 @@ import { TestStatusIcon } from '../../components/TestStatusIcon';
 import { ScrollBar } from '../../components/ScrollBar';
 
 const SEL_BAR_H = 68;
+
+// Comprehension-level colors for the sort options, reusing the same green/red as
+// the level filter chips: green = highest understanding, red = lowest.
+const LEVEL_HIGH_COLOR = LEVEL_FILTER_OPTIONS.find(o => o.level === 'perfect')?.color ?? '#5EBF84';
+const LEVEL_LOW_COLOR  = LEVEL_FILTER_OPTIONS.find(o => o.level === 'unknown')?.color ?? '#ED7373';
 
 const emptyIconWrap = {
   width: 80, height: 80, borderRadius: 24,
@@ -43,10 +47,11 @@ export interface WordListSelectionProps {
 export interface WordListReorderProps {
   active: boolean;
   sortDir: 'asc' | 'desc' | null;
-  onSortByLevel(): void;
+  onSortByLevel(dir: 'asc' | 'desc'): void;
   onResetOrder(): void;
   onReorder(reorderedCards: WordCard[]): void;
   onExit(): void;
+  onCancel(): void;
 }
 
 export interface WordListActionsProps {
@@ -60,6 +65,7 @@ export interface WordListActionsProps {
   onMove(ids: string[]): void;
   onToggleNotif(id: string): void;
   onVoiceLocked(): void;
+  onCustomVoiceLocked(): void;
   onOpenAdd(): void;
 }
 
@@ -67,6 +73,7 @@ export interface WordListScreenProps {
   pal: Palette;
   themeColor: string;
   isSubscribed: boolean;
+  isPremium?: boolean;
 
   // Deep Sea skin scroll animation
   scrollY: Animated.Value;
@@ -105,7 +112,7 @@ export interface WordListScreenProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function WordListScreen({
-  pal, themeColor, isSubscribed,
+  pal, themeColor, isSubscribed, isPremium = false,
   scrollY, deepSeaSkin,
   currentFolder, folderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
@@ -187,7 +194,7 @@ export function WordListScreen({
       isFlipped={flipped.has(item.id)}
       themeColor={themeColor}
       pal={pal}
-      voiceLocked={!isSubscribed && index >= FREE_VOICE_LIMIT}
+      voiceLocked={false}
       isSubscribed={isSubscribed}
       onFlip={() => actions.onFlip(item.id)}
       onEdit={() => actions.onEdit(item)}
@@ -195,6 +202,8 @@ export function WordListScreen({
       onMove={() => actions.onMove([item.id])}
       onToggleNotif={() => actions.onToggleNotif(item.id)}
       onVoiceLocked={actions.onVoiceLocked}
+      onCustomVoiceLocked={actions.onCustomVoiceLocked}
+      isPremium={isPremium}
       onOpen={onCardOpen}
       openCardRef={closeOpenCard}
       selectionMode={selection.active}
@@ -225,11 +234,18 @@ export function WordListScreen({
           <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
             {t('reorder_cards')}
           </Text>
-          <TouchableOpacity style={s.iconBtn} onPress={reorder.onExit}>
-            <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
-              {t('done')}
-            </Text>
-          </TouchableOpacity>
+          <View style={reorderToolStyles.headerActions}>
+            <TouchableOpacity style={s.iconBtn} onPress={reorder.onCancel} hitSlop={{ top: 8, bottom: 8 }}>
+              <Text style={{ color: pal.sub, fontSize: 16, fontWeight: '600' }}>
+                {t('cancel')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} onPress={reorder.onExit} hitSlop={{ top: 8, bottom: 8 }}>
+              <Text style={{ color: themeColor, fontSize: 16, fontWeight: '700' }}>
+                {t('save')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </>
       ) : (
         <>
@@ -354,20 +370,48 @@ export function WordListScreen({
     cardContent = (
       <>
         <View style={reorderToolStyles.toolbar}>
+          {/* Highest first — green circle → arrow → label (asc: perfect → unknown) */}
           <TouchableOpacity
-            style={[reorderToolStyles.btn, { backgroundColor: pal.card, borderColor: pal.border }]}
-            onPress={reorder.onSortByLevel}
+            style={[
+              reorderToolStyles.sortBtn,
+              { backgroundColor: pal.card, borderColor: pal.border },
+              reorder.sortDir === 'asc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
+            ]}
+            onPress={() => reorder.onSortByLevel('asc')}
+            activeOpacity={0.85}
           >
-            <Text style={[reorderToolStyles.btnText, { color: reorder.sortDir != null ? themeColor : pal.text }]}>
-              {t(reorder.sortDir === 'asc' ? 'reorder_sort_least_first' : 'reorder_sort_best_first')}
+            <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_HIGH_COLOR }]} />
+            <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
+            <Text style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'asc' ? themeColor : pal.text }]}>
+              {t('reorder_sort_best_first')}
             </Text>
           </TouchableOpacity>
+
+          {/* Lowest first — red circle → arrow → label (desc: unknown → perfect) */}
           <TouchableOpacity
-            style={[reorderToolStyles.btn, { backgroundColor: pal.card, borderColor: pal.border }]}
-            onPress={reorder.onResetOrder}
+            style={[
+              reorderToolStyles.sortBtn,
+              { backgroundColor: pal.card, borderColor: pal.border },
+              reorder.sortDir === 'desc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
+            ]}
+            onPress={() => reorder.onSortByLevel('desc')}
+            activeOpacity={0.85}
           >
-            <Ionicons name="refresh-outline" size={15} color={pal.sub} />
-            <Text style={[reorderToolStyles.btnText, { color: pal.sub }]}>{t('reorder_original')}</Text>
+            <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_LOW_COLOR }]} />
+            <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
+            <Text style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'desc' ? themeColor : pal.text }]}>
+              {t('reorder_sort_least_first')}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Reset to original order — icon only */}
+          <TouchableOpacity
+            style={[reorderToolStyles.resetBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
+            onPress={reorder.onResetOrder}
+            activeOpacity={0.85}
+            accessibilityLabel={t('reorder_original')}
+          >
+            <Ionicons name="refresh-outline" size={16} color={pal.sub} />
           </TouchableOpacity>
         </View>
         <ReorderableList
@@ -388,6 +432,8 @@ export function WordListScreen({
         pal={pal}
         themeColor={themeColor}
         isSubscribed={isSubscribed}
+        isPremium={isPremium}
+        onCustomVoiceLocked={actions.onCustomVoiceLocked}
         onEdit={actions.onEdit}
         onDelete={actions.onDelete}
         onMove={card => actions.onMove([card.id])}
@@ -549,6 +595,7 @@ const filterStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingBottom: 10,
+    marginTop: -4,
   },
   chipGroup: {
     flexDirection: 'row',
@@ -575,21 +622,47 @@ const reorderToolStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 16,
     paddingBottom: 10,
   },
-  btn: {
-    flexDirection: 'row',
+  // Original-order reset — icon-only button beside the Lowest First pill.
+  resetBtn: {
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
+    justifyContent: 'center',
+    paddingHorizontal: 11,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  // Direction sort pills — colored level circle → arrow → label.
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  levelCircle: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  sortArrow: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginHorizontal: -1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   btnText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });

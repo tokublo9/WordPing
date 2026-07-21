@@ -446,6 +446,7 @@ export const REVEAL_WIDTH = 220;
 
 export const FREE_WORD_LIMIT = 30;
 export const FREE_VOICE_LIMIT = 10;
+export const BASIC_CUSTOM_VOICE_LIMIT = 10;
 
 export const MAX_AI_INPUT_CHARS = 500;
 

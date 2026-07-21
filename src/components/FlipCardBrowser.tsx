@@ -35,6 +35,8 @@ interface Props {
   onToggleNotif: (id: string) => void;
   showLevelLabel?: boolean;
   verticalFlip?: boolean;
+  isPremium?: boolean;
+  onCustomVoiceLocked?: () => void;
 }
 
 // Returns { curr, next, prev } slot indices given the current center slot.
@@ -44,7 +46,7 @@ function getSlots(curr: number) {
 }
 
 
-export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif, showLevelLabel = true, verticalFlip = false }: Props) {
+export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif, showLevelLabel = true, verticalFlip = false, isPremium = false, onCustomVoiceLocked }: Props) {
   const t = useLang();
 
   // ── Three independent slot positions ──────────────────────────────────────
@@ -134,13 +136,14 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
   }, [flipped, flipAnim]);
 
   const speakCardSide = useCallback((side: 'word' | 'meaning', card: WordCard) => {
+    if (side === 'word' && card.audioUri && !isPremium) { onCustomVoiceLocked?.(); return; }
     if (playing) { stopPlayback(); setPlaying(false); return; }
     setPlaying(true);
     const p = side === 'word'
       ? speakWordCard(card, isSubscribed)
       : ttsSpeak(card.meaning, isSubscribed, card.meaningLang);
     p.then(() => setPlaying(false)).catch(() => setPlaying(false));
-  }, [playing, isSubscribed]);
+  }, [playing, isSubscribed, isPremium, onCustomVoiceLocked]);
 
   const handleDelete = useCallback(() => {
     const c = cardsRef.current[idxRef.current];
@@ -367,10 +370,11 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                 </View>
               )}
 
-              {/* Notification-off badge — bottom-right corner, current card only */}
-              {isCurr && c.notifOff && (
-                <View style={[s.notifOffBadge, { backgroundColor: pal.border }]} pointerEvents="none">
-                  <Ionicons name="notifications-off-outline" size={14} color={pal.sub} />
+              {/* Notification-off icon — bottom-right corner of every card.
+                  Same icon + styling as the Word List card indicator. */}
+              {c.notifOff && (
+                <View style={s.notifOffBadge} pointerEvents="none">
+                  <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
                 </View>
               )}
             </Animated.View>
@@ -498,11 +502,7 @@ const s = StyleSheet.create({
     bottom: 14,
     right: 14,
     zIndex: 3,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    opacity: 0.45,
   },
   actionRow: {
     flexDirection: 'row',

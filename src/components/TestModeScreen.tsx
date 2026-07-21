@@ -5,6 +5,7 @@ import {
   Dimensions,
   Easing,
   Modal,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -409,11 +410,49 @@ interface Props {
   pal: Palette;
   themeColor: string;
   isSubscribed: boolean;
+  isPremium?: boolean;
 }
 
-export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, isSubscribed }: Props) {
+export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, isSubscribed, isPremium = false }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
+
+  // ── Locked custom-voice banner ────────────────────────────────────────────
+  // Rendered inside this full-screen modal so it appears above the Test sheet.
+  // Tap or swipe up to dismiss.
+  const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
+  const voiceBannerAnim  = useRef(new Animated.Value(0)).current;
+  const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissVoiceBanner = useCallback(() => {
+    if (voiceBannerTimer.current) { clearTimeout(voiceBannerTimer.current); voiceBannerTimer.current = null; }
+    Animated.timing(voiceBannerAnim, { toValue: 0, duration: 220, useNativeDriver: false })
+      .start(({ finished }) => { if (finished) setVoiceBannerShowing(false); });
+  }, [voiceBannerAnim]);
+
+  const showVoiceLockedBanner = useCallback(() => {
+    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
+    setVoiceBannerShowing(true);
+    Animated.spring(voiceBannerAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: false }).start();
+    voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
+  }, [voiceBannerAnim, dismissVoiceBanner]);
+
+  const voiceBannerPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
+    onPanResponderMove: (_, g) => {
+      if (g.dy < 0) voiceBannerAnim.setValue(Math.max(0, 1 - (-g.dy) / 80));
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy < -28) {
+        dismissVoiceBanner();
+      } else {
+        Animated.spring(voiceBannerAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
+        if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
+        voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
+      }
+    },
+  })).current;
 
   const [queue, setQueue] = useState<WordCard[]>(() => {
     const now = Date.now();
@@ -451,13 +490,17 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
     if (!mutedLoaded) return;
     const current = queue[idx];
     if (!current?.word || muted) return;
+    if (current.audioUri && !isPremium) { showVoiceLockedBanner(); return; }
     setPlaying(true);
     speakWordCard(current, isSubscribed)
       .then(() => setPlaying(false))
       .catch(() => setPlaying(false));
-  }, [idx, sessionKey, mutedLoaded, isSubscribed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idx, sessionKey, mutedLoaded, isSubscribed, isPremium, showVoiceLockedBanner]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => () => { stopPlayback(); }, []);
+  useEffect(() => () => {
+    stopPlayback();
+    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
+  }, []);
 
   // ── Flip animation interpolations ────────────────────────────────────────
 
@@ -523,12 +566,13 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
 
   const speakWord = useCallback((card: WordCard) => {
     if (muted) return;
+    if (card.audioUri && !isPremium) { showVoiceLockedBanner(); return; }
     if (playing) { stopPlayback(); setPlaying(false); return; }
     setPlaying(true);
     speakWordCard(card, isSubscribed)
       .then(() => setPlaying(false))
       .catch(() => setPlaying(false));
-  }, [muted, playing, isSubscribed]);
+  }, [muted, playing, isSubscribed, isPremium, showVoiceLockedBanner]);
 
   const doToggleFlip = useCallback(() => {
     if (flipped) {
@@ -781,6 +825,28 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
         pal={pal}
         themeColor={themeColor}
       />
+
+      {/* Locked custom-voice error — above the Test sheet; tap or swipe up to dismiss */}
+      {voiceBannerShowing && (
+        <Animated.View
+          style={[
+            s.voiceBanner,
+            {
+              top: insets.top + 8,
+              backgroundColor: pal.dialog,
+              borderColor: pal.border,
+              opacity: voiceBannerAnim,
+              transform: [{ translateY: voiceBannerAnim.interpolate({ inputRange: [0, 1], outputRange: [-56, 0] }) }],
+            },
+          ]}
+          {...voiceBannerPan.panHandlers}
+        >
+          <TouchableOpacity activeOpacity={0.85} onPress={dismissVoiceBanner} style={s.voiceBannerTouch}>
+            <Ionicons name="warning" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
+            <Text style={[s.voiceBannerText, { color: pal.text }]}>{t('custom_voice_locked_msg')}</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </Modal>
   );
 }
@@ -789,6 +855,27 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+
+  // Locked custom-voice banner (top overlay)
+  voiceBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  voiceBannerTouch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  voiceBannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
 
   header: {
     flexDirection: 'row',

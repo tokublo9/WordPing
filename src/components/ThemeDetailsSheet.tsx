@@ -17,6 +17,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { Palette, ThemeSkin } from '../types';
 import { type TranslationKey, useLang } from '../i18n';
 import { SKINS } from '../constants';
+import { formatPrice } from '../lib/pricing';
 import { type ShopItem, PremiumSkinPreview, THEME_SCREENSHOTS, THEME_SCREENSHOTS_FLIP, THEME_VIDEOS, THEME_VIDEOS_FLIP } from './ThemeSkinPreview';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -410,7 +411,9 @@ export function ThemeDetailsSheet({
   const skinData = SKINS.find(s => s.id === displayItem?.id);
   const isApplied = displayItem ? effectiveSkinId === displayItem.id : false;
   const isFreeItem = displayItem ? !displayItem.price && displayItem.category === 'solid' : false;
-  const isSolidPaid = displayItem ? displayItem.category === 'solid' && displayItem.price > 0 : false;
+  const isAnimated = displayItem
+    ? THEME_VIDEOS[displayItem.id] != null || THEME_VIDEOS_FLIP[displayItem.id] != null
+    : false;
 
   if (!displayItem) return null;
 
@@ -422,7 +425,7 @@ export function ThemeDetailsSheet({
   // ── Action button config ────────────────────────────────────────────────────
   let actionLabel: string;
   let actionDisabled = false;
-  let actionStyle: 'primary' | 'secondary' | 'disabled' = 'primary';
+  let actionStyle: 'primary' | 'disabled' = 'primary';
 
   if (isApplied) {
     actionLabel = `✓  ${t('theme_details_applied')}`;
@@ -431,11 +434,8 @@ export function ThemeDetailsSheet({
   } else if (isOwned) {
     actionLabel = t('theme_details_apply');
     actionStyle = 'primary';
-  } else if (!isSubscribed && isSolidPaid) {
-    actionLabel = t('theme_details_upgrade');
-    actionStyle = 'secondary';
   } else if (!isOwned) {
-    actionLabel = `${t('theme_details_buy')}  ¥${displayItem.price}`;
+    actionLabel = t('theme_details_buy');
     actionStyle = 'primary';
   } else {
     actionLabel = t('theme_details_apply');
@@ -446,22 +446,21 @@ export function ThemeDetailsSheet({
     if (isOwned) {
       onApply(displayItem);
       handleClose();
-    } else if (!isSubscribed && isSolidPaid) {
-      onUpgrade();
     } else {
       onApply(displayItem);
       handleClose();
     }
   };
 
-  // Badge shown under the name
-  const badge: { label: string; color: string } | null = isFreeItem
+  // Status badge shown under the name. Prices are intentionally plain text.
+  const statusBadge: { label: string; color: string } | null = isFreeItem
     ? { label: t('theme_details_free_badge'), color: '#22C55E' }
     : isOwned && !isApplied
       ? { label: t('theme_details_owned_badge'), color: '#22C55E' }
-      : displayItem.price > 0 && !isOwned && !isSubscribed
-        ? { label: `¥${displayItem.price}`, color: '#EF4444' }
-        : null;
+      : null;
+  const priceLabel = displayItem.price > 0 && !isOwned && !isSubscribed
+    ? formatPrice(displayItem.price)
+    : null;
 
   return (
     <>
@@ -507,9 +506,19 @@ export function ThemeDetailsSheet({
           <View style={s.heroInfo}>
             <Text style={[s.heroName, { color: pal.text }]} numberOfLines={2}>{displayItem.name}</Text>
 
-            {badge && (
-              <View style={[s.badgeChip, { backgroundColor: badge.color + '18', borderColor: badge.color + '44' }]}>
-                <Text style={[s.badgeText, { color: badge.color }]}>{badge.label}</Text>
+            {priceLabel && (
+              <Text style={s.priceText}>{priceLabel}</Text>
+            )}
+
+            {statusBadge && (
+              <View style={[s.badgeChip, { backgroundColor: statusBadge.color + '18', borderColor: statusBadge.color + '44' }]}>
+                <Text style={[s.badgeText, { color: statusBadge.color }]}>{statusBadge.label}</Text>
+              </View>
+            )}
+
+            {isAnimated && (
+              <View style={s.animatedBadge}>
+                <Text style={s.animatedBadgeText}>{t('theme_details_animated_badge')}</Text>
               </View>
             )}
 
@@ -519,7 +528,6 @@ export function ThemeDetailsSheet({
               style={[
                 s.actionBtn,
                 actionStyle === 'primary'   && { backgroundColor: themeColor },
-                actionStyle === 'secondary' && { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: themeColor },
                 actionStyle === 'disabled'  && { backgroundColor: themeColor, opacity: 0.55 },
               ]}
               onPress={handleAction}
@@ -528,15 +536,22 @@ export function ThemeDetailsSheet({
             >
               <Text style={[
                 s.actionBtnText,
-                actionStyle === 'secondary' ? { color: themeColor } : { color: '#fff' },
+                { color: '#fff' },
               ]}>
                 {actionLabel}
               </Text>
             </TouchableOpacity>
 
-            {!isSubscribed && isSolidPaid && (
-              <Text style={[s.includedNote, { color: pal.sub }]}>{t('theme_details_included_basic')}</Text>
-            )}
+            <TouchableOpacity
+              style={[s.actionBtn, s.planBtn, { borderColor: themeColor }]}
+              onPress={onUpgrade}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.actionBtnText, { color: themeColor }]}>
+                {t('theme_details_upgrade')}
+              </Text>
+            </TouchableOpacity>
+
           </View>
         </View>
 
@@ -604,6 +619,8 @@ const s = StyleSheet.create({
 
   heroName: { fontSize: 18, fontWeight: '700', marginBottom: 8, lineHeight: 24 },
 
+  priceText: { color: '#EF4444', fontSize: 12, fontWeight: '700', marginBottom: 6 },
+
   badgeChip: {
     alignSelf: 'flex-start',
     borderRadius: 8, borderWidth: 1,
@@ -611,6 +628,14 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   badgeText: { fontSize: 12, fontWeight: '700' },
+  animatedBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 8, borderWidth: 1,
+    borderColor: '#7C3AED44', backgroundColor: '#7C3AED18',
+    paddingHorizontal: 8, paddingVertical: 3,
+    marginBottom: 6,
+  },
+  animatedBadgeText: { color: '#7C3AED', fontSize: 12, fontWeight: '700' },
 
   actionBtn: {
     borderRadius: 12,
@@ -619,8 +644,7 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   actionBtnText: { fontSize: 14, fontWeight: '700' },
-
-  includedNote: { fontSize: 11, marginTop: 6, textAlign: 'center' },
+  planBtn: { backgroundColor: 'transparent', borderWidth: 1.5, marginTop: 8 },
 
   // Sections
   divider:      { height: StyleSheet.hairlineWidth, marginVertical: 20 },
