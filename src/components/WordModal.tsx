@@ -97,6 +97,8 @@ interface Props {
   pal: Palette;
   themeColor: string;
   isSubscribed: boolean;
+  /** Premium plan — gates the AI text tools (meaning, example, breakdown, translate). */
+  isPremium?: boolean;
   wordLang: string | undefined;
   onChangeWordLang: (lang: string | undefined) => void;
   meaningLang: string | undefined;
@@ -117,7 +119,7 @@ export function WordModal({
   visible, onClose, editingCard,
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
-  isSubscribed, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
+  isSubscribed, isPremium = false, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
   audioUri, onChangeAudioUri,
   audioSpeed, onChangeAudioSpeed,
   audioVolume, onChangeAudioVolume,
@@ -631,7 +633,7 @@ export function WordModal({
                 {/* Meaning field */}
                 <View style={[styles.fieldLabelRow, { marginTop: 8 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('meaning_label')}</Text>
-                  {isSubscribed && !hideAiTools && (
+                  {isPremium && !hideAiTools && (
                     <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
                       <TouchableOpacity
                         onPress={handleGenerate}
@@ -658,14 +660,14 @@ export function WordModal({
                 </View>
                 <View>
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && !hideAiTools && meaning.trim() ? 4 : 18 }]}
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isPremium && !hideAiTools && meaning.trim() ? 4 : 18 }]}
                     value={meaning}
                     onChangeText={onChangeMeaning}
                     multiline
                     scrollEnabled={false}
                   />
                 </View>
-                {isSubscribed && !hideAiTools && meaning.trim() ? (
+                {isPremium && !hideAiTools && meaning.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {meaningTranslation ? (
@@ -710,7 +712,7 @@ export function WordModal({
                 <View style={[styles.fieldLabelRow, { marginTop: 24 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('note_label')}</Text>
                   {/* Breakdown + AI Example — Basic Plan only */}
-                  {isSubscribed && !hideAiTools && (
+                  {isPremium && !hideAiTools && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       {/* Breakdown with lang selector */}
                       <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
@@ -763,14 +765,14 @@ export function WordModal({
                 </View>
                 <View>
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isSubscribed && !hideAiTools && note.trim() ? 4 : 18 }]}
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isPremium && !hideAiTools && note.trim() ? 4 : 18 }]}
                     value={note}
                     onChangeText={onChangeNote}
                     multiline
                     scrollEnabled={false}
                   />
                 </View>
-                {isSubscribed && !hideAiTools && note.trim() ? (
+                {isPremium && !hideAiTools && note.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {noteTranslation ? (

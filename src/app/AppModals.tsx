@@ -18,7 +18,9 @@ export interface AppModalsProps {
   themeColor: string;        // activeThemeColor
   rawThemeColor: string;     // themeColor — used by PaywallModal
   isSubscribed: boolean;
+  isPremium: boolean;
   subscribe(): Promise<void>;
+  subscribePremium(): Promise<void>;
   restore(): Promise<void>;
   onManageSubscription?: () => void;   // __DEV__ only; pre-computed in App.tsx
 
@@ -93,6 +95,8 @@ export interface AppModalsProps {
     onClose(): void;
     learningLang: string | undefined;
     nativeLang: string;
+    skinId?: string | null;
+    onPickSkin?: (id: string | null) => void;
   };
 
   // FolderCustomizeModal — add new folder
@@ -136,8 +140,8 @@ export interface AppModalsProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AppModals({
-  pal, themeColor, rawThemeColor, isSubscribed,
-  subscribe, restore, onManageSubscription,
+  pal, themeColor, rawThemeColor, isSubscribed, isPremium,
+  subscribe, subscribePremium, restore, onManageSubscription,
   wordModal, notifModal, settingsModal, paywallModal,
   proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
 }: AppModalsProps) {
@@ -157,6 +161,7 @@ export function AppModals({
         pal={pal}
         themeColor={themeColor}
         isSubscribed={isSubscribed}
+        isPremium={isPremium}
         wordLang={wordModal.wordLang}
         onChangeWordLang={wordModal.onChangeWordLang}
         meaningLang={wordModal.meaningLang}
@@ -194,8 +199,10 @@ export function AppModals({
         skinId={settingsModal.skinId}
         onPickSkin={settingsModal.onPickSkin}
         isSubscribed={isSubscribed}
+        isPremium={isPremium}
         onUpgrade={settingsModal.onUpgrade}
         onSubscribe={subscribe}
+        onSubscribePremium={subscribePremium}
         onRestore={restore}
         onManageSubscription={onManageSubscription}
         pal={pal}
@@ -223,13 +230,17 @@ export function AppModals({
         visible={proSheet.visible}
         onClose={proSheet.onClose}
         onSubscribe={subscribe}
+        onSubscribePremium={subscribePremium}
         onRestore={restore}
         onManageSubscription={onManageSubscription}
         themeColor={themeColor}
         pal={pal}
         isSubscribed={isSubscribed}
+        isPremium={isPremium}
         learningLang={proSheet.learningLang}
         nativeLang={proSheet.nativeLang}
+        skinId={proSheet.skinId}
+        onPickSkin={proSheet.onPickSkin}
       />
 
       <FolderCustomizeModal

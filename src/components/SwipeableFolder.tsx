@@ -211,7 +211,6 @@ export function SwipeableFolder({
                   cardCount={cardCount}
                   untestedCount={untestedCount}
                   themeColor={themeColor}
-                  pal={pal}
                 />
               )}
             </View>
@@ -261,7 +260,6 @@ export function SwipeableFolder({
                       cardCount={cardCount}
                       untestedCount={untestedCount}
                       themeColor={themeColor}
-                      pal={pal}
                     />
                   )}
                 </View>
@@ -286,30 +284,13 @@ export function SwipeableFolder({
 
 // ── Folder test-status badge ─────────────────────────────────────────────────
 // Simpler than TestStatusIcon: no graduation cap — just a checkmark or count.
-function FolderTestBadge({ cardCount, untestedCount, themeColor, pal }: {
+function FolderTestBadge({ cardCount, untestedCount, themeColor }: {
   cardCount: number;
   untestedCount: number;
   themeColor: string;
-  pal: Palette;
 }) {
-  if (cardCount === 0) return null;
-  if (untestedCount === 0) {
-    return <Ionicons name="checkmark-circle" size={21} color={themeColor} />;
-  }
-  const over99 = untestedCount > 99;
-  const label  = over99 ? '99+' : String(untestedCount);
-  const twoDigit = !over99 && untestedCount >= 10;
-  return (
-    <View style={[
-      badgeStyles.circle,
-      over99 && badgeStyles.pill,
-      { backgroundColor: pal.card, borderColor: themeColor, borderWidth: 1 },
-    ]}>
-      <Text style={[badgeStyles.text, twoDigit && badgeStyles.textSm, { color: themeColor }]}>
-        {label}
-      </Text>
-    </View>
-  );
+  if (cardCount === 0 || untestedCount > 0) return null;
+  return <Ionicons name="checkmark-circle" size={21} color={themeColor} />;
 }
 
 function MenuRow({ icon, label, pal, color, onPress }: {
@@ -394,16 +375,3 @@ const styles = StyleSheet.create({
   sep: { height: StyleSheet.hairlineWidth },
 });
 
-const badgeStyles = StyleSheet.create({
-  // Fixed square → perfect circle for counts 1–99.
-  circle: {
-    width: 18, height: 18, borderRadius: 9,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  // Wider pill only for "99+" so the text stays readable.
-  pill: {
-    width: undefined, paddingHorizontal: 5,
-  },
-  text:   { fontSize: 11, fontWeight: '700', lineHeight: 13 },
-  textSm: { fontSize: 9 },
-});

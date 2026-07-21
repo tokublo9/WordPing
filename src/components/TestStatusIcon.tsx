@@ -34,9 +34,9 @@ export function TestStatusIcon({ cardCount, untestedCount, themeColor, pal }: Pr
             <View style={[
               styles.badge,
               over99 && styles.badgePill,
-              { backgroundColor: pal.card, borderColor: themeColor, borderWidth: 1 },
+              { backgroundColor: themeColor, borderColor: '#fff', borderWidth: 1 },
             ]}>
-              <Text style={[styles.badgeText, twoDigit && styles.badgeTextSm, { color: themeColor }]}>
+              <Text style={[styles.badgeText, twoDigit && styles.badgeTextSm, { color: '#fff' }]}>
                 {label}
               </Text>
             </View>

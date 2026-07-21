@@ -94,7 +94,7 @@ export function LanguageModal({
 
         {/* Language list + absolute scrollbar overlay */}
         <View style={styles.listContainer}>
-          <ScrollView
+          <Animated.ScrollView
             style={styles.list}
             showsVerticalScrollIndicator={false}
             bounces={false}
@@ -135,7 +135,7 @@ export function LanguageModal({
                 </View>
               );
             })}
-          </ScrollView>
+          </Animated.ScrollView>
 
           <ScrollBar
             scrollAnim={scrollAnim}

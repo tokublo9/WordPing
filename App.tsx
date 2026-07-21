@@ -34,7 +34,7 @@ import { useNotificationRescheduling } from './src/features/notifications/useNot
 import { useAppPersistence } from './src/app/useAppPersistence';
 
 export default function App() {
-  const { isSubscribed, isLoaded: isSubscriptionLoaded, subscribe, restore, unsubscribe } = useSubscription();
+  const { isSubscribed, isPremium, isLoaded: isSubscriptionLoaded, subscribe, subscribePremium, restore, unsubscribe } = useSubscription();
 
   const {
     themeColor, setThemeColor,
@@ -336,7 +336,9 @@ export default function App() {
         themeColor={activeThemeColor}
         rawThemeColor={themeColor}
         isSubscribed={isSubscribed}
+        isPremium={isPremium}
         subscribe={subscribe}
+        subscribePremium={subscribePremium}
         restore={restore}
         onManageSubscription={__DEV__ ? unsubscribe : undefined}
         wordModal={{
@@ -401,6 +403,8 @@ export default function App() {
           onClose: () => setProSheetVisible(false),
           learningLang: learnLang ?? undefined,
           nativeLang,
+          skinId,
+          onPickSkin: setSkinId,
         }}
         folderAdd={{
           visible: addingFolder,

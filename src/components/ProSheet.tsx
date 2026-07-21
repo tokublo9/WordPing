@@ -1,7 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   Animated,
+  AppState,
   Dimensions,
+  Easing,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,84 +15,49 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { OnboardingChoices, Palette } from '../types';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Asset } from 'expo-asset';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import type { OnboardingChoices, Palette, ThemeSkin } from '../types';
 import { FREE_THEME_COLOR, ONBOARDING_KEY, SKINS } from '../constants';
-import { useLang } from '../i18n';
+import { useLang, type TranslationKey } from '../i18n';
 import { speak, stopPlayback } from '../lib/tts';
-import { PremiumSkinPreview } from './ThemeSkinPreview';
+import {
+  PremiumSkinPreview,
+  THEME_SCREENSHOTS,
+  THEME_SCREENSHOTS_FLIP,
+  THEME_VIDEOS,
+  THEME_VIDEOS_FLIP,
+  type ShopItem,
+} from './ThemeSkinPreview';
 import { SHOP_ITEMS } from './KisekaeShopSheet';
+import { ThemeDetailsSheet } from './ThemeDetailsSheet';
 
 const { height: SH, width: SW } = Dimensions.get('window');
 
 const PLAN_BLUE   = FREE_THEME_COLOR;         // #3B82F6
-const HERO_DARK   = '#0F2A5E';                // dark navy for bear + headline
-const BEAR_BODY   = '#1B3C73';                // main bear navy
-const BEAR_INNER  = '#132C56';                // inner ear / pupil
-const BEAR_CROWN  = '#F5C842';                // yellow crown
-const BEAR_BELLY  = '#DDEEFF';               // light belly
-const BEAR_WHITE  = '#FFFFFF';                // outlines + face details
+const HERO_DARK   = '#0F2A5E';                // dark navy for headline
+const BEAR_CROWN  = '#F5C842';                // yellow crown/sparkle accent
 const HERO_BG     = '#FFFFFF';               // hero background (white)
 
-// ── Ghost background icons (very faint repeat pattern behind bear) ────────────
-type GhostIcon = {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  size: number;
-  top: number;
-  left?: number;
-  right?: number;
-};
+// ── Luxury accent palette ─────────────────────────────────────────────────────
+// Gold metallic sheen (CTA + premium pills) and rich navy (premium purchase card).
+const GOLD_LIGHT  = '#F9DE8A';
+const GOLD_MAIN   = '#F5C842';
+const GOLD_DEEP   = '#E0A526';
+const NAVY_GRAD: readonly [string, string] = ['#12306B', '#0B2049'];
+const GOLD_GRAD:  readonly [string, string, string] = [GOLD_LIGHT, GOLD_MAIN, GOLD_DEEP];
 
-const GHOST_ICONS: GhostIcon[] = [
-  { icon: 'book-outline',           size: 34, top: 8,   left: SW * 0.03 },
-  { icon: 'notifications-outline',  size: 30, top: 8,   left: SW * 0.36 },
-  { icon: 'camera-outline',         size: 30, top: 8,   right: SW * 0.04 },
-  { icon: 'chatbubble-outline',     size: 32, top: 82,  left: SW * 0.02 },
-  { icon: 'happy-outline',          size: 30, top: 84,  left: SW * 0.32 },
-  { icon: 'star-outline',           size: 26, top: 84,  right: SW * 0.02 },
-  { icon: 'calendar-outline',       size: 30, top: 158, left: SW * 0.04 },
-  { icon: 'layers-outline',         size: 28, top: 158, left: SW * 0.36 },
-  { icon: 'bulb-outline',           size: 28, top: 158, right: SW * 0.04 },
-];
+// ── Premium accent palettes ───────────────────────────────────────────────────
+const HERO_GRAD: readonly [string, string, string] = ['#0C2350', '#173B72', '#0A1C3E'];
+const CHECK_GREEN = '#22C55E';
+const CROSS_GRAY  = '#B6BAC2';
 
-// ── Colorful foreground decoration icons ─────────────────────────────────────
-type DecoIcon = {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  size: number;
-  color: string;
-  top: number;
-  left?: number;
-  right?: number;
-};
-
-const DECO_ICONS: DecoIcon[] = [
-  // Left column
-  { icon: 'chatbubble',        size: 28, color: '#4A9DFF',  top: 30,  left: 14 },
-  { icon: 'happy',             size: 28, color: '#F5C842',  top: 118, left: 10 },
-  { icon: 'star',              size: 9,  color: '#F5C842',  top: 74,  left: 22 },
-  { icon: 'star',              size: 6,  color: '#F5C842',  top: 64,  left: 56 },
-  { icon: 'star',              size: 7,  color: '#4A9DFF',  top: 160, left: 38 },
-  // Right column
-  { icon: 'book',              size: 28, color: '#4A9DFF',  top: 26,  right: 12 },
-  { icon: 'notifications',     size: 26, color: '#4A9DFF',  top: 108, right: 10 },
-  { icon: 'calendar',          size: 24, color: '#4A9DFF',  top: 164, right: 20 },
-  { icon: 'star',              size: 9,  color: '#F5C842',  top: 62,  right: 26 },
-  { icon: 'sparkles',          size: 14, color: '#F5C842',  top: 146, right: 58 },
-  // Center area sparkles
-  { icon: 'star',              size: 7,  color: '#F5C842',  top: 48,  left: SW / 2 - 50 },
-  { icon: 'star',              size: 6,  color: '#FF9AC5',  top: 200, left: 58 },
-  { icon: 'star',              size: 6,  color: '#FF9AC5',  top: 200, right: 58 },
-];
-
-// ── Confetti dots ─────────────────────────────────────────────────────────────
-const CONFETTI = [
-  { color: '#4A9DFF', w: 8,  h: 4,  top: 22,  left: SW * 0.28, rotate: '20deg'  },
-  { color: '#F5C842', w: 6,  h: 6,  top: 18,  left: SW * 0.52, rotate: '0deg'   },
-  { color: '#FF6B9D', w: 7,  h: 4,  top: 24,  right: SW * 0.3, rotate: '-15deg' },
-  { color: '#4ADE80', w: 6,  h: 8,  top: 42,  left: SW * 0.15, rotate: '30deg'  },
-  { color: '#FB923C', w: 8,  h: 4,  top: 36,  right: SW * 0.16,rotate: '10deg'  },
-  { color: '#A78BFA', w: 5,  h: 8,  top: 38,  left: SW * 0.44, rotate: '-10deg' },
-  { color: '#F87171', w: 7,  h: 4,  top: 14,  left: SW * 0.18, rotate: '-25deg' },
-];
+// Plan tiers: Free (neutral) · Basic (polished blue) · Premium (most luxurious gold).
+const BLUE_GRAD:  readonly [string, string] = ['#60A5FA', '#3B82F6'];
+const BASIC_ACCENT   = '#1D4ED8';   // blue text/icons on the light-blue Basic column
+const PREMIUM_ACCENT = '#B45309';   // deep amber text/icons on the light-gold Premium column
+const FREE_ACCENT    = '#6B7280';
 
 // ── Demo word + sentence ──────────────────────────────────────────────────────
 interface DemoContent { word: string; sentence: string }
@@ -123,214 +92,105 @@ function normalizeLangCode(code: string | undefined): string {
 
 type DemoKey = 'word_default' | 'word_ai' | 'sentence_default' | 'sentence_ai';
 
-const FREE_IDS           = new Set(['solid_blue', 'solid_gray']);
-const PREMIUM_SHOP_ITEMS = SHOP_ITEMS.filter(i => !FREE_IDS.has(i.id));
-const SKIN_BY_ID         = new Map(SKINS.map(s => [s.id, s]));
-
-const STRIP_W     = 84;
-const STRIP_H     = Math.round(STRIP_W * 1.5);
 const CARD_PADDING = 26;
-const TOOL_BLOCK_W = (SW - 32 - CARD_PADDING * 2 - 12) / 2;
+// App icon display size: 23% of screen width, capped so it doesn't overscale on tablets.
+const ICON_SIZE    = Math.min(Math.round(SW * 0.23), 100);
+const ICON_RADIUS  = Math.round(ICON_SIZE * 0.225); // matches iOS squircle corner ratio
 
-// Bear container dimensions
-const BW = 150, BH = 190;
+// ── Theme carousel geometry ───────────────────────────────────────────────────
+// Cards keep the real 1260×2736 media aspect ratio and are ~2× the old small
+// preview, so one theme is showcased at a time with its neighbours peeking in.
+const CARO_W        = 168;
+const CARO_H        = Math.round(CARO_W * 2736 / 1260); // ≈ 365
+const CARO_GAP      = 14;
+const CARO_SLOT     = CARO_W + CARO_GAP;
+const CARO_CONTAINER_W = SW - 32;                        // feature-card inner width
+const CARO_INSET    = Math.max(CARO_GAP, (CARO_CONTAINER_W - CARO_W) / 2);
 
-// ── Bear mascot (dark-navy code-native illustration) ──────────────────────────
+// Any shop item (premium skins + solid colors) can appear in the showcase.
+const SHOP_BY_ID = new Map(SHOP_ITEMS.map(i => [i.id, i] as const));
 
-const BearMascot = React.memo(() => (
-  <View style={{ width: BW, height: BH }}>
+// ── Premium feature sections (paywall showcase) ───────────────────────────────
+// Static requires so Metro bundles the local PNGs reliably. Filenames map 1:1 to
+// features (all assets are 1260×2736 screenshots).
+const PAYWALL_IMAGES = {
+  example:   require('../../screenshots/paywall/example.png'),
+  breakdown: require('../../screenshots/paywall/breakdown.png'),
+  meaning:   require('../../screenshots/paywall/meaning.png'),
+  translate: require('../../screenshots/paywall/translate.png'),
+} as const;
 
-    {/* === BACK LEG (right, slightly behind) === */}
-    <View style={{ position:'absolute', width:28, height:46, borderRadius:14, backgroundColor:BEAR_WHITE, top:153, left:94, transform:[{rotate:'10deg'}] }} />
-    <View style={{ position:'absolute', width:24, height:42, borderRadius:12, backgroundColor:BEAR_BODY,  top:155, left:96, transform:[{rotate:'10deg'}] }} />
+// Preview image size — keeps the real 1260×2736 aspect ratio (no stretch/crop).
+const FEAT_IMG_W = Math.min(Math.round((SW - 32) * 0.62), 240);
+const FEAT_IMG_H = Math.round(FEAT_IMG_W * 2736 / 1260);
 
-    {/* === BACK ARM (right side, swinging back) === */}
-    <View style={{ position:'absolute', width:22, height:50, borderRadius:11, backgroundColor:BEAR_WHITE, top:87, left:112, transform:[{rotate:'24deg'}] }} />
-    <View style={{ position:'absolute', width:18, height:46, borderRadius:9,  backgroundColor:BEAR_BODY,  top:89, left:114, transform:[{rotate:'24deg'}] }} />
+interface FeatureConfig {
+  key: string;
+  titleKey: TranslationKey;
+  descKey: TranslationKey;
+  /** Screenshot preview. Omitted → the section renders an icon illustration. */
+  image?: number;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  accent: string;
+  /** Which plans include this feature (drives the plan labels below the card). */
+  basic: boolean;
+  premium: boolean;
+}
 
-    {/* === BODY === */}
-    <View style={{ position:'absolute', width:84, height:92, borderRadius:28, backgroundColor:BEAR_WHITE, top:80, left:33 }} />
-    <View style={{ position:'absolute', width:78, height:86, borderRadius:26, backgroundColor:BEAR_BODY,  top:83, left:36 }}>
-      {/* Belly */}
-      <View style={{ position:'absolute', width:44, height:58, borderRadius:22, backgroundColor:BEAR_BELLY, top:14, left:17 }} />
-    </View>
+// Order matches the requested feature list. Each shares the luxurious white style
+// but gets its own icon + blue-family accent as a small distinctive touch. The AI
+// sections show screenshots; Priority Support / Data Transfer use icon visuals.
+// `basic`/`premium` mirror the plan comparison table.
+const FEATURE_SECTIONS: FeatureConfig[] = [
+  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', icon: 'mic-outline',             accent: '#0891B2', basic: true,  premium: true },
+  { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
+  { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
+  { key: 'meaning',   titleKey: 'cmp_ai_meaning',       descKey: 'feat_meaning_desc',     image: PAYWALL_IMAGES.meaning,   icon: 'bulb-outline',        accent: '#0EA5E9', basic: false, premium: true },
+  { key: 'translate', titleKey: 'cmp_ai_translation',   descKey: 'feat_translation_desc', image: PAYWALL_IMAGES.translate, icon: 'language-outline',    accent: '#2563EB', basic: false, premium: true },
+  { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    icon: 'headset',                 accent: '#4338CA', basic: true,  premium: true },
+  { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    icon: 'swap-horizontal',         accent: '#0284C7', basic: true,  premium: true },
+];
 
-    {/* === TAIL === */}
-    <View style={{ position:'absolute', width:20, height:20, borderRadius:10, backgroundColor:BEAR_WHITE, top:118, left:107 }} />
-    <View style={{ position:'absolute', width:16, height:16, borderRadius:8,  backgroundColor:BEAR_BODY,  top:120, left:109 }} />
-
-    {/* === BOOK (held against left side, on top of front arm) === */}
-    <View style={{ position:'absolute', width:36, height:48, borderRadius:7, backgroundColor:BEAR_WHITE, top:100, left:6,  zIndex:4 }} />
-    <View style={{ position:'absolute', width:32, height:44, borderRadius:6, backgroundColor:BEAR_INNER, top:102, left:8,  zIndex:4 }}>
-      <View style={{ position:'absolute', width:3,  height:34, borderRadius:1.5, backgroundColor:'#ffffff25', top:5, left:8 }} />
-      <View style={{ position:'absolute', width:16, height:34, borderRadius:3,   backgroundColor:BEAR_WHITE,  top:5, right:4 }}>
-        <View style={{ position:'absolute', width:10, height:1.5, borderRadius:0.75, backgroundColor:'#bbb', top:5,  left:3 }} />
-        <View style={{ position:'absolute', width:10, height:1.5, borderRadius:0.75, backgroundColor:'#bbb', top:9,  left:3 }} />
-        <View style={{ position:'absolute', width:10, height:1.5, borderRadius:0.75, backgroundColor:'#bbb', top:13, left:3 }} />
-        <View style={{ position:'absolute', width:8,  height:1.5, borderRadius:0.75, backgroundColor:'#bbb', top:17, left:3 }} />
-      </View>
-    </View>
-
-    {/* === FRONT ARM (left side, extends forward to hold book) === */}
-    <View style={{ position:'absolute', width:22, height:50, borderRadius:11, backgroundColor:BEAR_WHITE, top:86, left:14, transform:[{rotate:'-20deg'}] }} />
-    <View style={{ position:'absolute', width:18, height:46, borderRadius:9,  backgroundColor:BEAR_BODY,  top:88, left:16, transform:[{rotate:'-20deg'}] }} />
-
-    {/* === CROWN PEAKS (behind head/ears but above body) === */}
-    {/* Left peak */}
-    <View style={{ position:'absolute', width:15, height:20, borderRadius:7,  backgroundColor:BEAR_CROWN, top:9, left:49 }} />
-    {/* Center peak (tallest) */}
-    <View style={{ position:'absolute', width:19, height:26, borderRadius:9,  backgroundColor:BEAR_CROWN, top:4, left:65 }} />
-    {/* Right peak */}
-    <View style={{ position:'absolute', width:15, height:20, borderRadius:7,  backgroundColor:BEAR_CROWN, top:9, right:48 }} />
-
-    {/* === EARS === */}
-    {/* Left ear outline */}
-    <View style={{ position:'absolute', width:28, height:28, borderRadius:14, backgroundColor:BEAR_WHITE, top:33, left:32 }} />
-    <View style={{ position:'absolute', width:24, height:24, borderRadius:12, backgroundColor:BEAR_BODY,  top:35, left:34 }}>
-      <View style={{ position:'absolute', width:11, height:11, borderRadius:5.5, backgroundColor:BEAR_INNER, top:6.5, left:6.5 }} />
-    </View>
-    {/* Right ear outline */}
-    <View style={{ position:'absolute', width:28, height:28, borderRadius:14, backgroundColor:BEAR_WHITE, top:33, right:32 }} />
-    <View style={{ position:'absolute', width:24, height:24, borderRadius:12, backgroundColor:BEAR_BODY,  top:35, right:34 }}>
-      <View style={{ position:'absolute', width:11, height:11, borderRadius:5.5, backgroundColor:BEAR_INNER, top:6.5, left:6.5 }} />
-    </View>
-
-    {/* === HEAD === */}
-    {/* White outline */}
-    <View style={{ position:'absolute', width:78, height:68, borderRadius:39, backgroundColor:BEAR_WHITE, top:26, left:36 }} />
-    {/* Head */}
-    <View style={{ position:'absolute', width:72, height:62, borderRadius:36, backgroundColor:BEAR_BODY,  top:29, left:39 }}>
-      {/* Left eye */}
-      <View style={{ position:'absolute', width:11, height:13, borderRadius:5.5, backgroundColor:BEAR_WHITE, top:16, left:12 }} />
-      <View style={{ position:'absolute', width:7,  height:9,  borderRadius:3.5, backgroundColor:BEAR_INNER, top:18, left:14 }} />
-      <View style={{ position:'absolute', width:2.5, height:3, borderRadius:1.5, backgroundColor:'#ffffffdd', top:17.5, left:15 }} />
-      {/* Right eye */}
-      <View style={{ position:'absolute', width:11, height:13, borderRadius:5.5, backgroundColor:BEAR_WHITE, top:16, right:12 }} />
-      <View style={{ position:'absolute', width:7,  height:9,  borderRadius:3.5, backgroundColor:BEAR_INNER, top:18, right:14 }} />
-      <View style={{ position:'absolute', width:2.5, height:3, borderRadius:1.5, backgroundColor:'#ffffffdd', top:17.5, right:15 }} />
-      {/* Nose */}
-      <View style={{ position:'absolute', width:12, height:8, borderRadius:4, backgroundColor:BEAR_WHITE, top:34, left:30 }} />
-      {/* Cheek blush */}
-      <View style={{ position:'absolute', width:13, height:6, borderRadius:6, backgroundColor:'#FF9AC5', opacity:0.42, top:32, left:3 }} />
-      <View style={{ position:'absolute', width:13, height:6, borderRadius:6, backgroundColor:'#FF9AC5', opacity:0.42, top:32, right:3 }} />
-    </View>
-
-    {/* === CROWN BAND (on top of head/ears) === */}
-    <View style={{ position:'absolute', width:58, height:16, borderRadius:7, backgroundColor:BEAR_CROWN, top:22, left:46 }}>
-      <View style={{ position:'absolute', width:6, height:6, borderRadius:3, backgroundColor:'#ffffff70', top:5, left:10 }} />
-      <View style={{ position:'absolute', width:6, height:6, borderRadius:3, backgroundColor:'#ffffff70', top:5, left:26 }} />
-      <View style={{ position:'absolute', width:6, height:6, borderRadius:3, backgroundColor:'#ffffff70', top:5, right:10 }} />
-    </View>
-
-    {/* === FRONT LEG (left, stepping forward) === */}
-    <View style={{ position:'absolute', width:28, height:46, borderRadius:14, backgroundColor:BEAR_WHITE, top:147, left:38, transform:[{rotate:'-12deg'}] }} />
-    <View style={{ position:'absolute', width:24, height:42, borderRadius:12, backgroundColor:BEAR_BODY,  top:149, left:40, transform:[{rotate:'-12deg'}] }} />
-
-  </View>
-));
-
-// ── Mini bear face for coffee card ────────────────────────────────────────────
-
-const MiniBear = React.memo(() => (
-  <View style={{ width: 44, height: 40, position: 'relative' }}>
-    {/* Ears */}
-    <View style={{ position:'absolute', width:14, height:14, borderRadius:7, backgroundColor:BEAR_WHITE, top:2,  left:3 }} />
-    <View style={{ position:'absolute', width:11, height:11, borderRadius:5.5, backgroundColor:BEAR_BODY, top:3.5, left:4.5 }}>
-      <View style={{ position:'absolute', width:5, height:5, borderRadius:2.5, backgroundColor:BEAR_INNER, top:3, left:3 }} />
-    </View>
-    <View style={{ position:'absolute', width:14, height:14, borderRadius:7, backgroundColor:BEAR_WHITE, top:2,  right:3 }} />
-    <View style={{ position:'absolute', width:11, height:11, borderRadius:5.5, backgroundColor:BEAR_BODY, top:3.5, right:4.5 }}>
-      <View style={{ position:'absolute', width:5, height:5, borderRadius:2.5, backgroundColor:BEAR_INNER, top:3, left:3 }} />
-    </View>
-    {/* Head */}
-    <View style={{ position:'absolute', width:40, height:34, borderRadius:20, backgroundColor:BEAR_WHITE, top:7,  left:2 }} />
-    <View style={{ position:'absolute', width:36, height:30, borderRadius:18, backgroundColor:BEAR_BODY,  top:9,  left:4 }}>
-      <View style={{ position:'absolute', width:6, height:7, borderRadius:3, backgroundColor:BEAR_WHITE, top:7, left:7 }} />
-      <View style={{ position:'absolute', width:4, height:5, borderRadius:2, backgroundColor:BEAR_INNER, top:8, left:8 }} />
-      <View style={{ position:'absolute', width:6, height:7, borderRadius:3, backgroundColor:BEAR_WHITE, top:7, right:7 }} />
-      <View style={{ position:'absolute', width:4, height:5, borderRadius:2, backgroundColor:BEAR_INNER, top:8, right:8 }} />
-      <View style={{ position:'absolute', width:7, height:5, borderRadius:2.5, backgroundColor:BEAR_WHITE, top:18, left:14.5 }} />
-    </View>
-  </View>
-));
 
 // ── Hero section ──────────────────────────────────────────────────────────────
 
-const HeroSection = React.memo(({ pal, t }: { pal: Palette; t: (k: any) => string }) => (
-  <View style={[hs.container, { backgroundColor: HERO_BG }]}>
+const HeroSection = React.memo(({ t }: { pal: Palette; t: (k: any) => string }) => (
+  <View style={hs.container}>
 
-    {/* Ghost background pattern */}
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {GHOST_ICONS.map((g, i) => (
-        <Ionicons
-          key={`g${i}`}
-          name={g.icon}
-          size={g.size}
-          color={PLAN_BLUE}
-          style={[
-            { position:'absolute', opacity:0.07 },
-            { top: g.top },
-            g.left  !== undefined ? { left:  g.left  } : {},
-            g.right !== undefined ? { right: g.right } : {},
-          ]}
-        />
-      ))}
-    </View>
+    {/* Deep navy premium gradient backdrop */}
+    <LinearGradient
+      colors={HERO_GRAD}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
 
-    {/* Confetti dots */}
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {CONFETTI.map((c, i) => (
-        <View key={`c${i}`} style={{
-          position:'absolute', width:c.w, height:c.h, borderRadius:2,
-          backgroundColor:c.color, top:c.top,
-          ...(c.left !== undefined ? { left: c.left } : {}),
-          ...(c.right !== undefined ? { right: c.right } : {}),
-          transform:[{ rotate: c.rotate }], opacity:0.85,
-        }} />
-      ))}
-    </View>
+    {/* Soft golden glow behind the icon for depth */}
+    <View pointerEvents="none" style={hs.glowOuter} />
+    <View pointerEvents="none" style={hs.glowInner} />
 
-    {/* Foreground decorative icons */}
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {DECO_ICONS.map((d, i) => (
-        <Ionicons
-          key={`d${i}`}
-          name={d.icon}
-          size={d.size}
-          color={d.color}
-          style={[
-            { position:'absolute', opacity:0.92 },
-            { top: d.top },
-            d.left  !== undefined ? { left:  d.left  } : {},
-            d.right !== undefined ? { right: d.right } : {},
-          ]}
-        />
-      ))}
-    </View>
-
-    {/* Badge pill — sparkles float outside */}
-    <View style={hs.badgeRow}>
-      <Ionicons name="sparkles" size={14} color={BEAR_CROWN} style={{ marginRight: 6 }} />
-      <View style={hs.badge}>
-        <Text style={hs.badgeText}>{t('plan_promo_label')}</Text>
-      </View>
-      <Ionicons name="sparkles" size={14} color={BEAR_CROWN} style={{ marginLeft: 6 }} />
+    {/* Premium badge */}
+    <View style={hs.badge}>
+      <Ionicons name="diamond" size={11} color={GOLD_MAIN} style={{ marginRight: 7 }} />
+      <Text style={hs.badgeText}>{t('plan_promo_label')}</Text>
     </View>
 
     {/* Main headline */}
     <Text style={hs.headline}>{t('plan_hero_headline')}</Text>
 
-    {/* Bear mascot */}
-    <View style={hs.bearWrap}>
-      <BearMascot />
+    {/* WordPing app icon in a metallic gold ring — the main focus */}
+    <View style={hs.iconRing}>
+      <View style={hs.iconClip}>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={hs.iconImg}
+          resizeMode="contain"
+        />
+      </View>
     </View>
 
-    {/* Dotted bottom line */}
-    <View style={hs.dotRow}>
-      {Array.from({ length: 22 }).map((_, i) => (
-        <View key={i} style={hs.dot} />
-      ))}
-    </View>
+    {/* Refined gold divider line */}
+    <View style={hs.divider} />
 
   </View>
 ));
@@ -350,178 +210,789 @@ const RibbonBanner = React.memo(({ label }: { label: string }) => (
 ));
 
 // ── Coffee value card ─────────────────────────────────────────────────────────
+// White card in the screen's blue/gold language with a refined café-cup visual.
 
 const CoffeeValueCard = React.memo(({ t }: { t: (k: any) => string }) => (
   <View style={cvs.card}>
-
-    {/* Left: mini bear peeking over coffee cup */}
-    <View style={cvs.leftZone}>
-      <View style={cvs.bearPeek}>
-        <MiniBear />
+    {/* Refined café cup: blue outline, soft steam, subtle gold accent */}
+    <View style={cvs.cupChip}>
+      <View style={cvs.steamRow}>
+        <View style={[cvs.steam, { height: 8,  opacity: 0.4 }]} />
+        <View style={[cvs.steam, { height: 11, opacity: 0.65 }]} />
+        <View style={[cvs.steam, { height: 8,  opacity: 0.4 }]} />
       </View>
-      <Ionicons name="cafe" size={36} color="#7B5032" style={cvs.coffeeIcon} />
+      <Ionicons name="cafe-outline" size={24} color={PLAN_BLUE} style={{ marginTop: 6 }} />
+      <Ionicons name="sparkles" size={11} color={GOLD_MAIN} style={cvs.sparkle} />
     </View>
 
-    {/* Text block */}
-    <View style={cvs.textBlock}>
-      <View style={cvs.textRow1}>
-        <Ionicons name="sparkles" size={11} color={BEAR_CROWN} />
-        <Text style={cvs.line1} numberOfLines={2}>{t('plan_coffee_line1')}</Text>
-      </View>
-      <Text style={cvs.line2}>{t('plan_coffee_line2')}</Text>
-      <Ionicons name="sparkles" size={11} color={BEAR_CROWN} style={{ marginTop: 4 }} />
-    </View>
-
+    <Text style={cvs.text}>{t('plan_coffee_line2')}</Text>
   </View>
 ));
 
-// ── Plan chip ─────────────────────────────────────────────────────────────────
+// ── Animated waveform ─────────────────────────────────────────────────────────
+// Bars pulse on the native thread (scaleY) only while `active`; otherwise they
+// rest at a low static height. No per-frame JS.
 
-const PlanChip = React.memo(({ label }: { label: string }) => (
-  <View style={s.planChip}>
-    <Ionicons name="checkmark-circle" size={13} color="#fff" style={{ marginRight: 4 }} />
-    <Text style={s.planChipText}>{label}</Text>
-  </View>
-));
+const WAVE_BASE = [0.45, 0.7, 1, 0.6, 0.85, 0.55, 0.75];
+
+const Waveform = React.memo(function Waveform({
+  active, color, height = 20, barWidth = 3,
+}: { active: boolean; color: string; height?: number; barWidth?: number }) {
+  const bars = useRef(WAVE_BASE.map(() => new Animated.Value(0.32))).current;
+  useEffect(() => {
+    if (!active) {
+      bars.forEach(b => { b.stopAnimation(); Animated.timing(b, { toValue: 0.32, duration: 200, useNativeDriver: true }).start(); });
+      return;
+    }
+    const loops = bars.map((b, i) =>
+      Animated.loop(Animated.sequence([
+        Animated.timing(b, { toValue: 1,    duration: 320 + i * 55, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(b, { toValue: 0.35, duration: 320 + i * 55, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])),
+    );
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
+  }, [active]);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', height, gap: 2 }}>
+      {bars.map((b, i) => (
+        <Animated.View
+          key={i}
+          style={{ width: barWidth, height, borderRadius: barWidth / 2, backgroundColor: color, transform: [{ scaleY: b }] }}
+        />
+      ))}
+    </View>
+  );
+});
 
 // ── Voice row ─────────────────────────────────────────────────────────────────
+// Sample text on top; the Default and AI High-Quality playback buttons sit below
+// it. Text wraps fully so the sentence is never clipped.
 
-interface VoiceRowProps { pal: Palette; text: string; demoKeyDefault: DemoKey; demoKeyAi: DemoKey; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; defaultLabel: string }
+interface VoiceRowProps {
+  text: string;
+  demoKeyDefault: DemoKey;
+  demoKeyAi: DemoKey;
+  playingDemo: DemoKey | null;
+  onPlay: (key: DemoKey) => void;
+  defaultLabel: string;
+  aiLabel: string;
+}
 
-const VoiceRow = React.memo(({ text, demoKeyDefault, demoKeyAi, playingDemo, onPlay, pal, defaultLabel }: VoiceRowProps) => (
-  <View style={s.voiceRow}>
-    <View style={s.voiceTextCol}>
-      <Text style={[s.voiceText, { color: pal.text }]} numberOfLines={2}>{text}</Text>
+const VoiceRow = React.memo(({ text, demoKeyDefault, demoKeyAi, playingDemo, onPlay, defaultLabel, aiLabel }: VoiceRowProps) => {
+  const defaultPlaying = playingDemo === demoKeyDefault;
+  const aiPlaying      = playingDemo === demoKeyAi;
+  return (
+    <View style={av.row}>
+      <Text style={av.sampleText}>{text}</Text>
+      <View style={av.btnRow}>
+        {/* Default voice — understated outline */}
+        <TouchableOpacity
+          style={av.defaultBtn}
+          onPress={() => onPlay(demoKeyDefault)}
+          activeOpacity={0.8}
+          accessibilityLabel={defaultLabel}
+        >
+          <Ionicons name={defaultPlaying ? 'pause' : 'play'} size={13} color="#64748B" />
+          <Text style={av.defaultLabel} numberOfLines={1}>{defaultLabel}</Text>
+        </TouchableOpacity>
+
+        {/* AI High-Quality voice — rich blue, soft glow + live waveform */}
+        <TouchableOpacity
+          style={[av.aiBtnWrap, aiPlaying && av.aiGlow]}
+          onPress={() => onPlay(demoKeyAi)}
+          activeOpacity={0.9}
+          accessibilityLabel={aiLabel}
+        >
+          <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={av.aiBtn}>
+            <Ionicons name={aiPlaying ? 'pause' : 'play'} size={13} color="#fff" />
+            {aiPlaying
+              ? <Waveform active color="#fff" height={16} barWidth={2.5} />
+              : <Text style={av.aiLabel} numberOfLines={1}>AI</Text>}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
     </View>
-    <View style={s.voiceButtonCol}>
-      <TouchableOpacity style={[s.voiceBtn, { borderColor: pal.border, backgroundColor: pal.chip }]} onPress={() => onPlay(demoKeyDefault)} activeOpacity={0.7}>
-        <Ionicons name={playingDemo === demoKeyDefault ? 'pause-circle' : 'volume-medium-outline'} size={20} color={pal.sub} />
-        <Text style={[s.voiceBtnLabel, { color: pal.sub }]} numberOfLines={1}>{defaultLabel}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={s.voiceBtnAI} onPress={() => onPlay(demoKeyAi)} activeOpacity={0.7}>
-        <Ionicons name={playingDemo === demoKeyAi ? 'pause-circle' : 'volume-medium'} size={20} color="#fff" />
-        <Text style={s.voiceBtnAILabel}>AI</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-));
+  );
+});
 
-// ── AI Voice card ─────────────────────────────────────────────────────────────
+// ── AI High-Quality Voice card ────────────────────────────────────────────────
+// Bright, white-based premium card: rich blue accents, a subtle gold flourish,
+// soft shadows, and a refined sound-wave.
 
 interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: any) => string }
 
-const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t, pal }: AIVoiceCardProps) => (
-  <View style={[s.featureCard, { backgroundColor: pal.card, borderColor: pal.border }]}>
-    <Text style={[s.cardTitle, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
-    <View style={s.voiceDemoBox}>
-      <VoiceRow text={demo.word} demoKeyDefault="word_default" demoKeyAi="word_ai" playingDemo={playingDemo} onPlay={onPlay} pal={pal} defaultLabel={t('default_voice')} />
-      <View style={[s.voiceDivider, { backgroundColor: pal.border }]} />
-      <VoiceRow text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} onPlay={onPlay} pal={pal} defaultLabel={t('default_voice')} />
+const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardProps) => {
+  const anyAiPlaying = playingDemo === 'word_ai' || playingDemo === 'sentence_ai';
+  const aiLabel = t('cmp_ai_voice_hq');
+  return (
+    <View style={av.cardShadow}>
+      <View style={av.card}>
+
+        {/* Header */}
+        <View style={av.header}>
+          <View style={av.headerIcon}>
+            <Ionicons name="musical-notes" size={18} color={PLAN_BLUE} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={av.titleRow}>
+              <Text style={av.title}>{aiLabel}</Text>
+              <Ionicons name="sparkles" size={13} color={GOLD_MAIN} />
+            </View>
+            <Text style={av.subtitle}>{t('ai_voice_promo_desc')}</Text>
+          </View>
+          <Waveform active={anyAiPlaying} color={PLAN_BLUE} height={22} barWidth={3} />
+        </View>
+
+        {/* Default vs AI comparison */}
+        <View style={av.panel}>
+          <VoiceRow text={demo.word}     demoKeyDefault="word_default"     demoKeyAi="word_ai"     playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <View style={av.divider} />
+          <VoiceRow text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+        </View>
+
+        <PlanLabels basic premium t={t} />
+
+      </View>
     </View>
-    <PlanChip label={t('basic_plan_name')} />
-    <Text style={[s.cardDesc, { color: pal.sub }]}>{t('ai_voice_promo_desc')}</Text>
-  </View>
-));
+  );
+});
 
-// ── AI Tools card ─────────────────────────────────────────────────────────────
+// ── Premium feature section ───────────────────────────────────────────────────
+// Shared white card used for the four AI feature showcases below the voice card.
 
-const AI_TOOLS = [
-  { icon: 'bulb-outline'          as const, key: 'feature_ai_meaning' as const },
-  { icon: 'document-text-outline' as const, key: 'feature_ai_example' as const },
-  { icon: 'layers-outline'        as const, key: 'feature_breakdown'   as const },
-  { icon: 'language-outline'      as const, key: 'feature_translate'   as const },
+// Renders the preview image only once it has decoded — nothing shows before its
+// own source is ready, and no other feature's image can flash in.
+const FeatureImage = React.memo(function FeatureImage({ source }: { source: number }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <View style={fs.imageShadow}>
+      <View style={fs.imageClip}>
+        <Image
+          source={source}
+          style={[fs.image, { opacity: ready ? 1 : 0 }]}
+          resizeMode="cover"
+          fadeDuration={0}
+          onLoad={() => setReady(true)}
+        />
+      </View>
+    </View>
+  );
+});
+
+// Plan-inclusion labels shown below a benefit section: Basic (blue) and/or
+// Premium (gold), matching which plans include the feature.
+const PlanLabels = React.memo(function PlanLabels({
+  basic, premium, t,
+}: { basic: boolean; premium: boolean; t: (k: any) => string }) {
+  if (!basic && !premium) return null;
+  return (
+    <View style={pl.row}>
+      {basic && (
+        <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pl.basic}>
+          <Text style={pl.basicText}>{t('basic')}</Text>
+        </LinearGradient>
+      )}
+      {premium && (
+        <LinearGradient colors={GOLD_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pl.premium}>
+          <Ionicons name="diamond" size={9} color={HERO_DARK} style={{ marginRight: 3 }} />
+          <Text style={pl.premiumText}>{t('cmp_premium')}</Text>
+        </LinearGradient>
+      )}
+    </View>
+  );
+});
+
+// Icon-based visual for sections without a screenshot (Priority Support, Data
+// Transfer) — a large accented icon badge over a soft blue panel, gold flourish.
+const FeatureIconVisual = React.memo(function FeatureIconVisual({
+  icon, accent,
+}: { icon: React.ComponentProps<typeof Ionicons>['name']; accent: string }) {
+  return (
+    <View style={fs.iconVisual}>
+      <LinearGradient colors={[`${accent}14`, `${accent}06`]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <View style={[fs.iconBadge, { backgroundColor: `${accent}1A`, borderColor: `${accent}33` }]}>
+        <Ionicons name={icon} size={42} color={accent} />
+      </View>
+      <Ionicons name="sparkles" size={13} color={GOLD_MAIN} style={fs.iconSparkle} />
+    </View>
+  );
+});
+
+const FeatureSection = React.memo(function FeatureSection({
+  title, description, source, accent, icon, basic, premium, t,
+}: {
+  title: string;
+  description: string;
+  source?: number;
+  accent: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  basic: boolean;
+  premium: boolean;
+  t: (k: any) => string;
+}) {
+  return (
+    <View style={[fs.cardShadow, { shadowColor: accent }]}>
+      <View style={fs.card}>
+        <View style={fs.header}>
+          <View style={[fs.iconWrap, { backgroundColor: `${accent}14`, borderColor: `${accent}33` }]}>
+            <Ionicons name={icon} size={18} color={accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={fs.titleRow}>
+              <Text style={fs.title} numberOfLines={2}>{title}</Text>
+              <Ionicons name="sparkles" size={12} color={GOLD_MAIN} />
+            </View>
+            <Text style={fs.desc}>{description}</Text>
+          </View>
+        </View>
+        {source != null
+          ? <FeatureImage source={source} />
+          : <FeatureIconVisual icon={icon} accent={accent} />}
+        <PlanLabels basic={basic} premium={premium} t={t} />
+      </View>
+    </View>
+  );
+});
+
+// ── Theme carousel ────────────────────────────────────────────────────────────
+// One horizontal row that auto-advances every 3s (single timer), pauses on drag /
+// when Theme Details is open / when the sheet is hidden, and respects reduced
+// motion. Only the centered card mounts a live video.
+
+type TileMedia =
+  | { type: 'image'; source: number }
+  | { type: 'video'; source: number };
+
+interface GalleryTile { key: string; item: ShopItem; media: TileMedia }
+
+const GALLERY_ORDER = [
+  'skin_deep_sea', 'skin_sakura', 'skin_galaxy', 'skin_snow', 'skin_aurora',
+  'solid_teal', 'skin_coffee', 'skin_cyber', 'shop_roses', 'solid_mint',
+  'shop_woods', 'skin_leaf_blur', 'skin_rain', 'skin_night_city', 'solid_orange',
+  'skin_paw',
 ];
 
-const AiFeaturesCard = React.memo(({ t, pal }: { t: (k: any) => string; pal: Palette }) => (
-  <View style={[s.featureCard, { backgroundColor: pal.card, borderColor: pal.border }]}>
-    <Text style={[s.cardTitle, { color: pal.text }]}>{t('ai_tools_title')}</Text>
-    <View style={s.toolsGrid}>
-      {AI_TOOLS.map(({ icon, key }) => (
-        <View key={key} style={[s.toolBlock, { width: TOOL_BLOCK_W }]}>
-          <View style={s.toolIconBubble}><Ionicons name={icon} size={22} color={PLAN_BLUE} /></View>
-          <Text style={[s.toolLabel, { color: pal.text }]}>{t(key)}</Text>
+// First (slot 1) or second (slot 2) media item from a theme's Theme Details preview.
+function resolveTileMedia(id: string, slot: 1 | 2): TileMedia | null {
+  const video = slot === 1 ? THEME_VIDEOS[id] : THEME_VIDEOS_FLIP[id];
+  if (video != null) return { type: 'video', source: video };
+  const img = slot === 1 ? THEME_SCREENSHOTS[id] : THEME_SCREENSHOTS_FLIP[id];
+  if (img != null) return { type: 'image', source: img };
+  return null;
+}
+
+// One card per theme, using its first available media item.
+const CAROUSEL_TILES: GalleryTile[] = GALLERY_ORDER.reduce<GalleryTile[]>((acc, id) => {
+  const item = SHOP_BY_ID.get(id);
+  const media = resolveTileMedia(id, 1);
+  if (item && media) acc.push({ key: id, item, media });
+  return acc;
+}, []);
+
+// Neutral backing shown behind any letterboxed media.
+const CARO_MEDIA_BG = '#0F172A';
+
+// Infinite loop: clone a few tiles on each side so scrolling past the last theme
+// continues forward into the first (and vice-versa) with no visible jump.
+const N_TILES    = CAROUSEL_TILES.length;
+const CLONES     = N_TILES > 1 ? Math.min(3, N_TILES) : 0;
+const FIRST_REAL = CLONES;                    // looped position of real index 0
+const LAST_REAL  = CLONES + N_TILES - 1;      // looped position of real index N-1
+const LOOP_TILES: GalleryTile[] = N_TILES > 1
+  ? [...CAROUSEL_TILES.slice(N_TILES - CLONES), ...CAROUSEL_TILES, ...CAROUSEL_TILES.slice(0, CLONES)]
+  : CAROUSEL_TILES;
+
+// Real theme index for a looped position.
+const realIndexOf = (position: number) => ((position - FIRST_REAL) % N_TILES + N_TILES) % N_TILES;
+
+// ── Accessibility / lifecycle hooks ───────────────────────────────────────────
+
+function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(v => { if (alive) setReduce(v); });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => { alive = false; sub.remove(); };
+  }, []);
+  return reduce;
+}
+
+function useAppActive(): boolean {
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', st => setActive(st === 'active'));
+    return () => sub.remove();
+  }, []);
+  return active;
+}
+
+// ── Tile media ────────────────────────────────────────────────────────────────
+// Image and video use identical explicit bounds + `contain`, so media is centered
+// and never cropped, stretched, or anchored off-corner. Nothing shows until ready.
+
+const TileImage = React.memo(function TileImage({ source, width, height }: { source: number; width: number; height: number }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <Image
+      source={source}
+      style={{ width, height, opacity: ready ? 1 : 0 }}
+      resizeMode="contain"
+      fadeDuration={0}
+      onLoad={() => setReady(true)}
+    />
+  );
+});
+
+// Muted, looping video. Created (and buffered) as soon as it mounts so it can be
+// preloaded before it is centered; it only plays while `active`. useVideoPlayer
+// releases the player automatically when the card unmounts.
+const TileVideoPlayer = React.memo(function TileVideoPlayer({ source, width, height, active }: { source: number; width: number; height: number; active: boolean }) {
+  const [ready, setReady] = useState(false);
+  const player = useVideoPlayer(source, p => {
+    p.loop  = true;
+    p.muted = true;
+    // Preloaded paused — playback starts only when the card becomes centered.
+  });
+  useEffect(() => {
+    if (player.status === 'readyToPlay') setReady(true);
+    const sub = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') setReady(true);
+    });
+    return () => sub.remove();
+  }, [player]);
+  useEffect(() => {
+    if (active) player.play(); else player.pause();
+  }, [active, player]);
+  return (
+    <VideoView
+      player={player}
+      style={{ width, height, opacity: ready ? 1 : 0 }}
+      contentFit="contain"
+      nativeControls={false}
+    />
+  );
+});
+
+// ── Carousel card ─────────────────────────────────────────────────────────────
+
+const CarouselCard = React.memo(function CarouselCard({
+  tile, position, scrollX, mounted, videoActive, onPress,
+}: {
+  tile: GalleryTile;
+  position: number;
+  scrollX: Animated.Value;
+  /** Mount heavy media (preload window); false renders just the neutral card. */
+  mounted: boolean;
+  /** This card is centered → its video plays. */
+  videoActive: boolean;
+  onPress: (item: ShopItem) => void;
+}) {
+  const { item, media } = tile;
+  const skinData = useMemo<ThemeSkin | undefined>(() => SKINS.find(sk => sk.id === item.id), [item.id]);
+
+  // Gentle emphasis of the centered card (native-driven, no JS per frame).
+  const inputRange = [(position - 1) * CARO_SLOT, position * CARO_SLOT, (position + 1) * CARO_SLOT];
+  const scale   = scrollX.interpolate({ inputRange, outputRange: [0.9, 1, 0.9],  extrapolate: 'clamp' });
+  const opacity = scrollX.interpolate({ inputRange, outputRange: [0.72, 1, 0.72], extrapolate: 'clamp' });
+
+  return (
+    <TouchableOpacity
+      style={{ width: CARO_SLOT }}
+      activeOpacity={0.9}
+      onPress={() => onPress(item)}
+      accessibilityRole="button"
+      accessibilityLabel={item.name}
+    >
+      <Animated.View style={[caro.card, { transform: [{ scale }], opacity }]}>
+        <View style={caro.cardInner}>
+          {mounted && (media.type === 'image'
+            ? <TileImage source={media.source} width={CARO_W} height={CARO_H} />
+            : (
+              <>
+                <PremiumSkinPreview item={item} skinData={skinData} width={CARO_W} height={CARO_H} />
+                <TileVideoPlayer source={media.source} width={CARO_W} height={CARO_H} active={videoActive} />
+              </>
+            ))}
+
+          {/* Name legibility gradient + label */}
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={caro.nameGrad} pointerEvents="none" />
+          <Text style={caro.name} numberOfLines={1} pointerEvents="none">{item.name}</Text>
         </View>
-      ))}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+});
+
+// ── Premium themes carousel ───────────────────────────────────────────────────
+
+const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
+  t, pal, visible, detailsOpen, onOpenDetails,
+}: {
+  t: (k: any) => string;
+  pal: Palette;
+  visible: boolean;
+  detailsOpen: boolean;
+  onOpenDetails: (item: ShopItem) => void;
+}) {
+  const reduceMotion = useReduceMotion();
+  const appActive    = useAppActive();
+
+  const scrollX          = useRef(new Animated.Value(FIRST_REAL * CARO_SLOT)).current;
+  const scrollRef        = useRef<ScrollView>(null);
+  const activeVirtualRef = useRef(FIRST_REAL);
+  const restartTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapTimer        = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeVirtual, setActiveVirtualState] = useState(FIRST_REAL);
+  const [interacting,   setInteracting]        = useState(false);
+
+  const setActive = useCallback((v: number) => {
+    activeVirtualRef.current = v;
+    setActiveVirtualState(v);
+  }, []);
+
+  // Video may play when the section is on-screen; auto-advance additionally
+  // requires motion allowed and the user not interacting.
+  const mediaActive       = visible && appActive && !detailsOpen;
+  const shouldAutoAdvance = mediaActive && !reduceMotion && !interacting && N_TILES > 1;
+
+  // Center the first real card on mount (covers platforms that ignore contentOffset).
+  useEffect(() => {
+    const id = requestAnimationFrame(() => scrollRef.current?.scrollTo({ x: FIRST_REAL * CARO_SLOT, animated: false }));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Single 3-second forward timer. It always advances by exactly one card; when it
+  // steps into the tail-clone region it silently snaps back to the matching real
+  // card AFTER the forward animation — so it continues into the first theme and
+  // never animates backward through the whole list.
+  useEffect(() => {
+    if (!shouldAutoAdvance) return;
+    const id = setInterval(() => {
+      let cur = activeVirtualRef.current;
+      // If we paused on a clone, silently normalize before advancing.
+      if (cur > LAST_REAL) { cur -= N_TILES; scrollRef.current?.scrollTo({ x: cur * CARO_SLOT, animated: false }); }
+      else if (cur < FIRST_REAL) { cur += N_TILES; scrollRef.current?.scrollTo({ x: cur * CARO_SLOT, animated: false }); }
+
+      const next = cur + 1;
+      scrollRef.current?.scrollTo({ x: next * CARO_SLOT, animated: true });
+      setActive(next);
+
+      if (next > LAST_REAL) {
+        if (snapTimer.current) clearTimeout(snapTimer.current);
+        snapTimer.current = setTimeout(() => {
+          const real = next - N_TILES;
+          scrollRef.current?.scrollTo({ x: real * CARO_SLOT, animated: false });
+          setActive(real);
+          snapTimer.current = null;
+        }, 450);
+      }
+    }, 3000);
+    return () => {
+      clearInterval(id);
+      if (snapTimer.current) { clearTimeout(snapTimer.current); snapTimer.current = null; }
+    };
+  }, [shouldAutoAdvance, setActive]);
+
+  useEffect(() => () => {
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    if (snapTimer.current) clearTimeout(snapTimer.current);
+  }, []);
+
+  const onBeginDrag = useCallback(() => {
+    if (restartTimer.current) { clearTimeout(restartTimer.current); restartTimer.current = null; }
+    setInteracting(true);
+  }, []);
+
+  const onEndDrag = useCallback(() => {
+    // Fallback if no momentum event follows — resume shortly after the drag.
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    restartTimer.current = setTimeout(() => setInteracting(false), 600);
+  }, []);
+
+  const onMomentumEnd = useCallback((e: any) => {
+    let v = Math.round(e.nativeEvent.contentOffset.x / CARO_SLOT);
+    // Landed on a clone → silently reposition to the matching real card.
+    if (v > LAST_REAL) {
+      v -= N_TILES;
+      scrollRef.current?.scrollTo({ x: v * CARO_SLOT, animated: false });
+    } else if (v < FIRST_REAL) {
+      v += N_TILES;
+      scrollRef.current?.scrollTo({ x: v * CARO_SLOT, animated: false });
+    }
+    setActive(v);
+    if (restartTimer.current) { clearTimeout(restartTimer.current); restartTimer.current = null; }
+    setInteracting(false);
+  }, [setActive]);
+
+  const activeReal = realIndexOf(activeVirtual);
+
+  return (
+    <View style={[s.featureCard, { backgroundColor: pal.card, borderColor: pal.border, paddingHorizontal: 0 }]}>
+
+      <Text style={[s.cardTitle, { color: pal.text, paddingHorizontal: CARD_PADDING }]}>
+        {t('feature_all_themes')}
+      </Text>
+
+      <Animated.ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={CARO_SLOT}
+        decelerationRate="fast"
+        snapToAlignment="start"
+        contentOffset={{ x: FIRST_REAL * CARO_SLOT, y: 0 }}
+        contentContainerStyle={{ paddingHorizontal: CARO_INSET }}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true })}
+        scrollEventThrottle={16}
+        onScrollBeginDrag={onBeginDrag}
+        onScrollEndDrag={onEndDrag}
+        onMomentumScrollEnd={onMomentumEnd}
+        bounces={false}
+      >
+        {LOOP_TILES.map((tile, position) => {
+          const real = realIndexOf(position);
+          const fwd  = (real - activeReal + N_TILES) % N_TILES;   // 0..N-1 forward distance
+          // Preload window: current + 3 ahead (covers the first four on open) and 1 behind.
+          const mounted = fwd <= 3 || fwd === N_TILES - 1;
+          return (
+            <CarouselCard
+              key={position}
+              tile={tile}
+              position={position}
+              scrollX={scrollX}
+              mounted={mounted}
+              videoActive={mediaActive && position === activeVirtual}
+              onPress={onOpenDetails}
+            />
+          );
+        })}
+      </Animated.ScrollView>
+
+      <Text style={[s.cardDesc, { color: pal.sub, paddingHorizontal: CARD_PADDING, marginTop: 18 }]}>
+        {t('themes_switch_desc')}
+      </Text>
+
+      <View style={{ paddingHorizontal: CARD_PADDING }}>
+        <PlanLabels basic premium t={t} />
+      </View>
+
     </View>
-    <PlanChip label={t('basic_plan_name')} />
-    <Text style={[s.cardDesc, { color: pal.sub }]}>{t('ai_tools_desc')}</Text>
-  </View>
-));
+  );
+});
 
-// ── Premium Themes card ───────────────────────────────────────────────────────
+// ── Plan comparison table ─────────────────────────────────────────────────────
 
-const PremiumThemesCard = React.memo(({ t, pal }: { t: (k: any) => string; pal: Palette }) => (
-  <View style={[s.featureCard, { backgroundColor: pal.card, borderColor: pal.border }]}>
-    <Text style={[s.cardTitle, { color: pal.text }]}>{t('feature_all_themes')}</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.themeStrip} bounces={false}>
-      {PREMIUM_SHOP_ITEMS.map(item => (
-        <View key={item.id} style={[s.themeStripCard, { borderColor: pal.border }]}>
-          {item.category === 'premium' ? (
-            <PremiumSkinPreview item={item} skinData={SKIN_BY_ID.get(item.id)} width={STRIP_W} height={STRIP_H} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: item.previewBg, borderRadius: 10 }]} />
-          )}
+type CellValue = 'check' | 'cross' | 'infinite' | string;
+
+// One plan cell. `accent` colors text + the infinity icon; check/cross stay
+// consistent across every column for easy scanning.
+function TableCell({ value, accent }: { value: CellValue; accent: string }) {
+  if (value === 'check') {
+    return <Ionicons name="checkmark-circle" size={19} color={CHECK_GREEN} />;
+  }
+  if (value === 'cross') {
+    return <Ionicons name="close" size={16} color={CROSS_GRAY} />;
+  }
+  if (value === 'infinite') {
+    return <Ionicons name="infinite" size={20} color={accent} />;
+  }
+  return (
+    <Text style={[tbl.cellValue, { color: accent }]} numberOfLines={3}>
+      {value}
+    </Text>
+  );
+}
+
+interface TableRowData { label: string; free: CellValue; basic: CellValue; premium: CellValue }
+
+const PlanComparisonTable = React.memo(function PlanComparisonTable({
+  t, pal,
+}: { t: (k: any) => string; pal: Palette }) {
+  const rows: TableRowData[] = [
+    { label: t('cmp_word_cards'),       free: t('cmp_val_unlimited'), basic: t('cmp_val_unlimited'), premium: t('cmp_val_unlimited') },
+    { label: t('cmp_themes'),           free: '2',     basic: 'infinite', premium: 'infinite' },
+    { label: t('cmp_ai_voice_hq'),      free: 'cross', basic: 'infinite',              premium: 'infinite' },
+    { label: t('cmp_custom_voice'),     free: 'cross', basic: t('cmp_val_10_words'), premium: 'infinite' },
+    { label: t('cmp_ai_example'),       free: 'cross', basic: 'cross',                premium: 'infinite' },
+    { label: t('cmp_ai_breakdown'),     free: 'cross', basic: 'cross',    premium: 'infinite' },
+    { label: t('cmp_ai_meaning'),       free: 'cross', basic: 'cross',    premium: 'infinite' },
+    { label: t('cmp_ai_translation'),   free: 'cross', basic: 'cross',    premium: 'infinite' },
+    { label: t('cmp_priority_support'), free: 'cross', basic: 'check',    premium: 'check' },
+    { label: t('cmp_data_transfer'),    free: 'cross', basic: 'check',    premium: 'check' },
+  ];
+
+  return (
+    <View style={[tbl.container, { backgroundColor: pal.card, borderColor: pal.border }]}>
+
+      {/* Header row */}
+      <View style={[tbl.headerRow, { borderBottomColor: pal.border }]}>
+        <View style={tbl.featureColHdr}>
+          <Text style={[tbl.hdrFeatureText, { color: pal.sub }]}>{t('cmp_feature_col')}</Text>
+        </View>
+
+        {/* Free — neutral */}
+        <View style={tbl.planColHdr}>
+          <View style={[tbl.planPill, { backgroundColor: 'rgba(128,128,128,0.14)' }]}>
+            <Text style={[tbl.planPillText, { color: pal.sub }]} numberOfLines={1}>{t('free_label')}</Text>
+          </View>
+        </View>
+
+        {/* Basic — polished blue */}
+        <View style={[tbl.planColHdr, tbl.basicColHdr]}>
+          <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={tbl.planPill}>
+            <Text style={[tbl.planPillText, { color: '#fff' }]} numberOfLines={1}>{t('basic_plan_name')}</Text>
+          </LinearGradient>
+        </View>
+
+        {/* Premium — most luxurious gold */}
+        <View style={[tbl.planColHdr, tbl.premiumColHdr]}>
+          <LinearGradient colors={GOLD_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={tbl.premiumPill}>
+            <Ionicons name="diamond" size={9} color={HERO_DARK} style={{ marginRight: 3 }} />
+            <Text style={[tbl.planPillText, { color: HERO_DARK }]} numberOfLines={1}>{t('cmp_premium')}</Text>
+          </LinearGradient>
+        </View>
+      </View>
+
+      {/* Data rows */}
+      {rows.map((row, i) => (
+        <View
+          key={i}
+          style={[
+            tbl.dataRow,
+            i < rows.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: pal.border },
+          ]}
+        >
+          <View style={tbl.featureCell}>
+            <Text style={[tbl.featureLabel, { color: pal.text }]} numberOfLines={3}>{row.label}</Text>
+          </View>
+          <View style={tbl.planCell}>
+            <TableCell value={row.free} accent={FREE_ACCENT} />
+          </View>
+          <View style={[tbl.planCell, tbl.basicCell]}>
+            <TableCell value={row.basic} accent={BASIC_ACCENT} />
+          </View>
+          <View style={[tbl.planCell, tbl.premiumCell]}>
+            <TableCell value={row.premium} accent={PREMIUM_ACCENT} />
+          </View>
         </View>
       ))}
-    </ScrollView>
-    <PlanChip label={t('basic_plan_name')} />
-    <Text style={[s.cardDesc, { color: pal.sub }]}>{t('themes_switch_desc')}</Text>
-  </View>
-));
 
-// ── Pricing section ───────────────────────────────────────────────────────────
+    </View>
+  );
+});
 
-interface PricingSectionProps {
+// ── Fixed purchase bar ────────────────────────────────────────────────────────
+// Pinned to the bottom of the sheet. Content scrolls above it; the localized
+// price stays visible and all purchase / owned / loading states are preserved.
+
+interface FixedPurchaseBarProps {
   pal: Palette;
   t: (k: any) => string;
   isSubscribed: boolean;
-  loading: boolean;
-  onSubscribe: () => void;
+  isPremium: boolean;
+  loadingPlan: 'basic' | 'premium' | null;
+  bottomInset: number;
+  onSubscribeBasic: () => void;
+  onSubscribePremium: () => void;
   onRestore: () => void;
   onManageSubscription?: () => void;
+  onMeasure: (h: number) => void;
 }
 
-const PricingSection = React.memo(({
-  pal, t, isSubscribed, loading, onSubscribe, onRestore, onManageSubscription,
-}: PricingSectionProps) => (
-  <View style={[ps.container, { backgroundColor: pal.card, borderColor: pal.border }]}>
+const FixedPurchaseBar = React.memo(({
+  pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, onSubscribeBasic, onSubscribePremium, onRestore, onManageSubscription, onMeasure,
+}: FixedPurchaseBarProps) => {
+  const basicLoading   = loadingPlan === 'basic';
+  const premiumLoading = loadingPlan === 'premium';
+  const anyLoading     = loadingPlan !== null;
+  const basicOwned     = isSubscribed && !isPremium;   // exactly the Basic plan
+  const premiumOwned   = isPremium;
 
-    {/* Plan heading */}
-    <View style={ps.planLabelRow}>
-      <View style={ps.planDot} />
-      <Text style={ps.planLabel}>{t('basic_plan_name')}</Text>
-      <View style={ps.planDot} />
+  return (
+    <View
+      style={[bar.wrap, { paddingBottom: bottomInset + 8, backgroundColor: pal.dialog, borderTopColor: pal.border }]}
+      onLayout={e => onMeasure(e.nativeEvent.layout.height)}
+    >
+      <View style={bar.btnRow}>
+
+        {/* Basic — polished blue */}
+        <TouchableOpacity
+          style={bar.btnWrapBlue}
+          onPress={basicOwned ? onManageSubscription : onSubscribeBasic}
+          disabled={anyLoading}
+          activeOpacity={0.9}
+          accessibilityLabel={basicOwned ? 'Manage Basic subscription' : t('subscribe_price')}
+          accessibilityState={{ selected: basicOwned, disabled: anyLoading }}
+        >
+          <LinearGradient
+            colors={BLUE_GRAD}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[bar.btn, anyLoading && !basicLoading && { opacity: 0.55 }]}
+          >
+            {basicLoading ? (
+              <Text style={bar.btnName}>···</Text>
+            ) : (
+              <>
+                <View style={bar.btnTopRow}>
+                  {basicOwned && <Ionicons name="checkmark-circle" size={14} color="#fff" style={{ marginRight: 4 }} />}
+                  <Text style={bar.btnName} numberOfLines={1}>{t('basic_plan_name')}</Text>
+                </View>
+                {basicOwned && (
+                  <Text style={bar.btnSub} numberOfLines={1} adjustsFontSizeToFit>
+                    {t('theme_details_owned_badge')}
+                  </Text>
+                )}
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Premium — most luxurious gold */}
+        <TouchableOpacity
+          style={bar.btnWrapGold}
+          onPress={premiumOwned ? onManageSubscription : onSubscribePremium}
+          disabled={anyLoading}
+          activeOpacity={0.9}
+          accessibilityLabel={premiumOwned ? 'Manage Premium subscription' : t('cmp_premium')}
+          accessibilityState={{ selected: premiumOwned, disabled: anyLoading }}
+        >
+          <LinearGradient
+            colors={GOLD_GRAD}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[bar.btn, bar.btnGold, anyLoading && !premiumLoading && { opacity: 0.55 }]}
+          >
+            {premiumLoading ? (
+              <Text style={[bar.btnName, { color: HERO_DARK }]}>···</Text>
+            ) : (
+              <>
+                <View style={bar.btnTopRow}>
+                  <Ionicons
+                    name={premiumOwned ? 'checkmark-circle' : 'diamond'}
+                    size={14}
+                    color={HERO_DARK}
+                    style={{ marginRight: premiumOwned ? 4 : 5 }}
+                  />
+                  <Text style={[bar.btnName, { color: HERO_DARK }]} numberOfLines={1}>
+                    {t('cmp_premium')}
+                  </Text>
+                </View>
+                <Text style={[bar.btnSub, { color: HERO_DARK }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {premiumOwned ? t('theme_details_owned_badge') : '$4.99/month'}
+                </Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
     </View>
+  );
+});
 
-    {isSubscribed ? (
-      <TouchableOpacity
-        style={[ps.btn, { backgroundColor: `${PLAN_BLUE}14`, borderWidth: 1.5, borderColor: PLAN_BLUE }]}
-        onPress={onManageSubscription}
-        activeOpacity={0.8}
-        accessibilityLabel="Manage subscription"
-      >
-        <Text style={[ps.btnText, { color: PLAN_BLUE }]}>Manage Subscription</Text>
-      </TouchableOpacity>
-    ) : (
-      <TouchableOpacity
-        style={[ps.btn, { backgroundColor: loading ? `${PLAN_BLUE}80` : PLAN_BLUE }]}
-        onPress={onSubscribe}
-        disabled={loading}
-        activeOpacity={0.85}
-        accessibilityLabel={t('subscribe_price')}
-      >
-        <Text style={[ps.btnText, { color: '#fff' }]}>
-          {loading ? '···' : t('subscribe_price')}
-        </Text>
-      </TouchableOpacity>
-    )}
-
-    <TouchableOpacity style={ps.restoreBtn} onPress={onRestore} activeOpacity={0.7} accessibilityLabel={t('restore_purchases')}>
-      <Text style={[ps.restoreText, { color: pal.sub }]}>{t('restore_purchases')}</Text>
-    </TouchableOpacity>
-
-  </View>
-));
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -529,35 +1000,61 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSubscribe: () => Promise<void>;
+  /** Optional Premium purchase flow. Falls back to onSubscribe when not wired. */
+  onSubscribePremium?: () => Promise<void>;
   onRestore: () => Promise<void>;
   themeColor: string;
   pal: Palette;
   isSubscribed?: boolean;
+  isPremium?: boolean;
   learningLang?: string;
   nativeLang?: string;
   onManageSubscription?: () => void;
+  /** Current active skin id — forwarded to Theme Details. */
+  skinId?: string | null;
+  /** Apply a skin from Theme Details (used when subscribed). */
+  onPickSkin?: (id: string | null) => void;
 }
 
 export function ProSheet({
   visible,
   onClose,
   onSubscribe,
+  onSubscribePremium,
   onRestore,
   themeColor,
   pal,
   isSubscribed = false,
+  isPremium = false,
   learningLang,
   nativeLang = 'en-US',
   onManageSubscription,
+  skinId,
+  onPickSkin,
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
-  const slideY    = useRef(new Animated.Value(SH)).current;
-  const backdropO = useRef(new Animated.Value(0)).current;
+  const slideY       = useRef(new Animated.Value(SH)).current;
+  const backdropO    = useRef(new Animated.Value(0)).current;
+  const mainScrollRef = useRef<ScrollView>(null);
 
-  const [loading, setLoading]                       = useState(false);
+  const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
   const [resolvedSampleLang, setResolvedSampleLang] = useState('en-US');
+  const [detailsItem, setDetailsItem]               = useState<ShopItem | null>(null);
+  // Measured height of the fixed bottom bar → keeps scroll content clear of it.
+  const [barHeight, setBarHeight]                   = useState(150);
+
+  // Preload the hero icon + the first four carousel media items as early as
+  // possible — this runs while the component is mounted, before the sheet is
+  // shown, so nothing pops in when it opens.
+  useEffect(() => {
+    const sources: number[] = [
+      require('../../assets/icon.png'),
+      ...CAROUSEL_TILES.slice(0, 4).map(tl => tl.media.source),
+    ];
+    Asset.loadAsync(sources).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -608,9 +1105,14 @@ export function ProSheet({
     finally { setPlayingDemo(null); }
   };
 
-  const handleSubscribe = async () => {
-    setLoading(true);
-    try { await onSubscribe(); } finally { setLoading(false); }
+  const handleSubscribeBasic = async () => {
+    setLoadingPlan('basic');
+    try { await onSubscribe(); } finally { setLoadingPlan(null); }
+  };
+
+  const handleSubscribePremium = async () => {
+    setLoadingPlan('premium');
+    try { await (onSubscribePremium ?? onSubscribe)(); } finally { setLoadingPlan(null); }
   };
 
   if (!visible) return null;
@@ -639,45 +1141,109 @@ export function ProSheet({
           >
             <Ionicons name="close" size={26} color={pal.text} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: pal.text }]}>{t('basic_plan_name')}</Text>
+          <Text style={[s.headerTitle, { color: pal.text }]}>{t('upgrade_plan')}</Text>
           <View style={{ width: 44 }} />
         </View>
 
-        {/* Scrollable body */}
+        {/* Scrollable body — extra bottom padding keeps content clear of the fixed bar */}
         <ScrollView
+          ref={mainScrollRef}
           style={s.scroll}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          contentContainerStyle={{ paddingBottom: barHeight + 24 }}
           showsVerticalScrollIndicator={false}
           bounces
         >
           {/* 1. Hero */}
           <HeroSection pal={pal} t={t} />
 
-          {/* 2. Ribbon — Compare Plans */}
-          <RibbonBanner label={t('plan_compare_title')} />
-
-          {/* 3. Coffee price card */}
+          {/* 2. Coffee value — sits directly above the comparison */}
           <CoffeeValueCard t={t} />
 
-          {/* 4. Pricing / purchase */}
-          <PricingSection
-            pal={pal}
+          {/* 3. Ribbon — Compare Plans */}
+          <RibbonBanner label={t('plan_compare_title')} />
+
+          {/* 4. Plan comparison table */}
+          <PlanComparisonTable t={t} pal={pal} />
+
+          {/* 5. What's included */}
+          <RibbonBanner label={t('whats_included')} />
+
+          {/* Unlock All Themes — directly below What's Included */}
+          <PremiumThemesCarousel
             t={t}
-            isSubscribed={isSubscribed}
-            loading={loading}
-            onSubscribe={handleSubscribe}
-            onRestore={onRestore}
-            onManageSubscription={onManageSubscription}
+            pal={pal}
+            visible={visible}
+            detailsOpen={detailsItem !== null}
+            onOpenDetails={setDetailsItem}
           />
 
-          {/* 5. Feature cards */}
-          <RibbonBanner label={t('whats_included')} />
           <AIVoiceCard demo={demo} playingDemo={playingDemo} onPlay={handlePlayDemo} t={t} pal={pal} />
-          <AiFeaturesCard t={t} pal={pal} />
-          <PremiumThemesCard t={t} pal={pal} />
+
+          {/* AI + plan feature showcases */}
+          {FEATURE_SECTIONS.map(f => (
+            <FeatureSection
+              key={f.key}
+              title={t(f.titleKey)}
+              description={t(f.descKey)}
+              source={f.image}
+              accent={f.accent}
+              icon={f.icon}
+              basic={f.basic}
+              premium={f.premium}
+              t={t}
+            />
+          ))}
+
+          {/* App Store subscription disclosure */}
+          <View style={s.infoCard}>
+            <Text style={[s.infoText, { color: pal.sub }]}>{t('sub_info_payment')}</Text>
+            <Text style={[s.infoText, { color: pal.sub, marginTop: 8 }]}>{t('sub_info_manage')}</Text>
+          </View>
+
+          {/* Back to top */}
+          <TouchableOpacity
+            style={s.backToTopWrap}
+            onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t('back_to_top')}
+          >
+            <LinearGradient colors={HERO_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.backToTop}>
+              <Ionicons name="arrow-up" size={16} color={GOLD_LIGHT} style={{ marginRight: 8 }} />
+              <Text style={s.backToTopText}>{t('back_to_top')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </ScrollView>
 
+        {/* Fixed purchase area — two plan buttons */}
+        <FixedPurchaseBar
+          pal={pal}
+          t={t}
+          isSubscribed={isSubscribed}
+          isPremium={isPremium}
+          loadingPlan={loadingPlan}
+          bottomInset={insets.bottom}
+          onSubscribeBasic={handleSubscribeBasic}
+          onSubscribePremium={handleSubscribePremium}
+          onRestore={onRestore}
+          onManageSubscription={onManageSubscription}
+          onMeasure={setBarHeight}
+        />
+
       </Animated.View>
+
+      {/* Theme details overlay — rendered above the sheet */}
+      <ThemeDetailsSheet
+        item={detailsItem}
+        onClose={() => setDetailsItem(null)}
+        effectiveSkinId={skinId ?? 'solid_blue'}
+        isOwned={isSubscribed}
+        isSubscribed={isSubscribed}
+        pal={pal}
+        themeColor={themeColor}
+        onApply={(item) => { if (isSubscribed) onPickSkin?.(item.id); setDetailsItem(null); }}
+        onUpgrade={() => setDetailsItem(null)}
+      />
     </View>
   );
 }
@@ -687,62 +1253,93 @@ export function ProSheet({
 // Hero styles
 const hs = StyleSheet.create({
   container: {
-    paddingTop: 36,
-    paddingBottom: 0,
-    paddingHorizontal: 0,
+    paddingTop: 40,
+    paddingBottom: 26,
+    paddingHorizontal: 24,
     alignItems: 'center',
     overflow: 'hidden',
-    minHeight: 310,
+    minHeight: 320,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    zIndex: 2,
+  // Soft golden halo behind the icon (two stacked circles for a gradient falloff).
+  glowOuter: {
+    position: 'absolute',
+    top: 128,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: GOLD_MAIN,
+    opacity: 0.10,
+  },
+  glowInner: {
+    position: 'absolute',
+    top: 150,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: GOLD_LIGHT,
+    opacity: 0.16,
   },
   badge: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: PLAN_BLUE,
-    backgroundColor: `${PLAN_BLUE}10`,
+    borderWidth: 1,
+    borderColor: `${GOLD_MAIN}88`,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 20,
   },
   badgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: PLAN_BLUE,
-    letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: '800',
+    color: GOLD_LIGHT,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   headline: {
-    fontSize: 36,
+    fontSize: 33,
     fontWeight: '900',
-    color: HERO_DARK,
+    color: '#FFFFFF',
     textAlign: 'center',
-    lineHeight: 44,
+    lineHeight: 41,
     letterSpacing: -0.5,
-    marginBottom: 18,
-    zIndex: 2,
-    paddingHorizontal: 20,
+    marginBottom: 26,
+    paddingHorizontal: 10,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
-  bearWrap: {
-    alignItems: 'center',
-    marginBottom: 16,
-    zIndex: 2,
+  // Metallic gold ring framing the app icon.
+  iconRing: {
+    padding: 4,
+    borderRadius: ICON_RADIUS + 8,
+    borderWidth: 1.5,
+    borderColor: `${GOLD_MAIN}AA`,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    shadowColor: GOLD_DEEP,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  dotRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingBottom: 14,
-    paddingTop: 4,
-    gap: 5,
+  iconClip: {
+    width:        ICON_SIZE,
+    height:       ICON_SIZE,
+    borderRadius: ICON_RADIUS,
+    overflow:     'hidden',
   },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: PLAN_BLUE,
-    opacity: 0.35,
+  iconImg: {
+    width:  ICON_SIZE,
+    height: ICON_SIZE,
+  },
+  divider: {
+    width: 56,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: GOLD_MAIN,
+    opacity: 0.65,
+    marginTop: 24,
   },
 });
 
@@ -750,109 +1347,327 @@ const hs = StyleSheet.create({
 const cvs = StyleSheet.create({
   card: {
     marginHorizontal: 16,
-    marginTop: 14,
-    marginBottom: 2,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
     borderRadius: 20,
-    backgroundColor: '#F0F2F6',
-    paddingTop: 14,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#DCE7F7',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    shadowColor: '#1D4ED8',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.10,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  cupChip: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  steamRow: {
+    position: 'absolute',
+    top: 7,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 3,
   },
-  leftZone: {
-    width: 54,
-    alignItems: 'center',
+  steam: {
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: PLAN_BLUE,
   },
-  bearPeek: {
-    marginBottom: -12,
-    zIndex: 2,
+  sparkle: {
+    position: 'absolute',
+    top: 5,
+    right: 6,
   },
-  coffeeIcon: {
-    zIndex: 1,
-  },
-  textBlock: {
+  text: {
     flex: 1,
-  },
-  textRow1: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 4,
-  },
-  line1: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#8A94A6',
-    lineHeight: 16,
-    flexShrink: 1,
-  },
-  line2: {
     fontSize: 15,
     fontWeight: '800',
-    color: HERO_DARK,
-    lineHeight: 20,
+    color: '#0F2A5E',
+    lineHeight: 21,
   },
 });
 
-// Pricing section styles
-const ps = StyleSheet.create({
-  container: {
+// AI High-Quality Voice card styles — white-based, rich blue accents
+const av = StyleSheet.create({
+  cardShadow: {
     marginHorizontal: 16,
-    marginTop: 14,
-    marginBottom: 4,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    marginBottom: 20,
+    borderRadius: 22,
+    shadowColor: '#1D4ED8',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 5,
   },
-  planLabelRow: {
+  card: {
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#DCE7F7',
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  title: { fontSize: 18, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2 },
+  subtitle: { fontSize: 12, color: '#64748B', lineHeight: 16, marginTop: 3 },
+  panel: {
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: '#F6F9FE',
+    borderWidth: 1,
+    borderColor: '#E4EDFB',
+  },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E2E8F0', marginVertical: 14 },
+  row: { gap: 10 },
+  sampleText: { fontSize: 15, fontWeight: '600', color: '#1E293B', lineHeight: 22 },
+  btnRow: { flexDirection: 'row', gap: 10 },
+  defaultBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  defaultLabel: { fontSize: 12, fontWeight: '700', color: '#475569' },
+  aiBtnWrap: {
+    flex: 1,
+    borderRadius: 12,
+    shadowColor: PLAN_BLUE,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.30,
+    shadowRadius: 7,
+    elevation: 3,
+  },
+  aiGlow: {
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+    elevation: 7,
+  },
+  aiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    borderRadius: 12,
+  },
+  aiLabel: { fontSize: 12, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+});
+
+// Premium feature section styles — white card, blue-family accents
+const fs = StyleSheet.create({
+  cardShadow: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    borderRadius: 22,
+    // shadowColor set inline per feature accent
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.13,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  card: {
+    borderRadius: 22,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: '#DCE7F7',
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  title: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2 },
+  desc: { fontSize: 12.5, color: '#64748B', lineHeight: 17, marginTop: 3 },
+  imageShadow: {
+    alignSelf: 'center',
+    marginTop: 20,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  imageClip: {
+    width: FEAT_IMG_W,
+    height: FEAT_IMG_H,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E4EDFB',
+    backgroundColor: '#F6F9FE',
+  },
+  image: { width: '100%', height: '100%' },
+  // Icon-based visual (Priority Support, Data Transfer)
+  iconVisual: {
+    marginTop: 20,
+    height: 150,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E4EDFB',
+    backgroundColor: '#F6F9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  iconSparkle: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+  },
+});
+
+// Plan-inclusion label chips (Basic / Premium)
+const pl = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+  },
+  basic: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  basicText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+  premium: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: GOLD_DEEP,
+  },
+  premiumText: { fontSize: 11, fontWeight: '800', color: HERO_DARK, letterSpacing: 0.2 },
+});
+
+// Fixed purchase bar styles — two side-by-side plan buttons
+const bar = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 16,
+  },
+  btnRow: {
+    flexDirection: 'row',
     gap: 10,
-    marginBottom: 4,
   },
-  planDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: PLAN_BLUE,
-    opacity: 0.5,
+  btnWrapBlue: {
+    flex: 1,
+    borderRadius: 16,
+    shadowColor: PLAN_BLUE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  planLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: PLAN_BLUE,
-    letterSpacing: 0.3,
+  btnWrapGold: {
+    flex: 1,
+    borderRadius: 16,
+    shadowColor: GOLD_DEEP,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.50,
+    shadowRadius: 11,
+    elevation: 6,
   },
   btn: {
-    width: '100%',
     height: 58,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: PLAN_BLUE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingHorizontal: 8,
   },
-  btnText: {
-    fontSize: 16,
-    fontWeight: '700',
+  // Metallic border makes Premium read as the top tier.
+  btnGold: {
+    borderWidth: 1,
+    borderColor: GOLD_DEEP,
+  },
+  btnTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  btnName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
     letterSpacing: 0.2,
+  },
+  btnSub: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.92)',
+    marginTop: 1,
+    maxWidth: '100%',
   },
   restoreBtn: {
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 8,
+    marginTop: 4,
   },
   restoreText: {
     fontSize: 13,
@@ -964,6 +1779,59 @@ const s = StyleSheet.create({
     marginTop: 14,
   },
 
+  // ── AI Features explanation ─────────────────────────────────────────────────
+  aiNoteRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  aiNoteText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  // ── App Store disclosure + back-to-top ──────────────────────────────────────
+  infoCard: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  infoText: {
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+  backToTopWrap: {
+    alignSelf: 'center',
+    marginTop: 12,
+    borderRadius: 24,
+    shadowColor: HERO_DARK,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  backToTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: `${GOLD_MAIN}88`,
+  },
+  backToTopText: {
+    color: GOLD_LIGHT,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+
   // ── Voice demo ────────────────────────────────────────────────────────────
   voiceDemoBox: {
     borderRadius: 16,
@@ -973,26 +1841,25 @@ const s = StyleSheet.create({
     borderColor: PLAN_BLUE + '22',
   },
   voiceDivider: { height: StyleSheet.hairlineWidth, marginVertical: 18 },
-  voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  voiceTextCol: { flex: 1 },
+  voiceRow: { flexDirection: 'column', gap: 10 },
   voiceText: { fontSize: 15, fontWeight: '600', lineHeight: 22 },
   voiceButtonCol: { flexDirection: 'row', gap: 8 },
   voiceBtn: {
+    flex: 1,
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    minWidth: 56,
     gap: 3,
   },
   voiceBtnAI: {
+    flex: 1,
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 9,
     borderRadius: 12,
     backgroundColor: PLAN_BLUE,
-    minWidth: 56,
     gap: 3,
     shadowColor: 'rgba(0,0,0,0.2)',
     shadowOffset: { width: 0, height: 2 },
@@ -1003,39 +1870,160 @@ const s = StyleSheet.create({
   voiceBtnLabel:   { fontSize: 9,  fontWeight: '700', letterSpacing: 0.3 },
   voiceBtnAILabel: { fontSize: 9,  fontWeight: '800', letterSpacing: 0.5, color: '#fff' },
 
-  // ── AI tools 2×2 grid ────────────────────────────────────────────────────
-  toolsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  toolBlock: {
-    paddingVertical: 20,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+});
+
+// ── Plan comparison table styles ──────────────────────────────────────────────
+const tbl = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 6,
+    borderRadius: 18,
     borderWidth: 1,
-    backgroundColor: PLAN_BLUE + '08',
-    borderColor: PLAN_BLUE + '20',
-    alignItems: 'center',
-    gap: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  toolIconBubble: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: PLAN_BLUE + '18',
-    alignItems: 'center',
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderBottomWidth: 1,
+  },
+  featureColHdr: {
+    flex: 1.3,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     justifyContent: 'center',
   },
-  toolLabel: { fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 16 },
-
-  // ── Theme carousel ────────────────────────────────────────────────────────
-  themeStrip: { gap: 10, paddingVertical: 6, paddingHorizontal: 2 },
-  themeStripCard: {
-    width: STRIP_W,
-    height: STRIP_H,
-    borderRadius: 10,
-    overflow: 'hidden',
+  hdrFeatureText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  planColHdr: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 3,
+  },
+  basicColHdr: {
+    backgroundColor: `${PLAN_BLUE}18`,
+  },
+  premiumColHdr: {
+    backgroundColor: `${GOLD_MAIN}26`,
+    borderLeftWidth: 1,
+    borderLeftColor: `${GOLD_MAIN}55`,
+  },
+  planPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    maxWidth: '100%',
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  planPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  // Premium pill — gold with a metallic border so it reads as the top tier.
+  premiumPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    maxWidth: '100%',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
+    borderColor: GOLD_DEEP,
+  },
+  dataRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 46,
+  },
+  featureCell: {
+    flex: 1.3,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  featureLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  planCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 3,
+  },
+  basicCell: {
+    backgroundColor: `${PLAN_BLUE}10`,
+  },
+  premiumCell: {
+    backgroundColor: `${GOLD_MAIN}1A`,
+    borderLeftWidth: 1,
+    borderLeftColor: `${GOLD_MAIN}3A`,
+  },
+  cellValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+});
+
+// ── Theme carousel styles ─────────────────────────────────────────────────────
+const caro = StyleSheet.create({
+  // Outer view carries the shadow (needs no clipping); inner clips + centers media.
+  card: {
+    width: CARO_W,
+    height: CARO_H,
+    borderRadius: 18,
+    backgroundColor: CARO_MEDIA_BG,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  cardInner: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: CARO_MEDIA_BG,
+  },
+  nameGrad: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: CARO_H * 0.4,
+  },
+  name: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 11,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

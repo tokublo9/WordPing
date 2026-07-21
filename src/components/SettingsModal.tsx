@@ -30,8 +30,10 @@ interface Props {
   skinId: string | null;
   onPickSkin: (id: string | null) => void;
   isSubscribed: boolean;
+  isPremium: boolean;
   onUpgrade: () => void;
   onSubscribe: () => Promise<void>;
+  onSubscribePremium: () => Promise<void>;
   onRestore: () => Promise<void>;
   /** DEV ONLY: forwarded to ProSheet to override the Manage Subscription button. */
   onManageSubscription?: () => void;
@@ -48,8 +50,8 @@ interface Props {
 
 export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
-  skinId, onPickSkin, isSubscribed, onUpgrade: _onUpgrade,
-  onSubscribe, onRestore, onManageSubscription, pal, language, onPickLanguage,
+  skinId, onPickSkin, isSubscribed, isPremium, onUpgrade: _onUpgrade,
+  onSubscribe, onSubscribePremium, onRestore, onManageSubscription, pal, language, onPickLanguage,
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
@@ -57,10 +59,11 @@ export function SettingsModal({
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
   const insets = useSafeAreaInsets();
   const t = useLang();
-  const [proSheetVisible, setProSheetVisible]     = useState(false);
-  const [shopVisible,     setShopVisible]         = useState(false);
-  const [langModalVisible, setLangModalVisible]   = useState(false);
-  const [tutorialVisible, setTutorialVisible]     = useState(false);
+  const [proSheetVisible,  setProSheetVisible]  = useState(false);
+  const [shopVisible,      setShopVisible]      = useState(false);
+  const [langModalVisible, setLangModalVisible] = useState(false);
+  const [tutorialVisible,  setTutorialVisible]  = useState(false);
+  const [appInfoVisible,   setAppInfoVisible]   = useState(false);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
 
@@ -71,9 +74,8 @@ export function SettingsModal({
 
   const dismissHint = useCallback(() => {
     if (hintTimer.current) { clearTimeout(hintTimer.current); hintTimer.current = null; }
-    Animated.parallel([
-      Animated.timing(hintAnim, { toValue: 0, duration: 220, useNativeDriver: false }),
-    ]).start(({ finished }) => { if (finished) setHintShowing(false); });
+    Animated.timing(hintAnim, { toValue: 0, duration: 220, useNativeDriver: false })
+      .start(({ finished }) => { if (finished) setHintShowing(false); });
   }, [hintAnim]);
 
   const showHint = useCallback(() => {
@@ -89,7 +91,6 @@ export function SettingsModal({
     onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
     onPanResponderMove: (_, g) => {
       if (g.dy < 0) {
-        // Fade + lift proportional to swipe distance (cap at 80 px travel)
         const progress = Math.max(0, 1 - (-g.dy) / 80);
         hintAnim.setValue(progress);
       }
@@ -98,13 +99,14 @@ export function SettingsModal({
       if (g.dy < -28) {
         dismissHint();
       } else {
-        // Snap back and restart timer
         Animated.spring(hintAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
         if (hintTimer.current) clearTimeout(hintTimer.current);
         hintTimer.current = setTimeout(dismissHint, 2500);
       }
     },
   })).current;
+
+  const appearanceDisabled = !!skinId && !skinId.startsWith('solid_');
 
   return (
     <Modal visible={visible} animationType="none" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -124,49 +126,44 @@ export function SettingsModal({
           {/* ── Appearance ───────────────────────────────────────────────── */}
           {/* Disabled only for premium (non-solid) skins; solid colors allow appearance picks.
               When disabled, the row is still tappable and shows a hint toast. */}
-          {(() => {
-            const appearanceDisabled = !!skinId && !skinId.startsWith('solid_');
-            const buttons = (
-              <View style={[s.appearanceRow, appearanceDisabled ? { opacity: 0.38 } : null]}>
-                {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
-                  const active = appearance === mode;
-                  const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
-                  const icon =
-                    mode === 'light' ? 'sunny-outline' :
-                    mode === 'dark'  ? 'moon-outline'  :
-                                       'phone-portrait-outline';
-                  return (
-                    <TouchableOpacity
-                      key={mode}
-                      style={[s.appearanceBtn, { backgroundColor: active ? themeColor : pal.chip }]}
-                      onPress={() => appearanceDisabled ? showHint() : onPickAppearance(mode)}
-                    >
-                      <Ionicons name={icon as any} size={18} color={active ? '#fff' : pal.sub} />
-                      <Text style={[s.appearanceBtnText, { color: active ? '#fff' : pal.sub }]}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            );
-            return (
-              <>
-                <View style={{ marginBottom: 12, marginTop: 24 }}>
-                  <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
-                </View>
-                {buttons}
-              </>
-            );
-          })()}
+          <View style={{ marginBottom: 12, marginTop: 24 }}>
+            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
+          </View>
+          <View style={[s.appearanceRow, appearanceDisabled ? { opacity: 0.38 } : null]}>
+            {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
+              const active = appearance === mode;
+              const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
+              const icon =
+                mode === 'light' ? 'sunny-outline' :
+                mode === 'dark'  ? 'moon-outline'  :
+                                   'phone-portrait-outline';
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[s.appearanceBtn, { backgroundColor: active ? themeColor : pal.chip }]}
+                  onPress={() => appearanceDisabled ? showHint() : onPickAppearance(mode)}
+                >
+                  <Ionicons name={icon as any} size={18} color={active ? '#fff' : pal.sub} />
+                  <Text style={[s.appearanceBtnText, { color: active ? '#fff' : pal.sub }]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* ── Pro ──────────────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
           <TouchableOpacity style={styles.removeAdsRow} onPress={() => setProSheetVisible(true)} activeOpacity={0.7}>
             <Ionicons name="star-outline" size={18} color={pal.sub} />
-            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('basic')}</Text>
-            {isSubscribed && (
-              <View style={[styles.proBadge, { backgroundColor: '#22c55e18', borderColor: '#22c55e44' }]}>
-                <Text style={[styles.proBadgeText, { color: '#22c55e' }]}>✓ Active</Text>
+            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('upgrade_plan')}</Text>
+            {isSubscribed && !isPremium && (
+              <View style={[styles.proBadge, { backgroundColor: '#3B82F618', borderColor: '#3B82F644' }]}>
+                <Text style={[styles.proBadgeText, { color: '#3B82F6' }]}>✓ Basic</Text>
+              </View>
+            )}
+            {isPremium && (
+              <View style={[styles.proBadge, { backgroundColor: '#F5C84218', borderColor: '#F5C84244' }]}>
+                <Text style={[styles.proBadgeText, { color: '#D97706' }]}>✓ Premium</Text>
               </View>
             )}
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
@@ -178,8 +175,10 @@ export function SettingsModal({
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
-          {/* ── Language ─────────────────────────────────────────────────── */}
+          {/* ── Announcements / How to use / Language ──────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
+
+          <SettingRow icon="megaphone-outline" label={t('announcements')} pal={pal} />
 
           <SettingRow icon="help-circle-outline" label={t('how_to_use')} pal={pal}
             onPress={() => setTutorialVisible(true)} />
@@ -191,10 +190,9 @@ export function SettingsModal({
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
-          {/* ── Links ────────────────────────────────────────────────────── */}
+          {/* ── Card Behavior ─────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
-          {/* Card Behavior section */}
           <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('card_behavior')}</Text>
           </View>
@@ -214,27 +212,23 @@ export function SettingsModal({
             themeColor={themeColor}
             pal={pal}
           />
-          <ToggleRow
-            label={t('hide_ai_tools')}
-            description={t('hide_ai_tools_desc')}
-            value={hideAiTools}
-            onToggle={onToggleHideAiTools}
-            themeColor={themeColor}
-            pal={pal}
-          />
+          {isPremium && (
+            <ToggleRow
+              label={t('hide_ai_tools')}
+              description={t('hide_ai_tools_desc')}
+              value={hideAiTools}
+              onToggle={onToggleHideAiTools}
+              themeColor={themeColor}
+              pal={pal}
+            />
+          )}
 
+          {/* ── App Info ─────────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
-          <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
-            onPress={() => Linking.openURL(PRIVACY_URL)} />
-          <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
-            onPress={() => Linking.openURL(TERMS_URL)} />
-          <SettingRow icon="mail-outline" label={t('contact')} pal={pal}
-            onPress={() => Linking.openURL(CONTACT_MAIL)} />
-          <SettingRow icon="library-outline" label={t('license')} pal={pal}
-            onPress={() => Linking.openURL(LICENSE_URL)} />
-          <SettingRow icon="information-circle-outline" label={t('app_version')}
-            value={APP_VERSION} pal={pal} />
+          <SettingRow icon="information-circle-outline" label={t('app_info')} pal={pal}
+            onPress={() => setAppInfoVisible(true)} />
+
         </ScrollView>
         {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
 
@@ -251,11 +245,15 @@ export function SettingsModal({
           visible={proSheetVisible}
           onClose={() => setProSheetVisible(false)}
           onSubscribe={onSubscribe}
+          onSubscribePremium={onSubscribePremium}
           onRestore={onRestore}
           onManageSubscription={onManageSubscription}
           themeColor={themeColor}
           pal={pal}
           isSubscribed={isSubscribed}
+          isPremium={isPremium}
+          skinId={skinId}
+          onPickSkin={onPickSkin}
         />
 
         <KisekaeShopSheet
@@ -275,6 +273,8 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
         />
+
+        <AppInfoSheet visible={appInfoVisible} onClose={() => setAppInfoVisible(false)} pal={pal} />
 
         {/* Appearance-disabled hint toast — slides in below the header */}
         {hintShowing && (
@@ -301,6 +301,37 @@ export function SettingsModal({
           </Animated.View>
         )}
 
+      </View>
+    </Modal>
+  );
+}
+
+// ── App Info sheet ─────────────────────────────────────────────────────────────
+function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: () => void; pal: Palette }) {
+  const insets = useSafeAreaInsets();
+  const t = useLang();
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={[styles.screen, { backgroundColor: pal.bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={[styles.header, { borderBottomColor: pal.border }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={pal.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: pal.text }]}>{t('app_info')}</Text>
+          <View style={styles.backBtn} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
+            onPress={() => Linking.openURL(PRIVACY_URL)} />
+          <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
+            onPress={() => Linking.openURL(TERMS_URL)} />
+          <SettingRow icon="mail-outline" label={t('contact')} pal={pal}
+            onPress={() => Linking.openURL(CONTACT_MAIL)} />
+          <SettingRow icon="library-outline" label={t('license')} pal={pal}
+            onPress={() => Linking.openURL(LICENSE_URL)} />
+          <SettingRow icon="information-circle-outline" label={t('app_version')}
+            value={APP_VERSION} pal={pal} />
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -382,7 +413,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     zIndex: 200,
-    // iOS shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
