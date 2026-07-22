@@ -1,4 +1,4 @@
-import { Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -12,6 +12,13 @@ import { KisekaeShopSheet } from './KisekaeShopSheet';
 import { LanguageModal } from './LanguageModal';
 import { ProSheet } from './ProSheet';
 import { TutorialModal } from './TutorialModal';
+import {
+  AI_VOICE_GROUPS,
+  getAIVoiceDescription,
+  getAIVoiceLabel,
+  type AIVoice,
+} from '../lib/aiVoices';
+import { previewAIVoice, stopPlayback } from '../lib/tts';
 
 // TODO: replace with real URLs before release
 const PRIVACY_URL  = 'https://wordping.app/privacy';
@@ -41,6 +48,8 @@ interface Props {
   pal: Palette;
   language: string;
   onPickLanguage: (code: string) => void;
+  aiVoice: AIVoice;
+  onPickAIVoice: (voice: AIVoice) => void;
   showFullCard: boolean;
   onToggleShowFullCard: (v: boolean) => void;
   verticalFlip: boolean;
@@ -53,6 +62,7 @@ export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
   skinId, onPickSkin, isSubscribed, isPremium, onUpgrade: _onUpgrade,
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription, pal, language, onPickLanguage,
+  aiVoice, onPickAIVoice,
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
@@ -65,8 +75,15 @@ export function SettingsModal({
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [tutorialVisible,  setTutorialVisible]  = useState(false);
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
+  const [voicePickerVisible, setVoicePickerVisible] = useState(false);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
+
+  useEffect(() => {
+    if (visible && isSubscribed) return;
+    stopPlayback();
+    setVoicePickerVisible(false);
+  }, [visible, isSubscribed]);
 
   // ── Appearance-disabled toast ─────────────────────────────────────────────
   const [hintShowing, setHintShowing] = useState(false);
@@ -127,7 +144,7 @@ export function SettingsModal({
           {/* ── Appearance ───────────────────────────────────────────────── */}
           {/* Disabled only for premium (non-solid) skins; solid colors allow appearance picks.
               When disabled, the row is still tappable and shows a hint toast. */}
-          <View style={{ marginBottom: 12, marginTop: 24 }}>
+          <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('appearance')}</Text>
           </View>
           <View style={[s.appearanceRow, appearanceDisabled ? { opacity: 0.38 } : null]}>
@@ -197,6 +214,20 @@ export function SettingsModal({
           <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('card_behavior')}</Text>
           </View>
+          <TouchableOpacity
+            style={styles.removeAdsRow}
+            onPress={() => isSubscribed ? setVoicePickerVisible(true) : setProSheetVisible(true)}
+            activeOpacity={0.7}
+            accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
+          >
+            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
+            <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
+            <Ionicons
+              name={isSubscribed ? 'chevron-forward' : 'lock-closed-outline'}
+              size={15}
+              color={pal.sub}
+            />
+          </TouchableOpacity>
           <ToggleRow
             label={t('show_full_card')}
             description={t('show_full_card_desc')}
@@ -279,6 +310,15 @@ export function SettingsModal({
 
         <AppInfoSheet visible={appInfoVisible} onClose={() => setAppInfoVisible(false)} pal={pal} />
 
+        <VoiceSelectionScreen
+          visible={voicePickerVisible}
+          onClose={() => setVoicePickerVisible(false)}
+          selectedVoice={aiVoice}
+          onSelect={onPickAIVoice}
+          pal={pal}
+          themeColor={themeColor}
+        />
+
         {/* Appearance-disabled hint toast — slides in below the header */}
         {hintShowing && (
           <Animated.View
@@ -308,6 +348,127 @@ export function SettingsModal({
 
       </View>
     </Modal>
+  );
+}
+
+// ── AI voice selection screen ────────────────────────────────────────────────
+function VoiceSelectionScreen({
+  visible, onClose, selectedVoice, onSelect, pal, themeColor,
+}: {
+  visible: boolean;
+  onClose(): void;
+  selectedVoice: AIVoice;
+  onSelect(voice: AIVoice): void;
+  pal: Palette;
+  themeColor: string;
+}) {
+  const insets = useSafeAreaInsets();
+  const t = useLang();
+  const [previewingVoice, setPreviewingVoice] = useState<AIVoice | null>(null);
+  const previewSequence = useRef(0);
+
+  const close = useCallback(() => {
+    previewSequence.current++;
+    stopPlayback();
+    setPreviewingVoice(null);
+    onClose();
+  }, [onClose]);
+
+  const preview = useCallback(async (voice: AIVoice) => {
+    if (previewingVoice === voice) {
+      previewSequence.current++;
+      stopPlayback();
+      setPreviewingVoice(null);
+      return;
+    }
+
+    const sequence = ++previewSequence.current;
+    setPreviewingVoice(voice);
+    try {
+      await previewAIVoice(
+        voice,
+        `Welcome to WordPing. This is the ${getAIVoiceLabel(voice)} voice.`,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === 'cancelled') return;
+      Alert.alert(t('ai_voice_unavailable'), t('quota_exceeded_msg'));
+    } finally {
+      if (previewSequence.current === sequence) setPreviewingVoice(null);
+    }
+  }, [previewingVoice, t]);
+
+  useEffect(() => () => {
+    previewSequence.current++;
+    stopPlayback();
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <View style={[StyleSheet.absoluteFillObject, styles.voiceScreen, { backgroundColor: pal.bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.header, { borderBottomColor: pal.border }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-back" size={24} color={pal.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
+        <View style={styles.backBtn} />
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.voiceList}>
+        {AI_VOICE_GROUPS.map(group => (
+          <View key={group.title} style={styles.voiceCategory}>
+            <Text style={[styles.voiceCategoryTitle, { color: pal.sub }]}>{group.title}</Text>
+            <View style={styles.voiceCategoryRows}>
+              {group.voices.map(voice => {
+                const selected = voice === selectedVoice;
+                const previewing = voice === previewingVoice;
+                const label = getAIVoiceLabel(voice);
+                const description = getAIVoiceDescription(voice);
+                return (
+                  <TouchableOpacity
+                    key={voice}
+                    style={[
+                      styles.voiceRow,
+                      {
+                        backgroundColor: selected ? themeColor + '0D' : pal.card,
+                        borderColor: selected ? themeColor : pal.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      previewSequence.current++;
+                      stopPlayback();
+                      setPreviewingVoice(null);
+                      onSelect(voice);
+                    }}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${group.title}. ${label}. ${description}`}
+                  >
+                    <View style={styles.voiceText}>
+                      <Text style={[styles.voiceName, { color: selected ? themeColor : pal.text }]}>{label}</Text>
+                      <Text style={[styles.voiceDescription, { color: pal.sub }]}>{description}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.previewButton, { backgroundColor: previewing ? themeColor : pal.chip }]}
+                      onPress={() => preview(voice)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      accessibilityLabel={`Preview ${label}`}
+                    >
+                      <Ionicons
+                        name={previewing ? 'stop' : 'play'}
+                        size={14}
+                        color={previewing ? '#fff' : pal.sub}
+                      />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -404,7 +565,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4,
+    paddingHorizontal: 8, paddingTop: 8, paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { width: 44, alignItems: 'center' },
@@ -420,6 +581,26 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
+
+  voiceScreen: { zIndex: 150 },
+  voiceList: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 48, gap: 22 },
+  voiceCategory: { gap: 9 },
+  voiceCategoryTitle: { paddingHorizontal: 2, fontSize: 14, fontWeight: '700' },
+  voiceCategoryRows: { gap: 10 },
+  voiceRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 12,
+  },
+  voiceText: { flex: 1 },
+  voiceName: { fontSize: 16, fontWeight: '600' },
+  voiceDescription: { fontSize: 13, lineHeight: 18, marginTop: 3 },
+  previewButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
 
   toggleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 },
   toggleText: { flex: 1 },

@@ -1,4 +1,5 @@
 import { MAX_AI_INPUT_CHARS } from '../constants';
+import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
 
 // expo-audio is lazy-required so that a missing native module (e.g. in an
 // older Expo Go build) throws at call-time rather than at module evaluation.
@@ -25,6 +26,7 @@ let pendingReject: ((e: Error) => void) | null = null;
 // Incremented on every speakWithAI call; lets us detect when a concurrent
 // call superseded us during an async gap (e.g. the network fetch).
 let epoch = 0;
+let activeAIVoice: AIVoice = DEFAULT_AI_VOICE;
 
 // ── Audio cache ───────────────────────────────────────────────────────────────
 
@@ -38,39 +40,42 @@ async function toBase64(buffer: ArrayBuffer): Promise<string> {
   return btoa(bin);
 }
 
-function fetchBase64(text: string): Promise<string> {
+function fetchBase64(text: string, voice: AIVoice): Promise<string> {
   if (!text.trim()) return Promise.reject(new Error('input_empty'));
   if (text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
-  if (base64Cache.has(text)) return Promise.resolve(base64Cache.get(text)!);
-  if (inFlight.has(text))   return inFlight.get(text)!;
+  const cacheKey = `${voice}\u0000${text}`;
+  if (base64Cache.has(cacheKey)) return Promise.resolve(base64Cache.get(cacheKey)!);
+  if (inFlight.has(cacheKey))   return inFlight.get(cacheKey)!;
 
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   if (!apiKey) return Promise.reject(new Error('EXPO_PUBLIC_OPENAI_API_KEY is not set'));
 
   const p = (async () => {
-    const res = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini-tts',
-        input: text,
-        voice: 'marin',
-        response_format: 'wav',
-        instructions: 'Speak in an emotive and friendly tone.',
-      }),
-    });
-    if (!res.ok) {
-      inFlight.delete(text);
-      if (res.status === 429) throw new Error('quota_exceeded');
-      throw new Error(`OpenAI TTS failed: ${res.status}`);
+    try {
+      const res = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini-tts',
+          input: text,
+          voice,
+          response_format: 'wav',
+          instructions: 'Speak in an emotive and friendly tone.',
+        }),
+      });
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('quota_exceeded');
+        throw new Error(`OpenAI TTS failed: ${res.status}`);
+      }
+      const b64 = await toBase64(await res.arrayBuffer());
+      base64Cache.set(cacheKey, b64);
+      return b64;
+    } finally {
+      inFlight.delete(cacheKey);
     }
-    const b64 = await toBase64(await res.arrayBuffer());
-    base64Cache.set(text, b64);
-    inFlight.delete(text);
-    return b64;
   })();
 
-  inFlight.set(text, p);
+  inFlight.set(cacheKey, p);
   return p;
 }
 
@@ -144,7 +149,7 @@ function speakFree(text: string, locale: string): Promise<void> {
 
 // ── OpenAI TTS (Pro users) ────────────────────────────────────────────────────
 
-async function speakWithAI(text: string): Promise<void> {
+async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
 
   // Immediately stop any prior playback and cancel its pending promise.
@@ -152,7 +157,7 @@ async function speakWithAI(text: string): Promise<void> {
   const myEpoch = ++epoch;
 
   // ── Fetch audio data ───────────────────────────────────────────────────────
-  const base64 = await fetchBase64(text);
+  const base64 = await fetchBase64(text, voice);
 
   // If another speak call arrived while we were fetching, bail out.
   if (myEpoch !== epoch) throw new Error('cancelled');
@@ -259,8 +264,9 @@ export function speakWordCard(
  */
 export async function preloadAI(text: string, isPro: boolean): Promise<void> {
   if (!isPro) return;
-  if (base64Cache.has(text) || inFlight.has(text)) return;
-  try { await fetchBase64(text); } catch {}
+  const cacheKey = `${activeAIVoice}\u0000${text}`;
+  if (base64Cache.has(cacheKey) || inFlight.has(cacheKey)) return;
+  try { await fetchBase64(text, activeAIVoice); } catch {}
 }
 
 /**
@@ -273,6 +279,18 @@ export async function preloadAI(text: string, isPro: boolean): Promise<void> {
 export function speak(text: string, isPro: boolean, forcedLocale?: string): Promise<void> {
   if (isPro) return speakWithAI(text);
   return speakFree(text, forcedLocale ?? detectLocale(text));
+}
+
+/** Update the voice used by every subsequent subscriber AI playback request. */
+export function setAIVoicePreference(voice: AIVoice): void {
+  if (voice === activeAIVoice) return;
+  activeAIVoice = voice;
+  stopPlayback();
+}
+
+/** Play a one-off subscriber preview without changing the saved preference. */
+export function previewAIVoice(voice: AIVoice, text: string): Promise<void> {
+  return speakWithAI(text, voice);
 }
 
 /** Stop any active playback immediately (e.g. on component unmount). */

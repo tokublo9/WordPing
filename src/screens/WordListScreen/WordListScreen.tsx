@@ -4,10 +4,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Folder, Palette, WordCard } from '../../types';
 import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
@@ -56,6 +55,7 @@ export interface WordListReorderProps {
 
 export interface WordListActionsProps {
   onGoBack(): void;
+  onOpenTextToSpeech(): void;
   onOpenNotifications(): void;
   onOpenMenu(): void;
   onOpenTestMode(): void;
@@ -97,10 +97,8 @@ export interface WordListScreenProps {
 
   // Card-open tracking
   flipped: Set<string>;
-  cardScrollEnabled: boolean;
   closeOpenCard: React.RefObject<(() => void) | null>;
   onCardOpen(close: () => void): void;
-  onSwiping(active: boolean): void;
 
   selection: WordListSelectionProps;
   reorder: WordListReorderProps;
@@ -118,11 +116,32 @@ export function WordListScreen({
   showFullCard, verticalFlip, notificationsEnabled,
   cardViewMode, onToggleViewMode,
   levelFilter, isFilterActive, showLevelLabels, onToggleLevelFilter,
-  flipped, cardScrollEnabled, closeOpenCard, onCardOpen, onSwiping,
+  flipped, closeOpenCard, onCardOpen,
   selection, reorder, actions,
   menuBtnRef,
 }: WordListScreenProps) {
   const t = useLang();
+  const [horizontalSwipeLocked, setHorizontalSwipeLocked] = useState(false);
+  const horizontalSwipeLockedRef = useRef(false);
+  const verticalGestureLockedRef = useRef(false);
+
+  const handleGestureStart = useCallback(() => {
+    verticalGestureLockedRef.current = false;
+    horizontalSwipeLockedRef.current = false;
+    setHorizontalSwipeLocked(false);
+  }, []);
+
+  const handleHorizontalSwipeLockChange = useCallback((locked: boolean) => {
+    if (locked && verticalGestureLockedRef.current) return;
+    horizontalSwipeLockedRef.current = locked;
+    setHorizontalSwipeLocked(locked);
+  }, []);
+
+  const handleVerticalGestureLock = useCallback(() => {
+    if (!horizontalSwipeLockedRef.current) verticalGestureLockedRef.current = true;
+  }, []);
+
+  const isVerticalGestureLocked = useCallback(() => verticalGestureLockedRef.current, []);
 
   // ── Scrollbar (no React state on scroll — Animated.event drives everything) ──
 
@@ -143,22 +162,10 @@ export function WordListScreen({
   deepSeaSkinRef.current   = deepSeaSkin;
   deepSeaScrollRef.current = scrollY;
 
-  // Stable scroll event — created once, never recreated.
-  const listScrollEvent = useRef(
-    Animated.event(
-      [{ nativeEvent: { contentOffset: { y: listScrollAnim } } }],
-      {
-        useNativeDriver: true,
-        // listener runs on JS thread at scrollEventThrottle cadence;
-        // used only to forward the value to the DeepSea skin animated value.
-        listener: (e: any) => {
-          if (deepSeaSkinRef.current) {
-            deepSeaScrollRef.current.setValue(e.nativeEvent.contentOffset.y);
-          }
-        },
-      }
-    )
-  ).current;
+  const handleListScroll = useCallback((offset: number) => {
+    listScrollAnim.setValue(offset);
+    if (deepSeaSkinRef.current) deepSeaScrollRef.current.setValue(offset);
+  }, [listScrollAnim]);
 
   // Show the scrollbar thumb immediately.
   const showScrollbar = useCallback(() => {
@@ -175,20 +182,28 @@ export function WordListScreen({
   }, [listFadeAnim]);
 
   const handleScrollBeginDrag = useCallback(() => {
+    if (!horizontalSwipeLockedRef.current) verticalGestureLockedRef.current = true;
     closeOpenCard.current?.();
     showScrollbar();
   }, [showScrollbar]);
 
   // onScrollEndDrag fires before onMomentumScrollBegin — schedule hide and let
   // handleMomentumScrollBegin cancel it if a momentum scroll follows.
-  const handleScrollEndDrag     = useCallback(() => { scheduleHideScrollbar(); }, [scheduleHideScrollbar]);
+  const handleScrollEndDrag     = useCallback(() => {
+    verticalGestureLockedRef.current = false;
+    scheduleHideScrollbar();
+  }, [scheduleHideScrollbar]);
   const handleMomentumScrollBegin = useCallback(() => { showScrollbar(); },          [showScrollbar]);
   const handleMomentumScrollEnd   = useCallback(() => { scheduleHideScrollbar(); }, [scheduleHideScrollbar]);
 
   // Cleanup timer on unmount.
   useEffect(() => () => { if (listFadeTimer.current) clearTimeout(listFadeTimer.current); }, []);
 
-  const renderCard = ({ item, index }: { item: WordCard; index: number }) => (
+  const renderWordCard = (
+    item: WordCard,
+    reorderMode = false,
+    reorderHandle?: React.ReactNode,
+  ) => (
     <SwipeableCard
       item={item}
       isFlipped={flipped.has(item.id)}
@@ -206,18 +221,23 @@ export function WordListScreen({
       isPremium={isPremium}
       onOpen={onCardOpen}
       openCardRef={closeOpenCard}
-      selectionMode={selection.active}
+      selectionMode={reorderMode ? false : selection.active}
       selected={selection.selectedIds.has(item.id)}
       onToggleSelect={() => selection.onToggle(item.id)}
       showLevelLabel={showLevelLabels}
-      onSwiping={onSwiping}
+      onHorizontalSwipeLockChange={handleHorizontalSwipeLockChange}
+      onGestureStart={handleGestureStart}
+      onVerticalGestureLock={handleVerticalGestureLock}
+      isVerticalGestureLocked={isVerticalGestureLocked}
       showFullCard={showFullCard}
+      reorderMode={reorderMode}
+      reorderHandle={reorderHandle}
     />
   );
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const header = (
-    <View style={s.header} onTouchStart={() => closeOpenCard.current?.()}>
+    <View style={[s.header, wordListLayoutStyles.header]} onTouchStart={() => closeOpenCard.current?.()}>
       {selection.active ? (
         <>
           <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
@@ -263,6 +283,24 @@ export function WordListScreen({
             </Text>
           </TouchableOpacity>
           <View style={s.headerIcons}>
+            <TouchableOpacity
+              style={s.iconBtn}
+              onPress={actions.onOpenTextToSpeech}
+              accessibilityLabel={isPremium ? 'Text-to-Speech' : 'Text-to-Speech, Premium locked'}
+            >
+              <View style={wordListLayoutStyles.textToSpeechIcon}>
+                <MaterialCommunityIcons
+                  name="account-voice"
+                  size={22}
+                  color={isPremium ? pal.sub : pal.sub + '88'}
+                />
+                {!isPremium && (
+                  <View style={[wordListLayoutStyles.textToSpeechLock, { backgroundColor: pal.bg }]}>
+                    <Ionicons name="lock-closed" size={9} color={pal.sub} />
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenNotifications}>
               <Ionicons
                 name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
@@ -307,50 +345,60 @@ export function WordListScreen({
   const untestedCount = folderCards.filter(c => !c.testLevel).length;
   const isTestComplete = folderCards.length > 0 && untestedCount === 0;
 
-  const filterBar = folderCards.length > 0 && !selection.active && !reorder.active && showLevelLabels ? (
-    <View style={filterStyles.bar} onTouchStart={() => closeOpenCard.current?.()}>
-      <View style={filterStyles.chipGroup}>
-        {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
-          const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
-          const on = levelFilter.has(level);
-          return (
-            <TouchableOpacity
-              key={level}
-              style={[filterStyles.chip, { borderColor: on ? color : pal.border }]}
-              onPress={() => onToggleLevelFilter(level)}
-            >
-              {icon === '◎'
-                ? <Text style={{ fontSize: 14, color: on ? color : '#9CA3AF', lineHeight: 15 }}>◎</Text>
-                : icon != null
-                ? <Ionicons name={icon as any} size={13} color={on ? color : '#9CA3AF'} />
-                : null
-              }
-              <Text style={[filterStyles.chipCount, { color: on ? color : '#9CA3AF' }]}>
-                {count}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <TouchableOpacity
-        style={s.iconBtn}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        onPress={actions.onOpenTestMode}
-        accessibilityLabel={
-          isTestComplete
-            ? 'Test complete.'
-            : untestedCount > 0
-            ? `Test, ${untestedCount} remaining`
-            : 'Test'
-        }
-      >
-        <TestStatusIcon
-          cardCount={folderCards.length}
-          untestedCount={untestedCount}
-          themeColor={themeColor}
-          pal={pal}
-        />
-      </TouchableOpacity>
+  // Keep this slot only when it has visible label controls or when the reorder
+  // toolbar is using it. Hiding labels should restore the compact list offset.
+  const filterBar = folderCards.length > 0 && !selection.active && (showLevelLabels || reorder.active) ? (
+    <View
+      style={[filterStyles.bar, reorder.active && filterStyles.hidden]}
+      pointerEvents={reorder.active ? 'none' : 'auto'}
+      onTouchStart={() => closeOpenCard.current?.()}
+    >
+      {showLevelLabels && (
+        <>
+          <View style={filterStyles.chipGroup}>
+            {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
+              const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
+              const on = levelFilter.has(level);
+              return (
+                <TouchableOpacity
+                  key={level}
+                  style={[filterStyles.chip, { borderColor: on ? color : pal.border }]}
+                  onPress={() => onToggleLevelFilter(level)}
+                >
+                  {icon === '◎'
+                    ? <Text style={{ fontSize: 14, color: on ? color : '#9CA3AF', lineHeight: 15 }}>◎</Text>
+                    : icon != null
+                    ? <Ionicons name={icon as any} size={13} color={on ? color : '#9CA3AF'} />
+                    : null
+                  }
+                  <Text style={[filterStyles.chipCount, { color: on ? color : '#9CA3AF' }]}>
+                    {count}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <TouchableOpacity
+            style={s.iconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={actions.onOpenTestMode}
+            accessibilityLabel={
+              isTestComplete
+                ? 'Test complete.'
+                : untestedCount > 0
+                ? `Test, ${untestedCount} remaining`
+                : 'Test'
+            }
+          >
+            <TestStatusIcon
+              cardCount={folderCards.length}
+              untestedCount={untestedCount}
+              themeColor={themeColor}
+              pal={pal}
+            />
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   ) : null;
 
@@ -366,65 +414,7 @@ export function WordListScreen({
         <Text style={[s.emptyHint,  { color: pal.sub  }]}>{t('no_words_hint')}</Text>
       </View>
     );
-  } else if (reorder.active) {
-    cardContent = (
-      <>
-        <View style={reorderToolStyles.toolbar}>
-          {/* Highest first — green circle → arrow → label (asc: perfect → unknown) */}
-          <TouchableOpacity
-            style={[
-              reorderToolStyles.sortBtn,
-              { backgroundColor: pal.card, borderColor: pal.border },
-              reorder.sortDir === 'asc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
-            ]}
-            onPress={() => reorder.onSortByLevel('asc')}
-            activeOpacity={0.85}
-          >
-            <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_HIGH_COLOR }]} />
-            <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
-            <Text style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'asc' ? themeColor : pal.text }]}>
-              {t('reorder_sort_best_first')}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Lowest first — red circle → arrow → label (desc: unknown → perfect) */}
-          <TouchableOpacity
-            style={[
-              reorderToolStyles.sortBtn,
-              { backgroundColor: pal.card, borderColor: pal.border },
-              reorder.sortDir === 'desc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
-            ]}
-            onPress={() => reorder.onSortByLevel('desc')}
-            activeOpacity={0.85}
-          >
-            <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_LOW_COLOR }]} />
-            <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
-            <Text style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'desc' ? themeColor : pal.text }]}>
-              {t('reorder_sort_least_first')}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Reset to original order — icon only */}
-          <TouchableOpacity
-            style={[reorderToolStyles.resetBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
-            onPress={reorder.onResetOrder}
-            activeOpacity={0.85}
-            accessibilityLabel={t('reorder_original')}
-          >
-            <Ionicons name="refresh-outline" size={16} color={pal.sub} />
-          </TouchableOpacity>
-        </View>
-        <ReorderableList
-          cards={folderCards}
-          onReorder={reorder.onReorder}
-          pal={pal}
-          themeColor={themeColor}
-          extraPaddingBottom={isSubscribed ? 0 : AD_BANNER_HEIGHT}
-          showLevelLabel={showLevelLabels}
-        />
-      </>
-    );
-  } else if (cardViewMode === 'flip') {
+  } else if (cardViewMode === 'flip' && !reorder.active) {
     cardContent = (
       <FlipCardBrowser
         key={Array.from(levelFilter).sort().join(',')}
@@ -445,39 +435,100 @@ export function WordListScreen({
   } else {
     cardContent = (
       <View style={{ flex: 1 }}>
-        <Animated.FlatList<WordCard>
-          data={filteredFolderCards}
-          keyExtractor={c => c.id}
-          renderItem={renderCard}
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            s.list,
-            { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0) },
-          ]}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={cardScrollEnabled}
-          keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-          onScroll={listScrollEvent}
+        {reorder.active && (
+          <View key="reorder-toolbar" style={reorderToolStyles.toolbar}>
+            <TouchableOpacity
+              style={[
+                reorderToolStyles.sortBtn,
+                { backgroundColor: pal.card, borderColor: pal.border },
+                reorder.sortDir === 'asc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
+              ]}
+              onPress={() => reorder.onSortByLevel('asc')}
+              activeOpacity={0.85}
+            >
+              <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_HIGH_COLOR }]} />
+              <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
+              <Text
+                style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'asc' ? themeColor : pal.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.58}
+              >
+                {t('reorder_sort_best_first')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                reorderToolStyles.sortBtn,
+                { backgroundColor: pal.card, borderColor: pal.border },
+                reorder.sortDir === 'desc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
+              ]}
+              onPress={() => reorder.onSortByLevel('desc')}
+              activeOpacity={0.85}
+            >
+              <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_LOW_COLOR }]} />
+              <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
+              <Text
+                style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'desc' ? themeColor : pal.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.58}
+              >
+                {t('reorder_sort_least_first')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[reorderToolStyles.resetBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
+              onPress={reorder.onResetOrder}
+              activeOpacity={0.85}
+              accessibilityLabel={t('reorder_original')}
+            >
+              <Ionicons name="refresh-outline" size={16} color={pal.sub} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <ReorderableList
+          key="persistent-word-list"
+          cards={filteredFolderCards}
+          onReorder={reorderedVisibleCards => {
+            const visibleIds = new Set(reorderedVisibleCards.map(card => card.id));
+            let visibleIndex = 0;
+            const mergedOrder = folderCards.map(card =>
+              visibleIds.has(card.id) ? reorderedVisibleCards[visibleIndex++] : card
+            );
+            reorder.onReorder(mergedOrder);
+          }}
+          pal={pal}
+          themeColor={themeColor}
+          reorderEnabled={reorder.active}
+          extraPaddingBottom={
+            (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0)
+          }
+          showLevelLabel={showLevelLabels}
+          renderWordCard={renderWordCard}
+          scrollEnabled={reorder.active || !horizontalSwipeLocked}
+          onScrollOffsetChange={handleListScroll}
           onScrollBeginDrag={handleScrollBeginDrag}
           onScrollEndDrag={handleScrollEndDrag}
           onMomentumScrollBegin={handleMomentumScrollBegin}
           onMomentumScrollEnd={handleMomentumScrollEnd}
-          onContentSizeChange={(_, h) => setListContentH(h)}
-          onLayout={e => setListViewH(e.nativeEvent.layout.height)}
-          ListFooterComponent={
-            <TouchableWithoutFeedback onPress={() => closeOpenCard.current?.()}>
-              <View style={{ height: 300 }} />
-            </TouchableWithoutFeedback>
-          }
+          onContentHeightChange={setListContentH}
+          onViewportHeightChange={setListViewH}
+          onFooterPress={() => closeOpenCard.current?.()}
         />
-        <ScrollBar
-          scrollAnim={listScrollAnim}
-          contentH={listContentH}
-          viewH={listViewH}
-          fadeAnim={listFadeAnim}
-          color={pal.sub}
-        />
+        {!reorder.active && (
+          <ScrollBar
+            key="word-list-scrollbar"
+            scrollAnim={listScrollAnim}
+            contentH={listContentH}
+            viewH={listViewH}
+            fadeAnim={listFadeAnim}
+            color={pal.sub}
+          />
+        )}
       </View>
     );
   }
@@ -588,8 +639,26 @@ const selStyles = StyleSheet.create({
   barDivider: { width: StyleSheet.hairlineWidth },
 });
 
+const wordListLayoutStyles = StyleSheet.create({
+  // Normal, selection, and reorder headers contain different controls, but the
+  // list must always begin at the same screen coordinate when modes change.
+  header: { height: 50 },
+  textToSpeechIcon: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  textToSpeechLock: {
+    position: 'absolute',
+    right: -2,
+    bottom: -1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 const filterStyles = StyleSheet.create({
   bar: {
+    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -615,44 +684,52 @@ const filterStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  hidden: { opacity: 0 },
 });
 
 const reorderToolStyles = StyleSheet.create({
   toolbar: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    top: -46,
+    zIndex: 5,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 16,
+    gap: 4,
     paddingBottom: 10,
   },
   // Original-order reset — icon-only button beside the Lowest First pill.
   resetBtn: {
+    width: 32,
+    height: 32,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
   },
   // Direction sort pills — colored level circle → arrow → label.
   sortBtn: {
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
   },
   levelCircle: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   sortArrow: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     marginHorizontal: -1,
   },
@@ -662,7 +739,10 @@ const reorderToolStyles = StyleSheet.create({
     gap: 4,
   },
   btnText: {
-    fontSize: 13,
+    minWidth: 0,
+    flexShrink: 1,
+    fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

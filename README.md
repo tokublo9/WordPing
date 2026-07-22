@@ -27,6 +27,7 @@ Users add words they want to remember. WordPing helps them review those words th
 
 ### AI & Voice
 - **AI meaning generation** — auto-generate a meaning or example note using GPT-4o-mini (requires `EXPO_PUBLIC_OPENAI_API_KEY`)
+- **Text-to-Speech prototype (Premium)** — generate speech with the Natural AI Voice selected in Settings, then play, rename, save, or share it from a persistent 10-file history
 - **Text-to-speech** — tap the speaker icon on any card to hear the word or meaning read aloud; supports 10+ language locales
 - First 10 TTS plays are free; additional plays require a Basic plan
 
@@ -61,6 +62,7 @@ Users add words they want to remember. WordPing helps them review those words th
 | Safe area | react-native-safe-area-context |
 | Blur | expo-blur |
 | Text-to-speech | expo-speech |
+| Audio files / export | expo-file-system / expo-sharing |
 | Backend / Sync | Supabase (anonymous auth + device data sync) |
 | AI generation | OpenAI GPT-4o-mini |
 | Subscription | AsyncStorage stub (RevenueCat / react-native-purchases required for real IAP) |
@@ -91,7 +93,7 @@ npx expo start --web
 Create a `.env.local` file in the project root:
 
 ```
-EXPO_PUBLIC_OPENAI_API_KEY=sk-...   # for AI meaning generation
+EXPO_PUBLIC_OPENAI_API_KEY=sk-...   # for AI tools and the Text-to-Speech prototype
 ```
 
 Supabase credentials are configured inside `src/lib/supabase.ts`.

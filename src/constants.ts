@@ -40,6 +40,7 @@ export const DEVICE_ID_KEY = 'device_id';
 export const CARDS_KEY = 'vocabulary_cards';
 export const THEME_KEY = 'theme_color';
 export const APPEARANCE_KEY = 'appearance';
+export const AI_VOICE_KEY = 'ai_voice';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 

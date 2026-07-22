@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Appearance } from '../types';
 import { DEFAULT_LANGUAGE, DEFAULT_THEME } from '../constants';
 import type { Settings } from '../lib/db';
+import { DEFAULT_AI_VOICE, type AIVoice } from '../lib/aiVoices';
 
 export interface AppSettingsState {
   themeColor: string;
@@ -13,6 +14,8 @@ export interface AppSettingsState {
   setSkinId: Dispatch<SetStateAction<string | null>>;
   language: string;
   setLanguage: Dispatch<SetStateAction<string>>;
+  aiVoice: AIVoice;
+  setAIVoice: Dispatch<SetStateAction<AIVoice>>;
   showFullCard: boolean;
   setShowFullCard: Dispatch<SetStateAction<boolean>>;
   verticalFlip: boolean;
@@ -30,6 +33,7 @@ export function useAppSettings(): AppSettingsState {
   const [appearance, setAppearance] = useState<Appearance>('system');
   const [skinId, setSkinId] = useState<string | null>(null);
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
+  const [aiVoice, setAIVoice] = useState<AIVoice>(DEFAULT_AI_VOICE);
   const [showFullCard, setShowFullCard] = useState(false);
   const [verticalFlip, setVerticalFlip] = useState(false);
   const [hideAiTools, setHideAiTools]   = useState(false);
@@ -40,6 +44,7 @@ export function useAppSettings(): AppSettingsState {
     setAppearance(s.appearance);
     setSkinId(s.skinId ?? null);
     setLanguage(s.language ?? DEFAULT_LANGUAGE);
+    setAIVoice(s.aiVoice ?? DEFAULT_AI_VOICE);
   }, []);
 
   const markSettingsLoaded = useCallback(() => setSettingsLoaded(true), []);
@@ -49,6 +54,7 @@ export function useAppSettings(): AppSettingsState {
     appearance, setAppearance,
     skinId, setSkinId,
     language, setLanguage,
+    aiVoice, setAIVoice,
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,

@@ -2,9 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Appearance, Folder, WordCard } from '../types';
 import {
   APPEARANCE_KEY, CARDS_KEY,
+  AI_VOICE_KEY,
   DEFAULT_LANGUAGE, DEFAULT_THEME, DEVICE_ID_KEY,
   FOLDERS_KEY, LANGUAGE_KEY, SKIN_KEY, THEME_KEY,
 } from '../constants';
+import { DEFAULT_AI_VOICE, isAIVoice, type AIVoice } from './aiVoices';
 import { supabase } from './supabase';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 
@@ -31,6 +33,7 @@ export interface Settings {
   appearance: Appearance;
   skinId: string | null;
   language: string;
+  aiVoice: AIVoice;
 }
 
 export interface AppData {
@@ -98,6 +101,7 @@ function normalizeSettings(raw: unknown): Settings {
       : 'system',
     skinId:     typeof s.skinId   === 'string' ? s.skinId   : null,
     language:   typeof s.language === 'string' ? s.language : DEFAULT_LANGUAGE,
+    aiVoice:    isAIVoice(s.aiVoice) ? s.aiVoice : DEFAULT_AI_VOICE,
   };
 }
 
@@ -162,13 +166,14 @@ async function getDeviceId(): Promise<string> {
 // ── Local storage ─────────────────────────────────────────────────────────────
 
 async function readLocal(): Promise<AppData> {
-  const [rawCards, rawTheme, rawAppearance, rawSkinId, rawLanguage] =
+  const [rawCards, rawTheme, rawAppearance, rawSkinId, rawLanguage, rawAIVoice] =
     await Promise.all([
       AsyncStorage.getItem(CARDS_KEY),
       AsyncStorage.getItem(THEME_KEY),
       AsyncStorage.getItem(APPEARANCE_KEY),
       AsyncStorage.getItem(SKIN_KEY),
       AsyncStorage.getItem(LANGUAGE_KEY),
+      AsyncStorage.getItem(AI_VOICE_KEY),
     ]);
 
   return {
@@ -178,6 +183,7 @@ async function readLocal(): Promise<AppData> {
       appearance: (rawAppearance as Appearance | null) ?? 'system',
       skinId: rawSkinId || null,
       language: rawLanguage ?? DEFAULT_LANGUAGE,
+      aiVoice: isAIVoice(rawAIVoice) ? rawAIVoice : DEFAULT_AI_VOICE,
     },
   };
 }
@@ -190,6 +196,7 @@ async function writeLocal(data: AppData): Promise<void> {
     AsyncStorage.setItem(APPEARANCE_KEY, settings.appearance),
     AsyncStorage.setItem(SKIN_KEY, settings.skinId ?? ''),
     AsyncStorage.setItem(LANGUAGE_KEY, settings.language),
+    AsyncStorage.setItem(AI_VOICE_KEY, settings.aiVoice),
   ]);
 }
 

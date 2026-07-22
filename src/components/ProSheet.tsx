@@ -113,22 +113,26 @@ const SHOP_BY_ID = new Map(SHOP_ITEMS.map(i => [i.id, i] as const));
 
 // ── Premium feature sections (paywall showcase) ───────────────────────────────
 // Static requires so Metro bundles the local PNGs reliably. Filenames map 1:1 to
-// features (all assets are 1260×2736 screenshots).
+// features; each screenshot keeps its own source dimensions and aspect ratio.
 const PAYWALL_IMAGES = {
+  custom:    require('../../screenshots/paywall/custom.png'),
+  textToSpeech: require('../../screenshots/paywall/text-to-speech.png'),
   example:   require('../../screenshots/paywall/example.png'),
   breakdown: require('../../screenshots/paywall/breakdown.png'),
   meaning:   require('../../screenshots/paywall/meaning.png'),
   translate: require('../../screenshots/paywall/translate.png'),
 } as const;
 
-// Preview image size — keeps the real 1260×2736 aspect ratio (no stretch/crop).
+// Preview images share a responsive width while their heights are derived from
+// each asset's own dimensions, so differently sized screenshots stay undistorted.
 const FEAT_IMG_W = Math.min(Math.round((SW - 32) * 0.62), 240);
-const FEAT_IMG_H = Math.round(FEAT_IMG_W * 2736 / 1260);
 
 interface FeatureConfig {
   key: string;
-  titleKey: TranslationKey;
-  descKey: TranslationKey;
+  titleKey?: TranslationKey;
+  descKey?: TranslationKey;
+  title?: string;
+  description?: string;
   /** Screenshot preview. Omitted → the section renders an icon illustration. */
   image?: number;
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -136,6 +140,7 @@ interface FeatureConfig {
   /** Which plans include this feature (drives the plan labels below the card). */
   basic: boolean;
   premium: boolean;
+  premiumOnly?: boolean;
 }
 
 // Order matches the requested feature list. Each shares the luxurious white style
@@ -143,11 +148,22 @@ interface FeatureConfig {
 // sections show screenshots; Priority Support / Data Transfer use icon visuals.
 // `basic`/`premium` mirror the plan comparison table.
 const FEATURE_SECTIONS: FeatureConfig[] = [
-  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', icon: 'mic-outline',             accent: '#0891B2', basic: false, premium: true },
-  { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
-  { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
+  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', image: PAYWALL_IMAGES.custom,    icon: 'mic-outline',             accent: '#0891B2', basic: false, premium: true },
+  {
+    key: 'text_to_speech',
+    title: 'Text to Speech',
+    description: 'Turn any text into natural-sounding audio that you can play and save anytime!',
+    image: PAYWALL_IMAGES.textToSpeech,
+    icon: 'volume-high-outline',
+    accent: '#7C3AED',
+    basic: false,
+    premium: true,
+    premiumOnly: true,
+  },
   { key: 'meaning',   titleKey: 'cmp_ai_meaning',       descKey: 'feat_meaning_desc',     image: PAYWALL_IMAGES.meaning,   icon: 'bulb-outline',        accent: '#0EA5E9', basic: false, premium: true },
+  { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
   { key: 'translate', titleKey: 'cmp_ai_translation',   descKey: 'feat_translation_desc', image: PAYWALL_IMAGES.translate, icon: 'language-outline',    accent: '#2563EB', basic: false, premium: true },
+  { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
   { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    icon: 'headset',                 accent: '#4338CA', basic: true,  premium: true },
   { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    icon: 'swap-horizontal',         accent: '#0284C7', basic: true,  premium: true },
 ];
@@ -368,13 +384,18 @@ const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardPro
 // own source is ready, and no other feature's image can flash in.
 const FeatureImage = React.memo(function FeatureImage({ source }: { source: number }) {
   const [ready, setReady] = useState(false);
+  const resolvedSource = Image.resolveAssetSource(source);
+  const aspectRatio = resolvedSource?.width && resolvedSource?.height
+    ? resolvedSource.width / resolvedSource.height
+    : 1260 / 2736;
+
   return (
     <View style={fs.imageShadow}>
-      <View style={fs.imageClip}>
+      <View style={[fs.imageClip, { aspectRatio }]}>
         <Image
           source={source}
           style={[fs.image, { opacity: ready ? 1 : 0 }]}
-          resizeMode="cover"
+          resizeMode="contain"
           fadeDuration={0}
           onLoad={() => setReady(true)}
         />
@@ -423,7 +444,7 @@ const FeatureIconVisual = React.memo(function FeatureIconVisual({
 });
 
 const FeatureSection = React.memo(function FeatureSection({
-  title, description, source, accent, icon, basic, premium, t,
+  title, description, source, accent, icon, basic, premium, premiumOnly = false, t,
 }: {
   title: string;
   description: string;
@@ -432,6 +453,7 @@ const FeatureSection = React.memo(function FeatureSection({
   icon: React.ComponentProps<typeof Ionicons>['name'];
   basic: boolean;
   premium: boolean;
+  premiumOnly?: boolean;
   t: (k: any) => string;
 }) {
   return (
@@ -448,6 +470,12 @@ const FeatureSection = React.memo(function FeatureSection({
             </View>
           </View>
         </View>
+        {premiumOnly && (
+          <View style={fs.premiumOnlyBadge}>
+            <Ionicons name="diamond" size={10} color={HERO_DARK} />
+            <Text style={fs.premiumOnlyText}>Premium only</Text>
+          </View>
+        )}
         {source != null
           ? <FeatureImage source={source} />
           : <FeatureIconVisual icon={icon} accent={accent} />}
@@ -772,7 +800,11 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
       <View style={{ paddingHorizontal: CARD_PADDING, marginTop: 18 }}>
         <PlanLabels basic premium t={t} />
 
-        {/* Value promo — polished Basic-plan blue banner beneath the plan labels */}
+        <Text style={[s.cardDesc, { color: pal.sub, marginTop: 14 }]}>
+          {t('themes_switch_desc')}
+        </Text>
+
+        {/* Value promo — polished Basic-plan blue banner beneath the description */}
         <View style={s.themePromo}>
           <LinearGradient
             colors={['#EFF5FF', '#DBE8FF']}
@@ -786,11 +818,6 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
           <Text style={s.themePromoText}>{t('themes_value_promo')}</Text>
           <Ionicons name="sparkles" size={14} color={BLUE_GRAD[1]} style={{ marginLeft: 10 }} />
         </View>
-
-        {/* Description moved below the value promo */}
-        <Text style={[s.cardDesc, { color: pal.sub, marginTop: 14 }]}>
-          {t('themes_switch_desc')}
-        </Text>
       </View>
 
     </View>
@@ -830,6 +857,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
     { label: t('cmp_themes'),           free: '2',     basic: 'infinite', premium: 'infinite' },
     { label: t('cmp_ai_voice_hq'),      free: 'cross', basic: 'infinite',              premium: 'infinite' },
     { label: t('cmp_custom_voice'),     free: 'cross', basic: 'cross',               premium: 'infinite' },
+    { label: 'Text to Speech',          free: 'cross', basic: 'cross',                premium: 'infinite' },
     { label: t('cmp_ai_example'),       free: 'cross', basic: 'cross',                premium: 'infinite' },
     { label: t('cmp_ai_breakdown'),     free: 'cross', basic: 'cross',    premium: 'infinite' },
     { label: t('cmp_ai_meaning'),       free: 'cross', basic: 'cross',    premium: 'infinite' },
@@ -1203,13 +1231,14 @@ export function ProSheet({
           {FEATURE_SECTIONS.map(f => (
             <FeatureSection
               key={f.key}
-              title={t(f.titleKey)}
-              description={t(f.descKey)}
+              title={f.title ?? (f.titleKey ? t(f.titleKey) : '')}
+              description={f.description ?? (f.descKey ? t(f.descKey) : '')}
               source={f.image}
               accent={f.accent}
               icon={f.icon}
               basic={f.basic}
               premium={f.premium}
+              premiumOnly={f.premiumOnly}
               t={t}
             />
           ))}
@@ -1543,6 +1572,20 @@ const fs = StyleSheet.create({
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2, lineHeight: 27 },
+  premiumOnlyBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: GOLD_DEEP,
+    backgroundColor: GOLD_LIGHT,
+  },
+  premiumOnlyText: { fontSize: 11, fontWeight: '800', color: HERO_DARK },
   desc: { fontSize: 14, color: '#64748B', lineHeight: 20, marginTop: 12 },
   imageShadow: {
     alignSelf: 'center',
@@ -1557,7 +1600,6 @@ const fs = StyleSheet.create({
   },
   imageClip: {
     width: FEAT_IMG_W,
-    height: FEAT_IMG_H,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,

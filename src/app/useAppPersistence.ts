@@ -5,6 +5,7 @@ import type { Appearance, Folder, WordCard } from '../types';
 import { HIDE_AI_TOOLS_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
 import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
+import type { AIVoice } from '../lib/aiVoices';
 
 export interface UseAppPersistenceParams {
   cards: WordCard[];
@@ -14,6 +15,7 @@ export interface UseAppPersistenceParams {
   appearance: Appearance;
   skinId: string | null;
   language: string;
+  aiVoice: AIVoice;
   showFullCard: boolean;
   verticalFlip: boolean;
   hideAiTools: boolean;
@@ -28,6 +30,7 @@ export function useAppPersistence({
   appearance,
   skinId,
   language,
+  aiVoice,
   showFullCard,
   verticalFlip,
   hideAiTools,
@@ -36,8 +39,8 @@ export function useAppPersistence({
   // Persist cards + settings whenever any of them change.
   useEffect(() => {
     if (!hasLoaded.current) return;
-    persist({ cards, settings: { themeColor, appearance, skinId, language } });
-  }, [cards, themeColor, appearance, skinId, language]);
+    persist({ cards, settings: { themeColor, appearance, skinId, language, aiVoice } });
+  }, [cards, themeColor, appearance, skinId, language, aiVoice]);
 
   // Keep foldersRef in sync and persist folders.
   useEffect(() => {

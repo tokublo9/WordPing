@@ -7,6 +7,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import type { Folder, Palette } from '../types';
 import { useLang } from '../i18n';
+import { type GestureDirection, lockGestureDirection } from '../lib/gestureDirection';
 
 const REVEAL_W  = 130;
 const SCREEN_H  = Dimensions.get('window').height;
@@ -30,6 +31,7 @@ interface Props {
   onToggleSelect: () => void;
   untestedCount: number;
   showLevelLabels?: boolean;
+  onHorizontalSwipeLockChange?: (locked: boolean) => void;
 }
 
 export function SwipeableFolder({
@@ -38,14 +40,18 @@ export function SwipeableFolder({
   selectionMode, selected, onToggleSelect,
   untestedCount = 0,
   showLevelLabels = true,
+  onHorizontalSwipeLockChange,
 }: Props) {
   const t          = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen     = useRef(false);
   const startX     = useRef(0);
+  const gestureDirection = useRef<GestureDirection>('pending');
   const rowRef     = useRef<View>(null);
   const closeRef   = useRef<() => void>(() => {});
   const openRef    = useRef<() => void>(() => {});
+  const onHorizontalSwipeLockChangeRef = useRef(onHorizontalSwipeLockChange);
+  onHorizontalSwipeLockChangeRef.current = onHorizontalSwipeLockChange;
 
   const close = useCallback(() => {
     isOpen.current = false;
@@ -61,20 +67,48 @@ export function SwipeableFolder({
   closeRef.current = close;
   openRef.current  = open;
 
+  const shouldClaimGesture = (dx: number, dy: number) => {
+    const previousDirection = gestureDirection.current;
+    gestureDirection.current = lockGestureDirection(previousDirection, dx, dy);
+    if (previousDirection !== 'horizontal' && gestureDirection.current === 'horizontal') {
+      onHorizontalSwipeLockChangeRef.current?.(true);
+    }
+    return gestureDirection.current === 'horizontal';
+  };
+
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dx, dy }) =>
-        Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dx) > 8,
-      onPanResponderGrant: () => { startX.current = isOpen.current ? -REVEAL_W : 0; },
+      onStartShouldSetPanResponderCapture: () => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
+        return false;
+      },
+      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) => shouldClaimGesture(dx, dy),
+      onMoveShouldSetPanResponder:        (_, { dx, dy }) => shouldClaimGesture(dx, dy),
+      onPanResponderGrant: () => {
+        onHorizontalSwipeLockChangeRef.current?.(true);
+        startX.current = isOpen.current ? -REVEAL_W : 0;
+      },
+      onPanResponderReject: () => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
+      },
       onPanResponderMove:  (_, { dx }) => {
         translateX.setValue(Math.min(0, Math.max(-REVEAL_W, startX.current + dx)));
       },
       onPanResponderRelease: (_, { dx }) => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
         if (startX.current === 0) dx < -5 ? openRef.current() : closeRef.current();
         else                       dx < -30 ? openRef.current() : closeRef.current();
       },
-      onPanResponderTerminate:        () => { closeRef.current(); },
+      onPanResponderTerminate:        () => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
+        closeRef.current();
+      },
       onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
     })
   ).current;
 
@@ -374,4 +408,3 @@ const styles = StyleSheet.create({
   menuLabel: { fontSize: 15 },
   sep: { height: StyleSheet.hairlineWidth },
 });
-

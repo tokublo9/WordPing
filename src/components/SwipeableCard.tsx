@@ -18,6 +18,7 @@ import { preloadAI, speak, speakWordCard, stopPlayback } from '../lib/tts';
 import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
 import { useLang } from '../i18n';
+import { type GestureDirection, lockGestureDirection } from '../lib/gestureDirection';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -50,69 +51,126 @@ interface Props {
   selected?: boolean;
   onToggleSelect?: () => void;
   showLevelLabel?: boolean;
-  /** Called with true when a leftward swipe starts, false when the gesture ends. */
-  onSwiping?: (active: boolean) => void;
+  onHorizontalSwipeLockChange?: (locked: boolean) => void;
+  onGestureStart?: () => void;
+  onVerticalGestureLock?: () => void;
+  isVerticalGestureLocked?: () => boolean;
   showFullCard?: boolean;
   isPremium?: boolean;
   onCustomVoiceLocked?: () => void;
+  reorderMode?: boolean;
+  reorderHandle?: React.ReactNode;
 }
 
 export function SwipeableCard({
   item, isFlipped, themeColor, pal, voiceLocked, isSubscribed,
   onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
-  showLevelLabel = true, onSwiping, showFullCard = false,
+  showLevelLabel = true, onHorizontalSwipeLockChange,
+  onGestureStart, onVerticalGestureLock, isVerticalGestureLocked,
+  showFullCard = false,
   isPremium = false, onCustomVoiceLocked,
+  reorderMode = false, reorderHandle,
 }: Props) {
   const t = useLang();
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef(false);
   const startX = useRef(0);
+  const gestureDirection = useRef<GestureDirection>('pending');
 
   const closeRef    = useRef<() => void>(() => {});
   const openRef     = useRef<() => void>(() => {});
-  const onSwipingRef = useRef(onSwiping);
-  onSwipingRef.current = onSwiping;
-
+  const onHorizontalSwipeLockChangeRef = useRef(onHorizontalSwipeLockChange);
+  const onGestureStartRef = useRef(onGestureStart);
+  const onVerticalGestureLockRef = useRef(onVerticalGestureLock);
+  const isVerticalGestureLockedRef = useRef(isVerticalGestureLocked);
+  onHorizontalSwipeLockChangeRef.current = onHorizontalSwipeLockChange;
+  onGestureStartRef.current = onGestureStart;
+  onVerticalGestureLockRef.current = onVerticalGestureLock;
+  isVerticalGestureLockedRef.current = isVerticalGestureLocked;
   const close = useCallback(() => {
     isOpen.current = false;
     openCardRef.current = null;
-    Animated.spring(translateX, { toValue: 0, useNativeDriver: false, tension: 80, friction: 12 }).start();
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      stiffness: 250,
+      damping: 28,
+      mass: 0.8,
+    }).start();
   }, [translateX, openCardRef]);
 
   const open = useCallback(() => {
     isOpen.current = true;
     onOpen(close);
-    Animated.spring(translateX, { toValue: -REVEAL_WIDTH, useNativeDriver: false, tension: 80, friction: 12 }).start();
+    Animated.spring(translateX, {
+      toValue: -REVEAL_WIDTH,
+      useNativeDriver: true,
+      stiffness: 250,
+      damping: 28,
+      mass: 0.8,
+    }).start();
   }, [translateX, close, onOpen]);
 
   closeRef.current = close;
   openRef.current  = open;
 
+  const shouldClaimGesture = (dx: number, dy: number) => {
+    if (isVerticalGestureLockedRef.current?.()) {
+      gestureDirection.current = 'vertical';
+      return false;
+    }
+    const previousDirection = gestureDirection.current;
+    gestureDirection.current = lockGestureDirection(previousDirection, dx, dy);
+    if (previousDirection === 'pending' && gestureDirection.current === 'vertical') {
+      onVerticalGestureLockRef.current?.();
+    }
+    if (previousDirection !== 'horizontal' && gestureDirection.current === 'horizontal') {
+      onHorizontalSwipeLockChangeRef.current?.(true);
+    }
+    return gestureDirection.current === 'horizontal';
+  };
+
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dx, dy }) => {
-        const horizontal = Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dx) > 8;
-        if (horizontal && dx < 0) onSwipingRef.current?.(true);
-        return horizontal;
+      onStartShouldSetPanResponderCapture: () => {
+        gestureDirection.current = 'pending';
+        onGestureStartRef.current?.();
+        onHorizontalSwipeLockChangeRef.current?.(false);
+        return false;
       },
+      onMoveShouldSetPanResponderCapture: (_, { dx, dy }) => shouldClaimGesture(dx, dy),
+      onMoveShouldSetPanResponder:        (_, { dx, dy }) => shouldClaimGesture(dx, dy),
       onPanResponderGrant: () => {
+        onHorizontalSwipeLockChangeRef.current?.(true);
         startX.current = isOpen.current ? -REVEAL_WIDTH : 0;
+        translateX.stopAnimation(value => { startX.current = value; });
+      },
+      onPanResponderReject: () => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
       },
       onPanResponderMove: (_, { dx }) => {
         const next = Math.min(0, Math.max(-REVEAL_WIDTH, startX.current + dx));
         translateX.setValue(next);
       },
-      onPanResponderRelease: (_, { dx }) => {
-        onSwipingRef.current?.(false);
-        if (startX.current === 0) {
-          dx < -5 ? openRef.current() : closeRef.current();
+      onPanResponderRelease: (_, { dx, vx }) => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
+        const finalX = Math.min(0, Math.max(-REVEAL_WIDTH, startX.current + dx));
+        if (vx < -0.35 || (vx < 0.35 && finalX <= -REVEAL_WIDTH * 0.5)) {
+          openRef.current();
         } else {
-          dx < -30 ? openRef.current() : closeRef.current();
+          closeRef.current();
         }
       },
-      onPanResponderTerminate: () => { onSwipingRef.current?.(false); closeRef.current(); },
+      onPanResponderTerminate: () => {
+        gestureDirection.current = 'pending';
+        onHorizontalSwipeLockChangeRef.current?.(false);
+        closeRef.current();
+      },
       onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
     })
   ).current;
 
@@ -263,7 +321,7 @@ export function SwipeableCard({
       )}
 
       {/* Swipe reveal — hidden in selection mode */}
-      {!selectionMode && (
+      {!selectionMode && !reorderMode && (
         <View style={styles.actionBg}>
           <TouchableOpacity
             style={[styles.circleBtn, { backgroundColor: item.notifOff ? '#C0C0C0' : themeColor }]}
@@ -300,15 +358,16 @@ export function SwipeableCard({
             ? { flex: 1, transform: [{ translateX: 0 }] }
             : { transform: [{ translateX }] },
         ]}
-        {...(selectionMode ? {} : panResponder.panHandlers)}
+        {...(selectionMode || reorderMode ? {} : panResponder.panHandlers)}
       >
         <View style={[styles.cardInner, { backgroundColor: isFlipped && !showFullCard ? themeColor : selected ? themeColor + '20' : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
           <TouchableOpacity
             style={[styles.cardFlipArea, { flex: 1 }]}
-            onPress={selectionMode ? onToggleSelect : handleTap}
-            onLongPress={selectionMode ? undefined : handleLongPress}
+            onPress={reorderMode ? undefined : selectionMode ? onToggleSelect : handleTap}
+            onLongPress={selectionMode || reorderMode ? undefined : handleLongPress}
             delayLongPress={380}
-            activeOpacity={selectionMode ? 0.7 : 1}
+            activeOpacity={selectionMode && !reorderMode ? 0.7 : 1}
+            disabled={reorderMode}
           >
             {/* Test level stripe — diagonal ribbon in bottom-right corner, front side only */}
             {showLevelLabel && !isFlipped && !!item.testLevel && (() => {
@@ -317,7 +376,10 @@ export function SwipeableCard({
               };
               const color = STRIPE_COLORS[item.testLevel!];
               return color ? (
-                <View style={[styles.cornerStripe, { backgroundColor: color }]} pointerEvents="none" />
+                <View
+                  style={[styles.cornerStripe, { backgroundColor: color }]}
+                  pointerEvents="none"
+                />
               ) : null;
             })()}
 
@@ -330,7 +392,8 @@ export function SwipeableCard({
                   <TouchableOpacity
                     onPress={voiceLocked ? onVoiceLocked : speakMeaning}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ marginRight: -8 }}
+                    style={[{ marginRight: -8 }, reorderMode && styles.reorderHiddenControl]}
+                    disabled={reorderMode}
                   >
                     {voiceLocked ? (
                       <Ionicons name="lock-closed-outline" size={15} color={pal.sub} style={{ opacity: 0.6 }} />
@@ -362,7 +425,10 @@ export function SwipeableCard({
 
             {/* Corner buttons — hidden in selection mode */}
             {!selectionMode && (
-              <View style={styles.cornerBtns} pointerEvents="box-none">
+              <View
+                style={[styles.cornerBtns, reorderMode && styles.reorderHiddenControl]}
+                pointerEvents={reorderMode ? 'none' : 'box-none'}
+              >
                 <TouchableOpacity
                   onPress={voiceLocked ? onVoiceLocked : (isFlipped && !showFullCard ? speakMeaning : speakWord)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -398,6 +464,11 @@ export function SwipeableCard({
               </View>
             )}
           </TouchableOpacity>
+          {reorderMode && reorderHandle && (
+            <View style={styles.reorderHandleSlot}>
+              {reorderHandle}
+            </View>
+          )}
         </View>{/* cardInner row */}
       </Animated.View>
 
@@ -522,6 +593,19 @@ const styles = StyleSheet.create({
   expandMeaningText: { flex: 1, fontSize: 15, fontWeight: '400' },
   expandNoteText:    { fontSize: 13, fontWeight: '400', marginTop: 10 },
   cornerBtns: { position: 'absolute', top: 10, right: 10, alignItems: 'center', gap: 5 },
+  reorderHiddenControl: { opacity: 0 },
+  // The slot is absolutely stretched to the card's full height, so showing the
+  // handle never participates in measurement or changes the card's layout.
+  reorderHandleSlot: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
   cornerStripe: {
     position: 'absolute',
     bottom: 4,

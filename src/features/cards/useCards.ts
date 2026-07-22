@@ -50,8 +50,6 @@ export interface UseCardsReturn {
   // View
   cardViewMode: 'list' | 'flip';
   setCardViewMode: Dispatch<SetStateAction<'list' | 'flip'>>;
-  cardScrollEnabled: boolean;
-  setCardScrollEnabled: Dispatch<SetStateAction<boolean>>;
   // Card-open tracking ref (returned so App.tsx can pass it to SwipeableCard)
   closeOpenCard: MutableRefObject<(() => void) | null>;
   handleCardOpen(close: () => void): void;
@@ -107,7 +105,6 @@ export function useCards({
   const originalFolderCards = useRef<WordCard[]>([]);
   const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(ALL_LEVEL_KEYS));
   const [showLevelLabels, setShowLevelLabels] = useState(true);
-  const [cardScrollEnabled, setCardScrollEnabled] = useState(true);
   const closeOpenCard = useRef<(() => void) | null>(null);
   const [editingCard, setEditingCard] = useState<WordCard | null>(null);
   const [word, setWord] = useState('');
@@ -357,7 +354,6 @@ export function useCards({
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
     cardViewMode, setCardViewMode,
-    cardScrollEnabled, setCardScrollEnabled,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,
     editingCard,

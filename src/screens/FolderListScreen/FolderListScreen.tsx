@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -65,6 +65,7 @@ export function FolderListScreen({
   menuBtnRef, closeOpenFolder, onFolderOpen,
 }: FolderListScreenProps) {
   const t = useLang();
+  const [horizontalSwipeLocked, setHorizontalSwipeLocked] = useState(false);
 
   const renderFolderItem = useCallback(({ item }: { item: Folder }) => {
     const folderCards   = cards.filter(c => c.folderId === item.id);
@@ -88,6 +89,7 @@ export function FolderListScreen({
         onToggleSelect={() => selection.onToggle(item.id)}
         untestedCount={untestedCount}
         showLevelLabels={showLevelLabels}
+        onHorizontalSwipeLockChange={setHorizontalSwipeLocked}
       />
     );
   // Stable deps: callbacks and primitives only. cards/folders trigger re-renders via FlatList data.
@@ -100,7 +102,7 @@ export function FolderListScreen({
       <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
         {selection.selectedIds.size} {t('selected')}
       </Text>
-      <TouchableOpacity style={s.iconBtn} onPress={selection.onExit}>
+      <TouchableOpacity style={[s.iconBtn, folderLayoutStyles.headerAction]} onPress={selection.onExit}>
         <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
           {t('cancel')}
         </Text>
@@ -111,7 +113,7 @@ export function FolderListScreen({
       <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
         {t('reorder_cards')}
       </Text>
-      <TouchableOpacity style={s.iconBtn} onPress={reorder.onExit}>
+      <TouchableOpacity style={[s.iconBtn, folderLayoutStyles.headerAction]} onPress={reorder.onExit}>
         <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
           {t('done')}
         </Text>
@@ -174,6 +176,8 @@ export function FolderListScreen({
           { paddingBottom: s.list.paddingBottom + (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0) },
         ]}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!horizontalSwipeLocked}
+        directionalLockEnabled
       />
       {selection.active && (
         <View style={[selStyles.bar, { backgroundColor: pal.dialog, borderTopColor: pal.border }]}>
@@ -220,4 +224,11 @@ const selStyles = StyleSheet.create({
     gap: 4,
   },
   barLabel: { fontSize: 11, fontWeight: '600' },
+});
+
+const folderLayoutStyles = StyleSheet.create({
+  // Match the 22-point icon buttons used by the normal header (22 + 8 + 8).
+  // This keeps the header's measured height identical without changing any
+  // header padding or list offset when entering reorder mode.
+  headerAction: { minHeight: 38, justifyContent: 'center' },
 });

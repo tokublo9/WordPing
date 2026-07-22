@@ -37,6 +37,7 @@ import { useThemeController } from './src/features/themes/useThemeController';
 import { useFolderNotifications } from './src/features/notifications/useFolderNotifications';
 import { useNotificationRescheduling } from './src/features/notifications/useNotificationRescheduling';
 import { useAppPersistence } from './src/app/useAppPersistence';
+import { setAIVoicePreference } from './src/lib/tts';
 
 export default function App() {
   const { isSubscribed, isPremium, isLoaded: isSubscriptionLoaded, subscribe, subscribePremium, restore, unsubscribe } = useSubscription();
@@ -46,6 +47,7 @@ export default function App() {
     appearance, setAppearance,
     skinId, setSkinId,
     language, setLanguage,
+    aiVoice, setAIVoice,
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
@@ -68,6 +70,7 @@ export default function App() {
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
+  const [textToSpeechVisible, setTextToSpeechVisible] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
@@ -126,7 +129,6 @@ export default function App() {
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
     cardViewMode, setCardViewMode,
-    cardScrollEnabled, setCardScrollEnabled,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,
     editingCard,
@@ -203,12 +205,16 @@ export default function App() {
 
   useAppPersistence({
     cards, folders, foldersRef,
-    themeColor, appearance, skinId, language,
+    themeColor, appearance, skinId, language, aiVoice,
     showFullCard, verticalFlip, hideAiTools,
     hasLoaded,
   });
 
   useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
+
+  useEffect(() => {
+    setAIVoicePreference(aiVoice);
+  }, [aiVoice]);
 
   // ── Theme ────────────────────────────────────────────────────────────────────
 
@@ -318,10 +324,8 @@ export default function App() {
           showLevelLabels={showLevelLabels}
           onToggleLevelFilter={toggleLevelFilter}
           flipped={flipped}
-          cardScrollEnabled={cardScrollEnabled}
           closeOpenCard={closeOpenCard}
           onCardOpen={handleCardOpen}
-          onSwiping={(active) => setCardScrollEnabled(!active)}
           selection={{
             active: selectionMode,
             selectedIds,
@@ -346,6 +350,10 @@ export default function App() {
           }}
           actions={{
             onGoBack: goBackToFolders,
+            onOpenTextToSpeech: () => {
+              if (isPremium) setTextToSpeechVisible(true);
+              else setProSheetVisible(true);
+            },
             onOpenNotifications: () => setNotificationModalVisible(true),
             onOpenMenu: openMenu,
             onOpenTestMode: () => setTestModeVisible(true),
@@ -412,6 +420,11 @@ export default function App() {
           onToggleDisplayOnlyWord: (value) => updateFolderNotif({ displayOnlyWord: value }),
           onTest: sendTestForCurrentFolder,
         }}
+        textToSpeech={{
+          visible: textToSpeechVisible && isPremium,
+          onClose: () => setTextToSpeechVisible(false),
+          voice: aiVoice,
+        }}
         settingsModal={{
           visible: settingsModalVisible,
           onClose: () => setSettingsModalVisible(false),
@@ -422,6 +435,8 @@ export default function App() {
           onUpgrade: () => { setSettingsModalVisible(false); openPaywall('words'); },
           language,
           onPickLanguage: pickLanguage,
+          aiVoice,
+          onPickAIVoice: setAIVoice,
           showFullCard,
           onToggleShowFullCard: setShowFullCard,
           verticalFlip,

@@ -9,6 +9,8 @@ import { FolderCustomizeModal } from '../components/FolderCustomizeModal';
 import { TestModeScreen } from '../components/TestModeScreen';
 import { FolderPickerSheet } from '../components/FolderPickerSheet';
 import { OnboardingModal } from '../components/OnboardingModal';
+import { TextToSpeechScreen } from '../components/TextToSpeechScreen';
+import type { AIVoice } from '../lib/aiVoices';
 
 // ── Prop types ────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,13 @@ export interface AppModalsProps {
     onTest(): void;
   };
 
+  // Standalone Text-to-Speech prototype
+  textToSpeech: {
+    visible: boolean;
+    onClose(): void;
+    voice: AIVoice;
+  };
+
   // SettingsModal
   settingsModal: {
     visible: boolean;
@@ -76,6 +85,8 @@ export interface AppModalsProps {
     onUpgrade(): void;
     language: string;
     onPickLanguage(code: string): void;
+    aiVoice: AIVoice;
+    onPickAIVoice(voice: AIVoice): void;
     showFullCard: boolean;
     onToggleShowFullCard: Dispatch<SetStateAction<boolean>>;
     verticalFlip: boolean;
@@ -144,7 +155,7 @@ export interface AppModalsProps {
 export function AppModals({
   pal, themeColor, rawThemeColor, isSubscribed, isPremium,
   subscribe, subscribePremium, restore, onManageSubscription,
-  wordModal, notifModal, settingsModal, paywallModal,
+  wordModal, notifModal, textToSpeech, settingsModal, paywallModal,
   proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
 }: AppModalsProps) {
   return (
@@ -194,6 +205,14 @@ export function AppModals({
         onTest={notifModal.onTest}
       />
 
+      <TextToSpeechScreen
+        visible={textToSpeech.visible}
+        onClose={textToSpeech.onClose}
+        pal={pal}
+        themeColor={themeColor}
+        voice={textToSpeech.voice}
+      />
+
       <SettingsModal
         visible={settingsModal.visible}
         onClose={settingsModal.onClose}
@@ -212,6 +231,8 @@ export function AppModals({
         pal={pal}
         language={settingsModal.language}
         onPickLanguage={settingsModal.onPickLanguage}
+        aiVoice={settingsModal.aiVoice}
+        onPickAIVoice={settingsModal.onPickAIVoice}
         showFullCard={settingsModal.showFullCard}
         onToggleShowFullCard={settingsModal.onToggleShowFullCard}
         verticalFlip={settingsModal.verticalFlip}
