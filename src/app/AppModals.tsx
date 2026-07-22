@@ -72,6 +72,8 @@ export interface AppModalsProps {
     visible: boolean;
     onClose(): void;
     voice: AIVoice;
+    isPremium: boolean;
+    onHistoryAvailabilityChange(hasHistory: boolean): void;
   };
 
   // SettingsModal
@@ -130,6 +132,8 @@ export interface AppModalsProps {
   testMode: {
     visible: boolean;
     cards: WordCard[];
+    explanationLang: string;
+    verticalFlip: boolean;
     onUpdateCard(id: string, patch: Partial<WordCard>): void;
     onClose(): void;
   };
@@ -211,6 +215,8 @@ export function AppModals({
         pal={pal}
         themeColor={themeColor}
         voice={textToSpeech.voice}
+        isPremium={textToSpeech.isPremium}
+        onHistoryAvailabilityChange={textToSpeech.onHistoryAvailabilityChange}
       />
 
       <SettingsModal
@@ -307,6 +313,8 @@ export function AppModals({
           themeColor={themeColor}
           isSubscribed={isSubscribed}
           isPremium={isPremium}
+          explanationLang={testMode.explanationLang}
+          verticalFlip={testMode.verticalFlip}
         />
       )}
 

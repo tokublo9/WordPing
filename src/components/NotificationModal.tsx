@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
-import { INTERVAL_OPTIONS } from '../constants';
+import { INTERVAL_OPTIONS, TOGGLE_OFF_TRACK_COLOR } from '../constants';
 import { useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 
@@ -57,74 +57,117 @@ export function NotificationModal({
 
       {/* Sheet — slides up independently */}
       <Animated.View style={[styles.sheetWrapper, { transform: [{ translateY: slideY }] }]}>
-        <TouchableOpacity activeOpacity={1} style={[s.bottomSheet, { backgroundColor: pal.dialog }]}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[s.bottomSheet, styles.sheet, { backgroundColor: pal.dialog, borderColor: pal.border }]}
+        >
 
           {/* Header row: title + Send Test button + close */}
           <View style={styles.headerRow}>
-            <Text style={[s.dialogTitle, { color: pal.text, marginBottom: 0 }]}>{t('notifications')}</Text>
+            <View style={styles.headerTitleRow}>
+              <Text style={[s.dialogTitle, styles.headerTitle, { color: pal.text }]} numberOfLines={1}>
+                {t('notifications')}
+              </Text>
+            </View>
             <View style={styles.headerRight}>
               <TouchableOpacity
-                style={[styles.testBtn, { backgroundColor: pal.input, borderColor: pal.border }]}
+                style={[styles.testBtn, { backgroundColor: themeColor + '0F', borderColor: themeColor + '45' }]}
                 onPress={() => {
                   onTest();
                   setTestSent(true);
                   setTimeout(() => setTestSent(false), 4000);
                 }}
               >
-                <Ionicons name="notifications-outline" size={13} color={pal.sub} />
-                <Text style={[styles.testBtnText, { color: pal.sub }]}>
+                <Text style={[styles.testBtnText, { color: themeColor }]} numberOfLines={1}>
                   {testSent ? t('test_sending') : t('test_send')}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={22} color={pal.sub} />
+              <TouchableOpacity
+                style={[styles.closeBtn, { backgroundColor: pal.input }]}
+                onPress={handleClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={19} color={pal.sub} />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Interval options */}
           <View style={styles.list}>
-            {INTERVAL_OPTIONS.map(option => {
-              const selected = option.seconds === intervalSeconds;
-              const isOff = option.seconds === 0;
-              return (
-                <TouchableOpacity
-                  key={option.seconds}
-                  style={[s.intervalRow, {
-                    backgroundColor: selected ? themeColor + '15' : pal.input,
-                    borderColor:     selected ? themeColor : pal.border,
-                  }]}
-                  onPress={() => onPickInterval(option.seconds)}
-                >
-                  <Text style={[
-                    s.intervalRowText,
-                    { color: selected ? themeColor : isOff ? '#E05C5C' : pal.sub },
-                    selected && s.intervalRowTextSelected,
-                  ]}>
-                    {option.label}
-                  </Text>
-                  {selected && <Ionicons name="checkmark" size={16} color={themeColor} />}
-                </TouchableOpacity>
-              );
-            })}
+            <View style={styles.intervalGrid}>
+              {INTERVAL_OPTIONS.map(option => {
+                const selected = option.seconds === intervalSeconds;
+                const isOff = option.seconds === 0;
+                return (
+                  <TouchableOpacity
+                    key={option.seconds}
+                    style={[
+                      styles.intervalOption,
+                      {
+                        backgroundColor: selected ? themeColor + '12' : pal.input,
+                        borderColor: selected ? themeColor : pal.border,
+                        borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
+                      },
+                    ]}
+                    onPress={() => onPickInterval(option.seconds)}
+                    activeOpacity={0.76}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text
+                      style={[
+                        styles.intervalText,
+                        { color: selected ? themeColor : isOff ? '#E05C5C' : pal.text },
+                        selected && styles.intervalTextSelected,
+                      ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.78}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            {/* Display-only-word toggle */}
-            <View style={[s.intervalRow, {
-              backgroundColor: displayOnlyWord ? themeColor + '15' : pal.input,
-              borderColor:     displayOnlyWord ? themeColor : pal.border,
-              marginBottom: 0,
-            }]}>
-              <Text style={[s.intervalRowText, { color: displayOnlyWord ? themeColor : pal.sub, fontSize: 13 }, displayOnlyWord && s.intervalRowTextSelected]}>
-                {t('display_only_word')}
-              </Text>
+            {/* Content preference — deliberately separate from schedule choices. */}
+            <View style={styles.contentSeparator}>
+              <View style={[styles.separatorLine, { backgroundColor: pal.border }]} />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.contentCard,
+                {
+                  backgroundColor: displayOnlyWord ? themeColor + '10' : pal.card,
+                  borderColor: displayOnlyWord ? themeColor + '80' : pal.border,
+                },
+              ]}
+              onPress={() => onToggleDisplayOnlyWord(!displayOnlyWord)}
+              activeOpacity={0.78}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: displayOnlyWord }}
+            >
+              <View style={styles.contentTextWrap}>
+                <Text style={[styles.contentTitle, { color: displayOnlyWord ? themeColor : pal.text }]}>
+                  {t('display_only_word')}
+                </Text>
+                <Text style={[styles.contentDescription, { color: pal.sub }]}>
+                  {t('display_only_word_desc')}
+                </Text>
+              </View>
               <Switch
                 value={displayOnlyWord}
                 onValueChange={onToggleDisplayOnlyWord}
-                trackColor={{ false: pal.border, true: themeColor }}
+                trackColor={{ false: TOGGLE_OFF_TRACK_COLOR, true: themeColor }}
                 thumbColor="#fff"
-                style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
+                ios_backgroundColor={TOGGLE_OFF_TRACK_COLOR}
+                accessible={false}
+                pointerEvents="none"
+                style={styles.contentSwitch}
               />
-            </View>
+            </TouchableOpacity>
           </View>
 
         </TouchableOpacity>
@@ -136,18 +179,64 @@ export function NotificationModal({
 const styles = StyleSheet.create({
   backdrop:    { backgroundColor: 'rgba(0,0,0,0.45)' },
   sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  sheet: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 10,
+  },
   headerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 18,
   },
+  headerTitleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+  headerTitle: { flexShrink: 1, marginBottom: 0, fontSize: 20 },
   list: { marginBottom: 4 },
   headerRight: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
   },
   testBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingVertical: 6, paddingHorizontal: 10,
-    borderRadius: 8, borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10, borderWidth: 1,
   },
-  testBtnText: { fontSize: 12 },
+  testBtnText: { fontSize: 12, fontWeight: '600' },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  intervalGrid: { gap: 6 },
+  intervalOption: {
+    width: '100%',
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    borderRadius: 13,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  intervalText: { width: '100%', fontSize: 14.5, fontWeight: '500' },
+  intervalTextSelected: { fontWeight: '700' },
+  contentSeparator: {
+    height: 1,
+    marginTop: 20,
+    marginBottom: 18,
+  },
+  separatorLine: { height: StyleSheet.hairlineWidth },
+  contentCard: {
+    minHeight: 86,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  contentTextWrap: { flex: 1, paddingRight: 12 },
+  contentTitle: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  contentDescription: { fontSize: 12, lineHeight: 17, marginTop: 5 },
+  contentSwitch: { transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] },
 });

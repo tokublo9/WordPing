@@ -18,6 +18,7 @@ type AudioPlayer = import('expo-audio').AudioPlayer;
 // ── Module-level singleton state ─────────────────────────────────────────────
 
 let currentPlayer: AudioPlayer | null = null;
+let activePlaybackKey: string | null = null;
 
 // Rejects the promise returned by the previous speakWithAI call when a new
 // one starts, so the caller's `setLoadingVoice(null)` fires immediately.
@@ -89,11 +90,31 @@ function stopCurrent() {
     pendingReject = null;
   }
   if (currentPlayer) {
+    // Native expo-audio's remove() only unregisters the player; it does not
+    // pause the underlying AVPlayer/ExoPlayer, so pause explicitly first.
+    try { currentPlayer.pause(); } catch {}
     try { currentPlayer.remove(); } catch {}
     currentPlayer = null;
   }
   // Also stop any active device TTS session.
   try { speechLib().stop(); } catch {}
+}
+
+function beginPlayback(key: string): number | null {
+  if (activePlaybackKey === key) {
+    stopCurrent();
+    activePlaybackKey = null;
+    epoch++;
+    return null;
+  }
+
+  stopCurrent();
+  activePlaybackKey = key;
+  return ++epoch;
+}
+
+function finishPlayback(key: string, playbackEpoch: number) {
+  if (epoch === playbackEpoch && activePlaybackKey === key) activePlaybackKey = null;
 }
 
 // ── Device TTS (free users) ───────────────────────────────────────────────────
@@ -117,29 +138,41 @@ function detectLocale(text: string): string {
 }
 
 function speakFree(text: string, locale: string): Promise<void> {
-  stopCurrent();
+  const playbackKey = `device:${locale}:${text}`;
+  const playbackEpoch = beginPlayback(playbackKey);
+  if (playbackEpoch == null) return Promise.resolve();
+
   return new Promise<void>((resolve, reject) => {
+    const finish = () => {
+      finishPlayback(playbackKey, playbackEpoch);
+      resolve();
+    };
+
     // Try with the full locale first; if the device doesn't have that voice,
     // fall back to the bare language subtag (e.g. 'ja' instead of 'ja-JP').
     function attempt(l: string, retried: boolean) {
       try {
         speechLib().speak(text, {
           language:  l,
-          onDone:    resolve,
-          onStopped: resolve,
+          onDone:    finish,
+          onStopped: finish,
           onError: (e) => {
+            if (playbackEpoch !== epoch) { reject(new Error('cancelled')); return; }
             if (!retried) {
               const base = l.split('-')[0];
               if (base !== l) { attempt(base, true); return; }
             }
+            finishPlayback(playbackKey, playbackEpoch);
             reject(e instanceof Error ? e : new Error(String(e)));
           },
         });
       } catch (e) {
+        if (playbackEpoch !== epoch) { reject(new Error('cancelled')); return; }
         if (!retried) {
           const base = l.split('-')[0];
           if (base !== l) { attempt(base, true); return; }
         }
+        finishPlayback(playbackKey, playbackEpoch);
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     }
@@ -152,54 +185,58 @@ function speakFree(text: string, locale: string): Promise<void> {
 async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
 
-  // Immediately stop any prior playback and cancel its pending promise.
-  stopCurrent();
-  const myEpoch = ++epoch;
+  const playbackKey = `ai:${voice}:${text}`;
+  const myEpoch = beginPlayback(playbackKey);
+  if (myEpoch == null) return;
 
-  // ── Fetch audio data ───────────────────────────────────────────────────────
-  const base64 = await fetchBase64(text, voice);
-
-  // If another speak call arrived while we were fetching, bail out.
-  if (myEpoch !== epoch) throw new Error('cancelled');
-
-  // ── Prepare audio session ─────────────────────────────────────────────────
-  // Always re-apply: iOS resets the audio session after backgrounding or when
-  // another app takes audio focus, making subsequent playback silent/missing.
   try {
-    await setAudioModeAsync({ playsInSilentMode: true });
-  } catch {}
+    // ── Fetch audio data ─────────────────────────────────────────────────────
+    const base64 = await fetchBase64(text, voice);
 
-  if (myEpoch !== epoch) throw new Error('cancelled');
+    // If another speak call arrived while we were fetching, bail out.
+    if (myEpoch !== epoch) throw new Error('cancelled');
 
-  // ── Create player and play ────────────────────────────────────────────────
-  const player = createAudioPlayer({ uri: `data:audio/wav;base64,${base64}` });
-  currentPlayer = player;
+    // ── Prepare audio session ───────────────────────────────────────────────
+    // Always re-apply: iOS resets the audio session after backgrounding or when
+    // another app takes audio focus, making subsequent playback silent/missing.
+    try {
+      await setAudioModeAsync({ playsInSilentMode: true });
+    } catch {}
 
-  return new Promise<void>((resolve, reject) => {
-    pendingReject = reject;
+    if (myEpoch !== epoch) throw new Error('cancelled');
 
-    const finish = (err?: Error) => {
-      sub.remove();
-      try { player.remove(); } catch {}
-      if (currentPlayer === player) currentPlayer = null;
-      if (pendingReject === reject) pendingReject = null;
-      err ? reject(err) : resolve();
-    };
+    // ── Create player and play ──────────────────────────────────────────────
+    const player = createAudioPlayer({ uri: `data:audio/wav;base64,${base64}` });
+    currentPlayer = player;
 
-    const sub = player.addListener('playbackStatusUpdate', (status: any) => {
-      if (status.didJustFinish) {
-        finish();
-      } else if (status.error) {
-        finish(new Error(`Playback error: ${status.error}`));
+    return await new Promise<void>((resolve, reject) => {
+      pendingReject = reject;
+
+      const finish = (err?: Error) => {
+        sub.remove();
+        try { player.remove(); } catch {}
+        if (currentPlayer === player) currentPlayer = null;
+        if (pendingReject === reject) pendingReject = null;
+        err ? reject(err) : resolve();
+      };
+
+      const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+        if (status.didJustFinish) {
+          finish();
+        } else if (status.error) {
+          finish(new Error(`Playback error: ${status.error}`));
+        }
+      });
+
+      try {
+        player.play();
+      } catch (e) {
+        finish(e instanceof Error ? e : new Error(String(e)));
       }
     });
-
-    try {
-      player.play();
-    } catch (e) {
-      finish(e instanceof Error ? e : new Error(String(e)));
-    }
-  });
+  } finally {
+    finishPlayback(playbackKey, myEpoch);
+  }
 }
 
 // ── Custom audio (Basic plan, user-attached file) ─────────────────────────────
@@ -211,36 +248,41 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
 export async function speakCustom(uri: string, speed: number, volume: number): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
 
-  stopCurrent();
-  const myEpoch = ++epoch;
+  const playbackKey = `custom:${uri}:${speed}:${volume}`;
+  const myEpoch = beginPlayback(playbackKey);
+  if (myEpoch == null) return;
 
-  try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
+  try {
+    try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
 
-  if (myEpoch !== epoch) throw new Error('cancelled');
+    if (myEpoch !== epoch) throw new Error('cancelled');
 
-  const player = createAudioPlayer({ uri });
-  player.volume = Math.min(volume, 1.0);
-  player.setPlaybackRate(speed, 'medium');
-  currentPlayer = player;
+    const player = createAudioPlayer({ uri });
+    player.volume = Math.min(volume, 1.0);
+    player.setPlaybackRate(speed, 'medium');
+    currentPlayer = player;
 
-  return new Promise<void>((resolve, reject) => {
-    pendingReject = reject;
+    return await new Promise<void>((resolve, reject) => {
+      pendingReject = reject;
 
-    const finish = (err?: Error) => {
-      sub.remove();
-      try { player.remove(); } catch {}
-      if (currentPlayer === player) currentPlayer = null;
-      if (pendingReject === reject) pendingReject = null;
-      err ? reject(err) : resolve();
-    };
+      const finish = (err?: Error) => {
+        sub.remove();
+        try { player.remove(); } catch {}
+        if (currentPlayer === player) currentPlayer = null;
+        if (pendingReject === reject) pendingReject = null;
+        err ? reject(err) : resolve();
+      };
 
-    const sub = player.addListener('playbackStatusUpdate', (status: any) => {
-      if (status.didJustFinish) finish();
-      else if (status.error) finish(new Error(`Playback error: ${status.error}`));
+      const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+        if (status.didJustFinish) finish();
+        else if (status.error) finish(new Error(`Playback error: ${status.error}`));
+      });
+
+      try { player.play(); } catch (e) { finish(e instanceof Error ? e : new Error(String(e))); }
     });
-
-    try { player.play(); } catch (e) { finish(e instanceof Error ? e : new Error(String(e))); }
-  });
+  } finally {
+    finishPlayback(playbackKey, myEpoch);
+  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -296,5 +338,6 @@ export function previewAIVoice(voice: AIVoice, text: string): Promise<void> {
 /** Stop any active playback immediately (e.g. on component unmount). */
 export function stopPlayback(): void {
   stopCurrent();
+  activePlaybackKey = null;
   epoch++; // Abort any in-flight fetch that hasn't created a player yet.
 }

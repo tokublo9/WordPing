@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Appearance, Palette } from '../types';
+import { TOGGLE_OFF_TRACK_COLOR } from '../constants';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
@@ -214,20 +215,18 @@ export function SettingsModal({
           <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('card_behavior')}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.removeAdsRow}
-            onPress={() => isSubscribed ? setVoicePickerVisible(true) : setProSheetVisible(true)}
-            activeOpacity={0.7}
-            accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
-          >
-            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
-            <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
-            <Ionicons
-              name={isSubscribed ? 'chevron-forward' : 'lock-closed-outline'}
-              size={15}
-              color={pal.sub}
-            />
-          </TouchableOpacity>
+          {isSubscribed && (
+            <TouchableOpacity
+              style={styles.removeAdsRow}
+              onPress={() => setVoicePickerVisible(true)}
+              activeOpacity={0.7}
+              accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
+            >
+              <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
+              <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
+              <Ionicons name="chevron-forward" size={15} color={pal.sub} />
+            </TouchableOpacity>
+          )}
           <ToggleRow
             label={t('show_full_card')}
             description={t('show_full_card_desc')}
@@ -553,9 +552,9 @@ function ToggleRow({ label, description, value, onToggle, themeColor, pal }: {
       <Switch
         value={value}
         onValueChange={onToggle}
-        trackColor={{ false: pal.chip, true: themeColor + '88' }}
-        thumbColor={value ? themeColor : pal.sub}
-        ios_backgroundColor={pal.chip}
+        trackColor={{ false: TOGGLE_OFF_TRACK_COLOR, true: themeColor + '88' }}
+        thumbColor={value ? themeColor : '#fff'}
+        ios_backgroundColor={TOGGLE_OFF_TRACK_COLOR}
       />
     </View>
   );

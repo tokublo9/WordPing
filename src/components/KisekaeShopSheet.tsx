@@ -31,7 +31,7 @@ const SHOP_PRELOAD_ASSETS: number[] = SKINS
 // Shop cards whose preview should show the wallpaper image with no blur overlay.
 const SHOP_NO_BLUR_IDS = new Set<string>([
   'skin_sakura',      // Sakura
-  'skin_leaf_blur',   // Green Nature
+  'skin_leaf_blur',   // Nature
   'shop_roses',       // Roses
   'skin_snow',        // Snow Mountain
   'skin_night_city',  // Night City
@@ -61,33 +61,33 @@ const THUMB_RADIUS = 12;
 
 export const SHOP_ITEMS: ShopItem[] = [
   // ── Free (2) — always available without subscription ─────────────────────────
-  { id: 'solid_blue',   name: 'Blue',  price: 0, category: 'solid', previewBg: '#EEF3FF', previewAccent: '#2563EB', previewEmoji: '💙' },
-  { id: 'solid_gray',   name: 'Gray',  price: 0, category: 'solid', previewBg: '#F3F4F6', previewAccent: '#6B7280', previewEmoji: '🩶' },
+  { id: 'solid_blue',   name: 'Blue', nameKey: 'theme_name_blue', price: 0, category: 'solid', previewBg: '#EEF3FF', previewAccent: '#2563EB', previewEmoji: '💙' },
+  { id: 'solid_gray',   name: 'Gray', nameKey: 'theme_name_gray', price: 0, category: 'solid', previewBg: '#F3F4F6', previewAccent: '#6B7280', previewEmoji: '🩶' },
   // ── Paid themes (24) — order is fixed as defined below ───────────────────────
-  { id: 'skin_aurora',     name: 'Aurora',          price: 480, category: 'premium', previewBg: '#020814', previewAccent: '#00E5A0', previewEmoji: '🌠' },
-  { id: 'skin_sakura',     name: 'Sakura',          price: 320, category: 'premium', previewBg: '#FDF4F8', previewAccent: '#F472B6', previewEmoji: '🌸' },
-  { id: 'solid_teal',      name: 'Teal',            price: 320, category: 'solid',   previewBg: '#F0FDFA', previewAccent: '#0D9488', previewEmoji: '💎' },
-  { id: 'solid_pink',      name: 'Pink',            price: 320, category: 'solid',   previewBg: '#FCE7F3', previewAccent: '#EC4899', previewEmoji: '🩷' },
-  { id: 'skin_galaxy',     name: 'Galaxy',          price: 480, category: 'premium', previewBg: '#050714', previewAccent: '#818CF8', previewEmoji: '🌌' },
-  { id: 'solid_yellow',    name: 'Yellow',          price: 320, category: 'solid',   previewBg: '#FEF9C3', previewAccent: '#CA8A04', previewEmoji: '💛' },
-  { id: 'skin_leaf_blur',  name: 'Green Nature',    price: 320, category: 'premium', previewBg: '#2D4A2D', previewAccent: '#2E7D5A', previewEmoji: '🌿' },
-  { id: 'shop_roses',      name: 'Roses',           price: 320, category: 'premium', previewBg: '#FEF0F5', previewAccent: '#D4627A', previewEmoji: '🌹' },
-  { id: 'skin_snow',       name: 'Snow Mountain',   price: 320, category: 'premium', previewBg: '#F0F6FF', previewAccent: '#60A5FA', previewEmoji: '🏔️' },
-  { id: 'solid_purple',    name: 'Purple',          price: 320, category: 'solid',   previewBg: '#F5F0FF', previewAccent: '#7C3AED', previewEmoji: '💜' },
-  { id: 'solid_orange',    name: 'Orange',          price: 320, category: 'solid',   previewBg: '#FFEDD5', previewAccent: '#F97316', previewEmoji: '🧡' },
-  { id: 'skin_deep_sea',   name: 'Deep Sea',        price: 480, category: 'premium', previewBg: '#061628', previewAccent: '#38BDF8', previewEmoji: '🌊' },
-  { id: 'solid_beige',     name: 'Beige',           price: 320, category: 'solid',   previewBg: '#FAF5EB', previewAccent: '#92400E', previewEmoji: '🤎' },
-  { id: 'skin_cyber',      name: 'Cyber Neon',      price: 480, category: 'premium', previewBg: '#040810', previewAccent: '#00E5FF', previewEmoji: '⚡' },
-  { id: 'skin_coffee',     name: 'Coffee House',    price: 320, category: 'premium', previewBg: '#FBF6F0', previewAccent: '#92400E', previewEmoji: '☕' },
-  { id: 'solid_sky',       name: 'Sky Blue',        price: 320, category: 'solid',   previewBg: '#E0F2FE', previewAccent: '#0EA5E9', previewEmoji: '🩵' },
-  { id: 'skin_paw',        name: 'Animal',          price: 320, category: 'premium', previewBg: '#FFF8F0', previewAccent: '#BF7A40', previewEmoji: '🐾' },
-  { id: 'shop_woods',      name: 'Beautiful Woods', price: 320, category: 'premium', previewBg: '#1A2E1A', previewAccent: '#6AAF5A', previewEmoji: '🌲' },
-  { id: 'solid_red',       name: 'Red',             price: 320, category: 'solid',   previewBg: '#FEE2E2', previewAccent: '#EF4444', previewEmoji: '❤️' },
-  { id: 'skin_night_city', name: 'Night City',      price: 480, category: 'premium', previewBg: '#0A0816', previewAccent: '#F59E0B', previewEmoji: '🌃' },
-  { id: 'solid_mint',      name: 'Mint',            price: 320, category: 'solid',   previewBg: '#DCFCE7', previewAccent: '#10B981', previewEmoji: '🌱' },
-  { id: 'skin_rain',       name: 'Rainy Window',    price: 320, category: 'premium', previewBg: '#0D1520', previewAccent: '#60A5FA', previewEmoji: '🌧️' },
-  { id: 'solid_green',     name: 'Green',           price: 320, category: 'solid',   previewBg: '#EDFBF2', previewAccent: '#16A34A', previewEmoji: '💚' },
-  { id: 'skin_sunset',     name: 'Sunset',          price: 320, category: 'premium', previewBg: '#FFF3E8', previewAccent: '#F97316', previewEmoji: '🌅' },
+  { id: 'skin_aurora',     name: 'Aurora',          nameKey: 'theme_name_aurora',          price: 480, category: 'premium', previewBg: '#020814', previewAccent: '#00E5A0', previewEmoji: '🌠' },
+  { id: 'solid_teal',      name: 'Teal',            nameKey: 'theme_name_teal',            price: 320, category: 'solid',   previewBg: '#F0FDFA', previewAccent: '#0D9488', previewEmoji: '💎' },
+  { id: 'solid_pink',      name: 'Pink',            nameKey: 'theme_name_pink',            price: 320, category: 'solid',   previewBg: '#FCE7F3', previewAccent: '#EC4899', previewEmoji: '🩷' },
+  { id: 'skin_galaxy',     name: 'Galaxy',          nameKey: 'theme_name_galaxy',          price: 480, category: 'premium', previewBg: '#050714', previewAccent: '#818CF8', previewEmoji: '🌌' },
+  { id: 'solid_yellow',    name: 'Yellow',          nameKey: 'theme_name_yellow',          price: 320, category: 'solid',   previewBg: '#FEF9C3', previewAccent: '#CA8A04', previewEmoji: '💛' },
+  { id: 'skin_leaf_blur',  name: 'Nature',          nameKey: 'theme_name_green_nature',    price: 320, category: 'premium', previewBg: '#2D4A2D', previewAccent: '#2E7D5A', previewEmoji: '🌿' },
+  { id: 'shop_roses',      name: 'Roses',           nameKey: 'theme_name_roses',           price: 320, category: 'premium', previewBg: '#FEF0F5', previewAccent: '#D4627A', previewEmoji: '🌹' },
+  { id: 'skin_snow',       name: 'Snow Mountain',   nameKey: 'theme_name_snow_mountain',   price: 320, category: 'premium', previewBg: '#F0F6FF', previewAccent: '#60A5FA', previewEmoji: '🏔️' },
+  { id: 'solid_purple',    name: 'Purple',          nameKey: 'theme_name_purple',          price: 320, category: 'solid',   previewBg: '#F5F0FF', previewAccent: '#7C3AED', previewEmoji: '💜' },
+  { id: 'solid_orange',    name: 'Orange',          nameKey: 'theme_name_orange',          price: 320, category: 'solid',   previewBg: '#FFEDD5', previewAccent: '#F97316', previewEmoji: '🧡' },
+  { id: 'skin_deep_sea',   name: 'Deep Sea',        nameKey: 'theme_name_deep_sea',        price: 480, category: 'premium', previewBg: '#061628', previewAccent: '#38BDF8', previewEmoji: '🌊' },
+  { id: 'solid_beige',     name: 'Beige',           nameKey: 'theme_name_beige',           price: 320, category: 'solid',   previewBg: '#FAF5EB', previewAccent: '#92400E', previewEmoji: '🤎' },
+  { id: 'skin_cyber',      name: 'Cyber Neon',      nameKey: 'theme_name_cyber_neon',      price: 480, category: 'premium', previewBg: '#040810', previewAccent: '#00E5FF', previewEmoji: '⚡' },
+  { id: 'skin_coffee',     name: 'Coffee House',    nameKey: 'theme_name_coffee_house',    price: 320, category: 'premium', previewBg: '#FBF6F0', previewAccent: '#92400E', previewEmoji: '☕' },
+  { id: 'solid_sky',       name: 'Sky Blue',        nameKey: 'theme_name_sky_blue',        price: 320, category: 'solid',   previewBg: '#E0F2FE', previewAccent: '#0EA5E9', previewEmoji: '🩵' },
+  { id: 'skin_paw',        name: 'Animal',          nameKey: 'theme_name_animal',          price: 320, category: 'premium', previewBg: '#FFF8F0', previewAccent: '#BF7A40', previewEmoji: '🐾' },
+  { id: 'shop_woods',      name: 'Beautiful Woods', nameKey: 'theme_name_beautiful_woods', price: 320, category: 'premium', previewBg: '#1A2E1A', previewAccent: '#6AAF5A', previewEmoji: '🌲' },
+  { id: 'solid_red',       name: 'Red',             nameKey: 'theme_name_red',             price: 320, category: 'solid',   previewBg: '#FEE2E2', previewAccent: '#EF4444', previewEmoji: '❤️' },
+  { id: 'skin_night_city', name: 'Night City',      nameKey: 'theme_name_night_city',      price: 480, category: 'premium', previewBg: '#0A0816', previewAccent: '#F59E0B', previewEmoji: '🌃' },
+  { id: 'solid_mint',      name: 'Mint',            nameKey: 'theme_name_mint',            price: 320, category: 'solid',   previewBg: '#DCFCE7', previewAccent: '#10B981', previewEmoji: '🌱' },
+  { id: 'skin_rain',       name: 'Rain',            nameKey: 'theme_name_rainy_window',    price: 320, category: 'premium', previewBg: '#0D1520', previewAccent: '#60A5FA', previewEmoji: '🌧️' },
+  { id: 'skin_sakura',     name: 'Sakura',          nameKey: 'theme_name_sakura',          price: 320, category: 'premium', previewBg: '#FDF4F8', previewAccent: '#F472B6', previewEmoji: '🌸' },
+  { id: 'solid_green',     name: 'Green',           nameKey: 'theme_name_green',           price: 320, category: 'solid',   previewBg: '#EDFBF2', previewAccent: '#16A34A', previewEmoji: '💚' },
+  { id: 'skin_sunset',     name: 'Sunset',          nameKey: 'theme_name_sunset',          price: 320, category: 'premium', previewBg: '#FFF3E8', previewAccent: '#F97316', previewEmoji: '🌅' },
 ];
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ const SkinCard = memo(function SkinCard({
           </View>
         )}
       </View>
-      <Text style={[styles.cardName, { color: pal.text }]} numberOfLines={1}>{item.name}</Text>
+      <Text style={[styles.cardName, { color: pal.text }]} numberOfLines={2}>{t(item.nameKey)}</Text>
       {statusLabel ? (
         <Text style={[styles.cardPrice, { color: statusColor }]}>{statusLabel}</Text>
       ) : (
@@ -303,8 +303,8 @@ export function KisekaeShopSheet({
   const filtered = useMemo(
     () => SHOP_ITEMS
       .filter(i => activeTab === 'free' ? FREE_TAB_IDS.has(i.id) : !FREE_TAB_IDS.has(i.id))
-      .filter(i => i.name.toLowerCase().includes(search.toLowerCase())),
-    [activeTab, search],
+      .filter(i => `${t(i.nameKey)} ${i.name}`.toLowerCase().includes(search.trim().toLowerCase())),
+    [activeTab, search, t],
   );
 
   const renderItem = useCallback(({ item }: { item: ShopItem }) => (
@@ -424,7 +424,16 @@ const styles = StyleSheet.create({
     marginHorizontal: H_PAD, marginBottom: 12,
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 8,
   },
-  searchInput: { flex: 1, fontSize: 14 },
+  searchInput: {
+    flex: 1,
+    height: 20,
+    paddingTop: 0,
+    paddingBottom: 0,
+    fontSize: 14,
+    lineHeight: 18,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
 
   tabBar: {
     flexDirection: 'row', position: 'relative',
@@ -454,8 +463,8 @@ const styles = StyleSheet.create({
   },
   wordPingCenter: { alignItems: 'center', justifyContent: 'center' },
   cardWordPing:   { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  cardName:       { fontSize: 11, fontWeight: '600', marginBottom: 2, textAlign: 'center' },
-  cardPrice:      { fontSize: 11, fontWeight: '500', textAlign: 'center' },
+  cardName:       { fontSize: 13, lineHeight: 16, fontWeight: '400', marginBottom: 0, textAlign: 'center' },
+  cardPrice:      { fontSize: 12.5, fontWeight: '400', textAlign: 'center' },
 
   empty:     { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: 14 },

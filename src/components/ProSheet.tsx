@@ -54,11 +54,10 @@ const HERO_GRAD: readonly [string, string, string] = ['#0C2350', '#173B72', '#0A
 const CHECK_GREEN = '#22C55E';
 const CROSS_GRAY  = '#B6BAC2';
 
-// Plan tiers: Free (neutral) · Basic (polished blue) · Premium (most luxurious gold).
+// Paid plan tiers: Basic (polished blue) · Premium (most luxurious gold).
 const BLUE_GRAD:  readonly [string, string] = ['#60A5FA', '#3B82F6'];
 const BASIC_ACCENT   = '#1D4ED8';   // blue text/icons on the light-blue Basic column
 const PREMIUM_ACCENT = '#B45309';   // deep amber text/icons on the light-gold Premium column
-const FREE_ACCENT    = '#6B7280';
 
 // ── Demo word + sentence ──────────────────────────────────────────────────────
 interface DemoContent { word: string; sentence: string }
@@ -121,51 +120,56 @@ const PAYWALL_IMAGES = {
   breakdown: require('../../screenshots/paywall/breakdown.png'),
   meaning:   require('../../screenshots/paywall/meaning.png'),
   translate: require('../../screenshots/paywall/translate.png'),
+  prioritySupport: require('../../screenshots/paywall/priority-support.png'),
+  dataTransfer: require('../../screenshots/paywall/data-transfer.png'),
 } as const;
 
-// Preview images share a responsive width while their heights are derived from
-// each asset's own dimensions, so differently sized screenshots stay undistorted.
-const FEAT_IMG_W = Math.min(Math.round((SW - 32) * 0.62), 240);
+// Standard screenshots now use nearly the full feature-card content width,
+// while keeping a small inset from the landscape artwork used below.
+const FEAT_WIDE_IMG_W = Math.min(SW - 76, 420);
+const FEAT_IMG_W = Math.min(Math.round(FEAT_WIDE_IMG_W * 0.94), 395);
 
 interface FeatureConfig {
   key: string;
   titleKey?: TranslationKey;
   descKey?: TranslationKey;
+  noteKey?: TranslationKey;
   title?: string;
   description?: string;
   /** Screenshot preview. Omitted → the section renders an icon illustration. */
   image?: number;
+  /** Wide landscape artwork should fill the card's usable content width. */
+  wideImage?: boolean;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   accent: string;
   /** Which plans include this feature (drives the plan labels below the card). */
   basic: boolean;
   premium: boolean;
-  premiumOnly?: boolean;
 }
 
 // Order matches the requested feature list. Each shares the luxurious white style
 // but gets its own icon + blue-family accent as a small distinctive touch. The AI
-// sections show screenshots; Priority Support / Data Transfer use icon visuals.
+// sections show screenshots; Priority Support / Data Transfer use wide artwork.
 // `basic`/`premium` mirror the plan comparison table.
 const FEATURE_SECTIONS: FeatureConfig[] = [
-  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', image: PAYWALL_IMAGES.custom,    icon: 'mic-outline',             accent: '#0891B2', basic: false, premium: true },
+  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', noteKey: 'feat_custom_voice_note', image: PAYWALL_IMAGES.custom, icon: 'mic-outline', accent: '#0891B2', basic: false, premium: true },
   {
     key: 'text_to_speech',
-    title: 'Text to Speech',
-    description: 'Turn any text into natural-sounding audio that you can play and save anytime!',
+    titleKey: 'feat_text_to_speech_title',
+    descKey: 'feat_text_to_speech_desc',
+    noteKey: 'feat_text_to_speech_note',
     image: PAYWALL_IMAGES.textToSpeech,
     icon: 'volume-high-outline',
     accent: '#7C3AED',
     basic: false,
     premium: true,
-    premiumOnly: true,
   },
-  { key: 'meaning',   titleKey: 'cmp_ai_meaning',       descKey: 'feat_meaning_desc',     image: PAYWALL_IMAGES.meaning,   icon: 'bulb-outline',        accent: '#0EA5E9', basic: false, premium: true },
-  { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
-  { key: 'translate', titleKey: 'cmp_ai_translation',   descKey: 'feat_translation_desc', image: PAYWALL_IMAGES.translate, icon: 'language-outline',    accent: '#2563EB', basic: false, premium: true },
-  { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
-  { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    icon: 'headset',                 accent: '#4338CA', basic: true,  premium: true },
-  { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    icon: 'swap-horizontal',         accent: '#0284C7', basic: true,  premium: true },
+  { key: 'meaning',   titleKey: 'cmp_ai_meaning',       descKey: 'feat_meaning_desc',     noteKey: 'feat_meaning_note',     image: PAYWALL_IMAGES.meaning,   icon: 'bulb-outline',        accent: '#0EA5E9', basic: false, premium: true },
+  { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     noteKey: 'feat_example_note',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
+  { key: 'translate', titleKey: 'cmp_ai_translation',   descKey: 'feat_translation_desc', noteKey: 'feat_translation_note', image: PAYWALL_IMAGES.translate, icon: 'language-outline',    accent: '#2563EB', basic: false, premium: true },
+  { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   noteKey: 'feat_breakdown_note',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
+  { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    image: PAYWALL_IMAGES.prioritySupport, icon: 'headset',         accent: '#4338CA', basic: true, premium: true, wideImage: true },
+  { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    image: PAYWALL_IMAGES.dataTransfer,    icon: 'swap-horizontal', accent: '#0284C7', basic: true, premium: true, wideImage: true },
 ];
 
 
@@ -227,19 +231,16 @@ const RibbonBanner = React.memo(({ label }: { label: string }) => (
 ));
 
 // ── Coffee value card ─────────────────────────────────────────────────────────
-// White card in the screen's blue/gold language with a refined café-cup visual.
+// White card in the screen's blue/gold language with the supplied coffee artwork.
 
 const CoffeeValueCard = React.memo(({ t }: { t: (k: any) => string }) => (
   <View style={cvs.card}>
-    {/* Refined café cup: blue outline, soft steam, subtle gold accent */}
-    <View style={cvs.cupChip}>
-      <View style={cvs.steamRow}>
-        <View style={[cvs.steam, { height: 8,  opacity: 0.4 }]} />
-        <View style={[cvs.steam, { height: 11, opacity: 0.65 }]} />
-        <View style={[cvs.steam, { height: 8,  opacity: 0.4 }]} />
-      </View>
-      <Ionicons name="cafe-outline" size={24} color={PLAN_BLUE} style={{ marginTop: 6 }} />
-      <Ionicons name="sparkles" size={11} color={GOLD_MAIN} style={cvs.sparkle} />
+    <View style={cvs.coffeeImageWrap}>
+      <Image
+        source={require('../../screenshots/paywall/coffee.jpg')}
+        style={cvs.coffeeImage}
+        resizeMode="contain"
+      />
     </View>
 
     <Text style={cvs.text}>{t('plan_coffee_line2')}</Text>
@@ -340,7 +341,6 @@ const VoiceRow = React.memo(({ text, demoKeyDefault, demoKeyAi, playingDemo, onP
 interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: any) => string }
 
 const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardProps) => {
-  const anyAiPlaying = playingDemo === 'word_ai' || playingDemo === 'sentence_ai';
   const aiLabel = t('cmp_ai_voice_hq');
   return (
     <View style={av.cardShadow}>
@@ -348,16 +348,7 @@ const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardPro
 
         {/* Header */}
         <View style={av.header}>
-          <View style={av.headerIcon}>
-            <Ionicons name="musical-notes" size={18} color={PLAN_BLUE} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={av.titleRow}>
-              <Text style={av.title}>{aiLabel}</Text>
-              <Ionicons name="sparkles" size={13} color={GOLD_MAIN} />
-            </View>
-          </View>
-          <Waveform active={anyAiPlaying} color={PLAN_BLUE} height={22} barWidth={3} />
+          <Text style={av.title}>{aiLabel}</Text>
         </View>
 
         {/* Default vs AI comparison */}
@@ -382,7 +373,9 @@ const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardPro
 
 // Renders the preview image only once it has decoded — nothing shows before its
 // own source is ready, and no other feature's image can flash in.
-const FeatureImage = React.memo(function FeatureImage({ source }: { source: number }) {
+const FeatureImage = React.memo(function FeatureImage({
+  source, wide = false,
+}: { source: number; wide?: boolean }) {
   const [ready, setReady] = useState(false);
   const resolvedSource = Image.resolveAssetSource(source);
   const aspectRatio = resolvedSource?.width && resolvedSource?.height
@@ -390,8 +383,8 @@ const FeatureImage = React.memo(function FeatureImage({ source }: { source: numb
     : 1260 / 2736;
 
   return (
-    <View style={fs.imageShadow}>
-      <View style={[fs.imageClip, { aspectRatio }]}>
+    <View style={[fs.imageShadow, wide && fs.wideImageNoShadow]}>
+      <View style={[fs.imageClip, wide && fs.wideImageClip, { width: wide ? FEAT_WIDE_IMG_W : FEAT_IMG_W, aspectRatio }]}>
         <Image
           source={source}
           style={[fs.image, { opacity: ready ? 1 : 0 }]}
@@ -444,44 +437,34 @@ const FeatureIconVisual = React.memo(function FeatureIconVisual({
 });
 
 const FeatureSection = React.memo(function FeatureSection({
-  title, description, source, accent, icon, basic, premium, premiumOnly = false, t,
+  title, description, note, source, wideImage = false, accent, icon, basic, premium, t,
 }: {
   title: string;
   description: string;
+  note?: string;
   source?: number;
+  wideImage?: boolean;
   accent: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   basic: boolean;
   premium: boolean;
-  premiumOnly?: boolean;
   t: (k: any) => string;
 }) {
   return (
     <View style={[fs.cardShadow, { shadowColor: accent }]}>
       <View style={fs.card}>
         <View style={fs.header}>
-          <View style={[fs.iconWrap, { backgroundColor: `${accent}14`, borderColor: `${accent}33` }]}>
-            <Ionicons name={icon} size={18} color={accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={fs.titleRow}>
-              <Text style={fs.title} numberOfLines={2}>{title}</Text>
-              <Ionicons name="sparkles" size={12} color={GOLD_MAIN} />
-            </View>
-          </View>
+          <Text style={fs.title} numberOfLines={2}>{title}</Text>
         </View>
-        {premiumOnly && (
-          <View style={fs.premiumOnlyBadge}>
-            <Ionicons name="diamond" size={10} color={HERO_DARK} />
-            <Text style={fs.premiumOnlyText}>Premium only</Text>
-          </View>
-        )}
         {source != null
-          ? <FeatureImage source={source} />
+          ? <FeatureImage source={source} wide={wideImage} />
           : <FeatureIconVisual icon={icon} accent={accent} />}
         <PlanLabels basic={basic} premium={premium} t={t} />
         {/* Description moved below the Basic/Premium label */}
         <Text style={fs.desc}>{description}</Text>
+        {note ? (
+          <Text style={fs.noteText}>{`※ ${note}`}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -500,7 +483,7 @@ interface GalleryTile { key: string; item: ShopItem; media: TileMedia }
 
 const GALLERY_ORDER = [
   'skin_deep_sea', 'skin_sakura', 'skin_galaxy', 'skin_snow', 'skin_aurora',
-  'solid_teal', 'skin_coffee', 'skin_cyber', 'shop_roses', 'solid_mint',
+  'solid_teal', 'solid_beige', 'skin_cyber', 'shop_roses', 'solid_mint',
   'shop_woods', 'skin_leaf_blur', 'skin_rain', 'skin_night_city', 'solid_orange',
   'skin_paw',
 ];
@@ -607,7 +590,7 @@ const TileVideoPlayer = React.memo(function TileVideoPlayer({ source, width, hei
 // ── Carousel card ─────────────────────────────────────────────────────────────
 
 const CarouselCard = React.memo(function CarouselCard({
-  tile, position, scrollX, mounted, videoActive, onPress, pal,
+  tile, position, scrollX, mounted, videoActive, onPress, pal, t,
 }: {
   tile: GalleryTile;
   position: number;
@@ -618,8 +601,10 @@ const CarouselCard = React.memo(function CarouselCard({
   videoActive: boolean;
   onPress: (item: ShopItem) => void;
   pal: Palette;
+  t: (k: any) => string;
 }) {
   const { item, media } = tile;
+  const localizedName = t(item.nameKey);
   const skinData = useMemo<ThemeSkin | undefined>(() => SKINS.find(sk => sk.id === item.id), [item.id]);
 
   // Gentle emphasis of the centered card (native-driven, no JS per frame).
@@ -633,7 +618,7 @@ const CarouselCard = React.memo(function CarouselCard({
       activeOpacity={0.9}
       onPress={() => onPress(item)}
       accessibilityRole="button"
-      accessibilityLabel={item.name}
+      accessibilityLabel={localizedName}
     >
       <Animated.View style={[caro.card, { transform: [{ scale }], opacity }]}>
         <View style={caro.cardInner}>
@@ -650,7 +635,7 @@ const CarouselCard = React.memo(function CarouselCard({
 
       {/* Theme name — below the card so the preview stays fully unobstructed */}
       <Animated.Text style={[caro.name, { color: pal.text, opacity }]} numberOfLines={1}>
-        {item.name}
+        {localizedName}
       </Animated.Text>
     </TouchableOpacity>
   );
@@ -793,6 +778,7 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
             videoActive={mediaActive && position === activeVirtual}
             onPress={onOpenDetails}
             pal={pal}
+            t={t}
           />
         ))}
       </Animated.ScrollView>
@@ -847,23 +833,22 @@ function TableCell({ value, accent }: { value: CellValue; accent: string }) {
   );
 }
 
-interface TableRowData { label: string; free: CellValue; basic: CellValue; premium: CellValue }
+interface TableRowData { label: string; basic: CellValue; premium: CellValue }
 
 const PlanComparisonTable = React.memo(function PlanComparisonTable({
   t, pal,
 }: { t: (k: any) => string; pal: Palette }) {
   const rows: TableRowData[] = [
-    { label: t('cmp_word_cards'),       free: t('cmp_val_unlimited'), basic: t('cmp_val_unlimited'), premium: t('cmp_val_unlimited') },
-    { label: t('cmp_themes'),           free: '2',     basic: 'infinite', premium: 'infinite' },
-    { label: t('cmp_ai_voice_hq'),      free: 'cross', basic: 'infinite',              premium: 'infinite' },
-    { label: t('cmp_custom_voice'),     free: 'cross', basic: 'cross',               premium: 'infinite' },
-    { label: 'Text to Speech',          free: 'cross', basic: 'cross',                premium: 'infinite' },
-    { label: t('cmp_ai_example'),       free: 'cross', basic: 'cross',                premium: 'infinite' },
-    { label: t('cmp_ai_breakdown'),     free: 'cross', basic: 'cross',    premium: 'infinite' },
-    { label: t('cmp_ai_meaning'),       free: 'cross', basic: 'cross',    premium: 'infinite' },
-    { label: t('cmp_ai_translation'),   free: 'cross', basic: 'cross',    premium: 'infinite' },
-    { label: t('cmp_priority_support'), free: 'cross', basic: 'check',    premium: 'check' },
-    { label: t('cmp_data_transfer'),    free: 'cross', basic: 'check',    premium: 'check' },
+    { label: t('cmp_themes'),           basic: 'infinite', premium: 'infinite' },
+    { label: t('cmp_ai_voice_hq'),      basic: 'infinite', premium: 'infinite' },
+    { label: t('cmp_custom_voice'),     basic: 'cross', premium: 'infinite' },
+    { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'infinite' },
+    { label: t('cmp_ai_example'),       basic: 'cross', premium: 'infinite' },
+    { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'infinite' },
+    { label: t('cmp_ai_meaning'),       basic: 'cross', premium: 'infinite' },
+    { label: t('cmp_ai_translation'),   basic: 'cross', premium: 'infinite' },
+    { label: t('cmp_priority_support'), basic: 'check', premium: 'check' },
+    { label: t('cmp_data_transfer'),    basic: 'check', premium: 'check' },
   ];
 
   return (
@@ -873,13 +858,6 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
       <View style={[tbl.headerRow, { borderBottomColor: pal.border }]}>
         <View style={tbl.featureColHdr}>
           <Text style={[tbl.hdrFeatureText, { color: pal.sub }]}>{t('cmp_feature_col')}</Text>
-        </View>
-
-        {/* Free — neutral */}
-        <View style={tbl.planColHdr}>
-          <View style={[tbl.planPill, { backgroundColor: 'rgba(128,128,128,0.14)' }]}>
-            <Text style={[tbl.planPillText, { color: pal.sub }]} numberOfLines={1}>{t('free_label')}</Text>
-          </View>
         </View>
 
         {/* Basic — polished blue */}
@@ -909,9 +887,6 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
         >
           <View style={tbl.featureCell}>
             <Text style={[tbl.featureLabel, { color: pal.text }]} numberOfLines={3}>{row.label}</Text>
-          </View>
-          <View style={tbl.planCell}>
-            <TableCell value={row.free} accent={FREE_ACCENT} />
           </View>
           <View style={[tbl.planCell, tbl.basicCell]}>
             <TableCell value={row.basic} accent={BASIC_ACCENT} />
@@ -983,8 +958,8 @@ const FixedPurchaseBar = React.memo(({
                   {basicOwned && <Ionicons name="checkmark-circle" size={14} color="#fff" style={{ marginRight: 4 }} />}
                   <Text style={bar.btnName} numberOfLines={1}>{t('basic_plan_name')}</Text>
                 </View>
-                <Text style={bar.btnSub} numberOfLines={1} adjustsFontSizeToFit>
-                  {basicOwned ? t('theme_details_owned_badge') : `${formatPrice(320)}/month`}
+                <Text style={[bar.btnSub, !basicOwned && bar.btnPrice]} numberOfLines={1} adjustsFontSizeToFit>
+                  {basicOwned ? t('theme_details_owned_badge') : `${formatPrice(320)}${t('per_month')}`}
                 </Text>
               </>
             )}
@@ -1021,8 +996,8 @@ const FixedPurchaseBar = React.memo(({
                     {t('cmp_premium')}
                   </Text>
                 </View>
-                <Text style={[bar.btnSub, { color: HERO_DARK }]} numberOfLines={1} adjustsFontSizeToFit>
-                  {premiumOwned ? t('theme_details_owned_badge') : `${formatPrice(600)}/month`}
+                <Text style={[bar.btnSub, !premiumOwned && bar.btnPrice, { color: HERO_DARK }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {premiumOwned ? t('theme_details_owned_badge') : `${formatPrice(600)}${t('per_month')}`}
                 </Text>
               </>
             )}
@@ -1078,6 +1053,7 @@ export function ProSheet({
   const slideY       = useRef(new Animated.Value(SH)).current;
   const backdropO    = useRef(new Animated.Value(0)).current;
   const mainScrollRef = useRef<ScrollView>(null);
+  const demoSequence = useRef(0);
 
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
@@ -1137,20 +1113,26 @@ export function ProSheet({
         Animated.timing(backdropO, { toValue: 0, duration: 180, useNativeDriver: true }),
         Animated.timing(slideY, { toValue: SH, duration: 220, useNativeDriver: true }),
       ]).start();
+      demoSequence.current++;
       setPlayingDemo(null);
       stopPlayback();
     }
   }, [visible]);
 
-  useEffect(() => { setPlayingDemo(null); stopPlayback(); }, [sampleKey]);
+  useEffect(() => { demoSequence.current++; setPlayingDemo(null); stopPlayback(); }, [sampleKey]);
 
   const handlePlayDemo = async (key: DemoKey) => {
-    if (playingDemo === key) { stopPlayback(); setPlayingDemo(null); return; }
-    stopPlayback();
+    if (playingDemo === key) {
+      demoSequence.current++;
+      stopPlayback();
+      setPlayingDemo(null);
+      return;
+    }
+    const sequence = ++demoSequence.current;
     setPlayingDemo(key);
     const text = key.startsWith('word') ? demo.word : demo.sentence;
     try { await speak(text, key.endsWith('ai'), resolvedSampleLang); }
-    finally { setPlayingDemo(null); }
+    finally { if (demoSequence.current === sequence) setPlayingDemo(null); }
   };
 
   const handleSubscribeBasic = async () => {
@@ -1233,12 +1215,13 @@ export function ProSheet({
               key={f.key}
               title={f.title ?? (f.titleKey ? t(f.titleKey) : '')}
               description={f.description ?? (f.descKey ? t(f.descKey) : '')}
+              note={f.noteKey ? t(f.noteKey) : undefined}
               source={f.image}
+              wideImage={f.wideImage}
               accent={f.accent}
               icon={f.icon}
               basic={f.basic}
               premium={f.premium}
-              premiumOnly={f.premiumOnly}
               t={t}
             />
           ))}
@@ -1257,10 +1240,8 @@ export function ProSheet({
             accessibilityRole="button"
             accessibilityLabel={t('back_to_top')}
           >
-            <LinearGradient colors={HERO_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.backToTop}>
-              <Ionicons name="arrow-up" size={16} color={GOLD_LIGHT} style={{ marginRight: 8 }} />
-              <Text style={s.backToTopText}>{t('back_to_top')}</Text>
-            </LinearGradient>
+            <Ionicons name="chevron-up" size={14} color={pal.sub} />
+            <Text style={[s.backToTopText, { color: pal.sub }]}>{t('back_to_top')}</Text>
           </TouchableOpacity>
         </ScrollView>
 
@@ -1399,49 +1380,29 @@ const cvs = StyleSheet.create({
     marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 0,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#DCE7F7',
     backgroundColor: '#FFFFFF',
     paddingVertical: 18,
-    paddingHorizontal: 20,
+    paddingHorizontal: 6,
     shadowColor: '#1D4ED8',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.10,
     shadowRadius: 14,
     elevation: 3,
   },
-  cupChip: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
+  coffeeImageWrap: {
+    width: 72,
+    height: 62,
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  steamRow: {
-    position: 'absolute',
-    top: 7,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  steam: {
-    width: 2,
-    borderRadius: 1,
-    backgroundColor: PLAN_BLUE,
-  },
-  sparkle: {
-    position: 'absolute',
-    top: 5,
-    right: 6,
-  },
+  coffeeImage: { width: '100%', height: '100%' },
   text: {
     flex: 1,
     fontSize: 15,
@@ -1473,21 +1434,11 @@ const av = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
+    minHeight: 40,
     marginBottom: 20,
   },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-  },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  title: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2, lineHeight: 27 },
+  title: { flex: 1, fontSize: 22, fontWeight: '800', color: '#0F2A5E', textAlign: 'center', letterSpacing: 0.2, lineHeight: 27 },
   subtitle: { fontSize: 14, color: '#64748B', lineHeight: 20, marginTop: 12 },
   panel: {
     borderRadius: 16,
@@ -1558,35 +1509,12 @@ const fs = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  title: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: '#0F2A5E', letterSpacing: 0.2, lineHeight: 27 },
-  premiumOnlyBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: GOLD_DEEP,
-    backgroundColor: GOLD_LIGHT,
-  },
-  premiumOnlyText: { fontSize: 11, fontWeight: '800', color: HERO_DARK },
+  title: { fontSize: 22, fontWeight: '800', color: '#0F2A5E', textAlign: 'center', letterSpacing: 0.2, lineHeight: 27 },
   desc: { fontSize: 14, color: '#64748B', lineHeight: 20, marginTop: 12 },
+  noteText: { marginTop: 7, fontSize: 10.5, lineHeight: 15, color: '#94A3B8' },
   imageShadow: {
     alignSelf: 'center',
     marginTop: 20,
@@ -1605,6 +1533,15 @@ const fs = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E4EDFB',
     backgroundColor: '#F6F9FE',
+  },
+  wideImageClip: {
+    borderRadius: 16,
+  },
+  wideImageNoShadow: {
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
   image: { width: '100%', height: '100%' },
   // Icon-based visual (Priority Support, Data Transfer)
@@ -1726,6 +1663,10 @@ const bar = StyleSheet.create({
     marginTop: 1,
     maxWidth: '100%',
   },
+  btnPrice: {
+    fontSize: 14,
+    lineHeight: 17,
+  },
   restoreBtn: {
     alignItems: 'center',
     paddingVertical: 8,
@@ -1829,7 +1770,7 @@ const s = StyleSheet.create({
   cardTitle: {
     fontSize: 22,
     fontWeight: '800',
-    textAlign: 'left',
+    textAlign: 'center',
     letterSpacing: -0.3,
     lineHeight: 28,
     marginBottom: 20,
@@ -1904,28 +1845,16 @@ const s = StyleSheet.create({
   },
   backToTopWrap: {
     alignSelf: 'center',
-    marginTop: 12,
-    borderRadius: 24,
-    shadowColor: HERO_DARK,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  backToTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: `${GOLD_MAIN}88`,
+    gap: 5,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   backToTopText: {
-    color: GOLD_LIGHT,
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.4,
+    fontSize: 12,
+    fontWeight: '500',
   },
 
   // ── Voice demo ────────────────────────────────────────────────────────────

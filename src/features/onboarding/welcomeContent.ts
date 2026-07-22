@@ -2,34 +2,34 @@ import type { OnboardingChoices, WordCard } from '../../types';
 import { WELCOME_FOLDER_ID } from '../../lib/db';
 
 export const WELCOME_FOLDER_NAMES: Record<string, string> = {
-  'en-US': 'Welcome to WordPing',
-  'ja-JP': 'WordPingへようこそ',
-  'ko-KR': 'WordPing에 오신 것을 환영합니다',
-  'zh-CN': '欢迎使用WordPing',
-  'es-ES': 'Bienvenido a WordPing',
-  'fr-FR': 'Bienvenue dans WordPing',
-  'de-DE': 'Willkommen bei WordPing',
-  'it-IT': 'Benvenuto in WordPing',
-  'pt-BR': 'Bem-vindo ao WordPing',
-  'ru-RU': 'Добро пожаловать в WordPing',
-  'ar':    'أهلاً بك في WordPing',
-  'hi-IN': 'WordPing में आपका स्वागत है',
-  'tr-TR': "WordPing'ya Hoş Geldiniz",
-  'nl-NL': 'Welkom bij WordPing',
-  'vi-VN': 'Chào mừng đến với WordPing',
-  'th-TH': 'ยินดีต้อนรับสู่ WordPing',
-  'id-ID': 'Selamat Datang di WordPing',
-  'pl-PL': 'Witaj w WordPing',
-  'el-GR': 'Καλώς ήρθατε στο WordPing',
-  'sv-SE': 'Välkommen till WordPing',
+  'en-US': 'Welcome',
+  'ja-JP': 'ようこそ',
+  'ko-KR': '환영합니다',
+  'zh-CN': '欢迎',
+  'es-ES': 'Bienvenido',
+  'fr-FR': 'Bienvenue',
+  'de-DE': 'Willkommen',
+  'it-IT': 'Benvenuto',
+  'pt-BR': 'Bem-vindo',
+  'ru-RU': 'Добро пожаловать',
+  'ar':    'أهلاً بك',
+  'hi-IN': 'स्वागत है',
+  'tr-TR': 'Hoş Geldiniz',
+  'nl-NL': 'Welkom',
+  'vi-VN': 'Chào mừng',
+  'th-TH': 'ยินดีต้อนรับ',
+  'id-ID': 'Selamat Datang',
+  'pl-PL': 'Witaj',
+  'el-GR': 'Καλώς ήρθατε',
+  'sv-SE': 'Välkommen',
 };
 
-// Translations for the 4 tutorial cards in the Welcome folder.
+// Translations for the tutorial messages in the Welcome folder.
 // Keys match the BCP-47 codes used in OnboardingModal's language list.
 const WELCOME_CARD_TEXTS: Record<string, [string, string, string, string]> = {
   'en-US': [
     'Tap the card to reveal its meaning.',
-    'Switch between List Mode and Flip Mode using the top-right button.',
+    'Switch between List Mode and Flip Mode using the button in the top-right corner.',
     'Tap the graduation cap icon to test yourself.',
     'Set up notifications to review your words automatically.',
   ],
@@ -153,7 +153,7 @@ export const WELCOME_CARD_IDS: string[] = ['wp-w1', 'wp-w2', 'wp-w3', 'wp-w4'];
 
 export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
   // Language Learning: front = learn lang, back = explanation lang.
-  // Vocabulary & Terms: front = English, back = explanation lang.
+  // Vocabulary & Terms: two cards, with both sides in the explanation language.
   // 'other' falls back to English on either side.
   const wordLang = (choices.purpose === 'language' && choices.learningLang && choices.learningLang !== 'other')
     ? choices.learningLang
@@ -164,6 +164,29 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
 
   const wordTexts    = WELCOME_CARD_TEXTS[wordLang]    ?? WELCOME_CARD_TEXTS['en-US'];
   const meaningTexts = WELCOME_CARD_TEXTS[meaningLang] ?? WELCOME_CARD_TEXTS['en-US'];
+
+  if (choices.purpose === 'words') {
+    return [
+      {
+        id:          WELCOME_CARD_IDS[0],
+        word:        meaningTexts[0],
+        meaning:     meaningTexts[1],
+        note:        '',
+        wordLang:    meaningLang,
+        meaningLang,
+        folderId:    WELCOME_FOLDER_ID,
+      },
+      {
+        id:          WELCOME_CARD_IDS[1],
+        word:        meaningTexts[2],
+        meaning:     meaningTexts[3],
+        note:        '',
+        wordLang:    meaningLang,
+        meaningLang,
+        folderId:    WELCOME_FOLDER_ID,
+      },
+    ];
+  }
 
   return WELCOME_CARD_IDS.map((id, i) => ({
     id,

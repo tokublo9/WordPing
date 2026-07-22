@@ -1,7 +1,10 @@
-import { Animated, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLang } from '../i18n';
 import type { TranslationKey } from '../i18n';
 import type { OnboardingChoices, Palette } from '../types';
@@ -26,6 +29,45 @@ const OB_CATEGORIES = [
   titleKey: TranslationKey;
   descKey: TranslationKey | null;
 }>;
+
+const OB_GENDERS = [
+  { id: 'woman',             icon: 'female-outline', labelKey: 'ob_gender_woman' },
+  { id: 'man',               icon: 'male-outline', labelKey: 'ob_gender_man' },
+  { id: 'non_binary',        icon: 'male-female-outline', labelKey: 'ob_gender_non_binary' },
+  { id: 'prefer_not_to_say', icon: 'remove-outline', labelKey: 'ob_gender_no_answer' },
+] as const satisfies ReadonlyArray<{
+  id: OnboardingChoices['gender'];
+  icon: ComponentProps<typeof Ionicons>['name'];
+  labelKey: TranslationKey;
+}>;
+
+const OB_DISCOVERY_SOURCES = [
+  { id: 'app_store',     icon: 'storefront-outline', labelKey: 'ob_source_app_store' },
+  { id: 'social_media',  icon: 'share-social-outline', labelKey: 'ob_source_social' },
+  { id: 'friend_family', icon: 'people-outline', labelKey: 'ob_source_friend' },
+  { id: 'web_search',    icon: 'search-outline', labelKey: 'ob_source_search' },
+  { id: 'advertisement', icon: 'megaphone-outline', labelKey: 'ob_source_ad' },
+  { id: 'other',         icon: 'ellipsis-horizontal', labelKey: 'ob_cat_other' },
+] as const satisfies ReadonlyArray<{
+  id: OnboardingChoices['discoverySource'];
+  icon: ComponentProps<typeof Ionicons>['name'];
+  labelKey: TranslationKey;
+}>;
+
+const MIN_BIRTH_DATE = new Date(1900, 0, 1);
+const MAX_BIRTH_DATE = new Date();
+const DEFAULT_BIRTH_DATE = (() => {
+  const value = new Date();
+  value.setFullYear(value.getFullYear() - 18);
+  return value;
+})();
+
+function toIsoDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 // ── Language list ─────────────────────────────────────────────────────────────
 
@@ -109,16 +151,22 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
   const insets = useSafeAreaInsets();
 
   // step 1 = purpose
-  // step 2 = lang picker (language path: learn lang / words path: explanation lang)
-  // step 3 = lang picker (language path: explanation lang) OR category picker (words path)
-  const [step,         setStep]         = useState<1 | 2 | 3>(1);
+  // step 2 = profile details
+  // step 3 = lang picker (language path: learn lang / words path: explanation lang)
+  // step 4 = lang picker (language path: explanation lang) OR category picker (words path)
+  const [step,         setStep]         = useState<1 | 2 | 3 | 4>(1);
   const [purpose,      setPurpose]      = useState<'language' | 'words' | null>(null);
+  const [gender,       setGender]       = useState<OnboardingChoices['gender'] | null>(null);
+  const [birthDate,    setBirthDate]    = useState<Date | null>(null);
+  const [draftBirthDate, setDraftBirthDate] = useState(() => new Date(DEFAULT_BIRTH_DATE));
+  const [birthPickerVisible, setBirthPickerVisible] = useState(false);
+  const [discovery,    setDiscovery]    = useState<OnboardingChoices['discoverySource'] | null>(null);
   const [learningLang, setLearningLang] = useState<string | null>(null);
   const [nativeLang,   setNativeLang]   = useState<string | null>(null);
   const [wordCategory, setWordCategory] = useState<string | null>(null);
 
-  // Progress bar — only counts steps 2 and 3 (step 1 is the Welcome screen, not a flow step).
-  // progressAnim value: 0 (hidden) → 1 (50%) → 2 (100%).
+  // Progress bar — counts steps 2–4 (step 1 is the Welcome screen, not a flow step).
+  // progressAnim value: 0 (hidden) → 1 (33%) → 2 (67%) → 3 (100%).
   const progressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (step === 1) return;
@@ -133,10 +181,21 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
     progressAnim.setValue(0);
     setStep(1);
     setPurpose(null);
+    setGender(null);
+    setBirthDate(null);
+    setDraftBirthDate(new Date(DEFAULT_BIRTH_DATE));
+    setBirthPickerVisible(false);
+    setDiscovery(null);
     setLearningLang(null);
     setNativeLang(null);
     setWordCategory(null);
   };
+
+  const wasVisible = useRef(visible);
+  useEffect(() => {
+    if (wasVisible.current && !visible) reset();
+    wasVisible.current = visible;
+  }, [visible]);
 
   const handlePurpose = (p: 'language' | 'words') => {
     setPurpose(p);
@@ -144,50 +203,88 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
   };
 
   const handleBack = () => {
-    if (step === 3) setStep(2);
+    setBirthPickerVisible(false);
+    if (step === 4) setStep(3);
+    else if (step === 3) setStep(2);
     else setStep(1);
   };
 
   const handleComplete = () => {
-    if (!nativeLang || !purpose) return;
+    const dateOfBirth = birthDate ? toIsoDate(birthDate) : null;
+    if (!nativeLang || !purpose || !gender || !dateOfBirth || !discovery) return;
     const choices: OnboardingChoices = {
       purpose,
+      gender,
+      dateOfBirth,
+      discoverySource: discovery,
       nativeLang,
       ...(purpose === 'language' && learningLang ? { learningLang } : {}),
       ...(purpose === 'words' && wordCategory    ? { wordCategory } : {}),
     };
-    reset();
     onComplete(choices);
   };
 
-  // Both paths now end at step 3.
-  const isLastStep = step === 3;
+  // Both paths now end at step 4.
+  const isLastStep = step === 4;
 
-  // Category picker is shown at step 3 for the words path.
-  const showingCategoryPicker = step === 3 && purpose === 'words';
+  const showingProfile = step === 2;
 
-  // Language picker logic (steps 2 and 3 on language path, step 2 on words path).
-  const showingLearnLang  = step === 2 && purpose === 'language';
+  // Category picker is shown at step 4 for the words path.
+  const showingCategoryPicker = step === 4 && purpose === 'words';
+
+  // Language picker logic (steps 3 and 4 on language path, step 3 on words path).
+  const showingLearnLang  = step === 3 && purpose === 'language';
   const langTitleKey: TranslationKey = showingLearnLang ? 'ob_learn_lang'      : 'ob_native_lang';
   const langDescKey:  TranslationKey = showingLearnLang ? 'ob_learn_lang_desc' : 'ob_native_lang_desc';
   const langSelected  = showingLearnLang ? learningLang : nativeLang;
   const langOnSelect  = showingLearnLang ? setLearningLang : setNativeLang;
 
-  const canProceed = showingCategoryPicker
-    ? wordCategory !== null
-    : (showingLearnLang ? learningLang !== null : nativeLang !== null);
+  const canProceed = showingProfile
+    ? gender !== null && birthDate !== null && discovery !== null
+    : showingCategoryPicker
+      ? wordCategory !== null
+      : (showingLearnLang ? learningLang !== null : nativeLang !== null);
 
   const handleProceed = () => {
     if (!canProceed) return;
     if (isLastStep) handleComplete();
-    else setStep(3);
+    else if (step === 2) setStep(3);
+    else setStep(4);
+  };
+
+  const openBirthPicker = () => {
+    setDraftBirthDate(new Date(birthDate ?? DEFAULT_BIRTH_DATE));
+    setBirthPickerVisible(true);
+  };
+
+  const handleBirthDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setBirthPickerVisible(false);
+      if (event.type === 'set' && selectedDate) {
+        setDraftBirthDate(selectedDate);
+        setBirthDate(selectedDate);
+      }
+      return;
+    }
+
+    if (event.type !== 'dismissed' && selectedDate) setDraftBirthDate(selectedDate);
+  };
+
+  const confirmBirthDate = () => {
+    setBirthDate(new Date(draftBirthDate));
+    setBirthPickerVisible(false);
+  };
+
+  const cancelBirthDate = () => {
+    setDraftBirthDate(new Date(birthDate ?? DEFAULT_BIRTH_DATE));
+    setBirthPickerVisible(false);
   };
 
   return (
     <Modal visible={visible} animationType="none" transparent={false} statusBarTranslucent>
       <View style={[ob.root, { backgroundColor: pal.bg, paddingTop: insets.top }]}>
 
-        {/* ── Progress bar (hidden on Welcome screen, shown for steps 2 & 3) ── */}
+        {/* ── Progress bar (hidden on Welcome screen, shown for steps 2–4) ── */}
         {step > 1 && (
           <View style={[ob.progressTrack, { backgroundColor: pal.border }]}>
             <Animated.View
@@ -196,8 +293,8 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
                 {
                   backgroundColor: themeColor,
                   width: progressAnim.interpolate({
-                    inputRange: [0, 1, 2],
-                    outputRange: ['0%', '50%', '100%'],
+                    inputRange: [0, 1, 2, 3],
+                    outputRange: ['0%', '33%', '67%', '100%'],
                   }),
                 },
               ]}
@@ -247,7 +344,7 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
           </View>
 
         ) : (
-          /* ── Steps 2 & 3 ─────────────────────────────────────────────────── */
+          /* ── Steps 2–4 ───────────────────────────────────────────────────── */
           <View style={{ flex: 1 }}>
 
             {/* Back button */}
@@ -256,8 +353,107 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
               <Text style={[ob.backText, { color: pal.text }]}>{t('ob_back')}</Text>
             </TouchableOpacity>
 
-            {showingCategoryPicker ? (
-              /* ── Category picker (words path, step 3) ── */
+            {showingProfile ? (
+              /* ── Profile details (step 2) ── */
+              <>
+                <View style={ob.stepHeader}>
+                  <Text style={[ob.stepTitle, { color: pal.text }]}>{t('ob_profile_title')}</Text>
+                  <Text style={[ob.stepDesc, { color: pal.sub }]}>{t('ob_profile_desc')}</Text>
+                </View>
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={ob.profileScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <View style={ob.profileSection}>
+                    <Text style={[ob.profileLabel, { color: pal.text }]}>{t('ob_gender')}</Text>
+                    <View style={ob.optionGrid}>
+                      {OB_GENDERS.map(option => {
+                        const active = gender === option.id;
+                        return (
+                          <TouchableOpacity
+                            key={option.id}
+                            onPress={() => setGender(option.id)}
+                            activeOpacity={0.75}
+                            style={[
+                              ob.optionChip,
+                              {
+                                backgroundColor: active ? themeColor + '18' : pal.card,
+                                borderColor: active ? themeColor : pal.border,
+                              },
+                            ]}
+                          >
+                            <Ionicons name={option.icon} size={17} color={active ? themeColor : pal.sub} />
+                            <Text style={[ob.optionText, { color: active ? themeColor : pal.text }]} numberOfLines={2}>
+                              {t(option.labelKey)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={ob.profileSection}>
+                    <Text style={[ob.profileLabel, { color: pal.text }]}>{t('ob_birth_date')}</Text>
+                    <TouchableOpacity
+                      style={[ob.datePickerButton, { backgroundColor: pal.card, borderColor: pal.border }]}
+                      onPress={openBirthPicker}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('ob_birth_date')}
+                    >
+                      <Ionicons name="calendar-outline" size={19} color={birthDate ? themeColor : pal.sub} />
+                      <Text style={[ob.datePickerText, { color: birthDate ? pal.text : pal.sub }]}>
+                        {birthDate ? birthDate.toLocaleDateString() : t('ob_birth_select')}
+                      </Text>
+                      <Ionicons name="chevron-down" size={16} color={pal.sub} />
+                    </TouchableOpacity>
+
+                    {birthPickerVisible && Platform.OS === 'android' && (
+                      <DateTimePicker
+                        value={draftBirthDate}
+                        mode="date"
+                        display="default"
+                        minimumDate={MIN_BIRTH_DATE}
+                        maximumDate={MAX_BIRTH_DATE}
+                        onChange={handleBirthDateChange}
+                      />
+                    )}
+                  </View>
+
+                  <View style={ob.profileSection}>
+                    <Text style={[ob.profileLabel, { color: pal.text }]}>{t('ob_discovery')}</Text>
+                    <View style={ob.optionGrid}>
+                      {OB_DISCOVERY_SOURCES.map(option => {
+                        const active = discovery === option.id;
+                        return (
+                          <TouchableOpacity
+                            key={option.id}
+                            onPress={() => setDiscovery(option.id)}
+                            activeOpacity={0.75}
+                            style={[
+                              ob.optionChip,
+                              {
+                                backgroundColor: active ? themeColor + '18' : pal.card,
+                                borderColor: active ? themeColor : pal.border,
+                              },
+                            ]}
+                          >
+                            <Ionicons name={option.icon} size={17} color={active ? themeColor : pal.sub} />
+                            <Text style={[ob.optionText, { color: active ? themeColor : pal.text }]} numberOfLines={2}>
+                              {t(option.labelKey)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                  <View style={{ height: 100 }} />
+                </ScrollView>
+              </>
+            ) : showingCategoryPicker ? (
+              /* ── Category picker (words path, step 4) ── */
               <>
                 <View style={ob.stepHeader}>
                   <Text style={[ob.stepTitle, { color: pal.text }]}>{t('ob_category_title')}</Text>
@@ -303,7 +499,7 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
                 </ScrollView>
               </>
             ) : (
-              /* ── Language picker (step 2 both paths, step 3 language path) ── */
+              /* ── Language picker (step 3 both paths, step 4 language path) ── */
               <>
                 <View style={ob.stepHeader}>
                   <Text style={[ob.stepTitle, { color: pal.text }]}>{t(langTitleKey)}</Text>
@@ -347,6 +543,62 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
         )}
 
       </View>
+
+      {Platform.OS === 'ios' && (
+        <Modal
+          visible={birthPickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={cancelBirthDate}
+        >
+          <View style={ob.datePickerOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={cancelBirthDate}
+              accessibilityRole="button"
+              accessibilityLabel={t('cancel')}
+            />
+            <View style={[
+              ob.datePickerSheet,
+              {
+                backgroundColor: pal.dialog,
+                borderColor: pal.border,
+                paddingBottom: insets.bottom + 12,
+              },
+            ]}>
+              <View style={[ob.datePickerHeader, { borderBottomColor: pal.border }]}>
+                <TouchableOpacity
+                  style={ob.datePickerHeaderButton}
+                  onPress={cancelBirthDate}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[ob.datePickerHeaderText, { color: pal.sub }]}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <Text style={[ob.datePickerTitle, { color: pal.text }]}>{t('ob_birth_date')}</Text>
+                <TouchableOpacity
+                  style={[ob.datePickerHeaderButton, ob.datePickerConfirmButton]}
+                  onPress={confirmBirthDate}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[ob.datePickerHeaderText, { color: themeColor, fontWeight: '700' }]}>{t('done')}</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftBirthDate}
+                mode="date"
+                display="spinner"
+                minimumDate={MIN_BIRTH_DATE}
+                maximumDate={MAX_BIRTH_DATE}
+                accentColor={themeColor}
+                textColor={pal.text}
+                onChange={handleBirthDateChange}
+                style={ob.datePickerSpinner}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 }
@@ -415,7 +667,7 @@ const ob = StyleSheet.create({
   purposeTitle: { fontSize: 16, fontWeight: '700', marginBottom: 3 },
   purposeDesc:  { fontSize: 13, lineHeight: 18 },
 
-  // Steps 2 & 3 — language picker
+  // Steps 2–4 — profile and language/category pickers
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -438,6 +690,83 @@ const ob = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  profileScrollContent: {
+    paddingHorizontal: 20,
+  },
+  profileSection: {
+    marginBottom: 24,
+  },
+  profileLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  optionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  optionChip: {
+    minHeight: 48,
+    flexBasis: '47%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  datePickerButton: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  datePickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 28, 52, 0.42)',
+  },
+  datePickerSheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  datePickerHeader: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 8,
+  },
+  datePickerHeaderButton: {
+    minWidth: 82,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  datePickerConfirmButton: { alignItems: 'flex-end' },
+  datePickerHeaderText: { fontSize: 16, fontWeight: '500' },
+  datePickerTitle: { flex: 1, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  datePickerSpinner: { alignSelf: 'stretch' },
   langScrollContent: {
     paddingHorizontal: 20,
   },

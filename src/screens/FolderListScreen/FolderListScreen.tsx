@@ -35,6 +35,7 @@ export interface FolderListScreenProps {
     active: boolean;
     selectedIds: Set<string>;
     onToggle(id: string): void;
+    onSelectAll(): void;
     onExit(): void;
     onDelete(): void;
   };
@@ -97,16 +98,31 @@ export function FolderListScreen({
   }, [pal, themeColor, showLevelLabels, selection.active, selection.selectedIds, onFolderOpen, actions]);
 
   // ── Header ───────────────────────────────────────────────────────────────────
+  const allFoldersSelected = folders.length > 0 && selection.selectedIds.size === folders.length;
   const header = selection.active ? (
     <View style={s.header}>
       <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
         {selection.selectedIds.size} {t('selected')}
       </Text>
-      <TouchableOpacity style={[s.iconBtn, folderLayoutStyles.headerAction]} onPress={selection.onExit}>
-        <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
-          {t('cancel')}
-        </Text>
-      </TouchableOpacity>
+      <View style={folderLayoutStyles.headerActions}>
+        <TouchableOpacity
+          style={[s.iconBtn, folderLayoutStyles.headerAction]}
+          onPress={selection.onSelectAll}
+          disabled={allFoldersSelected}
+          accessibilityRole="button"
+          accessibilityLabel={t('select_all')}
+          accessibilityState={{ disabled: allFoldersSelected }}
+        >
+          <Text style={{ color: allFoldersSelected ? pal.sub : themeColor, fontSize: 16, fontWeight: '600' }}>
+            {t('select_all')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.iconBtn, folderLayoutStyles.headerAction]} onPress={selection.onExit}>
+          <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
+            {t('cancel')}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   ) : reorder.active ? (
     <View style={s.header}>
@@ -121,7 +137,7 @@ export function FolderListScreen({
     </View>
   ) : (
     <View style={s.header}>
-      <Text style={[s.title, { color: pal.text }]}>WordPing</Text>
+      <Text style={[s.title, { color: pal.text }]}>{t('app_name')}</Text>
       <View style={s.headerIcons}>
         <TouchableOpacity style={s.iconBtn} onPress={actions.onAddFolder}>
           <MaterialCommunityIcons name="folder-plus-outline" size={22} color={pal.sub} />
@@ -227,6 +243,7 @@ const selStyles = StyleSheet.create({
 });
 
 const folderLayoutStyles = StyleSheet.create({
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   // Match the 22-point icon buttons used by the normal header (22 + 8 + 8).
   // This keeps the header's measured height identical without changing any
   // header padding or list offset when entering reorder mode.

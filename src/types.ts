@@ -64,6 +64,9 @@ export interface ThemeSkin {
 
 export interface OnboardingChoices {
   purpose: 'language' | 'words';
+  gender: 'woman' | 'man' | 'non_binary' | 'prefer_not_to_say';
+  dateOfBirth: string;   // ISO date: YYYY-MM-DD
+  discoverySource: 'app_store' | 'social_media' | 'friend_family' | 'web_search' | 'advertisement' | 'other';
   learningLang?: string;  // BCP-47; only when purpose === 'language'
   nativeLang: string;     // BCP-47
   wordCategory?: string;  // only when purpose === 'words'

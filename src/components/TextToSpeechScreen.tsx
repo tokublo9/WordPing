@@ -43,9 +43,13 @@ interface Props {
   pal: Palette;
   themeColor: string;
   voice: AIVoice;
+  isPremium: boolean;
+  onHistoryAvailabilityChange(hasHistory: boolean): void;
 }
 
-export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }: Props) {
+export function TextToSpeechScreen({
+  visible, onClose, pal, themeColor, voice, isPremium, onHistoryAvailabilityChange,
+}: Props) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [history, setHistory] = useState<SavedPrototypeSpeech[]>([]);
@@ -91,13 +95,25 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
     let cancelled = false;
     setHistoryLoading(true);
     loadPrototypeSpeechHistory()
-      .then(items => { if (!cancelled) setHistory(items); })
+      .then(items => {
+        if (!cancelled) {
+          setHistory(items);
+          onHistoryAvailabilityChange(items.length > 0);
+        }
+      })
       .catch(() => {
         if (!cancelled) Alert.alert('History unavailable', 'Saved audio history could not be loaded.');
       })
       .finally(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
-  }, [visible]);
+  }, [onHistoryAvailabilityChange, visible]);
+
+  useEffect(() => {
+    if (isPremium) return;
+    requestController.current?.abort();
+    requestController.current = null;
+    setGenerating(false);
+  }, [isPremium]);
 
   useEffect(() => () => {
     requestController.current?.abort();
@@ -106,7 +122,7 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
 
   const generate = useCallback(async () => {
     const input = text.trim();
-    if (!input || generating) return;
+    if (!isPremium || !input || generating) return;
 
     requestController.current?.abort();
     stopAudio();
@@ -123,6 +139,7 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
         const saved = await savePrototypeSpeechToHistory(uri, voice);
         if (controller.signal.aborted) return;
         setHistory(saved.history);
+        onHistoryAvailabilityChange(saved.history.length > 0);
       } catch {
         if (controller.signal.aborted) return;
         Alert.alert(
@@ -145,7 +162,7 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
         setGenerating(false);
       }
     }
-  }, [generating, stopAudio, text, voice]);
+  }, [generating, isPremium, onHistoryAvailabilityChange, stopAudio, text, voice]);
 
   const togglePlayback = useCallback(async (uri: string, id: string) => {
     if (playingId === id) {
@@ -153,7 +170,6 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
       return;
     }
 
-    stopPrototypeSpeech();
     const sequence = ++playbackSequence.current;
     setPlayingId(id);
     try {
@@ -225,13 +241,14 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
           void deletePrototypeSpeech(item.id)
             .then(next => {
               setHistory(next);
+              onHistoryAvailabilityChange(next.length > 0);
             })
             .catch(() => Alert.alert('Delete unavailable', 'The saved audio file could not be deleted.'))
             .finally(() => setBusyAction(null));
         },
       },
     ]);
-  }, [playingId, stopAudio]);
+  }, [onHistoryAvailabilityChange, playingId, stopAudio]);
 
   return (
     <Modal
@@ -270,6 +287,15 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
           </TouchableOpacity>
         </View>
 
+        {!isPremium && (
+          <View style={[styles.premiumError, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+            <Ionicons name="alert-circle" size={19} color="#DC2626" />
+            <Text style={styles.premiumErrorText}>
+              Premium is required to generate new speech. You can still use your saved audio below.
+            </Text>
+          </View>
+        )}
+
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -284,7 +310,7 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
               <TextInput
                 value={text}
                 onChangeText={setText}
-                editable={!generating}
+                editable={isPremium && !generating}
                 multiline
                 maxLength={TEXT_TO_SPEECH_MAX_CHARS}
                 textAlignVertical="top"
@@ -293,6 +319,7 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
                 style={[
                   styles.input,
                   { backgroundColor: pal.input, borderColor: pal.border, color: pal.text },
+                  !isPremium && styles.lockedInput,
                 ]}
               />
               <Text style={[styles.characterCount, { color: pal.sub }]}>
@@ -304,10 +331,10 @@ export function TextToSpeechScreen({ visible, onClose, pal, themeColor, voice }:
               style={[
                 styles.generateButton,
                 { backgroundColor: themeColor },
-                (!text.trim() || generating) && styles.disabled,
+                (!isPremium || !text.trim() || generating) && styles.disabled,
               ]}
               onPress={generate}
-              disabled={!text.trim() || generating}
+              disabled={!isPremium || !text.trim() || generating}
               activeOpacity={0.82}
             >
               {generating ? (
@@ -485,6 +512,18 @@ const styles = StyleSheet.create({
   },
   headerButton: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '600' },
+  premiumError: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  premiumErrorText: { flex: 1, color: '#B91C1C', fontSize: 13, lineHeight: 18, fontWeight: '600' },
   content: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48, gap: 24 },
   sectionTitle: { marginBottom: 10, fontSize: 15, fontWeight: '700' },
   input: {
@@ -496,6 +535,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 23,
   },
+  lockedInput: { opacity: 0.5 },
   characterCount: { marginTop: 7, textAlign: 'right', fontSize: 12 },
   generateButton: {
     minHeight: 52,

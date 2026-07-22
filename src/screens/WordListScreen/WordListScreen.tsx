@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import type { Folder, Palette, WordCard } from '../../types';
 import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
@@ -37,6 +37,7 @@ export interface WordListSelectionProps {
   active: boolean;
   selectedIds: Set<string>;
   onToggle(id: string): void;
+  onSelectAll(): void;
   onExit(): void;
   onSetNotif(notifOff: boolean): void;
   onMoveSelected(): void;
@@ -74,6 +75,7 @@ export interface WordListScreenProps {
   themeColor: string;
   isSubscribed: boolean;
   isPremium?: boolean;
+  hasTextToSpeechHistory?: boolean;
 
   // Deep Sea skin scroll animation
   scrollY: Animated.Value;
@@ -110,7 +112,7 @@ export interface WordListScreenProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function WordListScreen({
-  pal, themeColor, isSubscribed, isPremium = false,
+  pal, themeColor, isSubscribed, isPremium = false, hasTextToSpeechHistory = false,
   scrollY, deepSeaSkin,
   currentFolder, folderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
@@ -236,6 +238,8 @@ export function WordListScreen({
   );
 
   // ── Header ───────────────────────────────────────────────────────────────────
+  const allVisibleCardsSelected = filteredFolderCards.length > 0
+    && filteredFolderCards.every(card => selection.selectedIds.has(card.id));
   const header = (
     <View style={[s.header, wordListLayoutStyles.header]} onTouchStart={() => closeOpenCard.current?.()}>
       {selection.active ? (
@@ -243,11 +247,25 @@ export function WordListScreen({
           <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
             {selection.selectedIds.size} {t('selected')}
           </Text>
-          <TouchableOpacity style={s.iconBtn} onPress={selection.onExit}>
-            <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
-              {t('cancel')}
-            </Text>
-          </TouchableOpacity>
+          <View style={reorderToolStyles.headerActions}>
+            <TouchableOpacity
+              style={s.iconBtn}
+              onPress={selection.onSelectAll}
+              disabled={allVisibleCardsSelected}
+              accessibilityRole="button"
+              accessibilityLabel={t('select_all')}
+              accessibilityState={{ disabled: allVisibleCardsSelected }}
+            >
+              <Text style={{ color: allVisibleCardsSelected ? pal.sub : themeColor, fontSize: 16, fontWeight: '600' }}>
+                {t('select_all')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} onPress={selection.onExit}>
+              <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
+                {t('cancel')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </>
       ) : reorder.active ? (
         <>
@@ -283,24 +301,15 @@ export function WordListScreen({
             </Text>
           </TouchableOpacity>
           <View style={s.headerIcons}>
-            <TouchableOpacity
-              style={s.iconBtn}
-              onPress={actions.onOpenTextToSpeech}
-              accessibilityLabel={isPremium ? 'Text-to-Speech' : 'Text-to-Speech, Premium locked'}
-            >
-              <View style={wordListLayoutStyles.textToSpeechIcon}>
-                <MaterialCommunityIcons
-                  name="account-voice"
-                  size={22}
-                  color={isPremium ? pal.sub : pal.sub + '88'}
-                />
-                {!isPremium && (
-                  <View style={[wordListLayoutStyles.textToSpeechLock, { backgroundColor: pal.bg }]}>
-                    <Ionicons name="lock-closed" size={9} color={pal.sub} />
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
+            {(isPremium || hasTextToSpeechHistory) && (
+              <TouchableOpacity
+                style={s.iconBtn}
+                onPress={actions.onOpenTextToSpeech}
+                accessibilityLabel="Text-to-Speech"
+              >
+                <Ionicons name="volume-high-outline" size={22} color={pal.sub} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenNotifications}>
               <Ionicons
                 name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
@@ -643,17 +652,6 @@ const wordListLayoutStyles = StyleSheet.create({
   // Normal, selection, and reorder headers contain different controls, but the
   // list must always begin at the same screen coordinate when modes change.
   header: { height: 50 },
-  textToSpeechIcon: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  textToSpeechLock: {
-    position: 'absolute',
-    right: -2,
-    bottom: -1,
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
 
 const filterStyles = StyleSheet.create({

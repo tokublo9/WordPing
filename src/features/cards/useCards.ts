@@ -26,6 +26,7 @@ export interface UseCardsReturn {
   enterSelectionMode(): void;
   exitSelectionMode(): void;
   toggleSelect(id: string): void;
+  selectAllCards(): void;
   deleteSelected(): void;
   setNotifForSelected(notifOff: boolean): void;
   // Reorder
@@ -158,6 +159,14 @@ export function useCards({
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
+    });
+  };
+
+  const selectAllCards = () => {
+    setSelectedIds(prev => {
+      const allSelected = filteredFolderCards.length > 0
+        && filteredFolderCards.every(card => prev.has(card.id));
+      return allSelected ? new Set() : new Set(filteredFolderCards.map(card => card.id));
     });
   };
 
@@ -347,7 +356,7 @@ export function useCards({
   return {
     flipped, toggleFlip,
     selectionMode, selectedIds,
-    enterSelectionMode, exitSelectionMode, toggleSelect, deleteSelected, setNotifForSelected,
+    enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleResetOrder,
     levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,

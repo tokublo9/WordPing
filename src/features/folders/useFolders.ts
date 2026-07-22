@@ -21,6 +21,7 @@ export interface UseFoldersReturn {
   enterFolderSelectionMode(): void;
   exitFolderSelectionMode(): void;
   toggleFolderSelect(id: string): void;
+  selectAllFolders(): void;
   deleteSelectedFolders(): void;
   // Folder reorder
   enterFolderReorderMode(): void;
@@ -67,6 +68,13 @@ export function useFolders({ folders, fallbackFolderName, setFolders, setCards, 
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
+    });
+  };
+
+  const selectAllFolders = () => {
+    setSelectedFolderIds(prev => {
+      const allSelected = folders.length > 0 && folders.every(folder => prev.has(folder.id));
+      return allSelected ? new Set() : new Set(folders.map(folder => folder.id));
     });
   };
 
@@ -128,6 +136,7 @@ export function useFolders({ folders, fallbackFolderName, setFolders, setCards, 
     enterFolderSelectionMode,
     exitFolderSelectionMode,
     toggleFolderSelect,
+    selectAllFolders,
     deleteSelectedFolders,
     enterFolderReorderMode,
     exitFolderReorderMode,

@@ -392,7 +392,7 @@ export function SwipeableCard({
                   <TouchableOpacity
                     onPress={voiceLocked ? onVoiceLocked : speakMeaning}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={[{ marginRight: -8 }, reorderMode && styles.reorderHiddenControl]}
+                    style={[styles.expandMeaningVoice, reorderMode && styles.reorderHiddenControl]}
                     disabled={reorderMode}
                   >
                     {voiceLocked ? (
@@ -591,6 +591,7 @@ const styles = StyleSheet.create({
   expandDivider: { height: StyleSheet.hairlineWidth, marginVertical: 10, alignSelf: 'stretch' },
   expandMeaningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   expandMeaningText: { flex: 1, fontSize: 15, fontWeight: '400' },
+  expandMeaningVoice: { marginRight: -18 },
   expandNoteText:    { fontSize: 13, fontWeight: '400', marginTop: 10 },
   cornerBtns: { position: 'absolute', top: 10, right: 10, alignItems: 'center', gap: 5 },
   reorderHiddenControl: { opacity: 0 },

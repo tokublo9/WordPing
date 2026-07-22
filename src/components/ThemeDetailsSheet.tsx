@@ -485,16 +485,18 @@ export function ThemeDetailsSheet({
         <View style={s.heroRow}>
           {/* Large preview card */}
           <View style={[s.heroCard, { width: HERO_CARD_W, height: HERO_CARD_H, borderColor: dark ? displayItem.previewAccent + '60' : displayItem.previewAccent + '30' }]}>
-            {displayItem.category === 'premium' ? (
-              <PremiumSkinPreview item={displayItem} skinData={skinData} width={HERO_CARD_W} height={HERO_CARD_H} />
-            ) : (
-              <>
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: displayItem.previewBg }]} />
-                <View style={[StyleSheet.absoluteFill, s.heroCardCenter]}>
-                  <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordPing</Text>
-                </View>
-              </>
-            )}
+            <View style={s.heroCardClip}>
+              {displayItem.category === 'premium' ? (
+                <PremiumSkinPreview item={displayItem} skinData={skinData} width={HERO_CARD_W - 2} height={HERO_CARD_H - 2} />
+              ) : (
+                <>
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: displayItem.previewBg }]} />
+                  <View style={[StyleSheet.absoluteFill, s.heroCardCenter]}>
+                    <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordPing</Text>
+                  </View>
+                </>
+              )}
+            </View>
             {isApplied && (
               <View style={[s.appliedBadge, { backgroundColor: themeColor }]}>
                 <Ionicons name="checkmark" size={12} color="#fff" />
@@ -504,7 +506,7 @@ export function ThemeDetailsSheet({
 
           {/* Info column */}
           <View style={s.heroInfo}>
-            <Text style={[s.heroName, { color: pal.text }]} numberOfLines={2}>{displayItem.name}</Text>
+            <Text style={[s.heroName, { color: pal.text }]} numberOfLines={2}>{t(displayItem.nameKey)}</Text>
 
             {priceLabel && (
               <Text style={s.priceText}>{priceLabel}</Text>
@@ -542,15 +544,22 @@ export function ThemeDetailsSheet({
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[s.actionBtn, s.planBtn, { borderColor: themeColor }]}
-              onPress={onUpgrade}
-              activeOpacity={0.75}
-            >
-              <Text style={[s.actionBtnText, { color: themeColor }]}>
-                {t('theme_details_upgrade')}
-              </Text>
-            </TouchableOpacity>
+            {!isSubscribed && displayItem.price > 0 && (
+              <>
+                <TouchableOpacity
+                  style={[s.actionBtn, s.planBtn, { borderColor: themeColor }]}
+                  onPress={onUpgrade}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[s.actionBtnText, { color: themeColor }]}>
+                    {t('theme_details_upgrade')}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[s.planIncludedText, { color: pal.sub }]}>
+                  {t('theme_details_included_basic')}
+                </Text>
+              </>
+            )}
 
           </View>
         </View>
@@ -604,8 +613,13 @@ const s = StyleSheet.create({
   heroRow: { flexDirection: 'row', gap: 16, marginBottom: 0 },
 
   heroCard: {
-    borderRadius: 16, overflow: 'hidden',
+    borderRadius: 16,
     borderWidth: 1,
+  },
+  heroCardClip: {
+    flex: 1,
+    borderRadius: 15,
+    overflow: 'hidden',
   },
   heroCardCenter: { alignItems: 'center', justifyContent: 'center' },
   heroCardWordPing: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
@@ -617,9 +631,9 @@ const s = StyleSheet.create({
 
   heroInfo: { flex: 1, paddingTop: 2, paddingBottom: 2, minHeight: HERO_CARD_H },
 
-  heroName: { fontSize: 18, fontWeight: '700', marginBottom: 8, lineHeight: 24 },
+  heroName: { fontSize: 22, fontWeight: '500', marginBottom: 8, lineHeight: 28 },
 
-  priceText: { color: '#EF4444', fontSize: 12, fontWeight: '700', marginBottom: 6 },
+  priceText: { color: '#EF4444', fontSize: 17, fontWeight: '400', marginBottom: 6 },
 
   badgeChip: {
     alignSelf: 'flex-start',
@@ -645,6 +659,7 @@ const s = StyleSheet.create({
   },
   actionBtnText: { fontSize: 14, fontWeight: '700' },
   planBtn: { backgroundColor: 'transparent', borderWidth: 1.5, marginTop: 8 },
+  planIncludedText: { fontSize: 11, lineHeight: 15, textAlign: 'center', marginTop: 5 },
 
   // Sections
   divider:      { height: StyleSheet.hairlineWidth, marginVertical: 20 },

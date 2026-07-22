@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 
 import type { ThemeSkin } from '../types';
+import type { TranslationKey } from '../i18n';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -15,6 +16,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 export interface ShopItem {
   id: string;
   name: string;
+  nameKey: TranslationKey;
   price: number;
   category: 'solid' | 'premium';
   previewBg: string;
@@ -75,6 +77,18 @@ export const PV_RAIN_DROPS: { x: number; y: number; len: number }[] = [
   { x: 0.60, y: 0.50, len: 15 }, { x: 0.73, y: 0.08, len: 11 },
   { x: 0.83, y: 0.38, len: 16 }, { x: 0.91, y: 0.22, len: 12 },
   { x: 0.14, y: 0.70, len: 13 },
+];
+
+export const PV_DEEP_SEA_BUBBLES: { x: number; y: number; size: number; opacity: number }[] = [
+  { x: 0.12, y: 0.18, size: 0.040, opacity: 0.72 },
+  { x: 0.28, y: 0.34, size: 0.065, opacity: 0.48 },
+  { x: 0.76, y: 0.14, size: 0.050, opacity: 0.62 },
+  { x: 0.88, y: 0.42, size: 0.032, opacity: 0.76 },
+  { x: 0.56, y: 0.52, size: 0.075, opacity: 0.42 },
+  { x: 0.18, y: 0.64, size: 0.030, opacity: 0.68 },
+  { x: 0.70, y: 0.72, size: 0.044, opacity: 0.58 },
+  { x: 0.38, y: 0.82, size: 0.058, opacity: 0.46 },
+  { x: 0.91, y: 0.88, size: 0.027, opacity: 0.72 },
 ];
 
 export const PV_PAWS: { x: number; y: number; rot: number; s: number }[] = [
@@ -194,13 +208,34 @@ export const PremiumSkinPreview = memo(function PremiumSkinPreview({
   // Deep Sea: vertical gradient
   if (item.id === 'skin_deep_sea') {
     return (
-      <LinearGradient
-        colors={['#1585CC', '#0C5290', '#062A54', '#030F28', '#010610']}
-        locations={[0, 0.28, 0.55, 0.78, 1]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <>
+        <LinearGradient
+          colors={['#1585CC', '#0C5290', '#062A54', '#030F28', '#010610']}
+          locations={[0, 0.28, 0.55, 0.78, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        {PV_DEEP_SEA_BUBBLES.map((bubble, i) => {
+          const size = Math.max(3, bubble.size * W);
+          return (
+            <View
+              key={`deep-sea-bubble-${i}`}
+              style={{
+                position: 'absolute',
+                left: bubble.x * W - size / 2,
+                top: bubble.y * H - size / 2,
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                borderWidth: Math.max(0.7, size * 0.12),
+                borderColor: `rgba(255,255,255,${bubble.opacity})`,
+                backgroundColor: `rgba(255,255,255,${bubble.opacity * 0.22})`,
+              }}
+            />
+          );
+        })}
+      </>
     );
   }
 
@@ -312,7 +347,7 @@ export const PremiumSkinPreview = memo(function PremiumSkinPreview({
     );
   }
 
-  // Rainy Window: dark blue bg + thin diagonal raindrops
+  // Rain: dark blue bg + thin diagonal raindrops
   if (item.id === 'skin_rain') {
     return (
       <>

@@ -314,10 +314,14 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
     return color ? <View style={[s.flipStripe, { backgroundColor: color }]} /> : null;
   };
 
-  const card = slotCards[currSlot];
-  if (!card) return null;
+  // Slot content is intentionally stable during horizontal transitions, but
+  // mutable card properties (such as notifOff) must always come from the latest
+  // cards prop. This also avoids a stale first frame when Flip View is reopened.
+  const resolveLatestCard = (slotCard: WordCard | undefined) =>
+    slotCard ? cards.find(candidate => candidate.id === slotCard.id) ?? slotCard : undefined;
 
-  const voiceIcon = 'volume-medium-outline';
+  const card = resolveLatestCard(slotCards[currSlot]);
+  if (!card) return null;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -328,7 +332,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
       <View style={s.deckWrap}>
         {([0, 1, 2] as const).map(si => {
-          const c = slotCards[si];
+          const c = resolveLatestCard(slotCards[si]);
           if (!c) return null;
           const isCurr = si === currSlot;
 
@@ -351,6 +355,11 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                     <CardScrollFace onFlip={doFlip} onVoice={() => speakCardSide('word', c)} voiceColor={themeColor}>
                       <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
                     </CardScrollFace>
+                    {c.notifOff && (
+                      <View style={s.notifOffBadge} pointerEvents="none">
+                        <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                      </View>
+                    )}
                     {stripe(c)}
                   </Animated.View>
                   <Animated.View
@@ -360,6 +369,11 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                       <Text style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
                       {c.note ? <Text style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
                     </CardScrollFace>
+                    {c.notifOff && (
+                      <View style={s.notifOffBadge} pointerEvents="none">
+                        <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                      </View>
+                    )}
                   </Animated.View>
                 </>
               ) : (
@@ -367,14 +381,11 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                 <View style={[s.cardInner, { backgroundColor: pal.card }]}>
                   {stripe(c)}
                   <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
-                </View>
-              )}
-
-              {/* Notification-off icon — bottom-right corner of every card.
-                  Same icon + styling as the Word List card indicator. */}
-              {c.notifOff && (
-                <View style={s.notifOffBadge} pointerEvents="none">
-                  <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                  {c.notifOff && (
+                    <View style={s.notifOffBadge} pointerEvents="none">
+                      <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                    </View>
+                  )}
                 </View>
               )}
             </Animated.View>

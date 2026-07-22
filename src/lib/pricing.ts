@@ -50,9 +50,29 @@ const ZERO_DECIMAL = new Set(['JPY', 'KRW', 'VND', 'IDR', 'HUF', 'TWD', 'INR', '
 function detectCurrency(): string {
   try {
     const locale = Intl.DateTimeFormat().resolvedOptions().locale ?? 'en-US';
-    const [lang = '', region = ''] = locale.split('-');
+    const localeParts = locale.split(/[-_]/);
+    const lang = localeParts[0] ?? '';
+    // Handles locales with a script subtag such as zh-Hant-TW.
+    const region = localeParts.slice(1).find(part => /^[A-Za-z]{2}$/.test(part)) ?? '';
     const l = lang.toLowerCase();
     const r = region.toUpperCase();
+
+    // Currency follows the user's device region, independently of the app or
+    // device display language. Language is only a fallback for locales that do
+    // not provide a region code.
+    const regionCurrencies: Record<string, string> = {
+      JP: 'JPY', US: 'USD', GB: 'GBP', KR: 'KRW', CN: 'CNY', TW: 'TWD', HK: 'HKD',
+      AU: 'AUD', CA: 'CAD', BR: 'BRL', MX: 'MXN', SG: 'SGD', VN: 'VND', TH: 'THB',
+      ID: 'IDR', PH: 'PHP', MY: 'MYR', SA: 'SAR', AE: 'AED', TR: 'TRY', ZA: 'ZAR',
+      SE: 'SEK', NO: 'NOK', DK: 'DKK', CH: 'CHF', PL: 'PLN', CZ: 'CZK', HU: 'HUF',
+      IL: 'ILS', NZ: 'NZD', IN: 'INR',
+    };
+    const euroRegions = new Set([
+      'AT', 'BE', 'CY', 'DE', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR',
+      'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PT', 'SI', 'SK',
+    ]);
+    if (regionCurrencies[r]) return regionCurrencies[r];
+    if (euroRegions.has(r)) return 'EUR';
 
     if (l === 'ja') return 'JPY';
     if (l === 'ko') return 'KRW';

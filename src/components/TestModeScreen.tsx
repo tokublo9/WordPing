@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { Palette, ReviewEntry, WordCard } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLang, type TranslationKey } from '../i18n';
+import { BCP47_TO_UI_LANG, translate, useLang, type TranslationKey } from '../i18n';
 import { speak, speakWordCard, stopPlayback } from '../lib/tts';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 import {
@@ -65,8 +66,7 @@ function seg(
   return pts;
 }
 
-function ForgettingCurve({ pal, themeColor }: { pal: Palette; themeColor: string }) {
-  const t = useLang();
+function ForgettingCurve({ t }: { t: (key: TranslationKey) => string }) {
   const [plotW, setPlotW] = useState(240);
 
   // Time axis: T=140 units. Review points at t=22 (Day1), t=62 (Day3), t=105 (Day7).
@@ -111,142 +111,173 @@ function ForgettingCurve({ pal, themeColor }: { pal: Palette; themeColor: string
 
   const midY = CHART_H * 0.5;  // 50% grid line
 
-  const reviewColor = '#22c55e';
-  const dotSize     = 2.5;
-  const smallFont   = { fontSize: 8, color: pal.sub } as const;
+  const curveColor  = '#3478E5';
+  const reviewColor = '#35B978';
+  const axisColor   = '#7183A4';
+  const gridColor   = '#D7E2F3';
+  const dotSize     = 2.8;
+  const smallFont   = { fontSize: 8, color: axisColor } as const;
 
   return (
-    <View>
-      {/* Y-axis title */}
-      <Text style={{ fontSize: 9, color: pal.sub, marginBottom: 4, marginLeft: Y_AXIS_W }}>
-        {t('chart_memory')}
-      </Text>
+    <LinearGradient
+      colors={['#F1F6FF', '#DDE9FF']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={curve.card}
+    >
+      <View style={curve.plotCard}>
+        <View style={curve.chartRow}>
+          <View style={curve.yAxis}>
+            <Text style={[smallFont, curve.yTop]}>100%</Text>
+            <Text style={[smallFont, curve.yMid]}>50%</Text>
+            <Text style={[smallFont, curve.yBottom]}>0%</Text>
+          </View>
 
-      {/* Chart row: Y labels + plot */}
-      <View style={{ flexDirection: 'row', alignItems: 'stretch', overflow: 'visible' }}>
-        {/* Y-axis labels */}
-        <View style={{ width: Y_AXIS_W, height: CHART_H }}>
-          <Text style={[smallFont, { position: 'absolute', top: -5, right: 6 }]}>100%</Text>
-          <Text style={[smallFont, { position: 'absolute', top: midY - 5, right: 6 }]}>50%</Text>
-          <Text style={[smallFont, { position: 'absolute', bottom: -5, right: 6 }]}>0%</Text>
-        </View>
+          <View
+            style={curve.plot}
+            onLayout={e => setPlotW(e.nativeEvent.layout.width)}
+          >
+            <View style={[curve.axisBottom, { backgroundColor: gridColor }]} />
+            <View style={[curve.axisLeft, { backgroundColor: gridColor }]} />
+            <View style={[curve.gridLine, { top: midY, backgroundColor: gridColor }]} />
 
-        {/* Plot area */}
-        <View
-          style={{ flex: 1, height: CHART_H, overflow: 'visible' }}
-          onLayout={e => setPlotW(e.nativeEvent.layout.width)}
-        >
-          {/* Bottom baseline */}
-          <View style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            height: StyleSheet.hairlineWidth, backgroundColor: pal.border,
-          }} />
-          {/* Left axis line */}
-          <View style={{
-            position: 'absolute', left: 0, top: 0, bottom: 0,
-            width: StyleSheet.hairlineWidth, backgroundColor: pal.border,
-          }} />
-          {/* 50% horizontal grid line */}
-          <View style={{
-            position: 'absolute', left: 0, right: 0, top: midY,
-            height: StyleSheet.hairlineWidth, backgroundColor: pal.border, opacity: 0.5,
-          }} />
-
-          {/* Without-review curve (faint baseline) */}
-          {noReviewPts.map((p, i) => (
-            <View key={`nr${i}`} style={{
-              position: 'absolute',
-              left: p.x - dotSize / 2, top: p.y - dotSize / 2,
-              width: dotSize, height: dotSize, borderRadius: dotSize / 2,
-              backgroundColor: pal.sub, opacity: 0.28,
-            }} />
-          ))}
-
-          {/* Main review curve */}
-          {allPts.map((p, i) => (
-            <View key={`r${i}`} style={{
-              position: 'absolute',
-              left: p.x - dotSize / 2, top: p.y - dotSize / 2,
-              width: dotSize, height: dotSize, borderRadius: dotSize / 2,
-              backgroundColor: themeColor, opacity: 0.9,
-            }} />
-          ))}
-
-          {/* Review bounce lines (green vertical) */}
-          {[
-            { x: x1, yFrom: y1Before, yTo: y1After },
-            { x: x2, yFrom: y2Before, yTo: y2After },
-            { x: x3, yFrom: y3Before, yTo: y3After },
-          ].map(({ x, yFrom, yTo }, i) => (
-            <View key={`rv${i}`} style={{
-              position: 'absolute', left: x - 0.75, top: yTo,
-              width: 1.5, height: yFrom - yTo,
-              backgroundColor: reviewColor, opacity: 0.9,
-            }} />
-          ))}
-
-          {/* Review labels: "↑ Review" above each bounce */}
-          {[
-            { x: x1, y: y1After },
-            { x: x2, y: y2After },
-            { x: x3, y: y3After },
-          ].map(({ x, y }, i) => {
-            // Keep label inside chart bounds
-            const labelX = Math.min(x - 2, plotW - 36);
-            return (
-              <Text key={`rl${i}`} style={{
+            {noReviewPts.map((p, i) => (
+              <View key={`nr${i}`} style={{
                 position: 'absolute',
-                left: labelX,
-                top: Math.max(y - 14, 0),
-                fontSize: 8, color: reviewColor, fontWeight: '700',
-              }}>{'↑ '}{t('chart_review')}</Text>
-            );
-          })}
+                left: p.x - dotSize / 2, top: p.y - dotSize / 2,
+                width: dotSize, height: dotSize, borderRadius: dotSize / 2,
+                backgroundColor: '#98A8BF', opacity: 0.35,
+              }} />
+            ))}
 
-          {/* "After review" annotation on last segment */}
-          <Text style={{
-            position: 'absolute',
-            left: x3 + 6,
-            top: CHART_H * (1 - r3) - 26,
-            fontSize: 8, color: themeColor, fontWeight: '600',
-          }}>{t('chart_after_review')}</Text>
+            {allPts.map((p, i) => (
+              <View key={`r${i}`} style={{
+                position: 'absolute',
+                left: p.x - dotSize / 2, top: p.y - dotSize / 2,
+                width: dotSize, height: dotSize, borderRadius: dotSize / 2,
+                backgroundColor: curveColor, opacity: 0.96,
+              }} />
+            ))}
 
-          {/* Day tick marks on baseline */}
-          {[x1, x2, x3].map((x, i) => (
-            <View key={`tick${i}`} style={{
-              position: 'absolute', left: x - 0.5, bottom: 0,
-              width: 1, height: 5, backgroundColor: pal.sub, opacity: 0.5,
-            }} />
-          ))}
+            {[
+              { x: x1, yFrom: y1Before, yTo: y1After },
+              { x: x2, yFrom: y2Before, yTo: y2After },
+              { x: x3, yFrom: y3Before, yTo: y3After },
+            ].map(({ x, yFrom, yTo }, i) => (
+              <View key={`review${i}`} style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={{
+                  position: 'absolute', left: x - 1, top: yTo,
+                  width: 2, height: yFrom - yTo,
+                  backgroundColor: reviewColor, borderRadius: 1,
+                }} />
+                <View style={[curve.reviewPoint, { left: x - 9, top: Math.max(yTo - 9, 0) }]}>
+                  <Ionicons name="arrow-up" size={10} color="#fff" />
+                </View>
+              </View>
+            ))}
+
+            {[x1, x2, x3].map((x, i) => (
+              <View key={`tick${i}`} style={[curve.tick, { left: x - 0.5 }]} />
+            ))}
+          </View>
+        </View>
+
+        <View style={curve.xAxisRow}>
+          <View style={{ width: Y_AXIS_W }} />
+          <View style={curve.xAxisLabels}>
+            <Text style={[smallFont, curve.xNow]}>{t('chart_now')}</Text>
+            <Text style={[smallFont, { position: 'absolute', left: x1 - 10 }]}>{t('chart_day_1')}</Text>
+            <Text style={[smallFont, { position: 'absolute', left: x2 - 10 }]}>{t('chart_day_3')}</Text>
+            <Text style={[smallFont, { position: 'absolute', left: x3 - 10 }]}>{t('chart_day_7')}</Text>
+            <Text style={[smallFont, curve.xTime]}>{t('chart_time')} →</Text>
+          </View>
         </View>
       </View>
 
-      {/* X-axis labels */}
-      <View style={{ flexDirection: 'row', marginTop: 3 }}>
-        <View style={{ width: Y_AXIS_W }} />
-        <View style={{ flex: 1, position: 'relative', height: 14 }}>
-          <Text style={[smallFont, { position: 'absolute', left: 0 }]}>{t('chart_now')}</Text>
-          <Text style={[smallFont, { position: 'absolute', left: x1 - 10 }]}>{t('chart_day_1')}</Text>
-          <Text style={[smallFont, { position: 'absolute', left: x2 - 10 }]}>{t('chart_day_3')}</Text>
-          <Text style={[smallFont, { position: 'absolute', left: x3 - 10 }]}>{t('chart_day_7')}</Text>
-          <Text style={[smallFont, { position: 'absolute', right: 0 }]}>{t('chart_time')} →</Text>
-        </View>
-      </View>
+      <Text style={curve.explanation}>{t('test_info_caption')}</Text>
 
-      {/* Legend */}
-      <View style={{ flexDirection: 'row', gap: 14, marginTop: 8, marginLeft: Y_AXIS_W }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <View style={{ width: 18, height: 2.5, borderRadius: 1.5, backgroundColor: themeColor }} />
-          <Text style={{ fontSize: 9, color: pal.sub }}>{t('chart_after_review')}</Text>
+      <View style={curve.legend}>
+        <View style={curve.legendPill}>
+          <View style={[curve.legendLine, { backgroundColor: curveColor }]} />
+          <Text style={curve.legendText}>{t('chart_after_review')}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <View style={{ width: 18, height: 2.5, borderRadius: 1.5, backgroundColor: pal.sub, opacity: 0.4 }} />
-          <Text style={{ fontSize: 9, color: pal.sub }}>{t('chart_no_review')}</Text>
+        <View style={curve.legendPill}>
+          <View style={[curve.legendLine, { backgroundColor: '#A5B1C3' }]} />
+          <Text style={curve.legendText}>{t('chart_no_review')}</Text>
         </View>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
+
+const curve = StyleSheet.create({
+  card: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#C8D8F2',
+    overflow: 'hidden',
+    padding: 16,
+    marginBottom: 14,
+  },
+  plotCard: {
+    alignSelf: 'center',
+    width: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(180,200,232,0.75)',
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    paddingHorizontal: 10,
+    paddingTop: 13,
+    paddingBottom: 9,
+  },
+  chartRow: { flexDirection: 'row', overflow: 'visible' },
+  yAxis: { width: Y_AXIS_W, height: CHART_H },
+  yTop: { position: 'absolute', right: 6, top: -4 },
+  yMid: { position: 'absolute', right: 6, top: CHART_H * 0.5 - 5 },
+  yBottom: { position: 'absolute', right: 6, bottom: -3 },
+  plot: { flex: 1, height: CHART_H, overflow: 'visible' },
+  axisBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1 },
+  axisLeft: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 1 },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, opacity: 0.82 },
+  reviewPoint: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#35B978',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tick: { position: 'absolute', bottom: 0, width: 1, height: 5, backgroundColor: '#8FA1BB', opacity: 0.7 },
+  xAxisRow: { flexDirection: 'row', marginTop: 5 },
+  xAxisLabels: { flex: 1, position: 'relative', height: 14 },
+  xNow: { position: 'absolute', left: 0 },
+  xTime: { position: 'absolute', right: 0 },
+  explanation: {
+    color: '#5E7395',
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 12,
+    paddingHorizontal: 8,
+  },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 11 },
+  legendPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(180,200,232,0.8)',
+    backgroundColor: 'rgba(255,255,255,0.68)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  legendLine: { width: 18, height: 3, borderRadius: 2 },
+  legendText: { color: '#5E7395', fontSize: 9, fontWeight: '600' },
+});
 
 // ── Info sheet ────────────────────────────────────────────────────────────────
 
@@ -264,11 +295,16 @@ const INFO_ITEMS: {
 ];
 
 function InfoSheet({
-  visible, onClose, pal, themeColor,
+  visible, onClose, pal, explanationLang,
 }: {
-  visible: boolean; onClose: () => void; pal: Palette; themeColor: string;
+  visible: boolean; onClose: () => void; pal: Palette; explanationLang: string;
 }) {
   const t      = useLang();
+  const explanationUiLang = BCP47_TO_UI_LANG[explanationLang] ?? 'en-US';
+  const explanationT = useCallback(
+    (key: TranslationKey) => translate(explanationUiLang, key),
+    [explanationUiLang],
+  );
   const insets = useSafeAreaInsets();
   const sheetH = SCREEN_H - insets.top - 10;
   const slideY    = useRef(new Animated.Value(900)).current;
@@ -307,7 +343,8 @@ function InfoSheet({
         <View style={is.sheetOuter} pointerEvents="box-none">
           <Animated.View
             style={[is.sheet, {
-              backgroundColor: pal.dialog,
+              backgroundColor: pal.bg,
+              borderColor: pal.border,
               height: sheetH,
               paddingBottom: insets.bottom,
               transform: [{ translateY: slideY }],
@@ -315,9 +352,15 @@ function InfoSheet({
           >
             <TouchableOpacity activeOpacity={1} style={{ flex: 1 }}>
               {/* Header */}
-              <View style={is.headerRow}>
-                <Text style={[is.title, { color: pal.text }]}>{t('test_info_title')}</Text>
-                <TouchableOpacity onPress={close} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <View style={[is.headerRow, { backgroundColor: pal.dialog, borderBottomColor: pal.border }]}>
+                <View style={is.headerTitleRow}>
+                  <Text style={[is.title, { color: pal.text }]}>{explanationT('test_info_title')}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[is.closeButton, { backgroundColor: pal.input }]}
+                  onPress={close}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
                   <Ionicons name="close" size={22} color={pal.sub} />
                 </TouchableOpacity>
               </View>
@@ -330,29 +373,22 @@ function InfoSheet({
                 contentContainerStyle={is.scrollContent}
               >
                 {/* Forgetting curve */}
-                <View style={[is.chartBox, { backgroundColor: pal.chip, borderColor: pal.border }]}>
-                  <ForgettingCurve pal={pal} themeColor={themeColor} />
-                </View>
-
-                {/* Caption */}
-                <Text style={[is.caption, { color: pal.sub }]}>{t('test_info_caption')}</Text>
-
-                {/* Divider */}
-                <View style={[is.divider, { backgroundColor: pal.border }]} />
-                <Text style={[is.sectionLabel, { color: pal.sub }]}>{t('test_info_section')}</Text>
+                <ForgettingCurve t={explanationT} />
 
                 {/* Answer explanations */}
                 {INFO_ITEMS.map(item => (
-                  <View key={item.color} style={[is.infoRow, { borderBottomColor: pal.border }]}>
+                  <View key={item.color} style={[is.infoCard, { backgroundColor: pal.card, borderColor: pal.border }]}>
                     <View style={[is.iconBox, { backgroundColor: item.color + '18' }]}>
                       {item.icon ? (
-                        <Text style={{ fontSize: 17, color: item.color, lineHeight: 20 }}>{item.icon}</Text>
+                        <Text style={{ fontSize: 18, color: item.color, lineHeight: 21 }}>{item.icon}</Text>
                       ) : (
-                        <Ionicons name={item.iconName!} size={18} color={item.color} />
+                        <Ionicons name={item.iconName!} size={20} color={item.color} />
                       )}
                     </View>
-                    <Text style={[is.infoLabel, { color: item.color }]}>{t(item.labelKey)}</Text>
-                    <Text style={[is.infoDesc, { color: pal.sub }]}>{t(item.expKey)}</Text>
+                    <View style={is.infoCopy}>
+                      <Text style={[is.infoLabel, { color: item.color }]}>{t(item.labelKey)}</Text>
+                      <Text style={[is.infoDesc, { color: pal.sub }]}>{t(item.expKey)}</Text>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -366,30 +402,48 @@ function InfoSheet({
 
 const is = StyleSheet.create({
   sheetOuter: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 26, borderTopRightRadius: 26 },
+  sheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    shadowColor: '#0F2F60',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 18,
+  },
   headerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 24, paddingTop: 20, marginBottom: 14,
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  title: { fontSize: 20, fontWeight: '700' },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 24 },
-  chartBox: {
-    borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12, paddingVertical: 14, marginBottom: 14,
+  headerTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  title: { flex: 1, fontSize: 21, lineHeight: 26, fontWeight: '800' },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  caption: { fontSize: 13, lineHeight: 20, marginBottom: 20 },
-  divider: { height: StyleSheet.hairlineWidth, marginBottom: 12 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 12 },
-  infoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth,
+  scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 26 },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 17,
+    borderWidth: 1,
+    padding: 13,
+    marginBottom: 10,
   },
   iconBox: {
-    width: 36, height: 36, borderRadius: 10,
+    width: 42, height: 42, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    marginRight: 12,
   },
-  infoLabel: { fontSize: 14, fontWeight: '700', flex: 1 },
-  infoDesc:  { fontSize: 13, color: '#9CA3AF' },
+  infoCopy: { flex: 1 },
+  infoLabel: { fontSize: 14, lineHeight: 18, fontWeight: '700', marginBottom: 3 },
+  infoDesc: { fontSize: 12, lineHeight: 17 },
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -411,9 +465,11 @@ interface Props {
   themeColor: string;
   isSubscribed: boolean;
   isPremium?: boolean;
+  explanationLang: string;
+  verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, isSubscribed, isPremium = false }: Props) {
+export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, isSubscribed, isPremium = false, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
 
@@ -475,6 +531,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   const [sessionKey,  setSessionKey]  = useState(0);
   const [playing,     setPlaying]     = useState(false);
   const [infoVisible, setInfoVisible] = useState(false);
+  const [sheetReady,  setSheetReady]  = useState(false);
 
   const flipAnim    = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -487,7 +544,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   // ── Auto-play word when a new card (or new session) becomes active ────────
 
   useEffect(() => {
-    if (!mutedLoaded) return;
+    if (!sheetReady || !mutedLoaded) return;
     const current = queue[idx];
     if (!current?.word || muted) return;
     if (current.audioUri && !isPremium) { showVoiceLockedBanner(); return; }
@@ -495,7 +552,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
     speakWordCard(current, isSubscribed)
       .then(() => setPlaying(false))
       .catch(() => setPlaying(false));
-  }, [idx, sessionKey, mutedLoaded, isSubscribed, isPremium, showVoiceLockedBanner]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idx, sessionKey, sheetReady, mutedLoaded, isSubscribed, isPremium, showVoiceLockedBanner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => {
     stopPlayback();
@@ -508,6 +565,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   const frontOpacity = flipAnim.interpolate({ inputRange: [0.35, 0.5], outputRange: [1, 0],             extrapolate: 'clamp' });
   const backRotate   = flipAnim.interpolate({ inputRange: [0.5, 1],    outputRange: ['90deg', '0deg'],  extrapolate: 'clamp' });
   const backOpacity  = flipAnim.interpolate({ inputRange: [0.5, 0.65], outputRange: [0, 1],             extrapolate: 'clamp' });
+  const rotateKey = verticalFlip ? 'rotateX' : 'rotateY';
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -625,7 +683,13 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   const bottomPad = 16;
 
   return (
-    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+    <Modal
+      visible
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onShow={() => setSheetReady(true)}
+      onRequestClose={onClose}
+    >
       <View style={[s.root, { backgroundColor: pal.bg }]}>
 
         {/* Header */}
@@ -731,7 +795,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
                     style={[
                       s.cardFace,
                       { backgroundColor: pal.card },
-                      { opacity: frontOpacity, transform: [{ perspective: 900 }, { rotateY: frontRotate }] },
+                      { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] },
                     ]}
                   >
                     <CardScrollFace
@@ -750,7 +814,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
                       s.cardFace,
                       StyleSheet.absoluteFillObject,
                       { backgroundColor: pal.card },
-                      { opacity: backOpacity, transform: [{ perspective: 900 }, { rotateY: backRotate }] },
+                      { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] },
                     ]}
                   >
                     <CardScrollFace
@@ -823,7 +887,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
         visible={infoVisible}
         onClose={() => setInfoVisible(false)}
         pal={pal}
-        themeColor={themeColor}
+        explanationLang={explanationLang}
       />
 
       {/* Locked custom-voice error — above the Test sheet; tap or swipe up to dismiss */}

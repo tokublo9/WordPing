@@ -27,6 +27,7 @@ type AudioPlayer = import('expo-audio').AudioPlayer;
 let currentPlayer: AudioPlayer | null = null;
 let pendingPlaybackReject: ((error: Error) => void) | null = null;
 let playbackEpoch = 0;
+let activePlaybackUri: string | null = null;
 
 async function toBase64(buffer: ArrayBuffer): Promise<string> {
   const bytes = new Uint8Array(buffer);
@@ -238,11 +239,14 @@ export async function exportPrototypeSpeech(uri: string, filename: string): Prom
 /** Stop only audio started by the standalone prototype screen. */
 export function stopPrototypeSpeech(): void {
   playbackEpoch++;
+  activePlaybackUri = null;
   if (pendingPlaybackReject) {
     pendingPlaybackReject(new Error('cancelled'));
     pendingPlaybackReject = null;
   }
   if (currentPlayer) {
+    // remove() releases the JS/native object but does not stop native playback.
+    try { currentPlayer.pause(); } catch {}
     try { currentPlayer.remove(); } catch {}
     currentPlayer = null;
   }
@@ -251,35 +255,45 @@ export function stopPrototypeSpeech(): void {
 /** Play generated prototype audio with a player isolated from word-card TTS. */
 export async function playPrototypeSpeech(uri: string): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
+  if (activePlaybackUri === uri) {
+    stopPrototypeSpeech();
+    return;
+  }
+
   stopPrototypeSpeech();
   const requestEpoch = ++playbackEpoch;
+  activePlaybackUri = uri;
 
-  try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
-  if (requestEpoch !== playbackEpoch) throw new Error('cancelled');
+  try {
+    try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
+    if (requestEpoch !== playbackEpoch) throw new Error('cancelled');
 
-  const player = createAudioPlayer({ uri });
-  currentPlayer = player;
+    const player = createAudioPlayer({ uri });
+    currentPlayer = player;
 
-  return new Promise<void>((resolve, reject) => {
-    pendingPlaybackReject = reject;
+    return await new Promise<void>((resolve, reject) => {
+      pendingPlaybackReject = reject;
 
-    const finish = (error?: Error) => {
-      subscription.remove();
-      try { player.remove(); } catch {}
-      if (currentPlayer === player) currentPlayer = null;
-      if (pendingPlaybackReject === reject) pendingPlaybackReject = null;
-      error ? reject(error) : resolve();
-    };
+      const finish = (error?: Error) => {
+        subscription.remove();
+        try { player.remove(); } catch {}
+        if (currentPlayer === player) currentPlayer = null;
+        if (pendingPlaybackReject === reject) pendingPlaybackReject = null;
+        error ? reject(error) : resolve();
+      };
 
-    const subscription = player.addListener('playbackStatusUpdate', (status: any) => {
-      if (status.didJustFinish) finish();
-      else if (status.error) finish(new Error(`playback_failed:${status.error}`));
+      const subscription = player.addListener('playbackStatusUpdate', (status: any) => {
+        if (status.didJustFinish) finish();
+        else if (status.error) finish(new Error(`playback_failed:${status.error}`));
+      });
+
+      try {
+        player.play();
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)));
+      }
     });
-
-    try {
-      player.play();
-    } catch (error) {
-      finish(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
+  } finally {
+    if (requestEpoch === playbackEpoch && activePlaybackUri === uri) activePlaybackUri = null;
+  }
 }

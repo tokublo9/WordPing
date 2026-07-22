@@ -44,6 +44,9 @@ export const AI_VOICE_KEY = 'ai_voice';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 
+// Shared native-switch track color for a consistent soft, near-white off state.
+export const TOGGLE_OFF_TRACK_COLOR = '#F2F4F7';
+
 // Legacy skins kept for backward compat (not shown in new skin picker UI).
 const LEGACY_SKINS: ThemeSkin[] = [
   {
@@ -227,7 +230,7 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
   },
   {
     id: 'skin_leaf_blur',
-    name: 'Leaf Blur',
+    name: 'Nature',
     emoji: '🌿',
     darkStatusBar: false,
     themeColor: '#2E7D5A',
@@ -403,7 +406,7 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
   },
   {
     id: 'skin_rain',
-    name: 'Rainy Window',
+    name: 'Rain',
     emoji: '🌧️',
     darkStatusBar: true,
     themeColor: '#60A5FA',

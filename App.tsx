@@ -38,6 +38,7 @@ import { useFolderNotifications } from './src/features/notifications/useFolderNo
 import { useNotificationRescheduling } from './src/features/notifications/useNotificationRescheduling';
 import { useAppPersistence } from './src/app/useAppPersistence';
 import { setAIVoicePreference } from './src/lib/tts';
+import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
 
 export default function App() {
   const { isSubscribed, isPremium, isLoaded: isSubscriptionLoaded, subscribe, subscribePremium, restore, unsubscribe } = useSubscription();
@@ -71,6 +72,7 @@ export default function App() {
 
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
   const [textToSpeechVisible, setTextToSpeechVisible] = useState(false);
+  const [hasTextToSpeechHistory, setHasTextToSpeechHistory] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
@@ -78,6 +80,14 @@ export default function App() {
   const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    loadPrototypeSpeechHistory()
+      .then(items => { if (active) setHasTextToSpeechHistory(items.length > 0); })
+      .catch(() => { if (active) setHasTextToSpeechHistory(false); });
+    return () => { active = false; };
+  }, []);
 
   // ── Custom voice locked banner ────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
@@ -114,7 +124,7 @@ export default function App() {
   const {
     folderSelectionMode, selectedFolderIds, folderReorderMode,
     movePickerVisible, setMovePickerVisible,
-    enterFolderSelectionMode, exitFolderSelectionMode, toggleFolderSelect,
+    enterFolderSelectionMode, exitFolderSelectionMode, toggleFolderSelect, selectAllFolders,
     deleteSelectedFolders, enterFolderReorderMode, exitFolderReorderMode,
     createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
   } = useFolders({ folders, fallbackFolderName: t('default_folder_name'), setFolders, setCards, setMenuVisible });
@@ -122,7 +132,7 @@ export default function App() {
   const {
     flipped, toggleFlip,
     selectionMode, selectedIds,
-    enterSelectionMode, exitSelectionMode, toggleSelect, deleteSelected, setNotifForSelected,
+    enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleResetOrder,
     levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
@@ -283,6 +293,7 @@ export default function App() {
             active: folderSelectionMode,
             selectedIds: selectedFolderIds,
             onToggle: toggleFolderSelect,
+            onSelectAll: selectAllFolders,
             onExit: exitFolderSelectionMode,
             onDelete: deleteSelectedFolders,
           }}
@@ -309,6 +320,7 @@ export default function App() {
           themeColor={activeThemeColor}
           isSubscribed={isSubscribed}
           isPremium={isPremium}
+          hasTextToSpeechHistory={hasTextToSpeechHistory}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
           currentFolder={currentFolder}
@@ -330,6 +342,7 @@ export default function App() {
             active: selectionMode,
             selectedIds,
             onToggle: toggleSelect,
+            onSelectAll: selectAllCards,
             onExit: exitSelectionMode,
             onSetNotif: setNotifForSelected,
             onMoveSelected: () => openMovePicker([...selectedIds]),
@@ -351,7 +364,7 @@ export default function App() {
           actions={{
             onGoBack: goBackToFolders,
             onOpenTextToSpeech: () => {
-              if (isPremium) setTextToSpeechVisible(true);
+              if (isPremium || hasTextToSpeechHistory) setTextToSpeechVisible(true);
               else setProSheetVisible(true);
             },
             onOpenNotifications: () => setNotificationModalVisible(true),
@@ -421,9 +434,11 @@ export default function App() {
           onTest: sendTestForCurrentFolder,
         }}
         textToSpeech={{
-          visible: textToSpeechVisible && isPremium,
+          visible: textToSpeechVisible,
           onClose: () => setTextToSpeechVisible(false),
           voice: aiVoice,
+          isPremium,
+          onHistoryAvailabilityChange: setHasTextToSpeechHistory,
         }}
         settingsModal={{
           visible: settingsModalVisible,
@@ -470,6 +485,8 @@ export default function App() {
         testMode={{
           visible: testModeVisible,
           cards: folderCards,
+          explanationLang: nativeLang,
+          verticalFlip,
           onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
           onClose: () => setTestModeVisible(false),
         }}
