@@ -1,7 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   PanResponder,
@@ -17,9 +16,7 @@ import { WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder } from './src/types';
-import {
-  BASIC_CUSTOM_VOICE_LIMIT, FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY,
-} from './src/constants';
+import { FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY } from './src/constants';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
@@ -107,6 +104,11 @@ export default function App() {
     Animated.spring(voiceBannerAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }).start();
     voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
   }, [voiceBannerAnim, dismissVoiceBanner]);
+
+  useEffect(() => () => {
+    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
+    voiceBannerAnim.stopAnimation();
+  }, [voiceBannerAnim]);
 
   // Swipe the banner upward to dismiss it (tap-to-dismiss is on the banner itself).
   const voiceBannerPan = useRef(PanResponder.create({
@@ -311,7 +313,6 @@ export default function App() {
             onOpenMenu: openFolderMenu,
           }}
           menuBtnRef={folderMenuBtnRef}
-          closeOpenFolder={closeOpenFolder}
           onFolderOpen={handleFolderOpen}
         />
       ) : (
@@ -399,8 +400,6 @@ export default function App() {
           visible: wordModalVisible,
           onClose: () => setWordModalVisible(false),
           editingCard,
-          basicVoiceLimitReached: isSubscribed && !isPremium && !(editingCard?.wordLang || editingCard?.meaningLang) &&
-            cards.filter(c => (c.wordLang != null || c.meaningLang != null) && c.id !== editingCard?.id).length >= BASIC_CUSTOM_VOICE_LIMIT,
           word,
           onChangeWord: setWord,
           meaning,
@@ -422,7 +421,6 @@ export default function App() {
           reviewHistory,
           testClearPending,
           onResetAll: resetWordReview,
-          onUpgrade: () => setProSheetVisible(true),
         }}
         notifModal={{
           visible: notificationModalVisible,

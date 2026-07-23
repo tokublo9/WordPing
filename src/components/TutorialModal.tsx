@@ -14,7 +14,6 @@ const SW = Dimensions.get('window').width;
 const PLAN_BLUE = '#2563EB';
 const PLAN_BLUE_DARK = '#174A9C';
 const INK = '#17345F';
-const SOFT_BLUE = '#EAF1FF';
 const LINE_BLUE = '#C7D7F5';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];

@@ -1,5 +1,5 @@
 import {
-  Animated, Dimensions, ScrollView,
+  Animated, Dimensions,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useEffect, useRef, useState } from 'react';

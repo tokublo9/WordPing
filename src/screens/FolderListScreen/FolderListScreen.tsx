@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -55,7 +55,6 @@ export interface FolderListScreenProps {
   };
 
   menuBtnRef: React.RefObject<View | null>;
-  closeOpenFolder: React.RefObject<(() => void) | null>;
   onFolderOpen(close: () => void): void;
 }
 
@@ -63,15 +62,25 @@ export function FolderListScreen({
   pal, themeColor, isSubscribed, showLevelLabels,
   folders, cards,
   selection, reorder, actions,
-  menuBtnRef, closeOpenFolder, onFolderOpen,
+  menuBtnRef, onFolderOpen,
 }: FolderListScreenProps) {
   const t = useLang();
   const [horizontalSwipeLocked, setHorizontalSwipeLocked] = useState(false);
 
+  const folderMetrics = useMemo(() => {
+    const metrics = new Map<string, { count: number; untestedCount: number }>();
+    for (const card of cards) {
+      if (!card.folderId) continue;
+      const current = metrics.get(card.folderId) ?? { count: 0, untestedCount: 0 };
+      current.count++;
+      if (!card.testLevel) current.untestedCount++;
+      metrics.set(card.folderId, current);
+    }
+    return metrics;
+  }, [cards]);
+
   const renderFolderItem = useCallback(({ item }: { item: Folder }) => {
-    const folderCards   = cards.filter(c => c.folderId === item.id);
-    const count         = folderCards.length;
-    const untestedCount = folderCards.filter(c => !c.testLevel).length;
+    const { count, untestedCount } = folderMetrics.get(item.id) ?? { count: 0, untestedCount: 0 };
     const folderIcon    = item.icon ?? 'folder-outline';
     return (
       <SwipeableFolder
@@ -95,7 +104,7 @@ export function FolderListScreen({
     );
   // Stable deps: callbacks and primitives only. cards/folders trigger re-renders via FlatList data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pal, themeColor, showLevelLabels, selection.active, selection.selectedIds, onFolderOpen, actions]);
+  }, [pal, themeColor, showLevelLabels, selection.active, selection.selectedIds, onFolderOpen, actions, folderMetrics]);
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const allFoldersSelected = folders.length > 0 && selection.selectedIds.size === folders.length;
@@ -108,12 +117,11 @@ export function FolderListScreen({
         <TouchableOpacity
           style={[s.iconBtn, folderLayoutStyles.headerAction]}
           onPress={selection.onSelectAll}
-          disabled={allFoldersSelected}
           accessibilityRole="button"
           accessibilityLabel={t('select_all')}
-          accessibilityState={{ disabled: allFoldersSelected }}
+          accessibilityState={{ selected: allFoldersSelected }}
         >
-          <Text style={{ color: allFoldersSelected ? pal.sub : themeColor, fontSize: 16, fontWeight: '600' }}>
+          <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
             {t('select_all')}
           </Text>
         </TouchableOpacity>
@@ -152,16 +160,13 @@ export function FolderListScreen({
   );
 
   // ── Content ──────────────────────────────────────────────────────────────────
-  const folderData = Object.fromEntries(
-    folders.map(f => [
-      f.id,
-      {
-        icon:      f.icon ?? 'folder-outline',
-        color:     themeColor,
-        cardCount: cards.filter(c => c.folderId === f.id).length,
-      },
-    ])
-  );
+  const folderData = useMemo(() => Object.fromEntries(
+    folders.map(f => [f.id, {
+      icon: f.icon ?? 'folder-outline',
+      color: themeColor,
+      cardCount: folderMetrics.get(f.id)?.count ?? 0,
+    }]),
+  ), [folders, folderMetrics, themeColor]);
 
   const content = folders.length === 0 ? (
     <View style={s.empty}>
@@ -176,7 +181,6 @@ export function FolderListScreen({
       cards={folders.map(f => ({ id: f.id, word: f.name, meaning: '', note: '' }))}
       onReorder={reordered => reorder.onReorder(reordered.map(c => c.id))}
       pal={pal}
-      themeColor={themeColor}
       extraPaddingBottom={isSubscribed ? 0 : AD_BANNER_HEIGHT}
       folderData={folderData}
     />

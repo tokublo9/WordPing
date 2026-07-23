@@ -26,10 +26,10 @@ Users add words they want to remember. WordPing helps them review those words th
 - Up to 64 notifications pre-scheduled on iOS
 
 ### AI & Voice
-- **AI meaning generation** — auto-generate a meaning or example note using GPT-4o-mini (requires `EXPO_PUBLIC_OPENAI_API_KEY`)
+- **AI meaning generation** — auto-generate a meaning or example note using GPT-4o-mini through an authenticated Supabase Edge Function
 - **Text-to-Speech prototype (Premium)** — generate speech with the Natural AI Voice selected in Settings, then play, rename, save, or share it from a persistent 10-file history
 - **Text-to-speech** — tap the speaker icon on any card to hear the word or meaning read aloud; supports 10+ language locales
-- First 10 TTS plays are free; additional plays require a Basic plan
+- Device text-to-speech is used on the Free plan; paid plans use Natural AI Voice
 
 ### Customization
 - **Theme colors** — Blue (free), Purple, Pink, Teal, Coral (Basic plan)
@@ -93,10 +93,16 @@ npx expo start --web
 Create a `.env.local` file in the project root:
 
 ```
-EXPO_PUBLIC_OPENAI_API_KEY=sk-...   # for AI tools and the Text-to-Speech prototype
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-client-safe-anon-key
 ```
 
-Supabase credentials are configured inside `src/lib/supabase.ts`.
+Never put the OpenAI key in an `EXPO_PUBLIC_` variable. Configure it only as a
+Supabase Edge Function secret (`supabase secrets set OPENAI_API_KEY=...`) and
+deploy `supabase/functions/openai`.
+
+The Supabase anon key is designed for client use, but Row Level Security must
+remain enabled. Never place a service-role key in the app.
 
 ---
 

@@ -251,12 +251,11 @@ export function WordListScreen({
             <TouchableOpacity
               style={s.iconBtn}
               onPress={selection.onSelectAll}
-              disabled={allVisibleCardsSelected}
               accessibilityRole="button"
               accessibilityLabel={t('select_all')}
-              accessibilityState={{ disabled: allVisibleCardsSelected }}
+              accessibilityState={{ selected: allVisibleCardsSelected }}
             >
-              <Text style={{ color: allVisibleCardsSelected ? pal.sub : themeColor, fontSize: 16, fontWeight: '600' }}>
+              <Text style={{ color: themeColor, fontSize: 16, fontWeight: '600' }}>
                 {t('select_all')}
               </Text>
             </TouchableOpacity>
@@ -511,7 +510,6 @@ export function WordListScreen({
             reorder.onReorder(mergedOrder);
           }}
           pal={pal}
-          themeColor={themeColor}
           reorderEnabled={reorder.active}
           extraPaddingBottom={
             (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0)

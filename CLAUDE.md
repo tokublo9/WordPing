@@ -43,7 +43,7 @@ The app name is **WordPing**. Do not rename it. Do not use old names like WordMe
 | TTS | expo-speech |
 | Storage | @react-native-async-storage/async-storage |
 | Backend | Supabase (@supabase/supabase-js v2) |
-| AI | OpenAI GPT-4o-mini (`EXPO_PUBLIC_OPENAI_API_KEY`) |
+| AI | OpenAI GPT-4o-mini via the authenticated Supabase `openai` Edge Function |
 | Safe area | react-native-safe-area-context |
 
 **iOS bundle ID:** `com.daiki0219.wordping`

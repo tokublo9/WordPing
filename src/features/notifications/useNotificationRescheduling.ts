@@ -20,7 +20,10 @@ export function useNotificationRescheduling({
   useEffect(() => {
     if (!hasLoaded.current) return;
     if (!notificationGranted) return;
-    rescheduleAllNotifications(cards, folders)
-      .catch(e => reportSideEffectFailure('rescheduleAllNotifications', e));
+    const timer = setTimeout(() => {
+      rescheduleAllNotifications(cards, folders)
+        .catch(e => reportSideEffectFailure('rescheduleAllNotifications', e));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [cards, folders, notificationGranted]);
 }

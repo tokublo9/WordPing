@@ -2,6 +2,8 @@
   "extends": "./node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "paths": {
       "@/*": [
         "./src/*"
@@ -9,8 +11,15 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "App.tsx",
+    "index.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".expo/types/**/*.d.ts"
+  ],
+  "exclude": [
+    "website",
+    "supabase/functions",
+    "node_modules"
   ]
 }

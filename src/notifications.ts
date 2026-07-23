@@ -1,7 +1,9 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 import type { Folder, WordCard } from './types';
+import { reportSideEffectFailure } from './utils/reportSideEffectFailure';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -15,10 +17,22 @@ Notifications.setNotificationHandler({
 
 export async function requestPermission(): Promise<boolean> {
   if (!Device.isDevice) return false;
-  const { status: current } = await Notifications.getPermissionsAsync();
-  if (current === 'granted') return true;
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'WordPing reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+    });
+  }
+  if (await getPermissionStatus()) return true;
   const { status } = await Notifications.requestPermissionsAsync();
   return status === 'granted';
+}
+
+export async function getPermissionStatus(): Promise<boolean> {
+  if (!Device.isDevice) return false;
+  const permissions = await Notifications.getPermissionsAsync();
+  return permissions.granted || permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
 }
 
 export async function sendTestNotification(card: WordCard, displayOnlyWord: boolean): Promise<void> {
@@ -43,6 +57,45 @@ export async function rescheduleAllNotifications(
   cards: WordCard[],
   folders: Folder[],
 ): Promise<void> {
+  pendingSchedule = { cards, folders };
+  if (!scheduleRun) {
+    scheduleRun = flushSchedules().finally(() => {
+      scheduleRun = null;
+      if (pendingSchedule) {
+        void rescheduleAllNotifications(pendingSchedule.cards, pendingSchedule.folders)
+          .catch(error => reportSideEffectFailure('rescheduleAllNotifications', error));
+      }
+    });
+  }
+  return scheduleRun;
+}
+
+interface ScheduleSnapshot {
+  cards: WordCard[];
+  folders: Folder[];
+}
+
+let pendingSchedule: ScheduleSnapshot | null = null;
+let scheduleRun: Promise<void> | null = null;
+
+function shuffled<T>(values: T[]): T[] {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+}
+
+async function flushSchedules(): Promise<void> {
+  while (pendingSchedule) {
+    const snapshot = pendingSchedule;
+    pendingSchedule = null;
+    await applySchedule(snapshot.cards, snapshot.folders);
+  }
+}
+
+async function applySchedule(cards: WordCard[], folders: Folder[]): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   const active = folders.filter(f => (f.notifSettings?.intervalSeconds ?? 0) > 0);
@@ -55,10 +108,13 @@ export async function rescheduleAllNotifications(
     const eligible = cards.filter(c => c.folderId === folder.id && !c.notifOff);
     if (eligible.length === 0) continue;
 
-    const pool  = [...eligible].sort(() => Math.random() - 0.5);
+    const pool  = shuffled(eligible);
     const count = Math.min(slotsPerFolder, Math.ceil(86400 / intervalSeconds));
 
     for (let i = 0; i < count; i++) {
+      // A more recent app snapshot is waiting. Stop doing obsolete work; the
+      // serialized runner will immediately rebuild from the newest snapshot.
+      if (pendingSchedule) return;
       const card  = pool[i % pool.length];
       const title = displayOnlyWord ? ' ' : card.word;
       const body  = displayOnlyWord ? card.word : (card.meaning || ' ');

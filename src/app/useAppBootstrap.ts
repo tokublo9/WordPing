@@ -10,8 +10,8 @@ import {
   readFolders,
   WELCOME_FOLDER_ID,
 } from '../lib/db';
-import type { AppData, Settings } from '../lib/db';
-import { requestPermission } from '../notifications';
+import type { Settings } from '../lib/db';
+import { getPermissionStatus } from '../notifications';
 import { FORCE_SHOW_ONBOARDING } from '../components/OnboardingModal';
 
 // Assigns folderId to cards that predate the folder feature.
@@ -35,7 +35,27 @@ function migrateCards(
 
 function parseOnboarding(raw: string): OnboardingChoices | null {
   try {
-    return JSON.parse(raw) as OnboardingChoices;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const value = parsed as Record<string, unknown>;
+    if (value.purpose !== 'language' && value.purpose !== 'words') return null;
+    if (typeof value.nativeLang !== 'string' || !value.nativeLang) return null;
+    return {
+      purpose: value.purpose,
+      gender: value.gender === 'woman' || value.gender === 'man' || value.gender === 'non_binary'
+        ? value.gender
+        : 'prefer_not_to_say',
+      dateOfBirth: typeof value.dateOfBirth === 'string' ? value.dateOfBirth : '',
+      discoverySource:
+        value.discoverySource === 'app_store' || value.discoverySource === 'social_media' ||
+        value.discoverySource === 'friend_family' || value.discoverySource === 'web_search' ||
+        value.discoverySource === 'advertisement'
+          ? value.discoverySource
+          : 'other',
+      learningLang: typeof value.learningLang === 'string' ? value.learningLang : undefined,
+      nativeLang: value.nativeLang,
+      wordCategory: typeof value.wordCategory === 'string' ? value.wordCategory : undefined,
+    };
   } catch {
     return null;
   }
@@ -88,21 +108,6 @@ export function useAppBootstrap({
 
   useEffect(() => {
     let cancelled = false;
-    // Open while run() is in progress; closed in finally so that a slow Supabase
-    // response arriving after bootstrap completes does not overwrite runtime state.
-    let bootstrapActive = true;
-
-    // Supabase remote callback: fires asynchronously, potentially after bootstrap
-    // has finalized and the user has already made changes. Guarded by both flags:
-    // - cancelled: component has unmounted
-    // - bootstrapActive: bootstrap window is still open
-    const handleRemoteData = (remote: AppData) => {
-      if (cancelled || !bootstrapActive) return;
-      applySettings(remote.settings);
-      const { cards: migratedCards } = migrateCards(remote.cards, foldersRef.current);
-      setCards(migratedCards);
-    };
-
     const run = async () => {
       // ── Phase 1: Critical local path ────────────────────────────────────────
       // bootstrapData must complete before readFolders: on first launch it writes
@@ -110,7 +115,7 @@ export function useAppBootstrap({
       let local: Awaited<ReturnType<typeof bootstrapData>>;
       let storedFolders: Folder[];
       try {
-        local = await bootstrapData(handleRemoteData);
+        local = await bootstrapData();
         storedFolders = await readFolders();
       } catch (e) {
         if (__DEV__) {
@@ -206,9 +211,6 @@ export function useAppBootstrap({
         }
       })
       .finally(() => {
-        // Close the remote restore window before anything else. Any Supabase
-        // response arriving from this point on is dropped by handleRemoteData.
-        bootstrapActive = false;
         // Always finalize the persistence gate, regardless of success or failure.
         // hasLoaded is a ref — safe to write after unmount.
         hasLoaded.current = true;
@@ -217,9 +219,12 @@ export function useAppBootstrap({
         if (!cancelled) markSettingsLoaded();
       });
 
-    // Notification permission runs concurrently with the data startup path.
-    requestPermission().then(granted => {
+    // Read permission without prompting. The actual prompt is shown in context
+    // when the user enables a notification interval.
+    getPermissionStatus().then(granted => {
       if (!cancelled) setNotificationGranted(granted);
+    }).catch(() => {
+      if (!cancelled) setNotificationGranted(false);
     });
 
     return () => {

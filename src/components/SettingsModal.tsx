@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 
 import type { Appearance, Palette } from '../types';
 import { TOGGLE_OFF_TRACK_COLOR } from '../constants';
@@ -29,6 +30,7 @@ const LICENSE_URL  = 'https://wordping.app/license';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 const SW = Dimensions.get('window').width;
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
   visible: boolean;
@@ -152,7 +154,7 @@ export function SettingsModal({
             {(['light', 'dark', 'system'] as Appearance[]).map(mode => {
               const active = appearance === mode;
               const label = t(mode === 'light' ? 'mode_light' : mode === 'dark' ? 'mode_dark' : 'mode_system');
-              const icon =
+              const icon: IoniconName =
                 mode === 'light' ? 'sunny-outline' :
                 mode === 'dark'  ? 'moon-outline'  :
                                    'phone-portrait-outline';
@@ -162,7 +164,7 @@ export function SettingsModal({
                   style={[s.appearanceBtn, { backgroundColor: active ? themeColor : pal.chip }]}
                   onPress={() => appearanceDisabled ? showHint() : onPickAppearance(mode)}
                 >
-                  <Ionicons name={icon as any} size={18} color={active ? '#fff' : pal.sub} />
+                  <Ionicons name={icon} size={18} color={active ? '#fff' : pal.sub} />
                   <Text style={[s.appearanceBtnText, { color: active ? '#fff' : pal.sub }]}>{label}</Text>
                 </TouchableOpacity>
               );
@@ -476,6 +478,14 @@ function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: ()
   const insets = useSafeAreaInsets();
   const t = useLang();
   const slideX = useRef(new Animated.Value(SW)).current;
+  const openExternal = useCallback(async (url: string) => {
+    try {
+      if (!(await Linking.canOpenURL(url))) throw new Error('unsupported_url');
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(t('err_title_error'));
+    }
+  }, [t]);
 
   useEffect(() => {
     if (visible) {
@@ -507,13 +517,13 @@ function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: ()
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
-          onPress={() => Linking.openURL(PRIVACY_URL)} />
+          onPress={() => void openExternal(PRIVACY_URL)} />
         <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
-          onPress={() => Linking.openURL(TERMS_URL)} />
+          onPress={() => void openExternal(TERMS_URL)} />
         <SettingRow icon="mail-outline" label={t('contact')} pal={pal}
-          onPress={() => Linking.openURL(CONTACT_MAIL)} />
+          onPress={() => void openExternal(CONTACT_MAIL)} />
         <SettingRow icon="library-outline" label={t('license')} pal={pal}
-          onPress={() => Linking.openURL(LICENSE_URL)} />
+          onPress={() => void openExternal(LICENSE_URL)} />
         <SettingRow icon="information-circle-outline" label={t('app_version')}
           value={APP_VERSION} pal={pal} />
       </ScrollView>
@@ -523,12 +533,12 @@ function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: ()
 
 // ── Settings row ───────────────────────────────────────────────────────────────
 function SettingRow({ icon, label, value, onPress, pal }: {
-  icon: string; label: string; value?: string; onPress?: () => void; pal: Palette;
+  icon: IoniconName; label: string; value?: string; onPress?: () => void; pal: Palette;
 }) {
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}>
-      <Ionicons name={icon as any} size={18} color={pal.sub} />
+      <Ionicons name={icon} size={18} color={pal.sub} />
       <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
       {value
         ? <Text style={[styles.rowValue, { color: pal.sub }]}>{value}</Text>

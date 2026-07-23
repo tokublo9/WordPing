@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
+  FlatList,
   Modal,
   PanResponder,
   ScrollView,
@@ -44,7 +45,6 @@ interface Props {
   cards: WordCard[];
   onReorder: (cards: WordCard[]) => void;
   pal: Palette;
-  themeColor: string;
   extraPaddingBottom?: number;
   showLevelLabel?: boolean;
   /** When provided, rows render as folder items instead of word cards. */
@@ -69,7 +69,6 @@ interface RowProps {
   card: WordCard;
   index: number;
   pal: Palette;
-  themeColor: string;
   isDragging: boolean;
   translateY: Animated.Value | null;
   rowRef: (el: View | null) => void;
@@ -83,7 +82,7 @@ interface RowProps {
 }
 
 function DraggableRow({
-  card, index, pal, themeColor, isDragging, translateY, rowRef,
+  card, index, pal, isDragging, translateY, rowRef,
   showLevelLabel, folderItem, renderWordCard, reorderEnabled,
   onDragStart, onDragMove, onDragEnd,
 }: RowProps) {
@@ -180,7 +179,7 @@ function DraggableRow({
 // ── ReorderableList ───────────────────────────────────────────────────────────
 
 export function ReorderableList({
-  cards, onReorder, pal, themeColor, extraPaddingBottom = 0,
+  cards, onReorder, pal, extraPaddingBottom = 0,
   showLevelLabel = true, folderData, renderWordCard,
   reorderEnabled = true, scrollEnabled = true,
   onScrollOffsetChange,
@@ -520,6 +519,37 @@ export function ReorderableList({
   const draggingCard     = draggingId !== null ? cardsById.get(draggingId) ?? null : null;
   const draggingFolderItem = draggingCard && folderData ? folderData[draggingCard.id] : undefined;
 
+  // The normal word list does not need drag measurements, so virtualize it.
+  // Reorder mode retains the ScrollView because it must measure every row and
+  // animate arbitrary siblings while dragging.
+  if (!reorderEnabled && renderWordCard) {
+    return (
+      <FlatList
+        data={cards}
+        keyExtractor={card => card.id}
+        renderItem={({ item }) => <>{renderWordCard(item, false)}</>}
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        directionalLockEnabled
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={scrollEnabled}
+        scrollEventThrottle={16}
+        onScrollBeginDrag={onScrollBeginDrag}
+        onScrollEndDrag={onScrollEndDrag}
+        onMomentumScrollBegin={onMomentumScrollBegin}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        onScroll={event => onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)}
+        onContentSizeChange={(_width, height) => onContentHeightChange?.(height)}
+        onLayout={event => onViewportHeightChange?.(event.nativeEvent.layout.height)}
+        contentContainerStyle={[styles.list, { paddingBottom: 100 + extraPaddingBottom }]}
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={9}
+        ListFooterComponent={<View style={styles.wordListFooter} onTouchStart={onFooterPress} />}
+      />
+    );
+  }
+
   return (
     <>
       <ScrollView
@@ -560,7 +590,6 @@ export function ReorderableList({
             card={card}
             index={idx}
             pal={pal}
-            themeColor={themeColor}
             isDragging={draggingId === card.id}
             translateY={draggingId !== null ? (anims.current.get(card.id) ?? null) : null}
             rowRef={el => { rowRefs.current[idx] = el; }}

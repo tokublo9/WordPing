@@ -1,5 +1,7 @@
 import { MAX_AI_INPUT_CHARS } from '../constants';
 import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
+import { requestAISpeech } from './openaiGateway';
+import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
 
 // expo-audio is lazy-required so that a missing native module (e.g. in an
 // older Expo Go build) throws at call-time rather than at module evaluation.
@@ -14,15 +16,14 @@ function speechLib() {
 }
 
 type AudioPlayer = import('expo-audio').AudioPlayer;
+type AudioStatus = import('expo-audio').AudioStatus;
 
 // ── Module-level singleton state ─────────────────────────────────────────────
 
 let currentPlayer: AudioPlayer | null = null;
 let activePlaybackKey: string | null = null;
-
-// Rejects the promise returned by the previous speakWithAI call when a new
-// one starts, so the caller's `setLoadingVoice(null)` fires immediately.
-let pendingReject: ((e: Error) => void) | null = null;
+let stopActivePlayer: (() => void) | null = null;
+let focusToken: symbol | null = null;
 
 // Incremented on every speakWithAI call; lets us detect when a concurrent
 // call superseded us during an async gap (e.g. the network fetch).
@@ -34,13 +35,6 @@ let activeAIVoice: AIVoice = DEFAULT_AI_VOICE;
 const base64Cache = new Map<string, string>();
 const inFlight   = new Map<string, Promise<string>>();
 
-async function toBase64(buffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buffer);
-  let bin = '';
-  for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-
 function fetchBase64(text: string, voice: AIVoice): Promise<string> {
   if (!text.trim()) return Promise.reject(new Error('input_empty'));
   if (text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
@@ -48,27 +42,10 @@ function fetchBase64(text: string, voice: AIVoice): Promise<string> {
   if (base64Cache.has(cacheKey)) return Promise.resolve(base64Cache.get(cacheKey)!);
   if (inFlight.has(cacheKey))   return inFlight.get(cacheKey)!;
 
-  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-  if (!apiKey) return Promise.reject(new Error('EXPO_PUBLIC_OPENAI_API_KEY is not set'));
-
   const p = (async () => {
     try {
-      const res = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini-tts',
-          input: text,
-          voice,
-          response_format: 'wav',
-          instructions: 'Speak in an emotive and friendly tone.',
-        }),
-      });
-      if (!res.ok) {
-        if (res.status === 429) throw new Error('quota_exceeded');
-        throw new Error(`OpenAI TTS failed: ${res.status}`);
-      }
-      const b64 = await toBase64(await res.arrayBuffer());
+      const b64 = await requestAISpeech(text, voice);
+      if (base64Cache.size >= 40) base64Cache.delete(base64Cache.keys().next().value!);
       base64Cache.set(cacheKey, b64);
       return b64;
     } finally {
@@ -83,13 +60,11 @@ function fetchBase64(text: string, voice: AIVoice): Promise<string> {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 function stopCurrent() {
-  // Reject the promise returned by the previous play so the caller's
-  // loadingVoice state resets without waiting for playback to finish.
-  if (pendingReject) {
-    pendingReject(new Error('cancelled'));
-    pendingReject = null;
-  }
-  if (currentPlayer) {
+  const stop = stopActivePlayer;
+  stopActivePlayer = null;
+  if (stop) {
+    stop();
+  } else if (currentPlayer) {
     // Native expo-audio's remove() only unregisters the player; it does not
     // pause the underlying AVPlayer/ExoPlayer, so pause explicitly first.
     try { currentPlayer.pause(); } catch {}
@@ -98,6 +73,8 @@ function stopCurrent() {
   }
   // Also stop any active device TTS session.
   try { speechLib().stop(); } catch {}
+  releaseAudioFocus(focusToken);
+  focusToken = null;
 }
 
 function beginPlayback(key: string): number | null {
@@ -110,11 +87,16 @@ function beginPlayback(key: string): number | null {
 
   stopCurrent();
   activePlaybackKey = key;
+  focusToken = claimAudioFocus(stopPlayback);
   return ++epoch;
 }
 
 function finishPlayback(key: string, playbackEpoch: number) {
-  if (epoch === playbackEpoch && activePlaybackKey === key) activePlaybackKey = null;
+  if (epoch === playbackEpoch && activePlaybackKey === key) {
+    activePlaybackKey = null;
+    releaseAudioFocus(focusToken);
+    focusToken = null;
+  }
 }
 
 // ── Device TTS (free users) ───────────────────────────────────────────────────
@@ -210,23 +192,30 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
     currentPlayer = player;
 
     return await new Promise<void>((resolve, reject) => {
-      pendingReject = reject;
+      let settled = false;
 
-      const finish = (err?: Error) => {
+      const finish = (err?: Error, stopping = false) => {
+        if (settled) return;
+        settled = true;
         sub.remove();
+        if (stopping) {
+          try { player.pause(); } catch {}
+        }
         try { player.remove(); } catch {}
         if (currentPlayer === player) currentPlayer = null;
-        if (pendingReject === reject) pendingReject = null;
+        if (stopActivePlayer === stop) stopActivePlayer = null;
+        releaseAudioFocus(focusToken);
+        focusToken = null;
         err ? reject(err) : resolve();
       };
 
-      const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+      const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
         if (status.didJustFinish) {
           finish();
-        } else if (status.error) {
-          finish(new Error(`Playback error: ${status.error}`));
         }
       });
+      const stop = () => finish(new Error('cancelled'), true);
+      stopActivePlayer = stop;
 
       try {
         player.play();
@@ -263,20 +252,28 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
     currentPlayer = player;
 
     return await new Promise<void>((resolve, reject) => {
-      pendingReject = reject;
+      let settled = false;
 
-      const finish = (err?: Error) => {
+      const finish = (err?: Error, stopping = false) => {
+        if (settled) return;
+        settled = true;
         sub.remove();
+        if (stopping) {
+          try { player.pause(); } catch {}
+        }
         try { player.remove(); } catch {}
         if (currentPlayer === player) currentPlayer = null;
-        if (pendingReject === reject) pendingReject = null;
+        if (stopActivePlayer === stop) stopActivePlayer = null;
+        releaseAudioFocus(focusToken);
+        focusToken = null;
         err ? reject(err) : resolve();
       };
 
-      const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+      const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
         if (status.didJustFinish) finish();
-        else if (status.error) finish(new Error(`Playback error: ${status.error}`));
       });
+      const stop = () => finish(new Error('cancelled'), true);
+      stopActivePlayer = stop;
 
       try { player.play(); } catch (e) { finish(e instanceof Error ? e : new Error(String(e))); }
     });
@@ -298,17 +295,6 @@ export function speakWordCard(
 ): Promise<void> {
   if (card.audioUri) return speakCustom(card.audioUri, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0);
   return speak(card.word, isSubscribed, card.wordLang);
-}
-
-/**
- * Warm the AI audio cache for the given text. No-op for free users so we
- * never make OpenAI API calls on their behalf.
- */
-export async function preloadAI(text: string, isPro: boolean): Promise<void> {
-  if (!isPro) return;
-  const cacheKey = `${activeAIVoice}\u0000${text}`;
-  if (base64Cache.has(cacheKey) || inFlight.has(cacheKey)) return;
-  try { await fetchBase64(text, activeAIVoice); } catch {}
 }
 
 /**

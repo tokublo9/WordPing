@@ -52,8 +52,6 @@ export interface AppModalsProps {
     reviewHistory: ReviewEntry[];
     testClearPending: boolean;
     onResetAll(): void;
-    basicVoiceLimitReached: boolean;
-    onUpgrade(): void;
   };
 
   // NotificationModal
@@ -193,8 +191,6 @@ export function AppModals({
         reviewHistory={wordModal.reviewHistory}
         testClearPending={wordModal.testClearPending}
         onResetAll={wordModal.onResetAll}
-        basicVoiceLimitReached={wordModal.basicVoiceLimitReached}
-        onUpgrade={wordModal.onUpgrade}
       />
 
       <NotificationModal

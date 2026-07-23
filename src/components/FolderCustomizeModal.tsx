@@ -17,7 +17,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
-import { appStyles as s } from '../styles';
 import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
 
 const SCREEN_H = Dimensions.get('window').height;

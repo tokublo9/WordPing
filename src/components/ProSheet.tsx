@@ -6,6 +6,8 @@ import {
   Dimensions,
   Easing,
   Image,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,15 +40,12 @@ const { height: SH, width: SW } = Dimensions.get('window');
 
 const PLAN_BLUE   = FREE_THEME_COLOR;         // #3B82F6
 const HERO_DARK   = '#0F2A5E';                // dark navy for headline
-const BEAR_CROWN  = '#F5C842';                // yellow crown/sparkle accent
-const HERO_BG     = '#FFFFFF';               // hero background (white)
 
 // ── Luxury accent palette ─────────────────────────────────────────────────────
 // Gold metallic sheen (CTA + premium pills) and rich navy (premium purchase card).
 const GOLD_LIGHT  = '#F9DE8A';
 const GOLD_MAIN   = '#F5C842';
 const GOLD_DEEP   = '#E0A526';
-const NAVY_GRAD: readonly [string, string] = ['#12306B', '#0B2049'];
 const GOLD_GRAD:  readonly [string, string, string] = [GOLD_LIGHT, GOLD_MAIN, GOLD_DEEP];
 
 // ── Premium accent palettes ───────────────────────────────────────────────────
@@ -175,7 +174,7 @@ const FEATURE_SECTIONS: FeatureConfig[] = [
 
 // ── Hero section ──────────────────────────────────────────────────────────────
 
-const HeroSection = React.memo(({ t }: { pal: Palette; t: (k: any) => string }) => (
+const HeroSection = React.memo(({ t }: { pal: Palette; t: (k: TranslationKey) => string }) => (
   <View style={hs.container}>
 
     {/* Deep navy premium gradient backdrop */}
@@ -233,7 +232,7 @@ const RibbonBanner = React.memo(({ label }: { label: string }) => (
 // ── Coffee value card ─────────────────────────────────────────────────────────
 // White card in the screen's blue/gold language with the supplied coffee artwork.
 
-const CoffeeValueCard = React.memo(({ t }: { t: (k: any) => string }) => (
+const CoffeeValueCard = React.memo(({ t }: { t: (k: TranslationKey) => string }) => (
   <View style={cvs.card}>
     <View style={cvs.coffeeImageWrap}>
       <Image
@@ -338,7 +337,7 @@ const VoiceRow = React.memo(({ text, demoKeyDefault, demoKeyAi, playingDemo, onP
 // Bright, white-based premium card: rich blue accents, a subtle gold flourish,
 // soft shadows, and a refined sound-wave.
 
-interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: any) => string }
+interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: TranslationKey) => string }
 
 const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardProps) => {
   const aiLabel = t('cmp_ai_voice_hq');
@@ -401,7 +400,7 @@ const FeatureImage = React.memo(function FeatureImage({
 // Premium (gold), matching which plans include the feature.
 const PlanLabels = React.memo(function PlanLabels({
   basic, premium, t,
-}: { basic: boolean; premium: boolean; t: (k: any) => string }) {
+}: { basic: boolean; premium: boolean; t: (k: TranslationKey) => string }) {
   if (!basic && !premium) return null;
   return (
     <View style={pl.row}>
@@ -448,7 +447,7 @@ const FeatureSection = React.memo(function FeatureSection({
   icon: React.ComponentProps<typeof Ionicons>['name'];
   basic: boolean;
   premium: boolean;
-  t: (k: any) => string;
+  t: (k: TranslationKey) => string;
 }) {
   return (
     <View style={[fs.cardShadow, { shadowColor: accent }]}>
@@ -601,7 +600,7 @@ const CarouselCard = React.memo(function CarouselCard({
   videoActive: boolean;
   onPress: (item: ShopItem) => void;
   pal: Palette;
-  t: (k: any) => string;
+  t: (k: TranslationKey) => string;
 }) {
   const { item, media } = tile;
   const localizedName = t(item.nameKey);
@@ -646,7 +645,7 @@ const CarouselCard = React.memo(function CarouselCard({
 const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
   t, pal, visible, detailsOpen, onOpenDetails,
 }: {
-  t: (k: any) => string;
+  t: (k: TranslationKey) => string;
   pal: Palette;
   visible: boolean;
   detailsOpen: boolean;
@@ -727,7 +726,7 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
     restartTimer.current = setTimeout(() => setInteracting(false), 600);
   }, []);
 
-  const onMomentumEnd = useCallback((e: any) => {
+  const onMomentumEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     let v = Math.round(e.nativeEvent.contentOffset.x / CARO_SLOT);
     // Landed on a clone → silently reposition to the matching real card.
     if (v > LAST_REAL) {
@@ -837,7 +836,7 @@ interface TableRowData { label: string; basic: CellValue; premium: CellValue }
 
 const PlanComparisonTable = React.memo(function PlanComparisonTable({
   t, pal,
-}: { t: (k: any) => string; pal: Palette }) {
+}: { t: (k: TranslationKey) => string; pal: Palette }) {
   const rows: TableRowData[] = [
     { label: t('cmp_themes'),           basic: 'infinite', premium: 'infinite' },
     { label: t('cmp_ai_voice_hq'),      basic: 'infinite', premium: 'infinite' },
@@ -907,7 +906,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
 
 interface FixedPurchaseBarProps {
   pal: Palette;
-  t: (k: any) => string;
+  t: (k: TranslationKey) => string;
   isSubscribed: boolean;
   isPremium: boolean;
   loadingPlan: 'basic' | 'premium' | null;
@@ -1005,6 +1004,16 @@ const FixedPurchaseBar = React.memo(({
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity
+        style={bar.restoreBtn}
+        onPress={onRestore}
+        disabled={anyLoading}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: anyLoading }}
+      >
+        <Text style={[bar.restoreText, { color: pal.sub }]}>{t('restore_purchases')}</Text>
+      </TouchableOpacity>
+
     </View>
   );
 });
@@ -1054,6 +1063,7 @@ export function ProSheet({
   const backdropO    = useRef(new Animated.Value(0)).current;
   const mainScrollRef = useRef<ScrollView>(null);
   const demoSequence = useRef(0);
+  const hasPreloadedMedia = useRef(false);
 
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
@@ -1062,16 +1072,17 @@ export function ProSheet({
   // Measured height of the fixed bottom bar → keeps scroll content clear of it.
   const [barHeight, setBarHeight]                   = useState(150);
 
-  // Preload the hero icon + the first four carousel media items as early as
-  // possible — this runs while the component is mounted, before the sheet is
-  // shown, so nothing pops in when it opens.
+  // Keep optional carousel media off the critical startup path, but cache the
+  // first items the first time the plan sheet is requested.
   useEffect(() => {
+    if (!visible || hasPreloadedMedia.current) return;
+    hasPreloadedMedia.current = true;
     const sources: number[] = [
       require('../../assets/icon.png'),
       ...CAROUSEL_TILES.slice(0, 4).map(tl => tl.media.source),
     ];
     Asset.loadAsync(sources).catch(() => {});
-  }, []);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;

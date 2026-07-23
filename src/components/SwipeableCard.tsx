@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BlurView } from 'expo-blur';
-import { preloadAI, speak, speakWordCard, stopPlayback } from '../lib/tts';
+import { speak, speakWordCard, stopPlayback } from '../lib/tts';
 
 import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
@@ -249,9 +249,6 @@ export function SwipeableCard({
     setLoadingVoice(v);
   }, []);
 
-  useEffect(() => { preloadAI(item.word, isSubscribed).catch(() => {}); }, [item.word, isSubscribed]);
-  useEffect(() => { if (isFlipped) preloadAI(item.meaning, isSubscribed).catch(() => {}); }, [isFlipped, item.meaning, isSubscribed]);
-
   // Stop playback and reset state when the card is unmounted (e.g. folder switch).
   useEffect(() => () => {
     if (loadingVoiceRef.current) {
@@ -263,7 +260,7 @@ export function SwipeableCard({
   const handleTTSError = useCallback((e: unknown) => {
     const msg = e instanceof Error ? e.message : '';
     if (msg === 'cancelled') return; // Normal: a newer play request superseded this one.
-    console.error('[TTS] error:', e);
+    if (__DEV__) console.warn('[TTS] playback failed:', msg || 'unknown_error');
     if (msg === 'quota_exceeded') {
       Alert.alert(t('ai_voice_unavailable'), t('quota_exceeded_msg'));
     }

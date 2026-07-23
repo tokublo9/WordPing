@@ -10,7 +10,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
-import { FREE_VOICE_LIMIT, FREE_WORD_LIMIT } from '../constants';
 import { useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 

@@ -152,8 +152,8 @@ export function TextToSpeechScreen({
       const code = error instanceof Error ? error.message : '';
       const message = code === 'quota_exceeded'
         ? 'The API quota has been exceeded. Please try again later.'
-        : code === 'api_key_missing'
-          ? 'The OpenAI API key is not configured for this prototype.'
+        : code === 'service_unavailable' || code === 'authentication_failed'
+          ? 'The speech service is temporarily unavailable. Please try again later.'
           : 'Speech could not be generated. Please check your connection and try again.';
       Alert.alert('Text-to-Speech unavailable', message);
     } finally {
@@ -194,7 +194,7 @@ export function TextToSpeechScreen({
     const filename = action.kind === 'export' ? action.filename : action.item.filename;
     setFilenameInput(filename);
     setFilenameSelection(action.kind === 'rename'
-      ? { start: 0, end: filename.toLowerCase().endsWith('.wav') ? filename.length - 4 : filename.length }
+      ? { start: 0, end: /\.(wav|mp3)$/i.test(filename) ? filename.length - 4 : filename.length }
       : undefined);
     setFilenameAction(action);
   }, []);

@@ -27,7 +27,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Directory, Paths } from 'expo-file-system';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioStatus } from 'expo-audio';
+import { claimAudioFocus, releaseAudioFocus } from '../lib/audioFocus';
+import { createId } from '../utils/createId';
 
 import type { Palette, ReviewEntry, TestLevel, WordCard } from '../types';
 import { SUPPORTED_LANGUAGES, useLang, type TranslationKey } from '../i18n';
@@ -40,6 +42,8 @@ const SCREEN_H = Dimensions.get('window').height;
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
+const MAX_AUDIO_FILE_BYTES = 20 * 1024 * 1024;
+const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac']);
 
 // Maps stable rating IDs to i18n label keys.
 const RATING_LABEL_KEYS: Record<TestLevel, TranslationKey> = {
@@ -70,11 +74,6 @@ const TTS_LANGUAGES: { code: string | undefined; flag: string; label: string }[]
   { code: 'it-IT',  flag: '🇮🇹', label: 'Italiano' },
   { code: 'pt-BR',  flag: '🇧🇷', label: 'Português' },
 ];
-
-function chipLabel(code: string | undefined): string {
-  const entry = TTS_LANGUAGES.find(l => l.code === code) ?? TTS_LANGUAGES[0];
-  return code ? `${entry.flag} ${code.split('-')[0].toUpperCase()}` : `${entry.flag} Auto`;
-}
 
 function genChipLabel(code: string): string {
   const entry = SUPPORTED_LANGUAGES.find(l => l.code === code) ?? SUPPORTED_LANGUAGES[0];
@@ -114,10 +113,6 @@ interface Props {
   reviewHistory: ReviewEntry[];
   testClearPending: boolean;
   onResetAll(): void;
-  /** Basic plan: true when the card doesn't already have a custom voice and 10 others do. */
-  basicVoiceLimitReached?: boolean;
-  /** Called when a non-Premium user taps the locked audio button. */
-  onUpgrade?: () => void;
 }
 
 export function WordModal({
@@ -132,8 +127,6 @@ export function WordModal({
   reviewHistory,
   testClearPending,
   onResetAll,
-  basicVoiceLimitReached = false,
-  onUpgrade,
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
@@ -234,18 +227,28 @@ export function WordModal({
     },
   })).current;
 
-  const handleVoiceLangBtn = useCallback((field: 'word' | 'meaning') => {
-    if (basicVoiceLimitReached) { showHint('basic_voice_limit', 'mic-outline'); return; }
-    Keyboard.dismiss();
-    setPickerFor(field);
-  }, [basicVoiceLimitReached, showHint]);
-
   // ── Audio ────────────────────────────────────────────────────────────────────
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioSettingsExpanded, setAudioSettingsExpanded] = useState(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
+  const soundSubscriptionRef = useRef<{ remove(): void } | null>(null);
+  const audioFocusRef = useRef<symbol | null>(null);
+
+  const releaseEditorAudio = useCallback(() => {
+    const sound = soundRef.current;
+    soundRef.current = null;
+    soundSubscriptionRef.current?.remove();
+    soundSubscriptionRef.current = null;
+    if (sound) {
+      try { sound.pause(); } catch {}
+      try { sound.remove(); } catch {}
+    }
+    releaseAudioFocus(audioFocusRef.current);
+    audioFocusRef.current = null;
+    setIsPlayingAudio(false);
+  }, []);
 
   const toggleAudioSettings = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -255,14 +258,12 @@ export function WordModal({
   // Stop and unload sound whenever the modal closes
   useEffect(() => {
     if (!visible) {
-      soundRef.current?.unloadAsync().catch(() => {});
-      soundRef.current = null;
-      setIsPlayingAudio(false);
+      releaseEditorAudio();
     }
-  }, [visible]);
+  }, [visible, releaseEditorAudio]);
 
   // Always clean up on unmount
-  useEffect(() => () => { soundRef.current?.unloadAsync().catch(() => {}); }, []);
+  useEffect(() => releaseEditorAudio, [releaseEditorAudio]);
 
   const handleAudioButton = async () => {
     if (!audioUri) {
@@ -271,10 +272,16 @@ export function WordModal({
         const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: false });
         if (result.canceled) return;
         const asset = result.assets[0];
+        if ((asset.mimeType && !asset.mimeType.startsWith('audio/')) ||
+            (typeof asset.size === 'number' && asset.size > MAX_AUDIO_FILE_BYTES)) {
+          Alert.alert(t('err_title_error'), t('err_audio_import'));
+          return;
+        }
         const audioDir = new Directory(Paths.document, 'audio');
         audioDir.create({ intermediates: true, idempotent: true });
-        const ext = asset.name.split('.').pop() ?? 'mp3';
-        const destFile = new File(audioDir, `audio_${Date.now()}.${ext}`);
+        const candidateExtension = asset.name.split('.').pop()?.toLowerCase() ?? '';
+        const extension = AUDIO_EXTENSIONS.has(candidateExtension) ? candidateExtension : 'm4a';
+        const destFile = new File(audioDir, `${createId('audio')}.${extension}`);
         new File(asset.uri).copy(destFile);
         onChangeAudioUri(destFile.uri);
       } catch {
@@ -285,39 +292,39 @@ export function WordModal({
 
     // Toggle playback
     if (isPlayingAudio) {
-      await soundRef.current?.stopAsync().catch(() => {});
-      await soundRef.current?.unloadAsync().catch(() => {});
-      soundRef.current = null;
-      setIsPlayingAudio(false);
+      releaseEditorAudio();
       return;
     }
 
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
-      await sound.setRateAsync(audioSpeed, true);
-      await sound.setVolumeAsync(Math.min(audioVolume, 1.0));
+      await setAudioModeAsync({ playsInSilentMode: true });
+      const sound = createAudioPlayer({ uri: audioUri });
+      audioFocusRef.current = claimAudioFocus(releaseEditorAudio);
+      sound.setPlaybackRate(audioSpeed, 'medium');
+      sound.volume = Math.min(audioVolume, 1.0);
       soundRef.current = sound;
       setIsPlayingAudio(true);
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
+      soundSubscriptionRef.current = sound.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+        if (status.didJustFinish) {
+          soundSubscriptionRef.current?.remove();
+          soundSubscriptionRef.current = null;
+          try { sound.remove(); } catch {}
           soundRef.current = null;
+          releaseAudioFocus(audioFocusRef.current);
+          audioFocusRef.current = null;
           setIsPlayingAudio(false);
         }
       });
+      sound.play();
     } catch {
+      releaseEditorAudio();
       Alert.alert(t('err_title_playback'), t('err_audio_play'));
-      setIsPlayingAudio(false);
     }
   };
 
   const handleClearAudio = () => {
     const doRemove = () => {
-      soundRef.current?.unloadAsync().catch(() => {});
-      soundRef.current = null;
-      setIsPlayingAudio(false);
+      releaseEditorAudio();
       setAudioSettingsExpanded(false);
       onChangeAudioUri(undefined);
       onChangeAudioSpeed(1.0);

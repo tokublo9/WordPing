@@ -1,4 +1,6 @@
 node_modules/
+.DS_Store
+**/.DS_Store
 .expo/
 dist/
 web-build/
@@ -16,4 +18,5 @@ web-build/
 .env.local
 .env.production
 .env.*.local
+google-service-account.json
 .claude/settings.local.json

@@ -5,6 +5,7 @@ import type { ReviewEntry, WordCard } from '../../types';
 import { translate } from '../../i18n';
 import { ALL_LEVEL_KEYS, LEVEL_ORDER } from './levels';
 import { FREE_WORD_LIMIT } from '../../constants';
+import { createId } from '../../utils/createId';
 
 export interface UseCardsParams {
   cards: WordCard[];
@@ -328,7 +329,7 @@ export function useCards({
       setCards(prev => [
         ...prev,
         {
-          id: Date.now().toString(),
+          id: createId('card'),
           word: word.trim(),
           meaning: meaning.trim(),
           note: note.trim(),

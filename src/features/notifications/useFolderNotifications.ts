@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, FolderNotifSettings, WordCard } from '../../types';
 import type { TranslationKey } from '../../i18n';
 import { requestPermission, sendTestNotification } from '../../notifications';
+import { reportSideEffectFailure } from '../../utils/reportSideEffectFailure';
 
 export interface UseFolderNotificationsParams {
   folders: Folder[];
@@ -55,7 +56,7 @@ export function useFolderNotifications({
         setNotificationGranted(granted);
         if (!granted) return;
         updateFolderNotif({ intervalSeconds: seconds });
-      });
+      }).catch(error => reportSideEffectFailure('requestNotificationPermission', error));
       return;
     }
     const conflicting = folders.find(
@@ -98,7 +99,8 @@ export function useFolderNotifications({
     const eligible = folderCards.filter(c => !c.notifOff);
     if (eligible.length === 0) return;
     const card = eligible[Math.floor(Math.random() * eligible.length)];
-    sendTestNotification(card, folderNotifSettings.displayOnlyWord);
+    sendTestNotification(card, folderNotifSettings.displayOnlyWord)
+      .catch(error => reportSideEffectFailure('sendTestNotification', error));
   };
 
   return {

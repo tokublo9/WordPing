@@ -353,21 +353,6 @@ export const PREMIUM_SKINS: ThemeSkin[] = [
     },
   },
   {
-    id: 'skin_coffee',
-    name: 'Coffee House',
-    emoji: '☕',
-    darkStatusBar: false,
-    themeColor: '#92400E',
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    wallpaperImage: require('../assets/wallpapers/coffee-shop.png') as number,
-    wallpaperBlur: 0,
-    wallpaperOverlayColor: 'rgba(251, 240, 220, 0.12)',
-    palette: {
-      bg: '#FBF6F0', card: '#FFFFFF', text: '#2A1205', sub: '#7A5030',
-      border: 'rgba(146,64,14,0.15)', input: '#FDFAF6', chip: '#F5E8D8', dialog: '#FFFFFF',
-    },
-  },
-  {
     id: 'shop_woods',
     name: 'Beautiful Woods',
     emoji: '🌲',

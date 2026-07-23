@@ -1,4 +1,4 @@
-import { Dimensions, Image, ImageBackground, StyleSheet, View } from 'react-native';
+import { Dimensions, ImageBackground, StyleSheet, View } from 'react-native';
 import { memo } from 'react';
 
 import { LinearGradient } from 'expo-linear-gradient';
@@ -117,7 +117,6 @@ export const THEME_SCREENSHOTS: Partial<Record<string, number>> = {
   skin_sakura:     require('../../screenshots/theme/sakura/sakura1.png'),
   skin_snow:       require('../../screenshots/theme/snowmountain/snowmountain1.png'),
   shop_roses:      require('../../screenshots/theme/roses/roses1.png'),
-  skin_coffee:     require('../../screenshots/theme/coffeehouse/coffeehouse1.png'),
   skin_paw:        require('../../screenshots/theme/animals/animals1.png'),
   skin_night_city: require('../../screenshots/theme/nightcity/nightcity1.png'),
   skin_sunset:     require('../../screenshots/theme/sunset/sunset1.png'),
@@ -141,7 +140,6 @@ export const THEME_SCREENSHOTS_FLIP: Partial<Record<string, number>> = {
   skin_sakura:     require('../../screenshots/theme/sakura/sakura2.png'),
   skin_snow:       require('../../screenshots/theme/snowmountain/snowmountain2.png'),
   shop_roses:      require('../../screenshots/theme/roses/roses2.png'),
-  skin_coffee:     require('../../screenshots/theme/coffeehouse/coffeehouse2.png'),
   skin_paw:        require('../../screenshots/theme/animals/animals2.png'),
   skin_night_city: require('../../screenshots/theme/nightcity/nightcity2.png'),
   skin_sunset:     require('../../screenshots/theme/sunset/sunset2.png'),

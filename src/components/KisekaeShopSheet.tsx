@@ -77,7 +77,6 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'skin_deep_sea',   name: 'Deep Sea',        nameKey: 'theme_name_deep_sea',        price: 480, category: 'premium', previewBg: '#061628', previewAccent: '#38BDF8', previewEmoji: '🌊' },
   { id: 'solid_beige',     name: 'Beige',           nameKey: 'theme_name_beige',           price: 320, category: 'solid',   previewBg: '#FAF5EB', previewAccent: '#92400E', previewEmoji: '🤎' },
   { id: 'skin_cyber',      name: 'Cyber Neon',      nameKey: 'theme_name_cyber_neon',      price: 480, category: 'premium', previewBg: '#040810', previewAccent: '#00E5FF', previewEmoji: '⚡' },
-  { id: 'skin_coffee',     name: 'Coffee House',    nameKey: 'theme_name_coffee_house',    price: 320, category: 'premium', previewBg: '#FBF6F0', previewAccent: '#92400E', previewEmoji: '☕' },
   { id: 'solid_sky',       name: 'Sky Blue',        nameKey: 'theme_name_sky_blue',        price: 320, category: 'solid',   previewBg: '#E0F2FE', previewAccent: '#0EA5E9', previewEmoji: '🩵' },
   { id: 'skin_paw',        name: 'Animal',          nameKey: 'theme_name_animal',          price: 320, category: 'premium', previewBg: '#FFF8F0', previewAccent: '#BF7A40', previewEmoji: '🐾' },
   { id: 'shop_woods',      name: 'Beautiful Woods', nameKey: 'theme_name_beautiful_woods', price: 320, category: 'premium', previewBg: '#1A2E1A', previewAccent: '#6AAF5A', previewEmoji: '🌲' },
@@ -241,10 +240,10 @@ export function KisekaeShopSheet({
   const insets  = useSafeAreaInsets();
   const t       = useLang();
   const slideY  = useRef(new Animated.Value(SCREEN_H)).current;
+  const hasPreloadedAssets = useRef(false);
 
   const [activeTab,    setActiveTab]    = useState<TabKey>('premium');
   const [search,       setSearch]       = useState('');
-  const [ownedIds,     setOwnedIds]     = useState<Set<string>>(new Set<string>());
   const [kbHeight,     setKbHeight]     = useState(0);
   const [detailsItem,  setDetailsItem]  = useState<ShopItem | null>(null);
   const [openCount,    setOpenCount]    = useState(0);
@@ -257,11 +256,13 @@ export function KisekaeShopSheet({
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  // Preload every wallpaper image into the asset cache once, so the shop grid
-  // renders instantly with no delayed image loading when it opens.
+  // Defer the wallpaper cache until the shop is actually requested. This keeps
+  // several megabytes of optional artwork off the critical app-start path.
   useEffect(() => {
+    if (!visible || hasPreloadedAssets.current) return;
+    hasPreloadedAssets.current = true;
     Asset.loadAsync(SHOP_PRELOAD_ASSETS).catch(() => {});
-  }, []);
+  }, [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -295,10 +296,9 @@ export function KisekaeShopSheet({
       const exists = SKINS.some(s => s.id === item.id);
       onPickSkin(exists ? item.id : null);
     } else {
-      // Locked themes are purchased individually with coins.
-      setOwnedIds(prev => new Set([...prev, item.id]));
+      onUpgrade?.();
     }
-  }, [effectiveSkinId, onPickSkin, isOwned]);
+  }, [effectiveSkinId, onPickSkin, isOwned, onUpgrade]);
 
   const filtered = useMemo(
     () => SHOP_ITEMS

@@ -2,6 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { isAIVoice, type AIVoice } from './aiVoices';
+import { requestAISpeech } from './openaiGateway';
+import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
+import { createId } from '../utils/createId';
 
 export const TEXT_TO_SPEECH_MAX_CHARS = 4096;
 export const TEXT_TO_SPEECH_HISTORY_LIMIT = 10;
@@ -23,20 +26,13 @@ function audioLib() {
 }
 
 type AudioPlayer = import('expo-audio').AudioPlayer;
+type AudioStatus = import('expo-audio').AudioStatus;
 
 let currentPlayer: AudioPlayer | null = null;
-let pendingPlaybackReject: ((error: Error) => void) | null = null;
+let stopActivePlayer: (() => void) | null = null;
 let playbackEpoch = 0;
 let activePlaybackUri: string | null = null;
-
-async function toBase64(buffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let index = 0; index < bytes.byteLength; index++) {
-    binary += String.fromCharCode(bytes[index]);
-  }
-  return btoa(binary);
-}
+let focusToken: symbol | null = null;
 
 function dataUriToBytes(uri: string): Uint8Array {
   const separator = uri.indexOf(',');
@@ -50,22 +46,26 @@ function dataUriToBytes(uri: string): Uint8Array {
   return bytes;
 }
 
-function normalizeFilename(value: string): string {
-  const withoutExtension = value.trim().replace(/\.wav$/i, '');
+function normalizeFilename(value: string, fallbackExtension: 'wav' | 'mp3' = 'mp3'): string {
+  const trimmed = value.trim();
+  const matchedExtension = trimmed.match(/\.(wav|mp3)$/i)?.[1]?.toLowerCase() as 'wav' | 'mp3' | undefined;
+  const extension = matchedExtension ?? fallbackExtension;
+  const withoutExtension = trimmed.replace(/\.(wav|mp3)$/i, '');
   const safeBase = withoutExtension
     .replace(/[\\/:*?"<>|]/g, '-')
     .replace(/\s+/g, ' ')
     .replace(/^\.+|\.+$/g, '')
     .trim()
     .slice(0, 80);
-  return `${safeBase || 'WordPing Speech'}.wav`;
+  return `${safeBase || 'WordPing Speech'}.${extension}`;
 }
 
-export function createPrototypeSpeechFilename(timestamp = Date.now()): string {
+export function createPrototypeSpeechFilename(timestamp = Date.now(), extension: 'wav' | 'mp3' = 'mp3'): string {
   const date = new Date(timestamp);
   const pad = (value: number) => String(value).padStart(2, '0');
   return normalizeFilename(
     `WordPing Speech ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`,
+    extension,
   );
 }
 
@@ -113,17 +113,18 @@ export async function savePrototypeSpeechToHistory(
   voice: AIVoice,
 ): Promise<{ item: SavedPrototypeSpeech; history: SavedPrototypeSpeech[] }> {
   const createdAt = Date.now();
-  const id = `${createdAt}-${Math.random().toString(36).slice(2, 9)}`;
+  const id = createId('speech');
   const directory = new Directory(Paths.document, HISTORY_DIRECTORY);
   directory.create({ intermediates: true, idempotent: true });
-  const file = new File(directory, `${id}.wav`);
+  const format = uri.startsWith('data:audio/mpeg') ? 'mp3' : 'wav';
+  const file = new File(directory, `${id}.${format}`);
 
   file.create({ overwrite: true });
   try {
     file.write(dataUriToBytes(uri));
     const item: SavedPrototypeSpeech = {
       id,
-      filename: createPrototypeSpeechFilename(createdAt),
+      filename: createPrototypeSpeechFilename(createdAt, format),
       uri: file.uri,
       voice,
       createdAt,
@@ -173,7 +174,7 @@ export async function deletePrototypeSpeech(id: string): Promise<SavedPrototypeS
   return next;
 }
 
-/** Generate a standalone WAV data URI without touching the word-card TTS cache. */
+/** Generate a standalone MP3 data URI without touching the word-card TTS cache. */
 export async function generatePrototypeSpeech(
   input: string,
   voice: AIVoice,
@@ -183,34 +184,11 @@ export async function generatePrototypeSpeech(
   if (!trimmedInput) throw new Error('input_empty');
   if (trimmedInput.length > TEXT_TO_SPEECH_MAX_CHARS) throw new Error('input_too_long');
 
-  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-  if (!apiKey) throw new Error('api_key_missing');
-
-  const response = await fetch('https://api.openai.com/v1/audio/speech', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini-tts',
-      input: trimmedInput,
-      voice,
-      response_format: 'wav',
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    if (response.status === 429) throw new Error('quota_exceeded');
-    throw new Error(`speech_generation_failed:${response.status}`);
-  }
-
-  const base64 = await toBase64(await response.arrayBuffer());
-  return `data:audio/wav;base64,${base64}`;
+  const base64 = await requestAISpeech(trimmedInput, voice, signal, 'mp3');
+  return `data:audio/mpeg;base64,${base64}`;
 }
 
-/** Export a generated WAV through the device's native save/share sheet. */
+/** Export generated speech through the device's native save/share sheet. */
 export async function exportPrototypeSpeech(uri: string, filename: string): Promise<void> {
   if (!(await Sharing.isAvailableAsync())) throw new Error('sharing_unavailable');
 
@@ -225,8 +203,7 @@ export async function exportPrototypeSpeech(uri: string, filename: string): Prom
       new File(uri).copy(file);
     }
     await Sharing.shareAsync(file.uri, {
-      mimeType: 'audio/wav',
-      UTI: 'com.microsoft.waveform-audio',
+      mimeType: file.uri.toLowerCase().endsWith('.wav') ? 'audio/wav' : 'audio/mpeg',
       dialogTitle: 'Save or share generated speech',
     });
   } finally {
@@ -240,16 +217,18 @@ export async function exportPrototypeSpeech(uri: string, filename: string): Prom
 export function stopPrototypeSpeech(): void {
   playbackEpoch++;
   activePlaybackUri = null;
-  if (pendingPlaybackReject) {
-    pendingPlaybackReject(new Error('cancelled'));
-    pendingPlaybackReject = null;
-  }
-  if (currentPlayer) {
+  const stop = stopActivePlayer;
+  stopActivePlayer = null;
+  if (stop) {
+    stop();
+  } else if (currentPlayer) {
     // remove() releases the JS/native object but does not stop native playback.
     try { currentPlayer.pause(); } catch {}
     try { currentPlayer.remove(); } catch {}
     currentPlayer = null;
   }
+  releaseAudioFocus(focusToken);
+  focusToken = null;
 }
 
 /** Play generated prototype audio with a player isolated from word-card TTS. */
@@ -263,6 +242,7 @@ export async function playPrototypeSpeech(uri: string): Promise<void> {
   stopPrototypeSpeech();
   const requestEpoch = ++playbackEpoch;
   activePlaybackUri = uri;
+  focusToken = claimAudioFocus(stopPrototypeSpeech);
 
   try {
     try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
@@ -272,20 +252,28 @@ export async function playPrototypeSpeech(uri: string): Promise<void> {
     currentPlayer = player;
 
     return await new Promise<void>((resolve, reject) => {
-      pendingPlaybackReject = reject;
+      let settled = false;
 
-      const finish = (error?: Error) => {
+      const finish = (error?: Error, stopping = false) => {
+        if (settled) return;
+        settled = true;
         subscription.remove();
+        if (stopping) {
+          try { player.pause(); } catch {}
+        }
         try { player.remove(); } catch {}
         if (currentPlayer === player) currentPlayer = null;
-        if (pendingPlaybackReject === reject) pendingPlaybackReject = null;
+        if (stopActivePlayer === stop) stopActivePlayer = null;
+        releaseAudioFocus(focusToken);
+        focusToken = null;
         error ? reject(error) : resolve();
       };
 
-      const subscription = player.addListener('playbackStatusUpdate', (status: any) => {
+      const subscription = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
         if (status.didJustFinish) finish();
-        else if (status.error) finish(new Error(`playback_failed:${status.error}`));
       });
+      const stop = () => finish(new Error('cancelled'), true);
+      stopActivePlayer = stop;
 
       try {
         player.play();
