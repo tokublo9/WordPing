@@ -436,6 +436,10 @@ export default function App() {
           onClose: () => setTextToSpeechVisible(false),
           voice: aiVoice,
           isPremium,
+          onUpgrade: () => {
+            setTextToSpeechVisible(false);
+            setProSheetVisible(true);
+          },
           onHistoryAvailabilityChange: setHasTextToSpeechHistory,
         }}
         settingsModal={{

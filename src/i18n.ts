@@ -137,7 +137,8 @@ export type TranslationKey =
   | 'upgrade_plan'
   | 'sub_info_payment' | 'sub_info_manage' | 'back_to_top'
   | 'ai_features_explain'
-  | 'plan_usage_title' | 'plan_usage_desc';
+  | 'plan_usage_title' | 'plan_usage_desc'
+  | 'err_plan_required_speech' | 'err_plan_required_text';
 
 type OnboardingProfileKey =
   | 'ob_profile_title' | 'ob_profile_desc'
@@ -157,7 +158,9 @@ type LocalizedCatalogKey =
   | 'theme_name_night_city' | 'theme_name_mint' | 'theme_name_rainy_window'
   | 'theme_name_green' | 'theme_name_sunset';
 
-type OptionalTranslationKey = OnboardingProfileKey | LocalizedCatalogKey;
+type PlanErrorKey = 'err_plan_required_speech' | 'err_plan_required_text';
+
+type OptionalTranslationKey = OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey;
 
 // New onboarding/catalog copy falls back to English until a locale supplies an
 // override. All established translation keys remain required for every locale.
@@ -530,6 +533,8 @@ const enUS: Dict = {
   cmp_val_all_skins:  '15+ skins',
   plan_usage_title: 'Unlock More with Basic',
   plan_usage_desc:  'Upgrade to Basic for unlimited word cards and Natural AI Voice — no limits on your learning.',
+  err_plan_required_speech: 'AI voice requires a Basic plan. Please upgrade to continue.',
+  err_plan_required_text:   'AI text features require a Premium plan. Please upgrade to continue.',
 };
 
 // ── Japanese ───────────────────────────────────────────────────────────────────

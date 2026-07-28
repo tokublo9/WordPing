@@ -1,3 +1,4 @@
+import { Directory, File, Paths } from 'expo-file-system';
 import { MAX_AI_INPUT_CHARS } from '../constants';
 import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
 import { requestAISpeech } from './openaiGateway';
@@ -30,30 +31,76 @@ let focusToken: symbol | null = null;
 let epoch = 0;
 let activeAIVoice: AIVoice = DEFAULT_AI_VOICE;
 
-// ── Audio cache ───────────────────────────────────────────────────────────────
+// ── Persistent audio file cache ───────────────────────────────────────────────
 
-const base64Cache = new Map<string, string>();
-const inFlight   = new Map<string, Promise<string>>();
+const TTS_CACHE_DIR = 'tts';
 
-function fetchBase64(text: string, voice: AIVoice): Promise<string> {
+// Session-level index: cache key → file URI (avoids repeated File.exists checks)
+const fileUriIndex = new Map<string, string>();
+const inFlight = new Map<string, Promise<string>>();
+
+// FNV-1a 32-bit hash — deterministic, filesystem-safe cache filenames
+function fnv32a(str: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(h ^ str.charCodeAt(i), 0x01000193)) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+function ttsCacheFile(text: string, voice: AIVoice): File {
+  const dir = new Directory(Paths.cache, TTS_CACHE_DIR);
+  dir.create({ intermediates: true, idempotent: true });
+  return new File(dir, `${voice}_${fnv32a(`${voice}\x00${text}`)}.wav`);
+}
+
+function fetchAndCacheAudio(text: string, voice: AIVoice): Promise<string> {
   if (!text.trim()) return Promise.reject(new Error('input_empty'));
   if (text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
-  const cacheKey = `${voice}\u0000${text}`;
-  if (base64Cache.has(cacheKey)) return Promise.resolve(base64Cache.get(cacheKey)!);
-  if (inFlight.has(cacheKey))   return inFlight.get(cacheKey)!;
+
+  const key = `${voice}\x00${text}`;
+
+  // 1. Session-level memory index
+  const indexed = fileUriIndex.get(key);
+  if (indexed) {
+    if (new File(indexed).exists) {
+      if (__DEV__) console.log('[TTS cache] memory hit', { voice, textLength: text.length });
+      return Promise.resolve(indexed);
+    }
+    fileUriIndex.delete(key);
+  }
+
+  // 2. Persistent disk cache
+  const cachedFile = ttsCacheFile(text, voice);
+  if (cachedFile.exists) {
+    if (__DEV__) console.log('[TTS cache] disk hit', { voice, textLength: text.length });
+    fileUriIndex.set(key, cachedFile.uri);
+    return Promise.resolve(cachedFile.uri);
+  }
+
+  // 3. Deduplicate concurrent requests for the same text+voice
+  const existing = inFlight.get(key);
+  if (existing) {
+    if (__DEV__) console.log('[TTS cache] in-flight dedup', { voice, textLength: text.length });
+    return existing;
+  }
+
+  if (__DEV__) console.log('[TTS cache] miss — fetching', { voice, textLength: text.length });
 
   const p = (async () => {
     try {
-      const b64 = await requestAISpeech(text, voice);
-      if (base64Cache.size >= 40) base64Cache.delete(base64Cache.keys().next().value!);
-      base64Cache.set(cacheKey, b64);
-      return b64;
+      const ab = await requestAISpeech(text, voice);
+      const file = ttsCacheFile(text, voice);
+      file.create({ overwrite: true });
+      file.write(new Uint8Array(ab));
+      fileUriIndex.set(key, file.uri);
+      return file.uri;
     } finally {
-      inFlight.delete(cacheKey);
+      inFlight.delete(key);
     }
   })();
 
-  inFlight.set(cacheKey, p);
+  inFlight.set(key, p);
   return p;
 }
 
@@ -172,8 +219,8 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
   if (myEpoch == null) return;
 
   try {
-    // ── Fetch audio data ─────────────────────────────────────────────────────
-    const base64 = await fetchBase64(text, voice);
+    // ── Fetch audio (or hit local file cache) ────────────────────────────────
+    const fileUri = await fetchAndCacheAudio(text, voice);
 
     // If another speak call arrived while we were fetching, bail out.
     if (myEpoch !== epoch) throw new Error('cancelled');
@@ -188,7 +235,7 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
     if (myEpoch !== epoch) throw new Error('cancelled');
 
     // ── Create player and play ──────────────────────────────────────────────
-    const player = createAudioPlayer({ uri: `data:audio/wav;base64,${base64}` });
+    const player = createAudioPlayer({ uri: fileUri });
     currentPlayer = player;
 
     return await new Promise<void>((resolve, reject) => {

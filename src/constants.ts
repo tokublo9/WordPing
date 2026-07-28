@@ -44,8 +44,18 @@ export const AI_VOICE_KEY = 'ai_voice';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 
-// Shared native-switch track color for a consistent soft, near-white off state.
+// Shared native-switch track colors. Dark palettes use their own border tone so
+// an inactive switch remains visible without introducing a bright white track.
 export const TOGGLE_OFF_TRACK_COLOR = '#F2F4F7';
+export function getToggleOffTrackColor(backgroundColor: string, darkColor: string): string {
+  const hex = backgroundColor.replace('#', '').slice(0, 6);
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return TOGGLE_OFF_TRACK_COLOR;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const isDark = r * 0.299 + g * 0.587 + b * 0.114 < 128;
+  return isDark ? darkColor : TOGGLE_OFF_TRACK_COLOR;
+}
 
 // Legacy skins kept for backward compat (not shown in new skin picker UI).
 const LEGACY_SKINS: ThemeSkin[] = [

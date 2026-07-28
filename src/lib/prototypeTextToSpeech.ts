@@ -6,7 +6,7 @@ import { requestAISpeech } from './openaiGateway';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
 import { createId } from '../utils/createId';
 
-export const TEXT_TO_SPEECH_MAX_CHARS = 4096;
+export const TEXT_TO_SPEECH_MAX_CHARS = 1000;
 export const TEXT_TO_SPEECH_HISTORY_LIMIT = 10;
 
 const HISTORY_KEY = '@wordping/text_to_speech_history';
@@ -116,12 +116,19 @@ export async function savePrototypeSpeechToHistory(
   const id = createId('speech');
   const directory = new Directory(Paths.document, HISTORY_DIRECTORY);
   directory.create({ intermediates: true, idempotent: true });
-  const format = uri.startsWith('data:audio/mpeg') ? 'mp3' : 'wav';
+  const isDataUri = uri.startsWith('data:');
+  const format = isDataUri
+    ? (uri.startsWith('data:audio/mpeg') ? 'mp3' : 'wav')
+    : (uri.toLowerCase().endsWith('.wav') ? 'wav' : 'mp3');
   const file = new File(directory, `${id}.${format}`);
 
   file.create({ overwrite: true });
   try {
-    file.write(dataUriToBytes(uri));
+    if (isDataUri) {
+      file.write(dataUriToBytes(uri));
+    } else {
+      new File(uri).copy(file);
+    }
     const item: SavedPrototypeSpeech = {
       id,
       filename: createPrototypeSpeechFilename(createdAt, format),
@@ -174,7 +181,7 @@ export async function deletePrototypeSpeech(id: string): Promise<SavedPrototypeS
   return next;
 }
 
-/** Generate a standalone MP3 data URI without touching the word-card TTS cache. */
+/** Generate standalone MP3 audio, write to a temp cache file, and return its URI. */
 export async function generatePrototypeSpeech(
   input: string,
   voice: AIVoice,
@@ -184,8 +191,13 @@ export async function generatePrototypeSpeech(
   if (!trimmedInput) throw new Error('input_empty');
   if (trimmedInput.length > TEXT_TO_SPEECH_MAX_CHARS) throw new Error('input_too_long');
 
-  const base64 = await requestAISpeech(trimmedInput, voice, signal, 'mp3');
-  return `data:audio/mpeg;base64,${base64}`;
+  const ab = await requestAISpeech(trimmedInput, voice, signal, 'mp3', 'speech_custom');
+  const dir = new Directory(Paths.cache, 'tts-gen');
+  dir.create({ intermediates: true, idempotent: true });
+  const file = new File(dir, `${createId('tts')}.mp3`);
+  file.create({ overwrite: true });
+  file.write(new Uint8Array(ab));
+  return file.uri;
 }
 
 /** Export generated speech through the device's native save/share sheet. */

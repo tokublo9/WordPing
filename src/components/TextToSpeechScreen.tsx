@@ -44,11 +44,12 @@ interface Props {
   themeColor: string;
   voice: AIVoice;
   isPremium: boolean;
+  onUpgrade(): void;
   onHistoryAvailabilityChange(hasHistory: boolean): void;
 }
 
 export function TextToSpeechScreen({
-  visible, onClose, pal, themeColor, voice, isPremium, onHistoryAvailabilityChange,
+  visible, onClose, pal, themeColor, voice, isPremium, onUpgrade, onHistoryAvailabilityChange,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
@@ -150,8 +151,25 @@ export function TextToSpeechScreen({
     } catch (error) {
       if (controller.signal.aborted) return;
       const code = error instanceof Error ? error.message : '';
-      const message = code === 'quota_exceeded'
-        ? 'The API quota has been exceeded. Please try again later.'
+      if (code === 'premium_required' || code === 'plan_required') {
+        Alert.alert(
+          'Premium required',
+          'Text-to-Speech generation requires Premium.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'View Upgrade Plans', onPress: onUpgrade },
+          ],
+        );
+        return;
+      }
+      const message = code === 'rate_limit_exceeded'
+        ? 'You have generated speech too quickly. Please wait a minute before trying again.'
+        : code === 'usage_limit_exceeded'
+        ? 'You have reached your Text-to-Speech usage limit for the current day or month.'
+        : code === 'input_too_long'
+        ? `Text must be ${TEXT_TO_SPEECH_MAX_CHARS.toLocaleString()} characters or fewer.`
+        : code === 'quota_exceeded'
+        ? 'The speech service is temporarily at capacity. Please try again later.'
         : code === 'service_unavailable' || code === 'authentication_failed'
           ? 'The speech service is temporarily unavailable. Please try again later.'
           : 'Speech could not be generated. Please check your connection and try again.';
@@ -162,7 +180,7 @@ export function TextToSpeechScreen({
         setGenerating(false);
       }
     }
-  }, [generating, isPremium, onHistoryAvailabilityChange, stopAudio, text, voice]);
+  }, [generating, isPremium, onHistoryAvailabilityChange, onUpgrade, stopAudio, text, voice]);
 
   const togglePlayback = useCallback(async (uri: string, id: string) => {
     if (playingId === id) {

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
-import { INTERVAL_OPTIONS, TOGGLE_OFF_TRACK_COLOR } from '../constants';
+import { getToggleOffTrackColor, INTERVAL_OPTIONS } from '../constants';
 import { useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 
@@ -24,6 +24,7 @@ export function NotificationModal({
   displayOnlyWord, onToggleDisplayOnlyWord, pal, themeColor, onTest,
 }: Props) {
   const t = useLang();
+  const offTrackColor = getToggleOffTrackColor(pal.bg, pal.border);
   const [testSent, setTestSent] = useState(false);
   const slideY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -160,9 +161,9 @@ export function NotificationModal({
               <Switch
                 value={displayOnlyWord}
                 onValueChange={onToggleDisplayOnlyWord}
-                trackColor={{ false: TOGGLE_OFF_TRACK_COLOR, true: themeColor }}
+                trackColor={{ false: offTrackColor, true: themeColor }}
                 thumbColor="#fff"
-                ios_backgroundColor={TOGGLE_OFF_TRACK_COLOR}
+                ios_backgroundColor={offTrackColor}
                 accessible={false}
                 pointerEvents="none"
                 style={styles.contentSwitch}

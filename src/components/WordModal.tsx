@@ -444,7 +444,9 @@ export function WordModal({
       const result = await generateMeaning(trimmed, genLang);
       onChangeMeaning(result);
     } catch (e: unknown) {
-      const msg = e instanceof Error && e.message === 'quota_exceeded'
+      const msg = e instanceof Error && e.message === 'plan_required'
+        ? t('err_plan_required_text')
+        : e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
         : e instanceof Error && e.message === 'input_too_long'
         ? t('err_input_too_long')
@@ -464,7 +466,9 @@ export function WordModal({
       const result = await generateExample(trimmed, exampleLang);
       onChangeNote(result);
     } catch (e: unknown) {
-      const msg = e instanceof Error && e.message === 'quota_exceeded'
+      const msg = e instanceof Error && e.message === 'plan_required'
+        ? t('err_plan_required_text')
+        : e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
         : e instanceof Error && e.message === 'input_too_long'
         ? t('err_input_too_long')
@@ -483,7 +487,9 @@ export function WordModal({
     try {
       onChangeNote(await generateBreakdown(trimmed, breakdownLang));
     } catch (e: unknown) {
-      const msg = e instanceof Error && e.message === 'quota_exceeded'
+      const msg = e instanceof Error && e.message === 'plan_required'
+        ? t('err_plan_required_text')
+        : e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
         : e instanceof Error && e.message === 'input_too_long'
         ? t('err_input_too_long')
@@ -503,7 +509,9 @@ export function WordModal({
       setMeaningTranslation(await translateText(trimmed, meaningTransLang));
       setMeaningTransCollapsed(false);
     } catch (e: unknown) {
-      const msg = e instanceof Error && e.message === 'quota_exceeded'
+      const msg = e instanceof Error && e.message === 'plan_required'
+        ? t('err_plan_required_text')
+        : e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
         : e instanceof Error && e.message === 'input_too_long'
         ? t('err_input_too_long')
@@ -523,7 +531,9 @@ export function WordModal({
       setNoteTranslation(await translateText(trimmed, noteTransLang));
       setNoteTransCollapsed(false);
     } catch (e: unknown) {
-      const msg = e instanceof Error && e.message === 'quota_exceeded'
+      const msg = e instanceof Error && e.message === 'plan_required'
+        ? t('err_plan_required_text')
+        : e instanceof Error && e.message === 'quota_exceeded'
         ? t('quota_exceeded_msg')
         : e instanceof Error && e.message === 'input_too_long'
         ? t('err_input_too_long')

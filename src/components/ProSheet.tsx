@@ -50,13 +50,21 @@ const GOLD_GRAD:  readonly [string, string, string] = [GOLD_LIGHT, GOLD_MAIN, GO
 
 // ── Premium accent palettes ───────────────────────────────────────────────────
 const HERO_GRAD: readonly [string, string, string] = ['#0C2350', '#173B72', '#0A1C3E'];
-const CHECK_GREEN = '#22C55E';
 const CROSS_GRAY  = '#B6BAC2';
 
 // Paid plan tiers: Basic (polished blue) · Premium (most luxurious gold).
 const BLUE_GRAD:  readonly [string, string] = ['#60A5FA', '#3B82F6'];
 const BASIC_ACCENT   = '#1D4ED8';   // blue text/icons on the light-blue Basic column
 const PREMIUM_ACCENT = '#B45309';   // deep amber text/icons on the light-gold Premium column
+
+function isDarkColor(color: string): boolean {
+  const hex = color.replace('#', '').slice(0, 6);
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return false;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return r * 0.299 + g * 0.587 + b * 0.114 < 128;
+}
 
 // ── Demo word + sentence ──────────────────────────────────────────────────────
 interface DemoContent { word: string; sentence: string }
@@ -287,6 +295,7 @@ const Waveform = React.memo(function Waveform({
 // it. Text wraps fully so the sentence is never clipped.
 
 interface VoiceRowProps {
+  pal: Palette;
   text: string;
   demoKeyDefault: DemoKey;
   demoKeyAi: DemoKey;
@@ -296,22 +305,22 @@ interface VoiceRowProps {
   aiLabel: string;
 }
 
-const VoiceRow = React.memo(({ text, demoKeyDefault, demoKeyAi, playingDemo, onPlay, defaultLabel, aiLabel }: VoiceRowProps) => {
+const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo, onPlay, defaultLabel, aiLabel }: VoiceRowProps) => {
   const defaultPlaying = playingDemo === demoKeyDefault;
   const aiPlaying      = playingDemo === demoKeyAi;
   return (
     <View style={av.row}>
-      <Text style={av.sampleText}>{text}</Text>
+      <Text style={[av.sampleText, { color: pal.text }]}>{text}</Text>
       <View style={av.btnRow}>
         {/* Default voice — understated outline */}
         <TouchableOpacity
-          style={av.defaultBtn}
+          style={[av.defaultBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
           onPress={() => onPlay(demoKeyDefault)}
           activeOpacity={0.8}
           accessibilityLabel={defaultLabel}
         >
-          <Ionicons name={defaultPlaying ? 'pause' : 'play'} size={13} color="#64748B" />
-          <Text style={av.defaultLabel} numberOfLines={1}>{defaultLabel}</Text>
+          <Ionicons name={defaultPlaying ? 'pause' : 'play'} size={13} color={pal.sub} />
+          <Text style={[av.defaultLabel, { color: pal.sub }]} numberOfLines={1}>{defaultLabel}</Text>
         </TouchableOpacity>
 
         {/* AI High-Quality voice — rich blue, soft glow + live waveform */}
@@ -339,28 +348,28 @@ const VoiceRow = React.memo(({ text, demoKeyDefault, demoKeyAi, playingDemo, onP
 
 interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: TranslationKey) => string }
 
-const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardProps) => {
+const AIVoiceCard = React.memo(({ pal, demo, playingDemo, onPlay, t }: AIVoiceCardProps) => {
   const aiLabel = t('cmp_ai_voice_hq');
   return (
     <View style={av.cardShadow}>
-      <View style={av.card}>
+      <View style={[av.card, { backgroundColor: pal.card, borderColor: pal.border }]}>
 
         {/* Header */}
         <View style={av.header}>
-          <Text style={av.title}>{aiLabel}</Text>
+          <Text style={[av.title, { color: pal.text }]}>{aiLabel}</Text>
         </View>
 
         {/* Default vs AI comparison */}
-        <View style={av.panel}>
-          <VoiceRow text={demo.word}     demoKeyDefault="word_default"     demoKeyAi="word_ai"     playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
-          <View style={av.divider} />
-          <VoiceRow text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+        <View style={[av.panel, { backgroundColor: pal.input, borderColor: pal.border }]}>
+          <VoiceRow pal={pal} text={demo.word}     demoKeyDefault="word_default"     demoKeyAi="word_ai"     playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <View style={[av.divider, { backgroundColor: pal.border }]} />
+          <VoiceRow pal={pal} text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
         </View>
 
         <PlanLabels basic premium t={t} />
 
         {/* Description moved below the Basic/Premium label */}
-        <Text style={av.subtitle}>{t('ai_voice_promo_desc')}</Text>
+        <Text style={[av.subtitle, { color: pal.sub }]}>{t('ai_voice_promo_desc')}</Text>
 
       </View>
     </View>
@@ -373,8 +382,8 @@ const AIVoiceCard = React.memo(({ demo, playingDemo, onPlay, t }: AIVoiceCardPro
 // Renders the preview image only once it has decoded — nothing shows before its
 // own source is ready, and no other feature's image can flash in.
 const FeatureImage = React.memo(function FeatureImage({
-  source, wide = false,
-}: { source: number; wide?: boolean }) {
+  source, pal, wide = false,
+}: { source: number; pal: Palette; wide?: boolean }) {
   const [ready, setReady] = useState(false);
   const resolvedSource = Image.resolveAssetSource(source);
   const aspectRatio = resolvedSource?.width && resolvedSource?.height
@@ -382,8 +391,8 @@ const FeatureImage = React.memo(function FeatureImage({
     : 1260 / 2736;
 
   return (
-    <View style={[fs.imageShadow, wide && fs.wideImageNoShadow]}>
-      <View style={[fs.imageClip, wide && fs.wideImageClip, { width: wide ? FEAT_WIDE_IMG_W : FEAT_IMG_W, aspectRatio }]}>
+    <View style={[fs.imageShadow, { backgroundColor: pal.input }, wide && fs.wideImageNoShadow]}>
+      <View style={[fs.imageClip, wide && fs.wideImageClip, { width: wide ? FEAT_WIDE_IMG_W : FEAT_IMG_W, aspectRatio, backgroundColor: pal.input, borderColor: pal.border }]}>
         <Image
           source={source}
           style={[fs.image, { opacity: ready ? 1 : 0 }]}
@@ -436,7 +445,7 @@ const FeatureIconVisual = React.memo(function FeatureIconVisual({
 });
 
 const FeatureSection = React.memo(function FeatureSection({
-  title, description, note, source, wideImage = false, accent, icon, basic, premium, t,
+  title, description, note, source, wideImage = false, accent, icon, basic, premium, pal, t,
 }: {
   title: string;
   description: string;
@@ -447,22 +456,23 @@ const FeatureSection = React.memo(function FeatureSection({
   icon: React.ComponentProps<typeof Ionicons>['name'];
   basic: boolean;
   premium: boolean;
+  pal: Palette;
   t: (k: TranslationKey) => string;
 }) {
   return (
     <View style={[fs.cardShadow, { shadowColor: accent }]}>
-      <View style={fs.card}>
+      <View style={[fs.card, { backgroundColor: pal.card, borderColor: pal.border }]}>
         <View style={fs.header}>
-          <Text style={fs.title} numberOfLines={2}>{title}</Text>
+          <Text style={[fs.title, { color: pal.text }]} numberOfLines={2}>{title}</Text>
         </View>
         {source != null
-          ? <FeatureImage source={source} wide={wideImage} />
+          ? <FeatureImage source={source} pal={pal} wide={wideImage} />
           : <FeatureIconVisual icon={icon} accent={accent} />}
         <PlanLabels basic={basic} premium={premium} t={t} />
         {/* Description moved below the Basic/Premium label */}
-        <Text style={fs.desc}>{description}</Text>
+        <Text style={[fs.desc, { color: pal.sub }]}>{description}</Text>
         {note ? (
-          <Text style={fs.noteText}>{`※ ${note}`}</Text>
+          <Text style={[fs.noteText, { color: pal.sub }]}>{`※ ${note}`}</Text>
         ) : null}
       </View>
     </View>
@@ -653,6 +663,7 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
 }) {
   const reduceMotion = useReduceMotion();
   const appActive    = useAppActive();
+  const dark         = isDarkColor(pal.bg);
 
   const scrollX          = useRef(new Animated.Value(FIRST_REAL * CARO_SLOT)).current;
   const scrollRef        = useRef<ScrollView>(null);
@@ -790,9 +801,9 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
         </Text>
 
         {/* Value promo — polished Basic-plan blue banner beneath the description */}
-        <View style={s.themePromo}>
+        <View style={[s.themePromo, { borderColor: dark ? `${BLUE_GRAD[0]}66` : `${BLUE_GRAD[1]}66` }]}>
           <LinearGradient
-            colors={['#EFF5FF', '#DBE8FF']}
+            colors={dark ? ['#142746', '#10213C'] : ['#EFF5FF', '#DBE8FF']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
@@ -800,8 +811,8 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
           <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.themePromoBadge}>
             <Ionicons name="pricetags" size={14} color="#fff" />
           </LinearGradient>
-          <Text style={s.themePromoText}>{t('themes_value_promo')}</Text>
-          <Ionicons name="sparkles" size={14} color={BLUE_GRAD[1]} style={{ marginLeft: 10 }} />
+          <Text style={[s.themePromoText, { color: dark ? '#BFDBFE' : BASIC_ACCENT }]}>{t('themes_value_promo')}</Text>
+          <Ionicons name="sparkles" size={14} color={dark ? BLUE_GRAD[0] : BLUE_GRAD[1]} style={{ marginLeft: 10 }} />
         </View>
       </View>
 
@@ -811,19 +822,16 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
 
 // ── Plan comparison table ─────────────────────────────────────────────────────
 
-type CellValue = 'check' | 'cross' | 'infinite' | string;
+type CellValue = 'cross' | 'circle' | string;
 
-// One plan cell. `accent` colors text + the infinity icon; check/cross stay
+// One plan cell. `accent` colors text + the outlined circle; crosses stay
 // consistent across every column for easy scanning.
 function TableCell({ value, accent }: { value: CellValue; accent: string }) {
-  if (value === 'check') {
-    return <Ionicons name="checkmark-circle" size={19} color={CHECK_GREEN} />;
-  }
   if (value === 'cross') {
     return <Ionicons name="close" size={16} color={CROSS_GRAY} />;
   }
-  if (value === 'infinite') {
-    return <Ionicons name="infinite" size={20} color={accent} />;
+  if (value === 'circle') {
+    return <Ionicons name="ellipse-outline" size={17} color={accent} />;
   }
   return (
     <Text style={[tbl.cellValue, { color: accent }]} numberOfLines={3}>
@@ -838,16 +846,16 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
   t, pal,
 }: { t: (k: TranslationKey) => string; pal: Palette }) {
   const rows: TableRowData[] = [
-    { label: t('cmp_themes'),           basic: 'infinite', premium: 'infinite' },
-    { label: t('cmp_ai_voice_hq'),      basic: 'infinite', premium: 'infinite' },
-    { label: t('cmp_custom_voice'),     basic: 'cross', premium: 'infinite' },
-    { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'infinite' },
-    { label: t('cmp_ai_example'),       basic: 'cross', premium: 'infinite' },
-    { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'infinite' },
-    { label: t('cmp_ai_meaning'),       basic: 'cross', premium: 'infinite' },
-    { label: t('cmp_ai_translation'),   basic: 'cross', premium: 'infinite' },
-    { label: t('cmp_priority_support'), basic: 'check', premium: 'check' },
-    { label: t('cmp_data_transfer'),    basic: 'check', premium: 'check' },
+    { label: t('cmp_themes'),           basic: 'circle', premium: 'circle' },
+    { label: t('cmp_ai_voice_hq'),      basic: 'circle', premium: 'circle' },
+    { label: t('cmp_custom_voice'),     basic: 'cross', premium: 'circle' },
+    { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle' },
+    { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle' },
+    { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'circle' },
+    { label: t('cmp_ai_meaning'),       basic: 'cross', premium: 'circle' },
+    { label: t('cmp_ai_translation'),   basic: 'cross', premium: 'circle' },
+    { label: t('cmp_priority_support'), basic: 'circle', premium: 'circle' },
+    { label: t('cmp_data_transfer'),    basic: 'circle', premium: 'circle' },
   ];
 
   return (
@@ -1233,6 +1241,7 @@ export function ProSheet({
               icon={f.icon}
               basic={f.basic}
               premium={f.premium}
+              pal={pal}
               t={t}
             />
           ))}

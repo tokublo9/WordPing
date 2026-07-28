@@ -263,6 +263,8 @@ export function SwipeableCard({
     if (__DEV__) console.warn('[TTS] playback failed:', msg || 'unknown_error');
     if (msg === 'quota_exceeded') {
       Alert.alert(t('ai_voice_unavailable'), t('quota_exceeded_msg'));
+    } else if (msg === 'plan_required') {
+      Alert.alert(t('ai_voice_unavailable'), t('err_plan_required_speech'));
     }
   }, [t]);
 

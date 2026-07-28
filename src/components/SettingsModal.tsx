@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 
 import type { Appearance, Palette } from '../types';
-import { TOGGLE_OFF_TRACK_COLOR } from '../constants';
+import { getToggleOffTrackColor } from '../constants';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
@@ -392,7 +392,10 @@ function VoiceSelectionScreen({
       );
     } catch (error) {
       if (error instanceof Error && error.message === 'cancelled') return;
-      Alert.alert(t('ai_voice_unavailable'), t('quota_exceeded_msg'));
+      const msg = error instanceof Error && error.message === 'plan_required'
+        ? t('err_plan_required_speech')
+        : t('quota_exceeded_msg');
+      Alert.alert(t('ai_voice_unavailable'), msg);
     } finally {
       if (previewSequence.current === sequence) setPreviewingVoice(null);
     }
@@ -553,6 +556,7 @@ function ToggleRow({ label, description, value, onToggle, themeColor, pal }: {
   label: string; description: string; value: boolean;
   onToggle: (v: boolean) => void; themeColor: string; pal: Palette;
 }) {
+  const offTrackColor = getToggleOffTrackColor(pal.bg, pal.border);
   return (
     <View style={styles.toggleRow}>
       <View style={styles.toggleText}>
@@ -562,9 +566,9 @@ function ToggleRow({ label, description, value, onToggle, themeColor, pal }: {
       <Switch
         value={value}
         onValueChange={onToggle}
-        trackColor={{ false: TOGGLE_OFF_TRACK_COLOR, true: themeColor + '88' }}
+        trackColor={{ false: offTrackColor, true: themeColor + '88' }}
         thumbColor={value ? themeColor : '#fff'}
-        ios_backgroundColor={TOGGLE_OFF_TRACK_COLOR}
+        ios_backgroundColor={offTrackColor}
       />
     </View>
   );

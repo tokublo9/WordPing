@@ -71,6 +71,7 @@ export interface AppModalsProps {
     onClose(): void;
     voice: AIVoice;
     isPremium: boolean;
+    onUpgrade(): void;
     onHistoryAvailabilityChange(hasHistory: boolean): void;
   };
 
@@ -212,6 +213,7 @@ export function AppModals({
         themeColor={themeColor}
         voice={textToSpeech.voice}
         isPremium={textToSpeech.isPremium}
+        onUpgrade={textToSpeech.onUpgrade}
         onHistoryAvailabilityChange={textToSpeech.onHistoryAvailabilityChange}
       />
 
