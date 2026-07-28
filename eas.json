@@ -6,13 +6,22 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_fLEoATmCLXIwIwewgvKndTEIPXG"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_fLEoATmCLXIwIwewgvKndTEIPXG"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_REPLACE_WITH_PRODUCTION_IOS_KEY"
+      }
     }
   },
   "submit": {
