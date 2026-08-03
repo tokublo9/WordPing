@@ -17,6 +17,7 @@ import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
 import { TestStatusIcon } from '../../components/TestStatusIcon';
 import { ScrollBar } from '../../components/ScrollBar';
+import { mergeVisibleCardOrder } from '../../features/cards/cardSorting';
 
 const SEL_BAR_H = 68;
 
@@ -46,9 +47,9 @@ export interface WordListSelectionProps {
 
 export interface WordListReorderProps {
   active: boolean;
-  sortDir: 'asc' | 'desc' | null;
+  sortDir: 'asc' | 'desc' | 'registration' | null;
   onSortByLevel(dir: 'asc' | 'desc'): void;
-  onResetOrder(): void;
+  onRegistrationOrder(): void;
   onReorder(reorderedCards: WordCard[]): void;
   onExit(): void;
   onCancel(): void;
@@ -453,6 +454,7 @@ export function WordListScreen({
               ]}
               onPress={() => reorder.onSortByLevel('asc')}
               activeOpacity={0.85}
+              accessibilityLabel={t('reorder_sort_best_first')}
             >
               <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_HIGH_COLOR }]} />
               <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
@@ -474,6 +476,7 @@ export function WordListScreen({
               ]}
               onPress={() => reorder.onSortByLevel('desc')}
               activeOpacity={0.85}
+              accessibilityLabel={t('reorder_sort_least_first')}
             >
               <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_LOW_COLOR }]} />
               <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
@@ -488,12 +491,35 @@ export function WordListScreen({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[reorderToolStyles.resetBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
-              onPress={reorder.onResetOrder}
+              style={[
+                reorderToolStyles.registrationBtn,
+                { backgroundColor: pal.card, borderColor: pal.border },
+                reorder.sortDir === 'registration' && {
+                  borderColor: themeColor,
+                  backgroundColor: themeColor + '14',
+                },
+              ]}
+              onPress={reorder.onRegistrationOrder}
               activeOpacity={0.85}
-              accessibilityLabel={t('reorder_original')}
+              accessibilityLabel={t('reorder_registration_order')}
+              accessibilityState={{ selected: reorder.sortDir === 'registration' }}
             >
-              <Ionicons name="refresh-outline" size={16} color={pal.sub} />
+              <Ionicons
+                name="list-outline"
+                size={15}
+                color={reorder.sortDir === 'registration' ? themeColor : pal.sub}
+              />
+              <Text
+                style={[
+                  reorderToolStyles.registrationText,
+                  { color: reorder.sortDir === 'registration' ? themeColor : pal.text },
+                ]}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.55}
+              >
+                {t('reorder_registration_order')}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -502,12 +528,7 @@ export function WordListScreen({
           key="persistent-word-list"
           cards={filteredFolderCards}
           onReorder={reorderedVisibleCards => {
-            const visibleIds = new Set(reorderedVisibleCards.map(card => card.id));
-            let visibleIndex = 0;
-            const mergedOrder = folderCards.map(card =>
-              visibleIds.has(card.id) ? reorderedVisibleCards[visibleIndex++] : card
-            );
-            reorder.onReorder(mergedOrder);
+            reorder.onReorder(mergeVisibleCardOrder(folderCards, reorderedVisibleCards));
           }}
           pal={pal}
           reorderEnabled={reorder.active}
@@ -696,19 +717,29 @@ const reorderToolStyles = StyleSheet.create({
     gap: 4,
     paddingBottom: 10,
   },
-  // Original-order reset — icon-only button beside the Lowest First pill.
-  resetBtn: {
-    width: 32,
-    height: 32,
-    flexShrink: 0,
+  registrationBtn: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 38,
+    flexDirection: 'row',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
+  },
+  registrationText: {
+    flexShrink: 1,
+    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: '600',
   },
   // Direction sort pills — colored level circle → arrow → label.
   sortBtn: {
-    flexShrink: 1,
+    flex: 1,
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',

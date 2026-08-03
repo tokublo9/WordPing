@@ -6,6 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "test:audio": "node --test tests/audioTiming.test.cjs",
+    "test:cards": "node --test tests/cardSorting.test.cjs",
+    "test:bulk": "node --test tests/bulkImport.test.cjs",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "validate": "npm run typecheck && npx expo export --platform ios --platform android --output-dir /tmp/wordping-dist"

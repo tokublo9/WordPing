@@ -169,6 +169,7 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
     return [
       {
         id:          WELCOME_CARD_IDS[0],
+        createdAt:   1,
         word:        meaningTexts[0],
         meaning:     meaningTexts[1],
         note:        '',
@@ -178,6 +179,7 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
       },
       {
         id:          WELCOME_CARD_IDS[1],
+        createdAt:   2,
         word:        meaningTexts[2],
         meaning:     meaningTexts[3],
         note:        '',
@@ -190,6 +192,7 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
 
   return WELCOME_CARD_IDS.map((id, i) => ({
     id,
+    createdAt:   i + 1,
     word:        wordTexts[i],
     meaning:     meaningTexts[i],
     note:        '',

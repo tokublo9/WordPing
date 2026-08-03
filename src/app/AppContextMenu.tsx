@@ -18,13 +18,14 @@ export interface AppContextMenuProps {
   onDismiss(): void;
   onSelectEntries(): void;
   onReorder(): void;
+  onBulkImport(): void;
   onToggleLevelLabels(): void;
   onOpenSettings(): void;
 }
 
 export function AppContextMenu({
   visible, anchor, context, pal, showLevelLabels,
-  onDismiss, onSelectEntries, onReorder, onToggleLevelLabels, onOpenSettings,
+  onDismiss, onSelectEntries, onReorder, onBulkImport, onToggleLevelLabels, onOpenSettings,
 }: AppContextMenuProps) {
   const t = useLang();
   return (
@@ -55,6 +56,23 @@ export function AppContextMenu({
         </TouchableOpacity>
         {context === 'cards' && (
           <>
+            <View style={[styles.sep, { backgroundColor: pal.border }]} />
+            <TouchableOpacity
+              style={styles.item}
+              onPress={onBulkImport}
+              accessibilityRole="button"
+              accessibilityLabel={t('bulk_import')}
+            >
+              <Ionicons name="documents-outline" size={17} color={pal.text} />
+              <Text
+                style={[styles.itemText, { color: pal.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {t('bulk_import')}
+              </Text>
+            </TouchableOpacity>
             <View style={[styles.sep, { backgroundColor: pal.border }]} />
             <TouchableOpacity style={styles.item} onPress={onToggleLevelLabels}>
               <Ionicons
@@ -100,7 +118,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 16,
   },
-  itemText: { fontSize: 15 },
+  itemText: { flexShrink: 1, fontSize: 15 },
   sep:      { height: StyleSheet.hairlineWidth },
   groupSep: { height: 3 },
 });

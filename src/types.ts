@@ -21,6 +21,7 @@ export interface ReviewEntry {
 
 export interface WordCard {
   id: string;
+  createdAt?: number;     // stable original registration time; legacy cards may omit it
   word: string;
   meaning: string;
   note: string;

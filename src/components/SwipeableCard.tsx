@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -13,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BlurView } from 'expo-blur';
-import { speak, speakWordCard, stopPlayback } from '../lib/tts';
+import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
+import { WordCardVoiceButton } from './WordCardVoiceButton';
 
 import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
@@ -237,65 +237,13 @@ export function SwipeableCard({
     : 0;
 
   // ── Voice ────────────────────────────────────────────────────────────────────
-  const [loadingVoice, setLoadingVoice] = useState<'word' | 'meaning' | null>(null);
-  // Ref mirrors state so async handlers always read the current value, not a stale closure.
-  const loadingVoiceRef = useRef<'word' | 'meaning' | null>(null);
-  // Incremented on every speak call so the finishing handler of a superseded call
-  // does not clear the loading indicator that the new call just set.
-  const speakSeqRef = useRef(0);
-
-  const setVoiceState = useCallback((v: 'word' | 'meaning' | null) => {
-    loadingVoiceRef.current = v;
-    setLoadingVoice(v);
-  }, []);
-
-  // Stop playback and reset state when the card is unmounted (e.g. folder switch).
-  useEffect(() => () => {
-    if (loadingVoiceRef.current) {
-      stopPlayback();
-      loadingVoiceRef.current = null;
-    }
-  }, []);
-
-  const handleTTSError = useCallback((e: unknown) => {
-    const msg = e instanceof Error ? e.message : '';
-    if (msg === 'cancelled') return; // Normal: a newer play request superseded this one.
-    if (__DEV__) console.warn('[TTS] playback failed:', msg || 'unknown_error');
-    if (msg === 'quota_exceeded') {
-      Alert.alert(t('ai_voice_unavailable'), t('quota_exceeded_msg'));
-    } else if (msg === 'plan_required') {
-      Alert.alert(t('ai_voice_unavailable'), t('err_plan_required_speech'));
-    }
-  }, [t]);
-
-  const speakWord = useCallback(async () => {
-    if (item.audioUri && !isPremium) { onCustomVoiceLocked?.(); return; }
-    if (loadingVoiceRef.current === 'word') {
-      ++speakSeqRef.current; // invalidate the in-flight call's seq check
-      stopPlayback();
-      setVoiceState(null);
-      return;
-    }
-    const seq = ++speakSeqRef.current;
-    setVoiceState('word');
-    try {
-      await speakWordCard(item, isSubscribed);
-    } catch (e) { handleTTSError(e); }
-    if (speakSeqRef.current === seq) setVoiceState(null);
-  }, [item.word, item.wordLang, item.audioUri, item.audioSpeed, item.audioVolume, isSubscribed, isPremium, onCustomVoiceLocked, setVoiceState, handleTTSError]);
-
-  const speakMeaning = useCallback(async () => {
-    if (loadingVoiceRef.current === 'meaning') {
-      ++speakSeqRef.current;
-      stopPlayback();
-      setVoiceState(null);
-      return;
-    }
-    const seq = ++speakSeqRef.current;
-    setVoiceState('meaning');
-    try { await speak(item.meaning, isSubscribed, item.meaningLang); } catch (e) { handleTTSError(e); }
-    if (speakSeqRef.current === seq) setVoiceState(null);
-  }, [item.meaning, item.meaningLang, isSubscribed, setVoiceState, handleTTSError]);
+  const { voiceState, playWord: speakWord, playMeaning: speakMeaning } =
+    useWordCardVoicePlayback({
+      item,
+      isSubscribed,
+      isPremium,
+      onCustomVoiceLocked,
+    });
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -388,22 +336,15 @@ export function SwipeableCard({
                 <View style={[styles.expandDivider, { backgroundColor: pal.border }]} />
                 <View style={styles.expandMeaningRow}>
                   <Text style={[styles.expandMeaningText, { color: pal.text }]}>{item.meaning}</Text>
-                  <TouchableOpacity
+                  <WordCardVoiceButton
                     onPress={voiceLocked ? onVoiceLocked : speakMeaning}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={[styles.expandMeaningVoice, reorderMode && styles.reorderHiddenControl]}
+                    phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
+                    themeColor={themeColor}
+                    inactiveColor={pal.sub}
+                    locked={voiceLocked}
                     disabled={reorderMode}
-                  >
-                    {voiceLocked ? (
-                      <Ionicons name="lock-closed-outline" size={15} color={pal.sub} style={{ opacity: 0.6 }} />
-                    ) : (
-                      <Ionicons
-                        name={loadingVoice === 'meaning' ? 'volume-high' : 'volume-medium-outline'}
-                        size={17}
-                        color={loadingVoice === 'meaning' ? themeColor : pal.sub}
-                      />
-                    )}
-                  </TouchableOpacity>
+                    style={[styles.expandMeaningVoice, reorderMode && styles.reorderHiddenControl]}
+                  />
                 </View>
                 {!!item.note?.trim() && (
                   <Text style={[styles.expandNoteText, { color: pal.sub }]}>{item.note}</Text>
@@ -428,29 +369,17 @@ export function SwipeableCard({
                 style={[styles.cornerBtns, reorderMode && styles.reorderHiddenControl]}
                 pointerEvents={reorderMode ? 'none' : 'box-none'}
               >
-                <TouchableOpacity
+                <WordCardVoiceButton
                   onPress={voiceLocked ? onVoiceLocked : (isFlipped && !showFullCard ? speakMeaning : speakWord)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  disabled={voiceLocked}
-                >
-                  {voiceLocked ? (
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={15}
-                      color={isFlipped && !showFullCard ? 'rgba(255,255,255,0.5)' : pal.sub}
-                      style={{ opacity: 0.6 }}
-                    />
-                  ) : (
-                    <Ionicons
-                      name={loadingVoice === (isFlipped && !showFullCard ? 'meaning' : 'word') ? 'volume-high' : 'volume-medium-outline'}
-                      size={17}
-                      color={isFlipped && !showFullCard
-                        ? (loadingVoice === 'meaning' ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.7)')
-                        : (loadingVoice === 'word' ? themeColor : pal.sub)
-                      }
-                    />
-                  )}
-                </TouchableOpacity>
+                  phase={voiceState?.target === (isFlipped && !showFullCard ? 'meaning' : 'word')
+                    ? voiceState.phase
+                    : undefined}
+                  themeColor={themeColor}
+                  inactiveColor={pal.sub}
+                  onDarkBackground={isFlipped && !showFullCard}
+                  locked={voiceLocked}
+                  disabled={reorderMode}
+                />
                 {!!item.notifOff && (
                   <View style={{ opacity: 0.45 }} pointerEvents="none">
                     <Ionicons

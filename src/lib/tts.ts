@@ -1,8 +1,37 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { MAX_AI_INPUT_CHARS } from '../constants';
 import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
-import { requestAISpeech } from './openaiGateway';
+import {
+  AI_VOICE_SAMPLES,
+  AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
+  getAIVoiceSample,
+} from './aiVoiceSamples';
+import {
+  hasReachedAISpeechAudibleEnd,
+  safeAudibleStartSeconds,
+  withSafeAudibleStartMs,
+} from './audioTiming';
+import {
+  getAISpeechRequestTiming,
+  getAISpeechTiming,
+  isAISpeechTimingDiagnostics,
+  requestAISpeech,
+  type AISpeechTimingDiagnostics,
+} from './openaiGateway';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
+import {
+  DeduplicatedRequestRegistry,
+  isSupportedCachedWav,
+  normalizeTTSRequest,
+  serializeTTSCacheKey,
+} from './ttsRequest';
+import {
+  ControlledTTSPreloadQueue,
+  DEFAULT_TTS_PRELOAD_CONCURRENCY,
+  isAIPronunciationPreloadEligible,
+} from './ttsPreloadQueue';
+import type { TTSPlaybackPhase } from './ttsPlaybackState';
+export type { TTSPlaybackPhase } from './ttsPlaybackState';
 
 // expo-audio is lazy-required so that a missing native module (e.g. in an
 // older Expo Go build) throws at call-time rather than at module evaluation.
@@ -34,10 +63,40 @@ let activeAIVoice: AIVoice = DEFAULT_AI_VOICE;
 // ── Persistent audio file cache ───────────────────────────────────────────────
 
 const TTS_CACHE_DIR = 'tts';
+// Incrementing this avoids replaying pre-fix files whose encoded duration still
+// includes OpenAI's trailing silence.
+const TTS_CACHE_VERSION = 'trimmed-v3-leading';
+
+type AudioCacheSource = 'memory' | 'disk' | 'network';
+
+interface CachedAudio {
+  uri: string;
+  source: AudioCacheSource;
+  cacheLookupDurationMs: number;
+  networkDurationMs?: number;
+  requestDeduplicated?: boolean;
+}
+
+export interface TTSPlaybackOptions {
+  buttonPressedAtMs?: number;
+  onPhaseChange?: (phase: TTSPlaybackPhase) => void;
+}
+
+interface AudioCacheLookupOptions {
+  onNetworkRequired?: () => void;
+  loadingIndicatorAvailable?: boolean;
+  trackAsActiveGeneration?: boolean;
+  sampleVersion?: string;
+}
 
 // Session-level index: cache key → file URI (avoids repeated File.exists checks)
 const fileUriIndex = new Map<string, string>();
-const inFlight = new Map<string, Promise<string>>();
+const networkRequests = new DeduplicatedRequestRegistry<CachedAudio>();
+const preloadQueue = new ControlledTTSPreloadQueue(DEFAULT_TTS_PRELOAD_CONCURRENCY);
+const voiceSamplePreloadQueue = new ControlledTTSPreloadQueue(AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY);
+const timingByFileUri = new Map<string, AISpeechTimingDiagnostics>();
+const validatedFileUris = new Set<string>();
+let activeGenerationController: AbortController | null = null;
 
 // FNV-1a 32-bit hash — deterministic, filesystem-safe cache filenames
 function fnv32a(str: string): string {
@@ -48,65 +107,427 @@ function fnv32a(str: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
-function ttsCacheFile(text: string, voice: AIVoice): File {
+function ttsCacheFile(cacheKey: string, voice: AIVoice): File {
   const dir = new Directory(Paths.cache, TTS_CACHE_DIR);
   dir.create({ intermediates: true, idempotent: true });
-  return new File(dir, `${voice}_${fnv32a(`${voice}\x00${text}`)}.wav`);
+  return new File(dir, `${TTS_CACHE_VERSION}_${voice}_${fnv32a(`${TTS_CACHE_VERSION}\x00${cacheKey}`)}.wav`);
 }
 
-function fetchAndCacheAudio(text: string, voice: AIVoice): Promise<string> {
-  if (!text.trim()) return Promise.reject(new Error('input_empty'));
-  if (text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
+function legacyTTSCacheFile(text: string, voice: AIVoice): File {
+  const dir = new Directory(Paths.cache, TTS_CACHE_DIR);
+  dir.create({ intermediates: true, idempotent: true });
+  return new File(dir, `${TTS_CACHE_VERSION}_${voice}_${fnv32a(`${TTS_CACHE_VERSION}\x00${voice}\x00${text}`)}.wav`);
+}
 
-  const key = `${voice}\x00${text}`;
+function ttsTimingFile(audioFile: File): File {
+  return new File(audioFile.parentDirectory, `${audioFile.name}.timing.json`);
+}
+
+function restoreCachedTiming(audioFile: File): void {
+  const timingFile = ttsTimingFile(audioFile);
+  if (!timingFile.exists) return;
+  try {
+    const parsed: unknown = JSON.parse(timingFile.textSync());
+    if (isAISpeechTimingDiagnostics(parsed)) timingByFileUri.set(audioFile.uri, parsed);
+  } catch {
+    // Timing metadata is diagnostic only; a corrupt sidecar must not prevent playback.
+  }
+}
+
+async function validateCachedAudioFile(file: File): Promise<boolean> {
+  if (!file.exists) return false;
+  if (validatedFileUris.has(file.uri)) return true;
+  try {
+    if (!isSupportedCachedWav(await file.bytes())) return false;
+    validatedFileUris.add(file.uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function invalidateCachedAudioFile(file: File): void {
+  validatedFileUris.delete(file.uri);
+  timingByFileUri.delete(file.uri);
+  const timingFile = ttsTimingFile(file);
+  try { if (timingFile.exists) timingFile.delete(); } catch {}
+  try { if (file.exists) file.delete(); } catch {}
+}
+
+async function fetchAndCacheAudio(
+  text: string,
+  voice: AIVoice,
+  options: AudioCacheLookupOptions = {},
+): Promise<CachedAudio> {
+  const request = normalizeTTSRequest(text, voice, options.sampleVersion);
+  if (!request.text) return Promise.reject(new Error('input_empty'));
+  if (request.text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
+
+  const key = serializeTTSCacheKey(request);
+  const lookupStartedAtMs = performance.now();
 
   // 1. Session-level memory index
   const indexed = fileUriIndex.get(key);
   if (indexed) {
-    if (new File(indexed).exists) {
+    const indexedFile = new File(indexed);
+    if (await validateCachedAudioFile(indexedFile)) {
+      const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
       if (__DEV__) console.log('[TTS cache] memory hit', { voice, textLength: text.length });
-      return Promise.resolve(indexed);
+      if (__DEV__) console.log('[TTS playback stages]', {
+        source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'memory',
+        loadingIndicatorDisplayed: false, cacheLookupMs: cacheLookupDurationMs,
+      });
+      return { uri: indexed, source: 'memory', cacheLookupDurationMs };
     }
+    if (__DEV__) console.warn('[TTS cache warning]', {
+      cacheSource: 'memory', cacheStatus: indexedFile.exists ? 'invalid-or-unreadable' : 'missing',
+    });
+    invalidateCachedAudioFile(indexedFile);
     fileUriIndex.delete(key);
   }
 
   // 2. Persistent disk cache
-  const cachedFile = ttsCacheFile(text, voice);
-  if (cachedFile.exists) {
+  const cachedFile = ttsCacheFile(key, voice);
+  if (await validateCachedAudioFile(cachedFile)) {
+    const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
     if (__DEV__) console.log('[TTS cache] disk hit', { voice, textLength: text.length });
+    restoreCachedTiming(cachedFile);
     fileUriIndex.set(key, cachedFile.uri);
-    return Promise.resolve(cachedFile.uri);
+    if (__DEV__) console.log('[TTS playback stages]', {
+      source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'disk',
+      loadingIndicatorDisplayed: false, cacheLookupMs: cacheLookupDurationMs,
+    });
+    return { uri: cachedFile.uri, source: 'disk', cacheLookupDurationMs };
+  }
+  if (cachedFile.exists) {
+    if (__DEV__) console.warn('[TTS cache warning]', {
+      cacheSource: 'disk', cacheStatus: 'invalid-or-unreadable', cacheKeyVersion: 'current',
+    });
+    invalidateCachedAudioFile(cachedFile);
+  }
+
+  // Preserve valid pre-normalization cache files instead of charging for a
+  // second generation after this cache-key migration.
+  const legacyFile = legacyTTSCacheFile(request.text, voice);
+  if (!request.contentVersion && await validateCachedAudioFile(legacyFile)) {
+    const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
+    restoreCachedTiming(legacyFile);
+    fileUriIndex.set(key, legacyFile.uri);
+    if (__DEV__) console.log('[TTS playback stages]', {
+      source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'disk',
+      cacheKeyVersion: 'legacy', loadingIndicatorDisplayed: false,
+      cacheLookupMs: cacheLookupDurationMs,
+    });
+    return { uri: legacyFile.uri, source: 'disk', cacheLookupDurationMs };
+  }
+  if (!request.contentVersion && legacyFile.exists) {
+    if (__DEV__) console.warn('[TTS cache warning]', {
+      cacheSource: 'disk', cacheStatus: 'invalid-or-unreadable', cacheKeyVersion: 'legacy',
+    });
+    invalidateCachedAudioFile(legacyFile);
   }
 
   // 3. Deduplicate concurrent requests for the same text+voice
-  const existing = inFlight.get(key);
-  if (existing) {
-    if (__DEV__) console.log('[TTS cache] in-flight dedup', { voice, textLength: text.length });
-    return existing;
-  }
-
-  if (__DEV__) console.log('[TTS cache] miss — fetching', { voice, textLength: text.length });
-
-  const p = (async () => {
-    try {
-      const ab = await requestAISpeech(text, voice);
-      const file = ttsCacheFile(text, voice);
+  const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
+  if (__DEV__) console.log('[TTS playback stages]', {
+    source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'network',
+    loadingIndicatorDisplayed: Boolean(options.loadingIndicatorAvailable),
+    cacheLookupMs: cacheLookupDurationMs,
+  });
+  options.onNetworkRequired?.();
+  const pending = networkRequests.run(key, async signal => {
+      const networkStartedAtMs = performance.now();
+      const ab = await requestAISpeech(
+        request.text,
+        voice,
+        signal,
+        request.format,
+        request.contentVersion ? 'speech_sample' : 'speech',
+        request.contentVersion,
+      );
+      const networkCompletedAtMs = performance.now();
+      const timing = getAISpeechTiming(ab);
+      const requestTiming = getAISpeechRequestTiming(ab);
+      const fileWriteStartedAtMs = performance.now();
+      const file = ttsCacheFile(key, voice);
       file.create({ overwrite: true });
       file.write(new Uint8Array(ab));
+      validatedFileUris.add(file.uri);
+      const fileWriteCompletedAtMs = performance.now();
+      if (timing) {
+        timingByFileUri.set(file.uri, timing);
+        const timingFile = ttsTimingFile(file);
+        timingFile.create({ overwrite: true });
+        timingFile.write(JSON.stringify(withSafeAudibleStartMs(timing)));
+      }
       fileUriIndex.set(key, file.uri);
-      return file.uri;
-    } finally {
-      inFlight.delete(key);
-    }
-  })();
+      if (__DEV__ && requestTiming) {
+        console.log('[TTS playback stages]', {
+          source: 'word-card',
+          phase: 'network-audio-ready',
+          ttsRequestStartMs: 0,
+          ttsRequestCompleteMs: Math.round(
+            requestTiming.responseReceivedAtMs - requestTiming.requestStartedAtMs,
+          ),
+          audioDownloadCompleteMs: Math.round(
+            requestTiming.downloadCompletedAtMs - requestTiming.requestStartedAtMs,
+          ),
+          sessionLookupMs: Math.round(
+            requestTiming.sessionLookupCompletedAtMs - requestTiming.sessionLookupStartedAtMs,
+          ),
+          responseTransferMs: Math.round(
+            requestTiming.downloadCompletedAtMs - requestTiming.responseReceivedAtMs,
+          ),
+          localFileWriteMs: Math.round(fileWriteCompletedAtMs - fileWriteStartedAtMs),
+          edgeRequestId: requestTiming.edgeRequestId,
+          edgeCache: requestTiming.edgeCache,
+          edgeColdStart: requestTiming.edgeColdStart,
+          edgeTotalMs: requestTiming.edgeTotalMs,
+          edgeAuthMs: requestTiming.edgeAuthMs,
+          edgePlanMs: requestTiming.edgePlanMs,
+          edgePreOpenAIMs: requestTiming.edgePreOpenAIMs,
+          edgeOpenAIMs: requestTiming.edgeOpenAIMs,
+          edgeAudioReadMs: requestTiming.edgeAudioReadMs,
+          edgeWavAnalysisMs: requestTiming.edgeWavAnalysisMs,
+          edgeResponsePreparationMs: requestTiming.edgeResponsePreparationMs,
+        });
+      }
+      return {
+        uri: file.uri,
+        source: 'network',
+        cacheLookupDurationMs,
+        networkDurationMs: Math.round(networkCompletedAtMs - networkStartedAtMs),
+      };
+  });
+  const trackAsActiveGeneration = options.trackAsActiveGeneration !== false;
+  if (trackAsActiveGeneration) activeGenerationController = pending.controller;
+  if (__DEV__) console.log(
+    pending.deduplicated ? '[TTS cache] in-flight dedup' : '[TTS cache] miss — fetching',
+    { voice, textLength: request.text.length },
+  );
+  return pending.promise
+    .then(audio => ({
+      ...audio,
+      cacheLookupDurationMs,
+      requestDeduplicated: pending.deduplicated,
+    }))
+    .finally(() => {
+      if (trackAsActiveGeneration && activeGenerationController === pending.controller) {
+        activeGenerationController = null;
+      }
+    });
+}
 
-  inFlight.set(key, p);
-  return p;
+export interface AIPronunciationPreloadOptions {
+  entryId: string;
+  text: string;
+  voice: AIVoice;
+  hasAIAccess: boolean;
+  hasCustomAudio?: boolean;
+}
+
+/**
+ * Queue pronunciation generation after registration without creating a player
+ * or changing playback UI. Manual playback uses the same fetch/cache function
+ * and request registry, so it can join a running preload.
+ */
+export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): void {
+  if (!isAIPronunciationPreloadEligible(options)) return;
+
+  const request = normalizeTTSRequest(options.text, options.voice);
+  if (!request.text || request.text.length > MAX_AI_INPUT_CHARS || !options.entryId) return;
+  const key = serializeTTSCacheKey(request);
+
+  const queued = preloadQueue.enqueue(key, options.entryId, async () => {
+    const startedAtMs = performance.now();
+    if (__DEV__) console.log('[TTS preload diagnostic]', {
+      phase: 'preload-started',
+      voice: request.voice,
+      textLength: request.text.length,
+      concurrencyLimit: DEFAULT_TTS_PRELOAD_CONCURRENCY,
+    });
+
+    try {
+      const audio = await fetchAndCacheAudio(request.text, request.voice, {
+        loadingIndicatorAvailable: false,
+        trackAsActiveGeneration: false,
+      });
+      const durationMs = Math.round(performance.now() - startedAtMs);
+      if (__DEV__ && audio.source !== 'network') console.log('[TTS preload diagnostic]', {
+        phase: 'cache-hit',
+        cacheSource: audio.source,
+        cacheLookupMs: audio.cacheLookupDurationMs,
+        loadingIndicatorDisplayed: false,
+      });
+      if (__DEV__ && audio.requestDeduplicated) console.log('[TTS preload diagnostic]', {
+        phase: 'in-flight-request-reused',
+        cacheSource: 'network',
+        loadingIndicatorDisplayed: false,
+      });
+      if (__DEV__) console.log('[TTS preload diagnostic]', {
+        phase: 'preload-completed',
+        cacheSource: audio.source,
+        preloadDurationMs: durationMs,
+        cacheLookupMs: audio.cacheLookupDurationMs,
+        networkGenerationDownloadDurationMs: audio.networkDurationMs ?? 0,
+        loadingIndicatorDisplayed: false,
+        discardedForDeletedEntry: !preloadQueue.hasOwners(key),
+      });
+    } catch (error) {
+      if (__DEV__) console.warn('[TTS preload diagnostic]', {
+        phase: 'preload-failed',
+        preloadDurationMs: Math.round(performance.now() - startedAtMs),
+        loadingIndicatorDisplayed: false,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : 'unknown_error',
+      });
+      // Best-effort only. The request registry removes failed work so a later
+      // user tap retries through the normal path.
+    }
+  });
+
+  if (__DEV__) console.log('[TTS preload diagnostic]', {
+    phase: queued.deduplicated ? 'preload-in-flight-reused' : 'preload-queued',
+    queueState: queued.state,
+    loadingIndicatorDisplayed: false,
+  });
+  void queued.promise.catch(() => {});
+}
+
+/** Stop associating queued/running preload work with a deleted card. */
+export function cancelAIPronunciationPreload(entryId: string): void {
+  if (!entryId) return;
+  const result = preloadQueue.cancelOwner(entryId);
+  if (__DEV__ && (result.queuedCancelled > 0 || result.runningDiscarded > 0)) {
+    console.log('[TTS preload diagnostic]', {
+      phase: 'entry-deleted',
+      queuedCancelled: result.queuedCancelled,
+      runningResultsDiscarded: result.runningDiscarded,
+    });
+  }
+}
+
+export interface AIVoiceSamplePreloadOptions {
+  hasAIAccess: boolean;
+  activeEntitlement?: 'basic' | 'premium';
+  triggerReason: string;
+}
+
+const VOICE_SAMPLE_PRELOAD_OWNER = 'natural-ai-voice-samples';
+const failedVoiceSampleKeys = new Set<string>();
+let voiceSamplePreloadEligible = false;
+let activeVoiceSamplePreload: Promise<void> | null = null;
+let pendingVoiceSamplePreloadTrigger: AIVoiceSamplePreloadOptions | null = null;
+
+/**
+ * Preload the fixed Natural AI Voice previews without creating a player or
+ * changing any button state. Disk files are the persisted completion state and
+ * are structurally validated before they are trusted after an app restart.
+ */
+export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions): void {
+  const wasEligible = voiceSamplePreloadEligible;
+  voiceSamplePreloadEligible = options.hasAIAccess;
+  if (!options.hasAIAccess) {
+    const cancelled = voiceSamplePreloadQueue.cancelOwner(VOICE_SAMPLE_PRELOAD_OWNER);
+    if (__DEV__) console.log('[AI voice sample preload]', {
+      phase: 'eligibility-inactive',
+      triggerReason: options.triggerReason,
+      queuedCancelled: cancelled.queuedCancelled,
+      runningDiscarded: cancelled.runningDiscarded,
+    });
+    return;
+  }
+
+  if (activeVoiceSamplePreload) {
+    if (!wasEligible) pendingVoiceSamplePreloadTrigger = options;
+    if (__DEV__) console.log('[AI voice sample preload]', {
+      phase: 'trigger-reused',
+      triggerReason: options.triggerReason,
+      activeEntitlement: options.activeEntitlement,
+    });
+    return;
+  }
+
+  const preloadStartedAtMs = performance.now();
+  if (__DEV__) console.log('[AI voice sample preload]', {
+    phase: 'started',
+    triggerReason: options.triggerReason,
+    activeEntitlement: options.activeEntitlement,
+    totalSamples: AI_VOICE_SAMPLES.length,
+    concurrencyLimit: AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
+    loadingIndicatorDisplayed: false,
+  });
+
+  const work = AI_VOICE_SAMPLES.map((sample, index) => {
+    const request = normalizeTTSRequest(sample.text, sample.voice, sample.contentVersion);
+    const key = serializeTTSCacheKey(request);
+    if (failedVoiceSampleKeys.has(key)) return Promise.resolve();
+
+    const queued = voiceSamplePreloadQueue.enqueue(key, VOICE_SAMPLE_PRELOAD_OWNER, async () => {
+      if (!voiceSamplePreloadEligible) return;
+      const sampleStartedAtMs = performance.now();
+      try {
+        const audio = await fetchAndCacheAudio(sample.text, sample.voice, {
+          loadingIndicatorAvailable: false,
+          trackAsActiveGeneration: false,
+          sampleVersion: sample.contentVersion,
+        });
+        if (__DEV__) console.log('[AI voice sample preload]', {
+          phase: audio.source === 'network' ? 'sample-completed' : 'cache-hit',
+          sampleId: sample.id,
+          queueProgress: `${index + 1}/${AI_VOICE_SAMPLES.length}`,
+          cacheSource: audio.source,
+          inFlightRequestReused: Boolean(audio.requestDeduplicated),
+          sampleDurationMs: Math.round(performance.now() - sampleStartedAtMs),
+          networkGenerationDownloadDurationMs: audio.networkDurationMs ?? 0,
+          loadingIndicatorDisplayed: false,
+        });
+      } catch (error) {
+        failedVoiceSampleKeys.add(key);
+        if (__DEV__) console.warn('[AI voice sample preload]', {
+          phase: 'sample-failed',
+          sampleId: sample.id,
+          queueProgress: `${index + 1}/${AI_VOICE_SAMPLES.length}`,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+          errorMessage: error instanceof Error ? error.message : 'unknown_error',
+          loadingIndicatorDisplayed: false,
+        });
+      }
+    });
+    if (__DEV__ && queued.deduplicated) console.log('[AI voice sample preload]', {
+      phase: 'queue-request-reused',
+      sampleId: sample.id,
+      queueState: queued.state,
+    });
+    return queued.promise;
+  });
+
+  const run = Promise.allSettled(work).then(() => {
+    if (__DEV__) console.log('[AI voice sample preload]', {
+      phase: 'finished',
+      totalSamples: AI_VOICE_SAMPLES.length,
+      failedSamples: failedVoiceSampleKeys.size,
+      totalDurationMs: Math.round(performance.now() - preloadStartedAtMs),
+      loadingIndicatorDisplayed: false,
+    });
+  });
+  const trackedRun = run.finally(() => {
+    if (activeVoiceSamplePreload !== trackedRun) return;
+    activeVoiceSamplePreload = null;
+    const nextTrigger = pendingVoiceSamplePreloadTrigger;
+    pendingVoiceSamplePreloadTrigger = null;
+    if (voiceSamplePreloadEligible && nextTrigger) syncAIVoiceSamplePreloading(nextTrigger);
+  });
+  activeVoiceSamplePreload = trackedRun;
+  void activeVoiceSamplePreload.catch(() => {});
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 function stopCurrent() {
+  const generationController = activeGenerationController;
+  if (generationController) networkRequests.cancel(generationController);
+  activeGenerationController = null;
   const stop = stopActivePlayer;
   stopActivePlayer = null;
   if (stop) {
@@ -166,13 +587,15 @@ function detectLocale(text: string): string {
   return 'en-US';
 }
 
-function speakFree(text: string, locale: string): Promise<void> {
+function speakFree(text: string, locale: string, options: TTSPlaybackOptions = {}): Promise<void> {
   const playbackKey = `device:${locale}:${text}`;
   const playbackEpoch = beginPlayback(playbackKey);
   if (playbackEpoch == null) return Promise.resolve();
+  options.onPhaseChange?.('ready');
 
   return new Promise<void>((resolve, reject) => {
     const finish = () => {
+      options.onPhaseChange?.('idle');
       finishPlayback(playbackKey, playbackEpoch);
       resolve();
     };
@@ -183,6 +606,7 @@ function speakFree(text: string, locale: string): Promise<void> {
       try {
         speechLib().speak(text, {
           language:  l,
+          onStart:   () => options.onPhaseChange?.('playing'),
           onDone:    finish,
           onStopped: finish,
           onError: (e) => {
@@ -192,6 +616,8 @@ function speakFree(text: string, locale: string): Promise<void> {
               if (base !== l) { attempt(base, true); return; }
             }
             finishPlayback(playbackKey, playbackEpoch);
+            options.onPhaseChange?.('failed');
+            options.onPhaseChange?.('idle');
             reject(e instanceof Error ? e : new Error(String(e)));
           },
         });
@@ -202,6 +628,8 @@ function speakFree(text: string, locale: string): Promise<void> {
           if (base !== l) { attempt(base, true); return; }
         }
         finishPlayback(playbackKey, playbackEpoch);
+        options.onPhaseChange?.('failed');
+        options.onPhaseChange?.('idle');
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     }
@@ -211,16 +639,70 @@ function speakFree(text: string, locale: string): Promise<void> {
 
 // ── OpenAI TTS (Pro users) ────────────────────────────────────────────────────
 
-async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promise<void> {
+async function speakWithAI(
+  text: string,
+  voice: AIVoice = activeAIVoice,
+  options: TTSPlaybackOptions = {},
+  sampleVersion?: string,
+): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
+  const buttonPressAtMs = options.buttonPressedAtMs ?? performance.now();
+  let loadingIndicatorDisplayed = false;
+  let networkLoadingStartedAtMs: number | null = null;
+  let reportedPhase: TTSPlaybackPhase = 'idle';
+  const reportPhase = (phase: TTSPlaybackPhase) => {
+    if (reportedPhase === phase) return;
+    reportedPhase = phase;
+    options.onPhaseChange?.(phase);
+  };
 
-  const playbackKey = `ai:${voice}:${text}`;
+  const playbackKey = `ai:${voice}:${sampleVersion ?? 'card'}:${text}`;
   const myEpoch = beginPlayback(playbackKey);
   if (myEpoch == null) return;
+  reportPhase('checking-cache');
+
+  if (__DEV__) {
+    console.log('[TTS playback stages]', {
+      source: 'word-card',
+      phase: 'button-press',
+      buttonPressMs: 0,
+      textLength: text.length,
+    });
+  }
 
   try {
     // ── Fetch audio (or hit local file cache) ────────────────────────────────
-    const fileUri = await fetchAndCacheAudio(text, voice);
+    const audioLoadStartedAtMs = performance.now();
+    const {
+      uri: fileUri,
+      source: cacheSource,
+      cacheLookupDurationMs,
+      networkDurationMs,
+      requestDeduplicated,
+    } = await fetchAndCacheAudio(text, voice, {
+      loadingIndicatorAvailable: Boolean(options.onPhaseChange),
+      onNetworkRequired: () => {
+        networkLoadingStartedAtMs = performance.now();
+        loadingIndicatorDisplayed = Boolean(options.onPhaseChange);
+        reportPhase('generating-or-downloading');
+      },
+      sampleVersion,
+    });
+    const audioLoadCompletedAtMs = performance.now();
+    reportPhase('ready');
+    if (__DEV__) {
+      console.log('[TTS playback stages]', {
+        source: 'word-card',
+        phase: 'audio-load-complete',
+        cacheSource,
+        sinceButtonPressMs: Math.round(audioLoadCompletedAtMs - buttonPressAtMs),
+        audioLoadDurationMs: Math.round(audioLoadCompletedAtMs - audioLoadStartedAtMs),
+        cacheLookupDurationMs,
+        networkGenerationDownloadDurationMs: networkDurationMs,
+        inFlightRequestReused: Boolean(requestDeduplicated),
+        loadingIndicatorDisplayed,
+      });
+    }
 
     // If another speak call arrived while we were fetching, bail out.
     if (myEpoch !== epoch) throw new Error('cancelled');
@@ -235,17 +717,32 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
     if (myEpoch !== epoch) throw new Error('cancelled');
 
     // ── Create player and play ──────────────────────────────────────────────
-    const player = createAudioPlayer({ uri: fileUri });
+    // The server has already removed the silent tail. A short status interval
+    // now only minimizes native completion-event delivery latency.
+    const player = createAudioPlayer({ uri: fileUri }, { updateInterval: 50 });
     currentPlayer = player;
+    const audioTiming = timingByFileUri.get(fileUri);
+    const safeStartSeconds = safeAudibleStartSeconds(audioTiming);
 
     return await new Promise<void>((resolve, reject) => {
       let settled = false;
+      let lastStatus: AudioStatus | null = null;
+      let loggedStart = false;
+      let loggedAudibleStart = false;
+      let loggedFirstProgress = false;
+      let reportedPlaying = false;
+      let startInFlight = false;
+      let playbackCommandAtMs: number | null = null;
 
-      const finish = (err?: Error, stopping = false) => {
+      const finish = (
+        err?: Error,
+        stopNativePlayback = false,
+        completionReason: 'audible-end' | 'native-end' | 'stopped' = 'native-end',
+      ) => {
         if (settled) return;
         settled = true;
         sub.remove();
-        if (stopping) {
+        if (stopNativePlayback) {
           try { player.pause(); } catch {}
         }
         try { player.remove(); } catch {}
@@ -253,24 +750,155 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
         if (stopActivePlayer === stop) stopActivePlayer = null;
         releaseAudioFocus(focusToken);
         focusToken = null;
+        reportPhase('idle');
+        if (__DEV__ && !err && lastStatus) {
+          console.log('[TTS playback timing]', {
+            source: 'word-card',
+            phase: 'complete',
+            completionReason,
+            detectedAudibleStartMs: audioTiming?.audibleStartMs,
+            playbackPositionMs: Math.round(lastStatus.currentTime * 1000),
+            reportedDurationMs: Math.round(lastStatus.duration * 1000),
+            detectedAudibleEndMs: audioTiming?.audibleEndMs ?? Math.round(lastStatus.duration * 1000),
+            beforeTrim: audioTiming ? {
+              durationMs: audioTiming.originalDurationMs,
+              detectedAudibleStartMs: audioTiming.originalAudibleStartMs,
+              detectedAudibleEndMs: audioTiming.originalAudibleEndMs,
+            } : undefined,
+            afterTrim: audioTiming ? {
+              durationMs: audioTiming.durationMs,
+              detectedAudibleStartMs: audioTiming.audibleStartMs,
+              detectedAudibleEndMs: audioTiming.audibleEndMs,
+            } : undefined,
+          });
+        }
         err ? reject(err) : resolve();
       };
 
       const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
-        if (status.didJustFinish) {
-          finish();
+        lastStatus = status;
+        if (status.isLoaded && playbackCommandAtMs == null) void startPlayer();
+        if (status.playing && !reportedPlaying) {
+          reportedPlaying = true;
+          reportPhase('playing');
+        }
+        if (__DEV__ && !loggedFirstProgress && playbackCommandAtMs != null && status.currentTime > 0) {
+          loggedFirstProgress = true;
+          console.log('[TTS playback stages]', {
+            source: 'word-card',
+            phase: 'first-playback-progress',
+            cacheSource,
+            sinceButtonPressMs: Math.round(performance.now() - buttonPressAtMs),
+            sincePlayCommandMs: Math.round(performance.now() - playbackCommandAtMs),
+            playbackPositionMs: Math.round(status.currentTime * 1000),
+            expectedAudibleStartMs: audioTiming?.audibleStartMs,
+          });
+        }
+        if (__DEV__ && !loggedStart && status.duration > 0) {
+          loggedStart = true;
+          console.log('[TTS playback timing]', {
+            source: 'word-card',
+            phase: 'start',
+            detectedAudibleStartMs: audioTiming?.audibleStartMs,
+            safePlaybackStartMs: Math.round(safeStartSeconds * 1000),
+            playbackPositionMs: Math.round(status.currentTime * 1000),
+            reportedDurationMs: Math.round(status.duration * 1000),
+            detectedAudibleEndMs: audioTiming?.audibleEndMs ?? Math.round(status.duration * 1000),
+            beforeTrim: audioTiming ? {
+              durationMs: audioTiming.originalDurationMs,
+              detectedAudibleStartMs: audioTiming.originalAudibleStartMs,
+              detectedAudibleEndMs: audioTiming.originalAudibleEndMs,
+            } : undefined,
+            afterTrim: audioTiming ? {
+              durationMs: audioTiming.durationMs,
+              detectedAudibleStartMs: audioTiming.audibleStartMs,
+              detectedAudibleEndMs: audioTiming.audibleEndMs,
+            } : undefined,
+          });
+        }
+        if (
+          __DEV__ &&
+          !loggedAudibleStart &&
+          playbackCommandAtMs != null &&
+          audioTiming?.audibleStartMs != null &&
+          status.currentTime * 1000 >= audioTiming.audibleStartMs
+        ) {
+          loggedAudibleStart = true;
+          const now = performance.now();
+          console.log('[TTS playback stages]', {
+            source: 'word-card',
+            phase: 'audible-start-observed',
+            cacheSource,
+            actualAudibleStartSinceButtonMs: Math.round(now - buttonPressAtMs),
+            actualAudibleStartSincePlayCommandMs: Math.round(now - playbackCommandAtMs),
+            playbackPositionMs: Math.round(status.currentTime * 1000),
+            detectedAudibleStartMs: audioTiming.audibleStartMs,
+          });
+        }
+        if (hasReachedAISpeechAudibleEnd(status.currentTime, audioTiming)) {
+          // Stop the decoded file's inaudible remainder and resolve immediately
+          // from the position measured by the native player.
+          finish(undefined, true, 'audible-end');
+        } else if (status.didJustFinish) {
+          finish(undefined, false, 'native-end');
         }
       });
-      const stop = () => finish(new Error('cancelled'), true);
+      const stop = () => finish(new Error('cancelled'), true, 'stopped');
       stopActivePlayer = stop;
 
-      try {
-        player.play();
-      } catch (e) {
-        finish(e instanceof Error ? e : new Error(String(e)));
-      }
+      const startPlayer = async () => {
+        if (settled || startInFlight || playbackCommandAtMs != null) return;
+        startInFlight = true;
+        const playerReadyAtMs = performance.now();
+        try {
+          const seekStartedAtMs = performance.now();
+          if (safeStartSeconds > 0) {
+            await player.seekTo(safeStartSeconds, 0, 0);
+          }
+          const seekCompletedAtMs = performance.now();
+          if (settled || myEpoch !== epoch) return;
+          playbackCommandAtMs = performance.now();
+          player.play();
+          if (__DEV__) {
+            console.log('[TTS playback stages]', {
+              source: 'word-card',
+              phase: 'playback-command',
+              cacheSource,
+              playerReadySinceButtonMs: Math.round(playerReadyAtMs - buttonPressAtMs),
+              playerCreationAndLoadMs: Math.round(playerReadyAtMs - audioLoadCompletedAtMs),
+              seekDurationMs: Math.round(seekCompletedAtMs - seekStartedAtMs),
+              seekCompletedSinceButtonMs: Math.round(seekCompletedAtMs - buttonPressAtMs),
+              playbackCommandSinceButtonMs: Math.round(playbackCommandAtMs - buttonPressAtMs),
+              detectedAudibleStartMs: audioTiming?.audibleStartMs,
+              safePlaybackStartMs: Math.round(safeStartSeconds * 1000),
+              detectedAudibleEndMs: audioTiming?.audibleEndMs,
+            });
+          }
+        } catch (e) {
+          finish(e instanceof Error ? e : new Error(String(e)));
+        } finally {
+          startInFlight = false;
+        }
+      };
+
+      if (player.currentStatus.isLoaded) void startPlayer();
     });
+  } catch (error) {
+    reportPhase('failed');
+    if (__DEV__) console.warn('[TTS playback diagnostic]', {
+      source: 'word-card',
+      phase: error instanceof Error && (error.name === 'AbortError' || error.message === 'cancelled')
+        ? 'cancelled' : 'failed',
+      cacheSource: loadingIndicatorDisplayed ? 'network' : 'unresolved',
+      loadingIndicatorDisplayed,
+      networkGenerationDownloadDurationMs: networkLoadingStartedAtMs == null
+        ? undefined : Math.round(performance.now() - networkLoadingStartedAtMs),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : 'unknown_error',
+    });
+    throw error;
   } finally {
+    reportPhase('idle');
     finishPlayback(playbackKey, myEpoch);
   }
 }
@@ -281,17 +909,24 @@ async function speakWithAI(text: string, voice: AIVoice = activeAIVoice): Promis
  * Play a user-attached audio file at the given speed and volume.
  * Integrates with the same stop/cancel machinery as speakFree / speakWithAI.
  */
-export async function speakCustom(uri: string, speed: number, volume: number): Promise<void> {
+export async function speakCustom(
+  uri: string,
+  speed: number,
+  volume: number,
+  options: TTSPlaybackOptions = {},
+): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
 
   const playbackKey = `custom:${uri}:${speed}:${volume}`;
   const myEpoch = beginPlayback(playbackKey);
   if (myEpoch == null) return;
+  options.onPhaseChange?.('checking-cache');
 
   try {
     try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
 
     if (myEpoch !== epoch) throw new Error('cancelled');
+    options.onPhaseChange?.('ready');
 
     const player = createAudioPlayer({ uri });
     player.volume = Math.min(volume, 1.0);
@@ -300,6 +935,7 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
 
     return await new Promise<void>((resolve, reject) => {
       let settled = false;
+      let reportedPlaying = false;
 
       const finish = (err?: Error, stopping = false) => {
         if (settled) return;
@@ -313,10 +949,15 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
         if (stopActivePlayer === stop) stopActivePlayer = null;
         releaseAudioFocus(focusToken);
         focusToken = null;
+        options.onPhaseChange?.('idle');
         err ? reject(err) : resolve();
       };
 
       const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+        if (status.playing && !reportedPlaying) {
+          reportedPlaying = true;
+          options.onPhaseChange?.('playing');
+        }
         if (status.didJustFinish) finish();
       });
       const stop = () => finish(new Error('cancelled'), true);
@@ -324,7 +965,11 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
 
       try { player.play(); } catch (e) { finish(e instanceof Error ? e : new Error(String(e))); }
     });
+  } catch (error) {
+    options.onPhaseChange?.('failed');
+    throw error;
   } finally {
+    options.onPhaseChange?.('idle');
     finishPlayback(playbackKey, myEpoch);
   }
 }
@@ -339,9 +984,12 @@ export async function speakCustom(uri: string, speed: number, volume: number): P
 export function speakWordCard(
   card: { audioUri?: string; audioSpeed?: number; audioVolume?: number; word: string; wordLang?: string },
   isSubscribed: boolean,
+  options?: TTSPlaybackOptions,
 ): Promise<void> {
-  if (card.audioUri) return speakCustom(card.audioUri, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0);
-  return speak(card.word, isSubscribed, card.wordLang);
+  if (card.audioUri) {
+    return speakCustom(card.audioUri, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0, options);
+  }
+  return speak(card.word, isSubscribed, card.wordLang, options);
 }
 
 /**
@@ -351,9 +999,14 @@ export function speakWordCard(
  *   detectLocale() so each card side is always spoken in its own language,
  *   regardless of the app's UI language setting.
  */
-export function speak(text: string, isPro: boolean, forcedLocale?: string): Promise<void> {
-  if (isPro) return speakWithAI(text);
-  return speakFree(text, forcedLocale ?? detectLocale(text));
+export function speak(
+  text: string,
+  isPro: boolean,
+  forcedLocale?: string,
+  options?: TTSPlaybackOptions,
+): Promise<void> {
+  if (isPro) return speakWithAI(text, activeAIVoice, options);
+  return speakFree(text, forcedLocale ?? detectLocale(text), options);
 }
 
 /** Update the voice used by every subsequent subscriber AI playback request. */
@@ -364,8 +1017,12 @@ export function setAIVoicePreference(voice: AIVoice): void {
 }
 
 /** Play a one-off subscriber preview without changing the saved preference. */
-export function previewAIVoice(voice: AIVoice, text: string): Promise<void> {
-  return speakWithAI(text, voice);
+export function previewAIVoice(
+  voice: AIVoice,
+  options?: TTSPlaybackOptions,
+): Promise<void> {
+  const sample = getAIVoiceSample(voice);
+  return speakWithAI(sample.text, voice, options, sample.contentVersion);
 }
 
 /** Stop any active playback immediately (e.g. on component unmount). */

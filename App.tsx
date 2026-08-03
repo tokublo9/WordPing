@@ -15,8 +15,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
-import type { Appearance, Folder } from './src/types';
-import { FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY } from './src/constants';
+import type { Appearance, Folder, WordCard } from './src/types';
+import { FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_WORD_LIMIT, ONBOARDING_KEY } from './src/constants';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
@@ -34,11 +34,28 @@ import { useThemeController } from './src/features/themes/useThemeController';
 import { useFolderNotifications } from './src/features/notifications/useFolderNotifications';
 import { useNotificationRescheduling } from './src/features/notifications/useNotificationRescheduling';
 import { useAppPersistence } from './src/app/useAppPersistence';
-import { setAIVoicePreference } from './src/lib/tts';
+import {
+  cancelAIPronunciationPreload,
+  preloadAIPronunciation,
+  setAIVoicePreference,
+  syncAIVoiceSamplePreloading,
+} from './src/lib/tts';
 import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
+import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
 
 export default function App() {
-  const { isSubscribed, isPremium, isLoaded: isSubscriptionLoaded, subscribe, subscribePremium, restore, unsubscribe } = useSubscription();
+  const {
+    plan,
+    isSubscribed,
+    isPremium,
+    isLoaded: isSubscriptionLoaded,
+    entitlementSource,
+    entitlementRevision,
+    subscribe,
+    subscribePremium,
+    restore,
+    unsubscribe,
+  } = useSubscription();
 
   const {
     themeColor, setThemeColor,
@@ -68,6 +85,8 @@ export default function App() {
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
 
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
+  const [bulkImportVisible, setBulkImportVisible] = useState(false);
+  const [bulkImportFolderId, setBulkImportFolderId] = useState<string | null>(null);
   const [textToSpeechVisible, setTextToSpeechVisible] = useState(false);
   const [hasTextToSpeechHistory, setHasTextToSpeechHistory] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
@@ -85,6 +104,15 @@ export default function App() {
       .catch(() => { if (active) setHasTextToSpeechHistory(false); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!isSubscriptionLoaded) return;
+    syncAIVoiceSamplePreloading({
+      hasAIAccess: plan === 'basic' || plan === 'premium',
+      activeEntitlement: plan === 'basic' || plan === 'premium' ? plan : undefined,
+      triggerReason: entitlementSource ?? 'subscription-state-loaded',
+    });
+  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
 
   // ── Custom voice locked banner ────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
@@ -131,12 +159,26 @@ export default function App() {
     createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
   } = useFolders({ folders, fallbackFolderName: t('default_folder_name'), setFolders, setCards, setMenuVisible });
 
+  const handleCardRegistered = useCallback((card: WordCard) => {
+    preloadAIPronunciation({
+      entryId: card.id,
+      text: card.word,
+      voice: aiVoice,
+      hasAIAccess: isSubscriptionLoaded && isSubscribed,
+      hasCustomAudio: Boolean(card.audioUri),
+    });
+  }, [aiVoice, isSubscribed, isSubscriptionLoaded]);
+
+  const handleCardsDeleted = useCallback((ids: string[]) => {
+    ids.forEach(cancelAIPronunciationPreload);
+  }, []);
+
   const {
     flipped, toggleFlip,
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
-    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleResetOrder,
+    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleRegistrationOrder,
     levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
@@ -153,7 +195,7 @@ export default function App() {
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
     reviewHistory, testClearPending, resetWordReview,
-    openAdd, openEdit, saveCard, deleteCard, toggleCardNotif,
+    openAdd, openEdit, saveCard, bulkImportCards, deleteCard, toggleCardNotif,
     testModeVisible, setTestModeVisible,
   } = useCards({
     cards,
@@ -163,6 +205,8 @@ export default function App() {
     language,
     setMenuVisible,
     onWordLimitReached: () => { setPaywallReason('words'); setPaywallVisible(true); },
+    onCardRegistered: handleCardRegistered,
+    onCardsDeleted: handleCardsDeleted,
   });
 
   const currentFolder = folders.find(f => f.id === currentFolderId) ?? null;
@@ -186,6 +230,14 @@ export default function App() {
   const openPaywall = (reason: 'words' | 'voice') => {
     setPaywallReason(reason);
     setPaywallVisible(true);
+  };
+
+  const openBulkImport = () => {
+    const destinationFolderId = resolveBulkImportDestination(currentFolderId);
+    if (!destinationFolderId) return;
+    setBulkImportFolderId(destinationFolderId);
+    setBulkImportVisible(true);
+    setMenuVisible(false);
   };
 
   const openMenu = () => {
@@ -353,7 +405,7 @@ export default function App() {
             active: reorderMode,
             sortDir: reorderSortDir,
             onSortByLevel: handleSortByLevel,
-            onResetOrder: handleResetOrder,
+            onRegistrationOrder: handleRegistrationOrder,
             onReorder: (reorderedCards) =>
               setCards(prev => [
                 ...reorderedCards,
@@ -421,6 +473,15 @@ export default function App() {
           reviewHistory,
           testClearPending,
           onResetAll: resetWordReview,
+        }}
+        bulkImport={{
+          visible: bulkImportVisible,
+          onClose: () => setBulkImportVisible(false),
+          existingTexts: cards
+            .filter(card => card.folderId === bulkImportFolderId)
+            .map(card => card.word),
+          availableSlots: isSubscribed ? undefined : Math.max(0, FREE_WORD_LIMIT - cards.length),
+          onImport: drafts => bulkImportCards(drafts, bulkImportFolderId ?? ''),
         }}
         notifModal={{
           visible: notificationModalVisible,
@@ -533,6 +594,7 @@ export default function App() {
         onDismiss={() => setMenuVisible(false)}
         onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
         onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
+        onBulkImport={openBulkImport}
         onToggleLevelLabels={() => { setShowLevelLabels(v => !v); setMenuVisible(false); }}
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />

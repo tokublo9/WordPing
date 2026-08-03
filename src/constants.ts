@@ -13,6 +13,7 @@ export const INTERVAL_OPTIONS: IntervalOption[] = [
 ];
 
 export const FREE_THEME_COLOR = '#3B82F6';
+export const DESTRUCTIVE_ACTION_COLOR = '#E05C5C';
 
 export const THEME_COLORS: ThemeColor[] = [
   { name: 'Blue',   value: FREE_THEME_COLOR },
@@ -448,6 +449,8 @@ export const FREE_VOICE_LIMIT = 10;
 export const BASIC_CUSTOM_VOICE_LIMIT = 10;
 
 export const MAX_AI_INPUT_CHARS = 500;
+export const BULK_IMPORT_MAX_ITEMS = 50;
+export const BULK_IMPORT_MAX_ITEM_CHARS = 500;
 
 export const SHOW_FULL_CARD_KEY  = 'card_show_full';
 export const VERTICAL_FLIP_KEY   = 'card_vertical_flip';

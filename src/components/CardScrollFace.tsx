@@ -16,12 +16,20 @@ interface Props {
   // onFlip never fires after a scroll. Horizontal drags are stolen by the parent
   // PanResponder (FlipCardBrowser) without triggering onFlip.
   onFlip: () => void;
-  onVoice: () => void;
-  voiceColor: string;
+  voiceButton?: React.ReactNode;
+  onVoice?: () => void;
+  voiceColor?: string;
   showVoice?: boolean;
 }
 
-export function CardScrollFace({ children, onFlip, onVoice, voiceColor, showVoice = true }: Props) {
+export function CardScrollFace({
+  children,
+  onFlip,
+  voiceButton,
+  onVoice,
+  voiceColor,
+  showVoice = true,
+}: Props) {
   return (
     <View style={s.container}>
       <ScrollView
@@ -44,14 +52,17 @@ export function CardScrollFace({ children, onFlip, onVoice, voiceColor, showVoic
       </ScrollView>
 
       {/* Voice button is outside the ScrollView so it stays fixed while text scrolls. */}
-      {showVoice && (
-        <TouchableOpacity
-          style={s.voiceBtn}
-          onPress={onVoice}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="volume-medium-outline" size={20} color={voiceColor} />
-        </TouchableOpacity>
+      {showVoice && (voiceButton || (onVoice && voiceColor)) && (
+        <View style={voiceButton ? s.wordCardVoiceBtn : s.voiceBtn}>
+          {voiceButton ?? (
+            <TouchableOpacity
+              onPress={onVoice}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="volume-medium-outline" size={20} color={voiceColor} />
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );
@@ -76,6 +87,14 @@ const s = StyleSheet.create({
     zIndex: 2,
     width: 36,
     height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wordCardVoiceBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

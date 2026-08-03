@@ -3,9 +3,23 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import type { ReviewEntry, WordCard } from '../../types';
 import { translate } from '../../i18n';
-import { ALL_LEVEL_KEYS, LEVEL_ORDER } from './levels';
-import { FREE_WORD_LIMIT } from '../../constants';
+import { ALL_LEVEL_KEYS } from './levels';
+import {
+  BULK_IMPORT_MAX_ITEM_CHARS,
+  BULK_IMPORT_MAX_ITEMS,
+  FREE_WORD_LIMIT,
+} from '../../constants';
 import { createId } from '../../utils/createId';
+import {
+  nextRegistrationTimestamp,
+  sortByRating,
+  sortByRegistrationOrder,
+} from './cardSorting';
+import {
+  createBulkImportBatch,
+  type BulkImportDraft,
+  type BulkImportResult,
+} from './bulkImport';
 
 export interface UseCardsParams {
   cards: WordCard[];
@@ -15,6 +29,8 @@ export interface UseCardsParams {
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
   onWordLimitReached(): void;
+  onCardRegistered?(card: WordCard): void;
+  onCardsDeleted?(ids: string[]): void;
 }
 
 export interface UseCardsReturn {
@@ -32,12 +48,12 @@ export interface UseCardsReturn {
   setNotifForSelected(notifOff: boolean): void;
   // Reorder
   reorderMode: boolean;
-  reorderSortDir: 'asc' | 'desc' | null;
+  reorderSortDir: 'asc' | 'desc' | 'registration' | null;
   enterReorderMode(): void;
   exitReorderMode(): void;
   cancelReorderMode(): void;
   handleSortByLevel(dir: 'asc' | 'desc'): void;
-  handleResetOrder(): void;
+  handleRegistrationOrder(): void;
   // Level filter
   levelFilter: Set<string>;
   isFilterActive: boolean;
@@ -83,6 +99,7 @@ export interface UseCardsReturn {
   openAdd(): void;
   openEdit(card: WordCard): void;
   saveCard(): void;
+  bulkImportCards(drafts: readonly BulkImportDraft[], destinationFolderId: string): BulkImportResult;
   deleteCard(id: string): void;
   toggleCardNotif(id: string): void;
   // Test mode
@@ -98,12 +115,14 @@ export function useCards({
   language,
   setMenuVisible,
   onWordLimitReached,
+  onCardRegistered,
+  onCardsDeleted,
 }: UseCardsParams): UseCardsReturn {
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reorderMode, setReorderMode] = useState(false);
-  const [reorderSortDir, setReorderSortDir] = useState<'asc' | 'desc' | null>(null);
+  const [reorderSortDir, setReorderSortDir] = useState<'asc' | 'desc' | 'registration' | null>(null);
   const originalFolderCards = useRef<WordCard[]>([]);
   const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(ALL_LEVEL_KEYS));
   const [showLevelLabels, setShowLevelLabels] = useState(true);
@@ -172,12 +191,14 @@ export function useCards({
   };
 
   const deleteSelected = () => {
+    const deletedIds = [...selectedIds];
     setCards(prev => prev.filter(c => !selectedIds.has(c.id)));
     setFlipped(prev => {
       const next = new Set(prev);
       selectedIds.forEach(id => next.delete(id));
       return next;
     });
+    onCardsDeleted?.(deletedIds);
     exitSelectionMode();
   };
 
@@ -217,25 +238,20 @@ export function useCards({
 
   const handleSortByLevel = (dir: 'asc' | 'desc') => {
     setReorderSortDir(dir);
-    const sorted = [...folderCards].sort((a, b) => {
-      const la = a.testLevel != null ? (LEVEL_ORDER[a.testLevel] ?? 4) : 4;
-      const lb = b.testLevel != null ? (LEVEL_ORDER[b.testLevel] ?? 4) : 4;
-      return dir === 'asc' ? la - lb : lb - la;
-    });
+    const sorted = sortByRating(folderCards, dir === 'asc' ? 'highest' : 'lowest');
     setCards(prev => [
       ...sorted,
       ...prev.filter(c => c.folderId !== currentFolderId),
     ]);
   };
 
-  const handleResetOrder = () => {
-    const orig = originalFolderCards.current;
-    if (!orig.length) return;
+  const handleRegistrationOrder = () => {
+    setReorderSortDir('registration');
+    const sorted = sortByRegistrationOrder(folderCards);
     setCards(prev => [
-      ...orig,
+      ...sorted,
       ...prev.filter(c => c.folderId !== currentFolderId),
     ]);
-    setReorderSortDir(null);
   };
 
   // ── Level filter ──────────────────────────────────────────────────────────────
@@ -326,28 +342,77 @@ export function useCards({
           : c
       ));
     } else {
-      setCards(prev => [
-        ...prev,
-        {
-          id: createId('card'),
-          word: word.trim(),
-          meaning: meaning.trim(),
-          note: note.trim(),
-          folderId: currentFolderId ?? undefined,
-          wordLang: wordFieldLang,
-          meaningLang: meaningFieldLang,
-          audioUri: wordAudioUri,
-          audioSpeed: wordAudioSpeed,
-          audioVolume: wordAudioVolume,
-        },
-      ]);
+      const registeredCard: WordCard = {
+        id: createId('card'),
+        createdAt: nextRegistrationTimestamp(cards),
+        word: word.trim(),
+        meaning: meaning.trim(),
+        note: note.trim(),
+        folderId: currentFolderId ?? undefined,
+        wordLang: wordFieldLang,
+        meaningLang: meaningFieldLang,
+        audioUri: wordAudioUri,
+        audioSpeed: wordAudioSpeed,
+        audioVolume: wordAudioVolume,
+      };
+      setCards(prev => [...prev, registeredCard]);
+      // Queue only after the registration state update has been accepted. The
+      // callback is synchronous and must never await generation or block close.
+      onCardRegistered?.(registeredCard);
     }
     setWordModalVisible(false);
+  };
+
+  const bulkImportCards = (
+    drafts: readonly BulkImportDraft[],
+    destinationFolderId: string,
+  ): BulkImportResult => {
+    if (!destinationFolderId) {
+      return { added: 0, duplicatesSkipped: 0, failed: drafts.length, error: 'destination_missing' };
+    }
+    try {
+      const batch = createBulkImportBatch({
+        drafts,
+        existingCards: cards,
+        destinationFolderId,
+        firstCreatedAt: nextRegistrationTimestamp(cards),
+        maxItems: BULK_IMPORT_MAX_ITEMS,
+        maxItemChars: BULK_IMPORT_MAX_ITEM_CHARS,
+        createId: () => createId('card'),
+      });
+      if (!isSubscribed && cards.length + batch.cards.length > FREE_WORD_LIMIT) {
+        return {
+          added: 0,
+          duplicatesSkipped: batch.duplicatesSkipped,
+          failed: batch.cards.length,
+          error: 'word_limit',
+        };
+      }
+      // One state update feeds the existing AsyncStorage and Supabase snapshot
+      // persistence path. Bulk imports intentionally do not auto-preload AI audio.
+      setCards(prev => [...prev, ...batch.cards]);
+      return {
+        added: batch.cards.length,
+        duplicatesSkipped: batch.duplicatesSkipped,
+        failed: batch.invalidCount,
+      };
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      return {
+        added: 0,
+        duplicatesSkipped: 0,
+        failed: drafts.length,
+        error: code === 'bulk_import_item_limit'
+          ? 'item_limit'
+          : code === 'bulk_import_item_too_long' ? 'item_too_long' : 'unknown',
+      };
+    }
   };
 
   const deleteCard = (id: string) => {
     setCards(prev => prev.filter(c => c.id !== id));
     setFlipped(prev => { const n = new Set(prev); n.delete(id); return n; });
+    onCardsDeleted?.([id]);
   };
 
   const toggleCardNotif = (id: string) => {
@@ -359,7 +424,7 @@ export function useCards({
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
-    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleResetOrder,
+    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleRegistrationOrder,
     levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
@@ -376,7 +441,7 @@ export function useCards({
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
     reviewHistory, testClearPending, resetWordReview,
-    openAdd, openEdit, saveCard, deleteCard, toggleCardNotif,
+    openAdd, openEdit, saveCard, bulkImportCards, deleteCard, toggleCardNotif,
     testModeVisible, setTestModeVisible,
   };
 }

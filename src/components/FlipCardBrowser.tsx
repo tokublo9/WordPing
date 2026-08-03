@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
-import { speak as ttsSpeak, speakWordCard, stopPlayback } from '../lib/tts';
 import { useLang } from '../i18n';
 import {
   FLIP_CARD_H, FLIP_CARD_RADIUS, FLIP_CARD_W,
@@ -19,6 +18,8 @@ import {
   FLIP_WORD_FONT_SIZE,
 } from '../constants';
 import { CardScrollFace } from './CardScrollFace';
+import { WordCardVoiceButton } from './WordCardVoiceButton';
+import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MARGIN     = (SCREEN_W - FLIP_CARD_W) / 2;
@@ -78,7 +79,21 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
   const [idx,     setIdx]     = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [playing, setPlaying] = useState(false);
+
+  const activeVoiceCard = slotCards[currSlot]
+    ? cards.find(candidate => candidate.id === slotCards[currSlot]?.id) ?? slotCards[currSlot]
+    : null;
+  const {
+    voiceState,
+    playWord,
+    playMeaning,
+    stopVoice,
+  } = useWordCardVoicePlayback({
+    item: activeVoiceCard,
+    isSubscribed,
+    isPremium,
+    onCustomVoiceLocked,
+  });
 
   const flipAnim = useRef(new Animated.Value(0)).current;
 
@@ -107,15 +122,12 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
   const rotateKey = verticalFlip ? 'rotateX' : 'rotateY';
 
-  useEffect(() => () => { stopPlayback(); }, []);
-
   // ── Actions ───────────────────────────────────────────────────────────────
 
   // Jump to any arbitrary index (progress scrubber, delete navigation).
   // Resets all slots to a clean layout: slot 0 = curr, slot 1 = next, slot 2 = prev.
   const goTo = useCallback((newIdx: number) => {
-    stopPlayback();
-    setPlaying(false);
+    stopVoice();
     flipAnim.setValue(0);
     setFlipped(false);
     const c  = cardsRef.current;
@@ -127,7 +139,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
     currSlotRef.current = 0;
     setCurrSlot(0);
     setIdx(newIdx);
-  }, [flipAnim]);
+  }, [flipAnim, stopVoice]);
 
   const doFlip = useCallback(() => {
     const toValue = flipped ? 0 : 1;
@@ -135,21 +147,10 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
       .start(() => setFlipped(f => !f));
   }, [flipped, flipAnim]);
 
-  const speakCardSide = useCallback((side: 'word' | 'meaning', card: WordCard) => {
-    if (side === 'word' && card.audioUri && !isPremium) { onCustomVoiceLocked?.(); return; }
-    if (playing) { stopPlayback(); setPlaying(false); return; }
-    setPlaying(true);
-    const p = side === 'word'
-      ? speakWordCard(card, isSubscribed)
-      : ttsSpeak(card.meaning, isSubscribed, card.meaningLang);
-    p.then(() => setPlaying(false)).catch(() => setPlaying(false));
-  }, [playing, isSubscribed, isPremium, onCustomVoiceLocked]);
-
   const handleDelete = useCallback(() => {
     const c = cardsRef.current[idxRef.current];
     if (!c) return;
-    stopPlayback();
-    setPlaying(false);
+    stopVoice();
     if (hasPrevRef.current) {
       goTo(idxRef.current - 1);
     } else if (hasNextRef.current) {
@@ -158,7 +159,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
       // Stay at same index; the useEffect below resyncs slots after onDelete.
     }
     onDelete(c.id);
-  }, [goTo, flipAnim, onDelete]);
+  }, [goTo, flipAnim, onDelete, stopVoice]);
 
   // ── PanResponder ──────────────────────────────────────────────────────────
 
@@ -217,8 +218,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
             setIdx(newIdx);
             flipAnim.setValue(0);
             setFlipped(false);
-            stopPlayback();
-            setPlaying(false);
+            stopVoice();
             transitioningRef.current = false;
           });
 
@@ -352,7 +352,17 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                   <Animated.View
                     style={[s.face, { backgroundColor: pal.card }, { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] }]}
                   >
-                    <CardScrollFace onFlip={doFlip} onVoice={() => speakCardSide('word', c)} voiceColor={themeColor}>
+                    <CardScrollFace
+                      onFlip={doFlip}
+                      voiceButton={(
+                        <WordCardVoiceButton
+                          onPress={playWord}
+                          phase={voiceState?.target === 'word' ? voiceState.phase : undefined}
+                          themeColor={themeColor}
+                          inactiveColor={pal.sub}
+                        />
+                      )}
+                    >
                       <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
                     </CardScrollFace>
                     {c.notifOff && (
@@ -365,7 +375,17 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
                   <Animated.View
                     style={[s.face, s.faceAbsolute, { backgroundColor: pal.card }, { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] }]}
                   >
-                    <CardScrollFace onFlip={doFlip} onVoice={() => speakCardSide('meaning', c)} voiceColor={themeColor}>
+                    <CardScrollFace
+                      onFlip={doFlip}
+                      voiceButton={(
+                        <WordCardVoiceButton
+                          onPress={playMeaning}
+                          phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
+                          themeColor={themeColor}
+                          inactiveColor={pal.sub}
+                        />
+                      )}
+                    >
                       <Text style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
                       {c.note ? <Text style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
                     </CardScrollFace>

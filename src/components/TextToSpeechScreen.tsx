@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Palette } from '../types';
 import {
   getAIVoiceLabel,
@@ -32,6 +31,12 @@ import {
   TEXT_TO_SPEECH_MAX_CHARS,
   type SavedPrototypeSpeech,
 } from '../lib/prototypeTextToSpeech';
+import { isTTSNetworkLoading } from '../lib/ttsPlaybackState';
+import {
+  FULL_SCREEN_SHEET_HEADER,
+  FULL_SCREEN_SHEET_HEADER_ACTION,
+  FullScreenSheet,
+} from './FullScreenSheet';
 
 type FilenameAction =
   | { kind: 'export'; uri: string; filename: string; busyKey: string }
@@ -51,11 +56,12 @@ interface Props {
 export function TextToSpeechScreen({
   visible, onClose, pal, themeColor, voice, isPremium, onUpgrade, onHistoryAvailabilityChange,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [history, setHistory] = useState<SavedPrototypeSpeech[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [activePlaybackId, setActivePlaybackId] = useState<string | null>(null);
+  const [loadingPlaybackId, setLoadingPlaybackId] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [filenameAction, setFilenameAction] = useState<FilenameAction | null>(null);
@@ -67,6 +73,8 @@ export function TextToSpeechScreen({
   const stopAudio = useCallback(() => {
     playbackSequence.current++;
     stopPrototypeSpeech();
+    setActivePlaybackId(null);
+    setLoadingPlaybackId(null);
     setPlayingId(null);
   }, []);
 
@@ -74,6 +82,7 @@ export function TextToSpeechScreen({
     requestController.current?.abort();
     requestController.current = null;
     setGenerating(false);
+    setActivePlaybackId(null);
     setBusyAction(null);
     setFilenameAction(null);
     stopAudio();
@@ -86,6 +95,7 @@ export function TextToSpeechScreen({
     requestController.current = null;
     stopPrototypeSpeech();
     setGenerating(false);
+    setLoadingPlaybackId(null);
     setPlayingId(null);
     setBusyAction(null);
     setFilenameAction(null);
@@ -183,23 +193,36 @@ export function TextToSpeechScreen({
   }, [generating, isPremium, onHistoryAvailabilityChange, onUpgrade, stopAudio, text, voice]);
 
   const togglePlayback = useCallback(async (uri: string, id: string) => {
-    if (playingId === id) {
+    if (activePlaybackId === id) {
       stopAudio();
       return;
     }
 
     const sequence = ++playbackSequence.current;
-    setPlayingId(id);
+    const buttonPressedAtMs = performance.now();
+    setActivePlaybackId(id);
     try {
-      await playPrototypeSpeech(uri);
+      await playPrototypeSpeech(uri, {
+        buttonPressedAtMs,
+        onPhaseChange: phase => {
+          if (playbackSequence.current !== sequence) return;
+          setActivePlaybackId(phase === 'idle' || phase === 'failed' ? null : id);
+          setLoadingPlaybackId(isTTSNetworkLoading(phase) ? id : null);
+          setPlayingId(phase === 'playing' ? id : null);
+        },
+      });
     } catch (error) {
       if (!(error instanceof Error && error.message === 'cancelled')) {
         Alert.alert('Playback unavailable', 'The generated audio could not be played.');
       }
     } finally {
-      if (playbackSequence.current === sequence) setPlayingId(null);
+      if (playbackSequence.current === sequence) {
+        setActivePlaybackId(null);
+        setLoadingPlaybackId(null);
+        setPlayingId(null);
+      }
     }
-  }, [playingId, stopAudio]);
+  }, [activePlaybackId, stopAudio]);
 
   const showInfo = useCallback(() => {
     Alert.alert(
@@ -255,7 +278,9 @@ export function TextToSpeechScreen({
         onPress: () => {
           const key = `delete:${item.id}`;
           setBusyAction(key);
-          if (playingId === `history:${item.id}`) stopAudio();
+          if (
+            activePlaybackId === `history:${item.id}`
+          ) stopAudio();
           void deletePrototypeSpeech(item.id)
             .then(next => {
               setHistory(next);
@@ -266,25 +291,15 @@ export function TextToSpeechScreen({
         },
       },
     ]);
-  }, [onHistoryAvailabilityChange, playingId, stopAudio]);
+  }, [activePlaybackId, onHistoryAvailabilityChange, stopAudio]);
 
   return (
-    <Modal
+    <FullScreenSheet
       visible={visible}
-      animationType="slide"
-      presentationStyle="fullScreen"
+      pal={pal}
       onRequestClose={close}
     >
-      <View
-        style={[
-          styles.screen,
-          {
-            backgroundColor: pal.bg,
-            paddingTop: insets.top,
-            paddingBottom: insets.bottom,
-          },
-        ]}
-      >
+      <View style={styles.screen}>
         <View style={[styles.header, { borderBottomColor: pal.border }]}>
           <TouchableOpacity
             style={styles.headerButton}
@@ -383,7 +398,9 @@ export function TextToSpeechScreen({
               ) : (
                 <View style={styles.historyList}>
                   {history.map(item => {
-                    const itemPlaying = playingId === `history:${item.id}`;
+                    const itemPlaybackId = `history:${item.id}`;
+                    const itemLoading = loadingPlaybackId === itemPlaybackId;
+                    const itemPlaying = playingId === itemPlaybackId;
                     const itemBusy = busyAction?.endsWith(`:${item.id}`) ?? false;
                     return (
                       <View
@@ -402,9 +419,14 @@ export function TextToSpeechScreen({
                           <TouchableOpacity
                             style={[styles.historyPlayButton, { backgroundColor: themeColor }]}
                             onPress={() => togglePlayback(item.uri, `history:${item.id}`)}
-                            accessibilityLabel={itemPlaying ? `Stop ${item.filename}` : `Play ${item.filename}`}
+                            accessibilityLabel={itemLoading
+                              ? 'Loading audio'
+                              : itemPlaying ? `Stop ${item.filename}` : `Play ${item.filename}`}
+                            accessibilityState={{ busy: itemLoading }}
                           >
-                            <Ionicons name={itemPlaying ? 'stop' : 'play'} size={16} color="#fff" />
+                            {itemLoading
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Ionicons name={itemPlaying ? 'stop' : 'play'} size={16} color="#fff" />}
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={[styles.historyActionButton, { backgroundColor: pal.chip }]}
@@ -512,7 +534,7 @@ export function TextToSpeechScreen({
           </KeyboardAvoidingView>
         </Modal>
       </View>
-    </Modal>
+    </FullScreenSheet>
   );
 }
 
@@ -520,15 +542,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   flex: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    ...FULL_SCREEN_SHEET_HEADER,
   },
-  headerButton: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerButton: { ...FULL_SCREEN_SHEET_HEADER_ACTION },
   headerTitle: { fontSize: 17, fontWeight: '600' },
   premiumError: {
     flexDirection: 'row',

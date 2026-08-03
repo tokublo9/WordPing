@@ -1,4 +1,4 @@
-import { Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -20,7 +20,7 @@ import {
   getAIVoiceLabel,
   type AIVoice,
 } from '../lib/aiVoices';
-import { previewAIVoice, stopPlayback } from '../lib/tts';
+import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 
 // TODO: replace with real URLs before release
 const PRIVACY_URL  = 'https://wordping.app/privacy';
@@ -366,30 +366,40 @@ function VoiceSelectionScreen({
   const insets = useSafeAreaInsets();
   const t = useLang();
   const [previewingVoice, setPreviewingVoice] = useState<AIVoice | null>(null);
+  const [loadingVoice, setLoadingVoice] = useState<AIVoice | null>(null);
+  const [activePreviewVoice, setActivePreviewVoice] = useState<AIVoice | null>(null);
   const previewSequence = useRef(0);
 
   const close = useCallback(() => {
     previewSequence.current++;
     stopPlayback();
     setPreviewingVoice(null);
+    setLoadingVoice(null);
+    setActivePreviewVoice(null);
     onClose();
   }, [onClose]);
 
   const preview = useCallback(async (voice: AIVoice) => {
-    if (previewingVoice === voice) {
+    if (activePreviewVoice === voice) {
       previewSequence.current++;
       stopPlayback();
       setPreviewingVoice(null);
+      setLoadingVoice(null);
+      setActivePreviewVoice(null);
       return;
     }
 
     const sequence = ++previewSequence.current;
-    setPreviewingVoice(voice);
+    setActivePreviewVoice(voice);
+    setPreviewingVoice(null);
+    setLoadingVoice(null);
+    const onPhaseChange = (phase: TTSPlaybackPhase) => {
+      if (previewSequence.current !== sequence) return;
+      setLoadingVoice(phase === 'generating-or-downloading' ? voice : null);
+      setPreviewingVoice(phase === 'playing' ? voice : null);
+    };
     try {
-      await previewAIVoice(
-        voice,
-        `Welcome to WordPing. This is the ${getAIVoiceLabel(voice)} voice.`,
-      );
+      await previewAIVoice(voice, { buttonPressedAtMs: performance.now(), onPhaseChange });
     } catch (error) {
       if (error instanceof Error && error.message === 'cancelled') return;
       const msg = error instanceof Error && error.message === 'plan_required'
@@ -397,9 +407,13 @@ function VoiceSelectionScreen({
         : t('quota_exceeded_msg');
       Alert.alert(t('ai_voice_unavailable'), msg);
     } finally {
-      if (previewSequence.current === sequence) setPreviewingVoice(null);
+      if (previewSequence.current === sequence) {
+        setPreviewingVoice(null);
+        setLoadingVoice(null);
+        setActivePreviewVoice(null);
+      }
     }
-  }, [previewingVoice, t]);
+  }, [activePreviewVoice, t]);
 
   useEffect(() => () => {
     previewSequence.current++;
@@ -426,6 +440,7 @@ function VoiceSelectionScreen({
               {group.voices.map(voice => {
                 const selected = voice === selectedVoice;
                 const previewing = voice === previewingVoice;
+                const loading = voice === loadingVoice;
                 const label = getAIVoiceLabel(voice);
                 const description = getAIVoiceDescription(voice);
                 return (
@@ -442,6 +457,8 @@ function VoiceSelectionScreen({
                       previewSequence.current++;
                       stopPlayback();
                       setPreviewingVoice(null);
+                      setLoadingVoice(null);
+                      setActivePreviewVoice(null);
                       onSelect(voice);
                     }}
                     activeOpacity={0.75}
@@ -457,13 +474,18 @@ function VoiceSelectionScreen({
                       style={[styles.previewButton, { backgroundColor: previewing ? themeColor : pal.chip }]}
                       onPress={() => preview(voice)}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      accessibilityLabel={`Preview ${label}`}
+                      accessibilityLabel={loading ? 'Loading audio' : `Preview ${label}`}
+                      accessibilityState={{ busy: loading }}
                     >
-                      <Ionicons
-                        name={previewing ? 'stop' : 'play'}
-                        size={14}
-                        color={previewing ? '#fff' : pal.sub}
-                      />
+                      {loading ? (
+                        <ActivityIndicator size="small" color={pal.sub} />
+                      ) : (
+                        <Ionicons
+                          name={previewing ? 'stop' : 'play'}
+                          size={14}
+                          color={previewing ? '#fff' : pal.sub}
+                        />
+                      )}
                     </TouchableOpacity>
                   </TouchableOpacity>
                 );

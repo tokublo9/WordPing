@@ -11,6 +11,8 @@ import { FolderPickerSheet } from '../components/FolderPickerSheet';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { TextToSpeechScreen } from '../components/TextToSpeechScreen';
 import type { AIVoice } from '../lib/aiVoices';
+import { BulkImportModal } from '../components/BulkImportModal';
+import type { BulkImportDraft, BulkImportResult } from '../features/cards/bulkImport';
 
 // ── Prop types ────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,14 @@ export interface AppModalsProps {
     reviewHistory: ReviewEntry[];
     testClearPending: boolean;
     onResetAll(): void;
+  };
+
+  bulkImport: {
+    visible: boolean;
+    onClose(): void;
+    existingTexts: readonly string[];
+    availableSlots?: number;
+    onImport(drafts: readonly BulkImportDraft[]): Promise<BulkImportResult> | BulkImportResult;
   };
 
   // NotificationModal
@@ -158,7 +168,7 @@ export interface AppModalsProps {
 export function AppModals({
   pal, themeColor, rawThemeColor, isSubscribed, isPremium,
   subscribe, subscribePremium, restore, onManageSubscription,
-  wordModal, notifModal, textToSpeech, settingsModal, paywallModal,
+  wordModal, bulkImport, notifModal, textToSpeech, settingsModal, paywallModal,
   proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
 }: AppModalsProps) {
   return (
@@ -192,6 +202,16 @@ export function AppModals({
         reviewHistory={wordModal.reviewHistory}
         testClearPending={wordModal.testClearPending}
         onResetAll={wordModal.onResetAll}
+      />
+
+      <BulkImportModal
+        visible={bulkImport.visible}
+        onClose={bulkImport.onClose}
+        pal={pal}
+        themeColor={themeColor}
+        existingTexts={bulkImport.existingTexts}
+        availableSlots={bulkImport.availableSlots}
+        onImport={bulkImport.onImport}
       />
 
       <NotificationModal
