@@ -16,7 +16,7 @@ import { WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, WordCard } from './src/types';
-import { FREE_SKIN_IDS, FREE_THEME_COLOR, FREE_WORD_LIMIT, ONBOARDING_KEY } from './src/constants';
+import { FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY } from './src/constants';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
@@ -37,6 +37,7 @@ import { useAppPersistence } from './src/app/useAppPersistence';
 import {
   cancelAIPronunciationPreload,
   preloadAIPronunciation,
+  preloadAIPronunciationLibrary,
   setAIVoicePreference,
   syncAIVoiceSamplePreloading,
 } from './src/lib/tts';
@@ -79,7 +80,7 @@ export default function App() {
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
-    hasLoaded,
+    hasLoaded, cardsLoaded,
   } = useAppBootstrap({ applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
@@ -93,7 +94,6 @@ export default function App() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
   const menuBtnRef = useRef<View>(null);
-  const [paywallReason, setPaywallReason] = useState<'words' | 'voice'>('words');
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
 
@@ -113,6 +113,40 @@ export default function App() {
       triggerReason: entitlementSource ?? 'subscription-state-loaded',
     });
   }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
+
+  // Preload every existing word's AI pronunciation once an entitlement is active, so the
+  // voice icon plays from cache instead of generating on first tap. Guarded by a key
+  // rather than a bare mount check: the sweep must also run when cards finish loading
+  // after the subscription resolves, and must repeat if the chosen voice changes, since
+  // the cache is keyed by voice. Cards added later are covered by handleCardRegistered.
+  const preloadedLibraryKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const hasAIAccess = plan === 'basic' || plan === 'premium';
+    if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess) {
+      // Losing access clears the key so re-subscribing sweeps again.
+      if (!hasAIAccess) preloadedLibraryKeyRef.current = null;
+      return;
+    }
+    if (cards.length === 0) return;
+
+    const key = `${plan} ${aiVoice} ${entitlementRevision}`;
+    if (preloadedLibraryKeyRef.current === key) return;
+    preloadedLibraryKeyRef.current = key;
+
+    preloadAIPronunciationLibrary({
+      entries: cards.map(card => ({
+        id: card.id,
+        text: card.word,
+        hasCustomAudio: Boolean(card.audioUri),
+      })),
+      voice: aiVoice,
+      hasAIAccess: true,
+      triggerReason: entitlementSource ?? 'entitlement-active',
+    });
+  }, [
+    aiVoice, cards, entitlementRevision, entitlementSource,
+    isSubscriptionLoaded, plan, settingsLoaded,
+  ]);
 
   // ── Custom voice locked banner ────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
@@ -201,10 +235,8 @@ export default function App() {
     cards,
     setCards,
     currentFolderId,
-    isSubscribed,
     language,
     setMenuVisible,
-    onWordLimitReached: () => { setPaywallReason('words'); setPaywallVisible(true); },
     onCardRegistered: handleCardRegistered,
     onCardsDeleted: handleCardsDeleted,
   });
@@ -227,10 +259,9 @@ export default function App() {
     t,
   });
 
-  const openPaywall = (reason: 'words' | 'voice') => {
-    setPaywallReason(reason);
-    setPaywallVisible(true);
-  };
+  // The only remaining metered feature is AI voice playback. Words and folders are
+  // unlimited on every plan, so nothing recommends Pro on registration any more.
+  const openVoicePaywall = () => setPaywallVisible(true);
 
   const openBulkImport = () => {
     const destinationFolderId = resolveBulkImportDestination(currentFolderId);
@@ -271,7 +302,7 @@ export default function App() {
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
     showFullCard, verticalFlip, hideAiTools,
-    hasLoaded,
+    hasLoaded, cardsLoaded,
   });
 
   useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
@@ -428,7 +459,7 @@ export default function App() {
             onDelete: deleteCard,
             onMove: openMovePicker,
             onToggleNotif: toggleCardNotif,
-            onVoiceLocked: () => openPaywall('voice'),
+            onVoiceLocked: openVoicePaywall,
             onCustomVoiceLocked: showVoiceLockBanner,
             onOpenAdd: openAdd,
           }}
@@ -451,6 +482,10 @@ export default function App() {
         wordModal={{
           visible: wordModalVisible,
           onClose: () => setWordModalVisible(false),
+          onBulkImport: () => {
+            setWordModalVisible(false);
+            openBulkImport();
+          },
           editingCard,
           word,
           onChangeWord: setWord,
@@ -480,7 +515,6 @@ export default function App() {
           existingTexts: cards
             .filter(card => card.folderId === bulkImportFolderId)
             .map(card => card.word),
-          availableSlots: isSubscribed ? undefined : Math.max(0, FREE_WORD_LIMIT - cards.length),
           onImport: drafts => bulkImportCards(drafts, bulkImportFolderId ?? ''),
         }}
         notifModal={{
@@ -510,7 +544,7 @@ export default function App() {
           onPickAppearance: pickAppearance,
           skinId,
           onPickSkin: setSkinId,
-          onUpgrade: () => { setSettingsModalVisible(false); openPaywall('words'); },
+          onUpgrade: () => { setSettingsModalVisible(false); setProSheetVisible(true); },
           language,
           onPickLanguage: pickLanguage,
           aiVoice,
@@ -524,7 +558,6 @@ export default function App() {
         }}
         paywallModal={{
           visible: paywallVisible,
-          reason: paywallReason,
           onClose: () => setPaywallVisible(false),
         }}
         proSheet={{
@@ -594,7 +627,6 @@ export default function App() {
         onDismiss={() => setMenuVisible(false)}
         onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
         onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
-        onBulkImport={openBulkImport}
         onToggleLevelLabels={() => { setShowLevelLabels(v => !v); setMenuVisible(false); }}
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />

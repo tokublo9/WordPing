@@ -10,7 +10,6 @@ export interface BulkImportDraft {
 export interface AnalyzedBulkImportItem extends BulkImportDraft {
   normalizedText: string;
   duplicateKind: BulkDuplicateKind;
-  tooLong: boolean;
   valid: boolean;
 }
 
@@ -18,8 +17,6 @@ export interface BulkImportAnalysis {
   items: AnalyzedBulkImportItem[];
   validItems: AnalyzedBulkImportItem[];
   duplicateCount: number;
-  tooLongCount: number;
-  exceedsItemLimit: boolean;
 }
 
 function stripCommonListMarker(line: string): string {
@@ -54,8 +51,6 @@ export function resolveBulkImportDestination(currentFolderId: string | null): st
 export function analyzeBulkImport(
   drafts: readonly BulkImportDraft[],
   existingTexts: readonly string[],
-  maxItems: number,
-  maxItemChars: number,
 ): BulkImportAnalysis {
   const existingKeys = new Set(existingTexts.map(bulkDuplicateKey).filter(Boolean));
   const inputKeys = new Set<string>();
@@ -66,13 +61,11 @@ export function analyzeBulkImport(
     if (key && existingKeys.has(key)) duplicateKind = 'existing';
     else if (key && inputKeys.has(key)) duplicateKind = 'input';
     if (key) inputKeys.add(key);
-    const tooLong = normalizedText.length > maxItemChars;
     return {
       ...draft,
       normalizedText,
       duplicateKind,
-      tooLong,
-      valid: Boolean(normalizedText) && duplicateKind == null && !tooLong,
+      valid: Boolean(normalizedText) && duplicateKind == null,
     };
   });
   const validItems = items.filter(item => item.valid);
@@ -80,12 +73,6 @@ export function analyzeBulkImport(
     items,
     validItems,
     duplicateCount: items.filter(item => item.duplicateKind != null).length,
-    // A duplicate will be skipped, so an oversized duplicate must not block
-    // otherwise valid items from being imported.
-    tooLongCount: items.filter(item => item.tooLong && item.duplicateKind == null).length,
-    // Only items that would actually be inserted consume the per-import limit.
-    // Empty, oversized, and exact-duplicate rows are excluded.
-    exceedsItemLimit: validItems.length > maxItems,
   };
 }
 
@@ -99,7 +86,7 @@ export interface BulkImportResult {
   added: number;
   duplicatesSkipped: number;
   failed: number;
-  error?: 'item_limit' | 'item_too_long' | 'word_limit' | 'destination_missing' | 'unknown';
+  error?: 'destination_missing' | 'unknown';
 }
 
 export function createBulkImportBatch(options: {
@@ -107,8 +94,6 @@ export function createBulkImportBatch(options: {
   existingCards: readonly WordCard[];
   destinationFolderId: string;
   firstCreatedAt: number;
-  maxItems: number;
-  maxItemChars: number;
   createId(): string;
 }): BulkImportBatchResult {
   const destinationCards = options.existingCards.filter(
@@ -117,11 +102,7 @@ export function createBulkImportBatch(options: {
   const analysis = analyzeBulkImport(
     options.drafts,
     destinationCards.map(card => card.word),
-    options.maxItems,
-    options.maxItemChars,
   );
-  if (analysis.exceedsItemLimit) throw new Error('bulk_import_item_limit');
-  if (analysis.tooLongCount > 0) throw new Error('bulk_import_item_too_long');
 
   // Build the complete array before state changes. If ID creation fails, no
   // partially prepared batch can reach persistence.

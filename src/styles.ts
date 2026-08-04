@@ -55,6 +55,14 @@ export const appStyles = StyleSheet.create({
   },
   dialogTitle: { fontSize: 20, fontWeight: '700', marginBottom: 20 },
 
+  // Compact sheet-header action used by Notification's Send Test button.
+  compactHeaderButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 6, paddingHorizontal: 10,
+    borderRadius: 10, borderWidth: 1,
+  },
+  compactHeaderButtonText: { fontSize: 12, fontWeight: '600' },
+
   // Notification interval list
   intervalRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

@@ -18,7 +18,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { Palette, ReviewEntry, WordCard } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BCP47_TO_UI_LANG, translate, useLang, type TranslationKey } from '../i18n';
-import { speak, speakWordCard, stopPlayback } from '../lib/tts';
+import { WordCardVoiceButton } from './WordCardVoiceButton';
+import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 import {
   FLIP_CARD_H, FLIP_CARD_RADIUS, FLIP_CARD_W,
@@ -529,7 +530,6 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   // Incrementing this forces the auto-play useEffect to re-fire even when
   // idx stays at 0 (e.g., after Shuffle / Reset from the first card).
   const [sessionKey,  setSessionKey]  = useState(0);
-  const [playing,     setPlaying]     = useState(false);
   const [infoVisible, setInfoVisible] = useState(false);
   const [sheetReady,  setSheetReady]  = useState(false);
 
@@ -541,21 +541,30 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   const done   = idx >= total;
   const card   = active ? queue[idx] : null;
 
+  // ── Voice playback ────────────────────────────────────────────────────────
+  // The same hook the Flip screen uses, so the icon here shares its audio source,
+  // loading and playing states, toggle-to-stop behaviour, custom-voice lock and
+  // error alerts rather than reimplementing any of them.
+  const { voiceState, playWord, playMeaning, stopVoice } = useWordCardVoicePlayback({
+    item: card,
+    isSubscribed,
+    isPremium,
+    onCustomVoiceLocked: showVoiceLockedBanner,
+  });
+
   // ── Auto-play word when a new card (or new session) becomes active ────────
 
   useEffect(() => {
     if (!sheetReady || !mutedLoaded) return;
     const current = queue[idx];
     if (!current?.word || muted) return;
-    if (current.audioUri && !isPremium) { showVoiceLockedBanner(); return; }
-    setPlaying(true);
-    speakWordCard(current, isSubscribed)
-      .then(() => setPlaying(false))
-      .catch(() => setPlaying(false));
-  }, [idx, sessionKey, sheetReady, mutedLoaded, isSubscribed, isPremium, showVoiceLockedBanner]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Same action as tapping the icon, so the icon shows the loading and playing
+    // states for automatic playback too. The lock case is handled inside it.
+    void playWord();
+  }, [idx, sessionKey, sheetReady, mutedLoaded, isSubscribed, isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The hook stops its own playback on unmount; this only clears the banner timer.
   useEffect(() => () => {
-    stopPlayback();
     if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
   }, []);
 
@@ -572,8 +581,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   // Shared restart: reset all per-card state, set new queue, go back to card 0.
   // sessionKey bump ensures the auto-play effect fires even when idx is already 0.
   const restart = useCallback((newQueue: WordCard[]) => {
-    stopPlayback();
-    setPlaying(false);
+    stopVoice();
     flipAnim.setValue(0);
     cardOpacity.setValue(1);
     setFlipped(false);
@@ -602,10 +610,8 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
   };
 
   const handleMuteToggle = () => {
-    if (!muted) {
-      stopPlayback();
-      setPlaying(false);
-    }
+    // Muting stops whatever is playing, through the hook so its state clears too.
+    if (!muted) stopVoice();
     setMuted(m => {
       const next = !m;
       AsyncStorage.setItem(TEST_MUTED_KEY, next ? 'true' : 'false');
@@ -613,28 +619,20 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
     });
   };
 
-  const speakText = useCallback((text: string, lang?: string) => {
+  // Mute hides the icon, so these only guard the automatic playback paths below.
+  const speakWord = useCallback(() => {
     if (muted) return;
-    if (playing) { stopPlayback(); setPlaying(false); return; }
-    setPlaying(true);
-    speak(text, isSubscribed, lang)
-      .then(() => setPlaying(false))
-      .catch(() => setPlaying(false));
-  }, [muted, playing, isSubscribed]);
+    void playWord();
+  }, [muted, playWord]);
 
-  const speakWord = useCallback((card: WordCard) => {
+  const speakMeaning = useCallback(() => {
     if (muted) return;
-    if (card.audioUri && !isPremium) { showVoiceLockedBanner(); return; }
-    if (playing) { stopPlayback(); setPlaying(false); return; }
-    setPlaying(true);
-    speakWordCard(card, isSubscribed)
-      .then(() => setPlaying(false))
-      .catch(() => setPlaying(false));
-  }, [muted, playing, isSubscribed, isPremium, showVoiceLockedBanner]);
+    void playMeaning();
+  }, [muted, playMeaning]);
 
   const doToggleFlip = useCallback(() => {
     if (flipped) {
-      if (!muted) { stopPlayback(); setPlaying(false); }
+      if (!muted) stopVoice();
       Animated.timing(flipAnim, { toValue: 0, duration: 300, useNativeDriver: true })
         .start(() => setFlipped(false));
     } else {
@@ -643,12 +641,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
           setFlipped(true);
           if (!backPlayed) {
             setBackPlayed(true);
-            if (!muted && card?.meaning) {
-              setPlaying(true);
-              speak(card.meaning, isSubscribed, card.meaningLang)
-                .then(() => setPlaying(false))
-                .catch(() => setPlaying(false));
-            }
+            if (!muted && card?.meaning) void playMeaning();
           }
         });
     }
@@ -656,8 +649,7 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
 
   const advance = useCallback((kind: AnswerKind) => {
     if (!card) return;
-    stopPlayback();
-    setPlaying(false);
+    stopVoice();
 
     const now = Date.now();
     const entry: ReviewEntry = { ts: now, rating: kind };
@@ -800,8 +792,14 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
                   >
                     <CardScrollFace
                       onFlip={doToggleFlip}
-                      onVoice={() => speakWord(card!)}
-                      voiceColor={themeColor}
+                      voiceButton={(
+                        <WordCardVoiceButton
+                          onPress={speakWord}
+                          phase={voiceState?.target === 'word' ? voiceState.phase : undefined}
+                          themeColor={themeColor}
+                          inactiveColor={pal.sub}
+                        />
+                      )}
                       showVoice={!muted}
                     >
                       <Text style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>
@@ -819,8 +817,14 @@ export function TestModeScreen({ cards, onUpdateCard, onClose, pal, themeColor, 
                   >
                     <CardScrollFace
                       onFlip={doToggleFlip}
-                      onVoice={() => speakText(card!.meaning, card!.meaningLang)}
-                      voiceColor={themeColor}
+                      voiceButton={(
+                        <WordCardVoiceButton
+                          onPress={speakMeaning}
+                          phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
+                          themeColor={themeColor}
+                          inactiveColor={pal.sub}
+                        />
+                      )}
                       showVoice={!muted}
                     >
                       <Text style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>

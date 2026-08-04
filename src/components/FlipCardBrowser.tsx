@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -17,12 +17,35 @@ import {
   FLIP_NOTE_FONT_SIZE, FLIP_NOTE_LINE_H, FLIP_NOTE_MARGIN_TOP,
   FLIP_WORD_FONT_SIZE,
 } from '../constants';
+import { scrubberIndexForX, scrubberXForIndex } from '../features/cards/flipScrubber';
 import { CardScrollFace } from './CardScrollFace';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MARGIN     = (SCREEN_W - FLIP_CARD_W) / 2;
+
+// ── Progress scrubber geometry ────────────────────────────────────────────────
+// The thumb centre travels 0…TRACK_W; card i sits at xForIndex(i).
+const TRACK_W = FLIP_CARD_W;
+// Invisible touch target around the 18px circle. The wrapper reserves this much slack
+// on every side, because iOS does not hit-test a child outside its parent's bounds.
+const THUMB_HIT_SIZE = 44;
+const HIT_PAD = THUMB_HIT_SIZE / 2;
+// Per-card tick marks, shown only while scrubbing.
+const TICK_W = 2;
+const TICK_H = 9;
+// Height the scrubber row occupied before it had to host the touch target, and the
+// slack the taller target adds above and below it. Both surrounding margins shed that
+// slack so the track stays on exactly the same baseline as before.
+const TRACK_ROW_H = 26;
+const HIT_OVERHANG = (THUMB_HIT_SIZE - TRACK_ROW_H) / 2;
+
+const xForIndex = (index: number, count: number): number =>
+  scrubberXForIndex(index, count, TRACK_W);
+
+const indexForX = (x: number, count: number): number =>
+  scrubberIndexForX(x, count, TRACK_W);
 const SWIPE_THRESHOLD = SCREEN_W * 0.25;
 
 interface Props {
@@ -249,8 +272,6 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
   // ── Progress bar scrubber ─────────────────────────────────────────────────
 
-  const TRACK_W = FLIP_CARD_W;
-
   const thumbX        = useRef(new Animated.Value(0)).current;
   const thumbXRef     = useRef(0);
   const cardsLenRef   = useRef(cards.length);
@@ -258,30 +279,88 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
   cardsLenRef.current = cards.length;
   goToRef.current     = goTo;
 
+  // Tick marks are mounted only for the duration of a scrub.
+  const [scrubbing, setScrubbing] = useState(false);
+  // The thumb follows the finger continuously while the card snaps per tick, so the
+  // index-driven sync below must not fight the gesture mid-drag.
+  const scrubbingRef  = useRef(false);
+  const dragStartXRef = useRef(0);
+  const scrubIdxRef   = useRef(0);
+
   useEffect(() => {
-    const n = cards.length;
-    const x = n > 1 ? (idx / (n - 1)) * TRACK_W : 0;
+    // Skipped mid-scrub: the gesture owns the thumb until the finger lifts, otherwise
+    // each committed card would yank the thumb back onto its tick under the finger.
+    if (scrubbingRef.current) return;
+    const x = xForIndex(idx, cards.length);
     thumbXRef.current = x;
     thumbX.setValue(x);
   }, [idx, cards.length, thumbX]);
 
   const progressPan = useRef(
     PanResponder.create({
+      // Claimed on touch down so a press-and-hold owns the gesture before any movement,
+      // and nothing else can take it away mid-drag.
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder:  () => true,
-      onPanResponderMove: (_, { dx }) => {
-        const x = Math.max(0, Math.min(TRACK_W, thumbXRef.current + dx));
-        thumbX.setValue(x);
+      onPanResponderTerminationRequest: () => false,
+
+      onPanResponderGrant: () => {
+        scrubbingRef.current = true;
+        dragStartXRef.current = thumbXRef.current;
+        scrubIdxRef.current = idxRef.current;
+        setScrubbing(true);
       },
-      onPanResponderRelease: (_, { dx }) => {
-        const n      = cardsLenRef.current;
-        const x      = Math.max(0, Math.min(TRACK_W, thumbXRef.current + dx));
-        const i      = n > 1 ? Math.round((x / TRACK_W) * (n - 1)) : 0;
-        const target = Math.max(0, Math.min(n - 1, i));
-        const snapX  = n > 1 ? (target / (n - 1)) * TRACK_W : 0;
+
+      onPanResponderMove: (_, { dx }) => {
+        const n = cardsLenRef.current;
+        const x = Math.max(0, Math.min(TRACK_W, dragStartXRef.current + dx));
+        // Continuous so the thumb tracks the finger; the card commits per tick.
+        thumbX.setValue(x);
+        const target = indexForX(x, n);
+        if (target !== scrubIdxRef.current) {
+          scrubIdxRef.current = target;
+          goToRef.current(target);
+        }
+      },
+
+      onPanResponderRelease: () => {
+        const n = cardsLenRef.current;
+        const target = scrubIdxRef.current;
+        // Settle exactly on the tick the card is showing.
+        const snapX = xForIndex(target, n);
         thumbXRef.current = snapX;
         thumbX.setValue(snapX);
-        goToRef.current(target);
+        if (target !== idxRef.current) goToRef.current(target);
+        scrubbingRef.current = false;
+        setScrubbing(false);
+      },
+
+      onPanResponderTerminate: () => {
+        const n = cardsLenRef.current;
+        const snapX = xForIndex(idxRef.current, n);
+        thumbXRef.current = snapX;
+        thumbX.setValue(snapX);
+        scrubbingRef.current = false;
+        setScrubbing(false);
+      },
+    })
+  ).current;
+
+  // Tapping anywhere on the track jumps to that card. This responder sits *under* the
+  // thumb's, so a touch that lands on the thumb is claimed by the thumb and drags as
+  // usual — the two never compete for the same gesture.
+  const tapXRef = useRef(0);
+  const trackTapPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: event => {
+        // locationX is relative to this view, which spans the padded wrapper, so the
+        // slack beyond either end of the track reads as past-the-end and clamps below.
+        tapXRef.current = event.nativeEvent.locationX - HIT_PAD;
+      },
+      onPanResponderRelease: () => {
+        const target = indexForX(tapXRef.current, cardsLenRef.current);
+        if (target !== idxRef.current) goToRef.current(target);
       },
     })
   ).current;
@@ -314,6 +393,19 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
     return color ? <View style={[s.flipStripe, { backgroundColor: color }]} /> : null;
   };
 
+  // One tick per card at its exact scrubber position. Built per card count so a scrub
+  // never rebuilds them, and mounted only while scrubbing.
+  const ticks = useMemo(() => {
+    const n = cards.length;
+    if (n < 2) return null;
+    return Array.from({ length: n }, (_, i) => (
+      <View
+        key={i}
+        style={[s.tick, { left: HIT_PAD + xForIndex(i, n) - TICK_W / 2, backgroundColor: pal.sub }]}
+      />
+    ));
+  }, [cards.length, pal.sub]);
+
   // Slot content is intentionally stable during horizontal transitions, but
   // mutable card properties (such as notifOff) must always come from the latest
   // cards prop. This also avoids a stale first frame when Flip View is reopened.
@@ -328,6 +420,8 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
   return (
     <View style={s.root}>
 
+      {/* Card position — reads straight off `idx`, so a tap, a drag and a swipe all
+          move it in step with the thumb and the card below. */}
       <Text style={[s.counter, { color: pal.sub }]}>{`${idx + 1} / ${cards.length}`}</Text>
 
       <View style={s.deckWrap}>
@@ -417,10 +511,21 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
       <View style={s.progressWrap}>
         <View style={[s.trackBg, { backgroundColor: pal.border }]} />
         <Animated.View style={[s.trackFill, { backgroundColor: themeColor, width: thumbX }]} />
+        {/* Tap layer covering the whole track. Declared before the thumb so the thumb
+            stays on top and keeps ownership of drags. */}
+        <View style={s.trackTap} {...trackTapPan.panHandlers} />
+        {scrubbing && (
+          <View style={s.tickLayer} pointerEvents="none">
+            {ticks}
+          </View>
+        )}
+        {/* Invisible 44pt target; the visible 18pt circle rides inside it. */}
         <Animated.View
-          style={[s.thumb, { backgroundColor: themeColor, transform: [{ translateX: thumbX }] }]}
+          style={[s.thumbHit, { transform: [{ translateX: thumbX }] }]}
           {...progressPan.panHandlers}
-        />
+        >
+          <View style={[s.thumb, { backgroundColor: themeColor }]} />
+        </Animated.View>
       </View>
 
       {/* Action buttons — order: Notification (icon-only) · Move · Edit · Delete (text-only) */}
@@ -539,7 +644,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 20,
+    // Reduced by the slack progressWrap gained below its track (see progressWrap).
+    marginTop: 20 - HIT_OVERHANG,
   },
   notifBtn: {
     width: 38,
@@ -562,28 +668,63 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
+  // Sized to host the 44pt touch target on all sides, since iOS will not hit-test a
+  // child outside its parent. The extra box is cancelled by the negative margins and by
+  // actionRow's reduced marginTop, so the track sits exactly where it did before.
   progressWrap: {
-    width: FLIP_CARD_W,
-    height: 26,
+    width: FLIP_CARD_W + THUMB_HIT_SIZE,
+    height: THUMB_HIT_SIZE,
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 20 - HIT_OVERHANG,
+    marginHorizontal: -HIT_PAD,
   },
   trackBg: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: HIT_PAD,
+    width: TRACK_W,
     height: 3,
     borderRadius: 2,
   },
   trackFill: {
     position: 'absolute',
-    left: 0,
+    left: HIT_PAD,
     height: 3,
     borderRadius: 2,
   },
-  thumb: {
+  // Full-height tap target over the track. Spans the wrapper's padded width so a tap in
+  // the slack past either end clamps to the first or last card.
+  trackTap: {
     position: 'absolute',
-    left: -9,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  // No `top`: Yoga centres an absolute child with no vertical inset using the parent's
+  // justifyContent, which is how the track line is centred too.
+  tickLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: TICK_H,
+  },
+  tick: {
+    position: 'absolute',
+    top: 0,
+    width: TICK_W,
+    height: TICK_H,
+    borderRadius: TICK_W / 2,
+    opacity: 0.55,
+  },
+  thumbHit: {
+    position: 'absolute',
+    left: HIT_PAD - THUMB_HIT_SIZE / 2,
+    width: THUMB_HIT_SIZE,
+    height: THUMB_HIT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumb: {
     width: 18,
     height: 18,
     borderRadius: 9,

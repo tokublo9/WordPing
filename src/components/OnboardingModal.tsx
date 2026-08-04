@@ -191,6 +191,9 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
     setWordCategory(null);
   };
 
+  // The reset runs once the flow is hidden, so the next open starts on the Welcome
+  // screen. Rendering stops the moment `visible` turns false (see below), which is
+  // what keeps `setStep(1)` here from repainting step 1 over the closing flow.
   const wasVisible = useRef(visible);
   useEffect(() => {
     if (wasVisible.current && !visible) reset();
@@ -280,8 +283,13 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
     setBirthPickerVisible(false);
   };
 
+  // Completing the flow flips `visible` to false while the modal is still on screen.
+  // Rendering nothing from that first render on means the reset above lands with no
+  // step content mounted, so the Welcome screen can never flash on the way out.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="none" transparent={false} statusBarTranslucent>
+    <Modal visible animationType="none" transparent={false} statusBarTranslucent>
       <View style={[ob.root, { backgroundColor: pal.bg, paddingTop: insets.top }]}>
 
         {/* ── Progress bar (hidden on Welcome screen, shown for steps 2–4) ── */}

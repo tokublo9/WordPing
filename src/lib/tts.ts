@@ -394,6 +394,53 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
   void queued.promise.catch(() => {});
 }
 
+export interface AIPronunciationLibraryEntry {
+  id: string;
+  text: string;
+  hasCustomAudio?: boolean;
+}
+
+export interface AIPronunciationLibraryPreloadOptions {
+  entries: readonly AIPronunciationLibraryEntry[];
+  voice: AIVoice;
+  hasAIAccess: boolean;
+  triggerReason: string;
+}
+
+/**
+ * Queue pronunciation generation for a whole library at once — used when an entitlement
+ * becomes active, so existing words are already cached before their first tap.
+ *
+ * Each entry goes through `preloadAIPronunciation`, so this inherits its cache hits,
+ * in-flight deduplication and single-slot queue: the work is serialized in the
+ * background rather than fired off in parallel. Entries already on disk cost a cache
+ * lookup and nothing more, which is what makes re-running this cheap.
+ */
+export function preloadAIPronunciationLibrary(
+  options: AIPronunciationLibraryPreloadOptions,
+): void {
+  if (!options.hasAIAccess || options.entries.length === 0) return;
+
+  if (__DEV__) console.log('[TTS preload diagnostic]', {
+    phase: 'library-preload-started',
+    triggerReason: options.triggerReason,
+    totalEntries: options.entries.length,
+    voice: options.voice,
+    concurrencyLimit: DEFAULT_TTS_PRELOAD_CONCURRENCY,
+    loadingIndicatorDisplayed: false,
+  });
+
+  for (const entry of options.entries) {
+    preloadAIPronunciation({
+      entryId: entry.id,
+      text: entry.text,
+      voice: options.voice,
+      hasAIAccess: true,
+      hasCustomAudio: entry.hasCustomAudio,
+    });
+  }
+}
+
 /** Stop associating queued/running preload work with a deleted card. */
 export function cancelAIPronunciationPreload(entryId: string): void {
   if (!entryId) return;

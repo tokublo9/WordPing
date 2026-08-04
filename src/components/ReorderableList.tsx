@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback, useEffect, useMemo, useRef, useState,
+  type ReactElement, type ReactNode,
+} from 'react';
 import {
   Animated,
   FlatList,
   Modal,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type ViewToken,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
@@ -16,6 +24,12 @@ import { useLang } from '../i18n';
 const STRIPE_COLORS: Record<string, string> = {
   perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
 };
+
+// Animated wrapper so `onScroll` can be a native-driven Animated.event while the list
+// still virtualizes normally. A plain FlatList would force that event back onto JS.
+const AnimatedFlatList = Animated.createAnimatedComponent(
+  FlatList,
+) as unknown as typeof FlatList<WordCard>;
 
 const AUTO_SCROLL_EDGE = 72;
 const AUTO_SCROLL_MAX_SPEED = 16;
@@ -53,6 +67,17 @@ interface Props {
   renderWordCard?: (card: WordCard, reorderMode: boolean, dragHandle?: ReactNode) => ReactNode;
   reorderEnabled?: boolean;
   scrollEnabled?: boolean;
+  /**
+   * Scroll position for a custom scroll indicator. Driven by the native driver in the
+   * virtualized list, so the indicator keeps tracking the finger even while the JS
+   * thread is busy rendering rows. `onScrollOffsetChange` still fires for JS consumers.
+   */
+  scrollAnim?: Animated.Value;
+  /**
+   * 1-based index of the last visible row, counting a partially visible one. Reaching the
+   * end of the list therefore reports the list length. Virtualized list only.
+   */
+  onLastVisibleIndexChange?: (index: number) => void;
   onScrollOffsetChange?: (offset: number) => void;
   onScrollBeginDrag?: () => void;
   onScrollEndDrag?: () => void;
@@ -182,7 +207,7 @@ export function ReorderableList({
   cards, onReorder, pal, extraPaddingBottom = 0,
   showLevelLabel = true, folderData, renderWordCard,
   reorderEnabled = true, scrollEnabled = true,
-  onScrollOffsetChange,
+  scrollAnim, onLastVisibleIndexChange, onScrollOffsetChange,
   onScrollBeginDrag, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd,
   onContentHeightChange, onViewportHeightChange,
   onFooterPress,
@@ -514,6 +539,88 @@ export function ReorderableList({
     });
   }, [ghostY, stopAutoScroll]);
 
+  // ── Virtualized list plumbing ──────────────────────────────────────────────
+  // Every one of these is referentially stable. When `renderItem`, `keyExtractor` or
+  // the footer element changes identity, VirtualizedList re-renders all mounted cells,
+  // so an inline arrow here costs a full re-render of the visible window on any parent
+  // update — the jank that grows with list length.
+
+  const renderWordCardRef = useRef(renderWordCard);
+  renderWordCardRef.current = renderWordCard;
+
+  const keyExtractor = useCallback((card: WordCard) => card.id, []);
+
+  const renderVirtualizedRow = useCallback(
+    ({ item }: { item: WordCard }) => (renderWordCardRef.current?.(item, false) ?? null) as ReactElement,
+    [],
+  );
+
+  const onFooterPressRef = useRef(onFooterPress);
+  onFooterPressRef.current = onFooterPress;
+  const footer = useMemo(
+    () => (
+      <View
+        style={styles.wordListFooter}
+        onTouchStart={() => onFooterPressRef.current?.()}
+      />
+    ),
+    [],
+  );
+
+  const onScrollOffsetChangeRef = useRef(onScrollOffsetChange);
+  onScrollOffsetChangeRef.current = onScrollOffsetChange;
+
+  // The scroll indicator is fed by the native driver; the JS listener only forwards the
+  // offset to callers that still need a number (the Deep Sea skin parallax).
+  const handleVirtualizedScroll = useMemo(
+    () => Animated.event(
+      [{ nativeEvent: { contentOffset: { y: scrollAnim ?? new Animated.Value(0) } } }],
+      {
+        useNativeDriver: true,
+        listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+          onScrollOffsetChangeRef.current?.(event.nativeEvent.contentOffset.y);
+        },
+      },
+    ),
+    [scrollAnim],
+  );
+
+  // Both of these must keep the same identity for the life of the list: VirtualizedList
+  // throws if onViewableItemsChanged or viewabilityConfig change on the fly.
+  const onLastVisibleIndexChangeRef = useRef(onLastVisibleIndexChange);
+  onLastVisibleIndexChangeRef.current = onLastVisibleIndexChange;
+
+  const viewabilityConfig = useRef({
+    // A sliver counts, so the row peeking in at the bottom is already the current one.
+    // Not 0: `percent >= 0` holds for rows with nothing on screen at all, which would
+    // report rendered-but-offscreen rows from the virtualization window.
+    itemVisiblePercentThreshold: 1,
+    minimumViewTime: 0,
+  }).current;
+
+  const handleViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      let last: number | null = null;
+      for (const token of viewableItems) {
+        if (token.index == null) continue;
+        if (last === null || token.index > last) last = token.index;
+      }
+      if (last !== null) onLastVisibleIndexChangeRef.current?.(last + 1);
+    },
+  ).current;
+
+  const onContentHeightChangeRef = useRef(onContentHeightChange);
+  onContentHeightChangeRef.current = onContentHeightChange;
+  const handleContentSizeChange = useCallback((_width: number, height: number) => {
+    onContentHeightChangeRef.current?.(height);
+  }, []);
+
+  const onViewportHeightChangeRef = useRef(onViewportHeightChange);
+  onViewportHeightChangeRef.current = onViewportHeightChange;
+  const handleViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    onViewportHeightChangeRef.current?.(event.nativeEvent.layout.height);
+  }, []);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const draggingCard     = draggingId !== null ? cardsById.get(draggingId) ?? null : null;
@@ -524,10 +631,14 @@ export function ReorderableList({
   // animate arbitrary siblings while dragging.
   if (!reorderEnabled && renderWordCard) {
     return (
-      <FlatList
+      <AnimatedFlatList
         data={cards}
-        keyExtractor={card => card.id}
-        renderItem={({ item }) => <>{renderWordCard(item, false)}</>}
+        keyExtractor={keyExtractor}
+        renderItem={renderVirtualizedRow}
+        // renderItem is stable, so the list needs an explicit marker for when a row's
+        // appearance changed: `renderWordCard` closes over flip, selection and label
+        // state, and its identity changes exactly when a row must repaint.
+        extraData={renderWordCard}
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         directionalLockEnabled
@@ -538,14 +649,22 @@ export function ReorderableList({
         onScrollEndDrag={onScrollEndDrag}
         onMomentumScrollBegin={onMomentumScrollBegin}
         onMomentumScrollEnd={onMomentumScrollEnd}
-        onScroll={event => onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)}
-        onContentSizeChange={(_width, height) => onContentHeightChange?.(height)}
-        onLayout={event => onViewportHeightChange?.(event.nativeEvent.layout.height)}
+        onScroll={handleVirtualizedScroll}
+        onViewableItemsChanged={handleViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        onContentSizeChange={handleContentSizeChange}
+        onLayout={handleViewportLayout}
         contentContainerStyle={[styles.list, { paddingBottom: 100 + extraPaddingBottom }]}
+        // Small lists still render in full on the first pass; the tighter window and
+        // batch only reduce how many offscreen rows a long list keeps mounted, which
+        // is what frees the JS thread during a fast scroll.
         initialNumToRender={12}
-        maxToRenderPerBatch={10}
-        windowSize={9}
-        ListFooterComponent={<View style={styles.wordListFooter} onTouchStart={onFooterPress} />}
+        maxToRenderPerBatch={6}
+        updateCellsBatchingPeriod={50}
+        windowSize={5}
+        // iOS has long-standing blank-cell bugs with this, so Android only.
+        removeClippedSubviews={Platform.OS === 'android'}
+        ListFooterComponent={footer}
       />
     );
   }

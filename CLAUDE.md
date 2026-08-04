@@ -177,10 +177,15 @@ This must run **after both** `settingsLoaded` and `isSubscriptionLoaded` are tru
 
 | Limit | Free | Basic |
 |---|---|---|
-| Words | 30 (`FREE_WORD_LIMIT`) | Unlimited |
+| Words | Unlimited | Unlimited |
+| Folders | Unlimited | Unlimited |
 | TTS plays | 10 (`FREE_VOICE_LIMIT`) | Unlimited |
 | Theme colors | Blue only | All |
 | Skins | `solid_blue` only | All |
+
+**Words and folders are never gated.** No count check may block registration, and no
+Pro/paywall popup may be raised from adding a word or creating a folder on any plan.
+`PaywallModal` covers the AI voice limit only.
 
 ### Skins
 

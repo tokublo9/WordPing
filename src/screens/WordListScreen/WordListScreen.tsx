@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   Animated,
   StyleSheet,
@@ -17,9 +17,18 @@ import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
 import { TestStatusIcon } from '../../components/TestStatusIcon';
 import { ScrollBar } from '../../components/ScrollBar';
+import {
+  WordListPositionLabel,
+  type WordListPositionLabelHandle,
+} from '../../components/WordListPositionLabel';
 import { mergeVisibleCardOrder } from '../../features/cards/cardSorting';
 
 const SEL_BAR_H = 68;
+
+// Offsets within this count as "resting at the top", where the header keeps reading
+// "N words". Small enough that any real scroll switches to the position readout, loose
+// enough to absorb bounce and sub-pixel offsets.
+const LIST_TOP_EPSILON = 2;
 
 // Comprehension-level colors for the sort options, reusing the same green/red as
 // the level filter chips: green = highest understanding, red = lowest.
@@ -165,10 +174,27 @@ export function WordListScreen({
   deepSeaSkinRef.current   = deepSeaSkin;
   deepSeaScrollRef.current = scrollY;
 
+  // The header label owns its state and is set imperatively, so a new last visible row
+  // repaints that one line rather than this whole screen mid scroll.
+  const positionLabelRef = useRef<WordListPositionLabelHandle>(null);
+  const handleLastVisibleIndexChange = useCallback((index: number) => {
+    positionLabelRef.current?.setLastVisibleIndex(index);
+  }, []);
+
+  // listScrollAnim is fed by the list's native-driven Animated.event, so the scrollbar
+  // thumb tracks the finger even while rows are rendering. This JS listener only feeds
+  // the Deep Sea parallax and the label's at-top state.
+  const atTopRef = useRef(true);
   const handleListScroll = useCallback((offset: number) => {
-    listScrollAnim.setValue(offset);
     if (deepSeaSkinRef.current) deepSeaScrollRef.current.setValue(offset);
-  }, [listScrollAnim]);
+    // The position names the *last* visible row, which at the top of the list is already
+    // row 9 or so, so "Words" needs its own signal. Only crossings reach the label.
+    const atTop = offset <= LIST_TOP_EPSILON;
+    if (atTop !== atTopRef.current) {
+      atTopRef.current = atTop;
+      positionLabelRef.current?.setAtTop(atTop);
+    }
+  }, []);
 
   // Show the scrollbar thumb immediately.
   const showScrollbar = useCallback(() => {
@@ -239,8 +265,13 @@ export function WordListScreen({
   );
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  const allVisibleCardsSelected = filteredFolderCards.length > 0
-    && filteredFolderCards.every(card => selection.selectedIds.has(card.id));
+  // Memoized: these walk the whole folder on every render, including the renders a
+  // scroll gesture triggers.
+  const allVisibleCardsSelected = useMemo(
+    () => filteredFolderCards.length > 0
+      && filteredFolderCards.every(card => selection.selectedIds.has(card.id)),
+    [filteredFolderCards, selection.selectedIds],
+  );
   const header = (
     <View style={[s.header, wordListLayoutStyles.header]} onTouchStart={() => closeOpenCard.current?.()}>
       {selection.active ? (
@@ -338,20 +369,40 @@ export function WordListScreen({
     </View>
   );
 
-  // ── Word count ────────────────────────────────────────────────────────────────
+  // ── Word count / scroll position ──────────────────────────────────────────────
+  // Doubles as the scroll position readout: the same line reads "350 words" at the top
+  // of the list and "120 / 350" once scrolled.
+  const wordCountSummary = `${
+    isFilterActive
+      ? `${filteredFolderCards.length} / ${folderCards.length}`
+      : folderCards.length
+  } ${t(folderCards.length === 1 ? 'words_singular' : 'words_plural')}`;
+
   const wordCount = (
     <View onTouchStart={() => closeOpenCard.current?.()}>
-      <Text style={[s.wordCount, { color: pal.sub }]}>
-        {isFilterActive
-          ? `${filteredFolderCards.length} / ${folderCards.length}`
-          : folderCards.length}{' '}
-        {t(folderCards.length === 1 ? 'words_singular' : 'words_plural')}
-      </Text>
+      <WordListPositionLabel
+        ref={positionLabelRef}
+        total={filteredFolderCards.length}
+        topContent={wordCountSummary}
+        style={[s.wordCount, { color: pal.sub }]}
+      />
     </View>
   );
 
   // ── Level filter bar ──────────────────────────────────────────────────────────
-  const untestedCount = folderCards.filter(c => !c.testLevel).length;
+  // One pass over the folder produces the untested total and every chip count, instead
+  // of six separate passes on each render.
+  const levelCounts = useMemo(() => {
+    const counts: Record<string, number> = { none: 0 };
+    let untested = 0;
+    for (const card of folderCards) {
+      const level = card.testLevel ?? 'none';
+      counts[level] = (counts[level] ?? 0) + 1;
+      if (!card.testLevel) untested += 1;
+    }
+    return { counts, untested };
+  }, [folderCards]);
+  const untestedCount = levelCounts.untested;
   const isTestComplete = folderCards.length > 0 && untestedCount === 0;
 
   // Keep this slot only when it has visible label controls or when the reorder
@@ -366,7 +417,7 @@ export function WordListScreen({
         <>
           <View style={filterStyles.chipGroup}>
             {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
-              const count = folderCards.filter(c => (c.testLevel ?? 'none') === level).length;
+              const count = levelCounts.counts[level] ?? 0;
               const on = levelFilter.has(level);
               return (
                 <TouchableOpacity
@@ -538,6 +589,8 @@ export function WordListScreen({
           showLevelLabel={showLevelLabels}
           renderWordCard={renderWordCard}
           scrollEnabled={reorder.active || !horizontalSwipeLocked}
+          scrollAnim={listScrollAnim}
+          onLastVisibleIndexChange={handleLastVisibleIndexChange}
           onScrollOffsetChange={handleListScroll}
           onScrollBeginDrag={handleScrollBeginDrag}
           onScrollEndDrag={handleScrollEndDrag}

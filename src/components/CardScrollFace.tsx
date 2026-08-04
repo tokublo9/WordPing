@@ -2,10 +2,8 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { FLIP_CARD_H, FLIP_CARD_PAD_H, FLIP_CARD_PAD_V } from '../constants';
 
 interface Props {
@@ -16,9 +14,12 @@ interface Props {
   // onFlip never fires after a scroll. Horizontal drags are stolen by the parent
   // PanResponder (FlipCardBrowser) without triggering onFlip.
   onFlip: () => void;
+  /**
+   * The card's voice control. Every caller passes a `WordCardVoiceButton` driven by
+   * `useWordCardVoicePlayback`, so the icon, its loading and playing states and its tap
+   * behaviour are identical on every screen.
+   */
   voiceButton?: React.ReactNode;
-  onVoice?: () => void;
-  voiceColor?: string;
   showVoice?: boolean;
 }
 
@@ -26,8 +27,6 @@ export function CardScrollFace({
   children,
   onFlip,
   voiceButton,
-  onVoice,
-  voiceColor,
   showVoice = true,
 }: Props) {
   return (
@@ -52,17 +51,8 @@ export function CardScrollFace({
       </ScrollView>
 
       {/* Voice button is outside the ScrollView so it stays fixed while text scrolls. */}
-      {showVoice && (voiceButton || (onVoice && voiceColor)) && (
-        <View style={voiceButton ? s.wordCardVoiceBtn : s.voiceBtn}>
-          {voiceButton ?? (
-            <TouchableOpacity
-              onPress={onVoice}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="volume-medium-outline" size={20} color={voiceColor} />
-            </TouchableOpacity>
-          )}
-        </View>
+      {showVoice && voiceButton && (
+        <View style={s.wordCardVoiceBtn}>{voiceButton}</View>
       )}
     </View>
   );
@@ -79,16 +69,6 @@ const s = StyleSheet.create({
     paddingTop: FLIP_CARD_PAD_V,
     paddingHorizontal: FLIP_CARD_PAD_H,
     paddingBottom: FLIP_CARD_PAD_V,
-  },
-  voiceBtn: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    zIndex: 2,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   wordCardVoiceBtn: {
     position: 'absolute',

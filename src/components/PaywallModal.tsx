@@ -15,7 +15,6 @@ import { appStyles as s } from '../styles';
 
 interface Props {
   visible: boolean;
-  reason: 'words' | 'voice';
   onClose: () => void;
   onSubscribe: () => Promise<void>;
   onRestore: () => Promise<void>;
@@ -24,7 +23,7 @@ interface Props {
 }
 
 export function PaywallModal({
-  visible, reason, onClose, onSubscribe, onRestore, pal, themeColor,
+  visible, onClose, onSubscribe, onRestore, pal, themeColor,
 }: Props) {
   const t = useLang();
   const [busy, setBusy] = useState(false);
@@ -51,7 +50,7 @@ export function PaywallModal({
             </View>
             <Text style={[styles.title, { color: pal.text }]}>{t('wordping_pro')}</Text>
             <Text style={[styles.subtitle, { color: pal.sub }]}>
-              {t(reason === 'words' ? 'reached_word_limit' : 'voice_limited')}
+              {t('voice_limited')}
             </Text>
           </View>
 

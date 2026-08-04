@@ -444,13 +444,11 @@ export const DEFAULT_LANGUAGE = 'en-US';
 export const REVEAL_WIDTH = 220;
 
 
-export const FREE_WORD_LIMIT = 30;
+// Words and folders are unlimited on every plan — there is no count limit constant.
 export const FREE_VOICE_LIMIT = 10;
 export const BASIC_CUSTOM_VOICE_LIMIT = 10;
 
 export const MAX_AI_INPUT_CHARS = 500;
-export const BULK_IMPORT_MAX_ITEMS = 50;
-export const BULK_IMPORT_MAX_ITEM_CHARS = 500;
 
 export const SHOW_FULL_CARD_KEY  = 'card_show_full';
 export const VERTICAL_FLIP_KEY   = 'card_vertical_flip';

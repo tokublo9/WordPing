@@ -86,6 +86,7 @@ function genChipLabel(code: string): string {
 interface Props {
   visible: boolean;
   onClose: () => void;
+  onBulkImport: () => void;
   editingCard: WordCard | null;
   word: string;
   onChangeWord: (v: string) => void;
@@ -116,7 +117,7 @@ interface Props {
 }
 
 export function WordModal({
-  visible, onClose, editingCard,
+  visible, onClose, onBulkImport, editingCard,
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
   isSubscribed, isPremium = false, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
@@ -428,6 +429,15 @@ export function WordModal({
     ]).start(() => onSave());
   };
 
+  const handleOpenBulkImport = () => {
+    Keyboard.dismiss();
+    setPickerFor(null);
+    Animated.parallel([
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: false }),
+      Animated.timing(slideY, { toValue: SCREEN_H, duration: 220, useNativeDriver: false }),
+    ]).start(() => onBulkImport());
+  };
+
   const selectedTTSLang = pickerFor === 'word' ? wordLang : meaningLang;
   const onPickTTSLang = (code: string | undefined) => {
     if (pickerFor === 'word') onChangeWordLang(code);
@@ -568,9 +578,34 @@ export function WordModal({
                   <Text style={[styles.headerTitle, { color: pal.text }]}>
                     {editingCard ? t('edit_word') : t('add_word')}
                   </Text>
-                  <TouchableOpacity onPress={handleCloseSave} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Ionicons name="close" size={22} color={pal.sub} />
-                  </TouchableOpacity>
+                  <View style={styles.headerActions}>
+                    {!editingCard && (
+                      <TouchableOpacity
+                        style={[
+                          s.compactHeaderButton,
+                          { backgroundColor: pal.input, borderColor: pal.border },
+                        ]}
+                        onPress={handleOpenBulkImport}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('bulk_import')}
+                      >
+                        <Text
+                          style={[s.compactHeaderButtonText, { color: pal.sub }]}
+                          numberOfLines={1}
+                        >
+                          {t('bulk_import')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={handleCloseSave}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('close')}
+                    >
+                      <Ionicons name="close" size={24} color={pal.text} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <ScrollView
@@ -1163,8 +1198,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerTitle: {
+    flex: 1,
     fontSize: 20,
     fontWeight: '700',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+    gap: 6,
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonRow:  { flexDirection: 'row', gap: 10, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 20 },
   btn:        { flex: 1, borderRadius: 14, padding: 16, alignItems: 'center' },

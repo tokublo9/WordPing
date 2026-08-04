@@ -32,6 +32,7 @@ export interface AppModalsProps {
   wordModal: {
     visible: boolean;
     onClose(): void;
+    onBulkImport(): void;
     editingCard: WordCard | null;
     word: string;
     onChangeWord: Dispatch<SetStateAction<string>>;
@@ -60,7 +61,6 @@ export interface AppModalsProps {
     visible: boolean;
     onClose(): void;
     existingTexts: readonly string[];
-    availableSlots?: number;
     onImport(drafts: readonly BulkImportDraft[]): Promise<BulkImportResult> | BulkImportResult;
   };
 
@@ -109,7 +109,6 @@ export interface AppModalsProps {
   // PaywallModal
   paywallModal: {
     visible: boolean;
-    reason: 'words' | 'voice';
     onClose(): void;
   };
 
@@ -176,6 +175,7 @@ export function AppModals({
       <WordModal
         visible={wordModal.visible}
         onClose={wordModal.onClose}
+        onBulkImport={wordModal.onBulkImport}
         editingCard={wordModal.editingCard}
         word={wordModal.word}
         onChangeWord={wordModal.onChangeWord}
@@ -210,7 +210,6 @@ export function AppModals({
         pal={pal}
         themeColor={themeColor}
         existingTexts={bulkImport.existingTexts}
-        availableSlots={bulkImport.availableSlots}
         onImport={bulkImport.onImport}
       />
 
@@ -267,7 +266,6 @@ export function AppModals({
 
       <PaywallModal
         visible={paywallModal.visible}
-        reason={paywallModal.reason}
         onClose={paywallModal.onClose}
         onSubscribe={subscribe}
         onRestore={restore}

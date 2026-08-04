@@ -86,6 +86,7 @@ export interface AppBootstrapState {
   notificationGranted: boolean;
   setNotificationGranted: Dispatch<SetStateAction<boolean>>;
   hasLoaded: MutableRefObject<boolean>;
+  cardsLoaded: MutableRefObject<boolean>;
 }
 
 export function useAppBootstrap({
@@ -104,6 +105,10 @@ export function useAppBootstrap({
   const [notificationGranted, setNotificationGranted] = useState(false);
 
   const hasLoaded = useRef(false);
+  // Opens the cards/settings write path as soon as stored cards reach state, without
+  // waiting for the later phases. A word added during those phases would otherwise be
+  // held in memory only until some other change happened to trigger a write.
+  const cardsLoaded = useRef(false);
   const foldersRef = useRef<Folder[]>([]);
 
   useEffect(() => {
@@ -139,6 +144,9 @@ export function useAppBootstrap({
       setCards(migratedCards);
       setFolders(migratedFolders);
       applySettings(local.settings);
+      // Stored cards and settings are now in state, so persisting them back can only
+      // write the same or newer data. Anything the user adds from here is saved.
+      cardsLoaded.current = true;
 
       // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────
       let rawShowFull: string | null = null;
@@ -211,9 +219,11 @@ export function useAppBootstrap({
         }
       })
       .finally(() => {
-        // Always finalize the persistence gate, regardless of success or failure.
-        // hasLoaded is a ref — safe to write after unmount.
+        // Always finalize the persistence gates, regardless of success or failure.
+        // Both are refs — safe to write after unmount. On the happy path cardsLoaded
+        // was already opened in Phase 1; this covers the early-return failure path.
         hasLoaded.current = true;
+        cardsLoaded.current = true;
         // markSettingsLoaded calls a state setter; only call it if still mounted.
         // On the happy path it was already called above (idempotent).
         if (!cancelled) markSettingsLoaded();
@@ -242,5 +252,6 @@ export function useAppBootstrap({
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
     hasLoaded,
+    cardsLoaded,
   };
 }

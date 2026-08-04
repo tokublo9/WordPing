@@ -20,6 +20,7 @@ export interface UseAppPersistenceParams {
   verticalFlip: boolean;
   hideAiTools: boolean;
   hasLoaded: MutableRefObject<boolean>;
+  cardsLoaded: MutableRefObject<boolean>;
 }
 
 export function useAppPersistence({
@@ -35,16 +36,20 @@ export function useAppPersistence({
   verticalFlip,
   hideAiTools,
   hasLoaded,
+  cardsLoaded,
 }: UseAppPersistenceParams): void {
-  // Persist cards + settings whenever any of them change.
+  // Persist cards + settings whenever any of them change. Gated on cardsLoaded, which
+  // opens as soon as stored cards reach state: a word added while the remaining
+  // bootstrap phases are still running must reach storage, not sit in memory. `persist`
+  // writes AsyncStorage right away and debounces only the Supabase upsert.
   useEffect(() => {
-    if (!hasLoaded.current) return;
+    if (!cardsLoaded.current) return;
     persist({ cards, settings: { themeColor, appearance, skinId, language, aiVoice } });
   }, [cards, themeColor, appearance, skinId, language, aiVoice]);
 
   // Keep foldersRef in sync and persist folders.
   useEffect(() => {
-    if (!hasLoaded.current) return;
+    if (!cardsLoaded.current) return;
     foldersRef.current = folders;
     persistFolders(folders);
   }, [folders]);

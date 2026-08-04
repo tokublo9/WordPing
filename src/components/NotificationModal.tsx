@@ -72,14 +72,14 @@ export function NotificationModal({
             </View>
             <View style={styles.headerRight}>
               <TouchableOpacity
-                style={[styles.testBtn, { backgroundColor: themeColor + '0F', borderColor: themeColor + '45' }]}
+                style={[s.compactHeaderButton, { backgroundColor: themeColor + '0F', borderColor: themeColor + '45' }]}
                 onPress={() => {
                   onTest();
                   setTestSent(true);
                   setTimeout(() => setTestSent(false), 4000);
                 }}
               >
-                <Text style={[styles.testBtnText, { color: themeColor }]} numberOfLines={1}>
+                <Text style={[s.compactHeaderButtonText, { color: themeColor }]} numberOfLines={1}>
                   {testSent ? t('test_sending') : t('test_send')}
                 </Text>
               </TouchableOpacity>
@@ -198,12 +198,6 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
   },
-  testBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingVertical: 6, paddingHorizontal: 10,
-    borderRadius: 10, borderWidth: 1,
-  },
-  testBtnText: { fontSize: 12, fontWeight: '600' },
   closeBtn: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',

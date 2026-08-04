@@ -1,14 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import type { ReviewEntry, WordCard } from '../../types';
 import { translate } from '../../i18n';
 import { ALL_LEVEL_KEYS } from './levels';
-import {
-  BULK_IMPORT_MAX_ITEM_CHARS,
-  BULK_IMPORT_MAX_ITEMS,
-  FREE_WORD_LIMIT,
-} from '../../constants';
 import { createId } from '../../utils/createId';
 import {
   nextRegistrationTimestamp,
@@ -25,10 +20,8 @@ export interface UseCardsParams {
   cards: WordCard[];
   setCards: Dispatch<SetStateAction<WordCard[]>>;
   currentFolderId: string | null;
-  isSubscribed: boolean;
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
-  onWordLimitReached(): void;
   onCardRegistered?(card: WordCard): void;
   onCardsDeleted?(ids: string[]): void;
 }
@@ -111,10 +104,8 @@ export function useCards({
   cards,
   setCards,
   currentFolderId,
-  isSubscribed,
   language,
   setMenuVisible,
-  onWordLimitReached,
   onCardRegistered,
   onCardsDeleted,
 }: UseCardsParams): UseCardsReturn {
@@ -143,13 +134,21 @@ export function useCards({
   const [cardViewMode, setCardViewMode] = useState<'list' | 'flip'>('list');
 
   // ── Derived ──────────────────────────────────────────────────────────────────
-  const folderCards = currentFolderId
-    ? cards.filter(c => c.folderId === currentFolderId)
-    : [];
+  // Memoized because these arrays are the list's `data`. Rebuilding them on every
+  // App render handed the list a new identity for unrelated state changes (a modal
+  // opening, a banner, a subscription refresh), which re-ran the filter over every
+  // card and made the virtualized list re-evaluate its cells.
+  const folderCards = useMemo(
+    () => currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [],
+    [cards, currentFolderId],
+  );
   const isFilterActive = levelFilter.size < ALL_LEVEL_KEYS.length;
-  const filteredFolderCards = isFilterActive
-    ? folderCards.filter(c => levelFilter.has(c.testLevel ?? 'none'))
-    : folderCards;
+  const filteredFolderCards = useMemo(
+    () => isFilterActive
+      ? folderCards.filter(c => levelFilter.has(c.testLevel ?? 'none'))
+      : folderCards,
+    [folderCards, isFilterActive, levelFilter],
+  );
 
   // ── Flip ─────────────────────────────────────────────────────────────────────
   const toggleFlip = (id: string) => {
@@ -314,11 +313,7 @@ export function useCards({
       Alert.alert(translate(language, 'alert_enter_word'));
       return;
     }
-    if (!editingCard && !isSubscribed && cards.length >= FREE_WORD_LIMIT) {
-      setWordModalVisible(false);
-      onWordLimitReached();
-      return;
-    }
+    // Words are unlimited on every plan — no count check gates registration.
     if (editingCard) {
       setCards(prev => prev.map(c =>
         c.id === editingCard.id
@@ -376,18 +371,8 @@ export function useCards({
         existingCards: cards,
         destinationFolderId,
         firstCreatedAt: nextRegistrationTimestamp(cards),
-        maxItems: BULK_IMPORT_MAX_ITEMS,
-        maxItemChars: BULK_IMPORT_MAX_ITEM_CHARS,
         createId: () => createId('card'),
       });
-      if (!isSubscribed && cards.length + batch.cards.length > FREE_WORD_LIMIT) {
-        return {
-          added: 0,
-          duplicatesSkipped: batch.duplicatesSkipped,
-          failed: batch.cards.length,
-          error: 'word_limit',
-        };
-      }
       // One state update feeds the existing AsyncStorage and Supabase snapshot
       // persistence path. Bulk imports intentionally do not auto-preload AI audio.
       setCards(prev => [...prev, ...batch.cards]);
@@ -397,14 +382,11 @@ export function useCards({
         failed: batch.invalidCount,
       };
     } catch (error) {
-      const code = error instanceof Error ? error.message : '';
       return {
         added: 0,
         duplicatesSkipped: 0,
         failed: drafts.length,
-        error: code === 'bulk_import_item_limit'
-          ? 'item_limit'
-          : code === 'bulk_import_item_too_long' ? 'item_too_long' : 'unknown',
+        error: 'unknown',
       };
     }
   };
