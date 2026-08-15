@@ -30,6 +30,8 @@ export const appStyles = StyleSheet.create({
     position: 'absolute', bottom: 36, right: 24,
     width: 58, height: 58, borderRadius: 29,
     alignItems: 'center', justifyContent: 'center',
+    zIndex: 101,
+    elevation: 101,
   },
   fabText: { fontSize: 32, color: '#fff', lineHeight: 36, fontWeight: '300' },
 

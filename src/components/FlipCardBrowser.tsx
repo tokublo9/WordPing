@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -18,6 +18,7 @@ import {
   FLIP_WORD_FONT_SIZE,
 } from '../constants';
 import { scrubberIndexForX, scrubberXForIndex } from '../features/cards/flipScrubber';
+import { resolveCurrentWordIndex } from '../features/cards/currentWordPosition';
 import { CardScrollFace } from './CardScrollFace';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
@@ -47,9 +48,16 @@ const xForIndex = (index: number, count: number): number =>
 const indexForX = (x: number, count: number): number =>
   scrubberIndexForX(x, count, TRACK_W);
 const SWIPE_THRESHOLD = SCREEN_W * 0.25;
+const SLOT_INDICES = [0, 1, 2] as const;
+const STRIPE_COLORS: Partial<Record<string, string>> = {
+  perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
+};
 
 interface Props {
   cards: WordCard[];
+  currentWordId: string | null;
+  onCurrentWordChange: (id: string | null) => void;
+  active: boolean;
   pal: Palette;
   themeColor: string;
   isSubscribed: boolean;
@@ -70,28 +78,37 @@ function getSlots(curr: number) {
 }
 
 
-export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif, showLevelLabel = true, verticalFlip = false, isPremium = false, onCustomVoiceLocked }: Props) {
+function FlipCardBrowserComponent({
+  cards, currentWordId, onCurrentWordChange, active,
+  pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif,
+  showLevelLabel = true, verticalFlip = false, isPremium = false, onCustomVoiceLocked,
+}: Props) {
   const t = useLang();
+  const initialIndex = resolveCurrentWordIndex(cards, currentWordId);
 
-  // ── Three independent slot positions ──────────────────────────────────────
+  // ── Shared swipe graph with three slot bases ───────────────────────────────
   //
-  // Each physical slot has its OWN Animated.Value so positions are never
-  // coupled via Animated.add. Slots rotate through "curr / next / prev" roles
-  // as the user swipes. Content is only updated on whichever slot is currently
-  // offscreen (±SCREEN_W), so a native view with stale text is never visible.
-
-  const slot0X = useRef(new Animated.Value(0)).current;
-  const slot1X = useRef(new Animated.Value(SCREEN_W)).current;
-  const slot2X = useRef(new Animated.Value(-SCREEN_W)).current;
-  // Stable reference array for access inside the panResponder closure.
-  const slotXRef = useRef([slot0X, slot1X, slot2X]);
+  // All three slots derive from one gesture value. A finger move therefore crosses the
+  // JS/native boundary once, and the cards plus progress thumb consume the same value.
+  // Slot bases only change after a swipe settles, while the affected cards are offscreen.
+  const swipeX = useRef(new Animated.Value(0)).current;
+  const slot0BaseX = useRef(new Animated.Value(0)).current;
+  const slot1BaseX = useRef(new Animated.Value(SCREEN_W)).current;
+  const slot2BaseX = useRef(new Animated.Value(-SCREEN_W)).current;
+  const slotBaseXRef = useRef([slot0BaseX, slot1BaseX, slot2BaseX]);
+  const slotTranslateX = useMemo(
+    () => slotBaseXRef.current.map(baseX => Animated.add(baseX, swipeX)),
+    [swipeX],
+  );
 
   // Which WordCard each physical slot is currently loaded with.
   const [slotCards, setSlotCards] = useState<(WordCard | undefined)[]>(() => [
-    cards[0],
-    cards[1],
-    undefined,   // no prev card when starting at index 0
+    cards[initialIndex],
+    cards[initialIndex + 1],
+    cards[initialIndex - 1],
   ]);
+  const slotCardsRef = useRef(slotCards);
+  slotCardsRef.current = slotCards;
 
   // Which slot index is the centered "current" card.
   const [currSlot, setCurrSlot] = useState(0);
@@ -100,11 +117,16 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
   // ── General state ─────────────────────────────────────────────────────────
 
-  const [idx,     setIdx]     = useState(0);
+  const [idx,     setIdx]     = useState(() => Math.max(0, initialIndex));
   const [flipped, setFlipped] = useState(false);
 
+  const cardsById = useMemo(
+    () => new Map(cards.map(candidate => [candidate.id, candidate])),
+    [cards],
+  );
+
   const activeVoiceCard = slotCards[currSlot]
-    ? cards.find(candidate => candidate.id === slotCards[currSlot]?.id) ?? slotCards[currSlot]
+    ? cardsById.get(slotCards[currSlot]!.id) ?? slotCards[currSlot]
     : null;
   const {
     voiceState,
@@ -119,6 +141,9 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
   });
 
   const flipAnim = useRef(new Animated.Value(0)).current;
+  const committedThumbX = useRef(new Animated.Value(xForIndex(Math.max(0, initialIndex), cards.length))).current;
+  const scrubThumbX = useRef(new Animated.Value(0)).current;
+  const thumbXRef = useRef(xForIndex(Math.max(0, initialIndex), cards.length));
 
   const hasNext = idx < cards.length - 1;
   const hasPrev = idx > 0;
@@ -132,42 +157,89 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
   const cardsRef        = useRef(cards);
   cardsRef.current      = cards;
+  const previousCardsRef = useRef(cards);
+  const onCurrentWordChangeRef = useRef(onCurrentWordChange);
+  onCurrentWordChangeRef.current = onCurrentWordChange;
 
   // Prevents a second swipe from starting mid-animation.
   const transitioningRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  const swipeThumbX = useMemo(() => {
+    const step = cards.length > 1 ? TRACK_W / (cards.length - 1) : 0;
+    const gestureProgress = Animated.multiply(swipeX, -step / SCREEN_W);
+    return Animated.add(committedThumbX, gestureProgress);
+  }, [cards.length, committedThumbX, swipeX]);
 
   // ── Flip interpolations (native driver) ───────────────────────────────────
 
-  const frontRotate  = flipAnim.interpolate({ inputRange: [0, 0.5],    outputRange: ['0deg', '-90deg'], extrapolate: 'clamp' });
-  const frontOpacity = flipAnim.interpolate({ inputRange: [0.35, 0.5], outputRange: [1, 0],             extrapolate: 'clamp' });
-  const backRotate   = flipAnim.interpolate({ inputRange: [0.5, 1],    outputRange: ['90deg', '0deg'],  extrapolate: 'clamp' });
-  const backOpacity  = flipAnim.interpolate({ inputRange: [0.5, 0.65], outputRange: [0, 1],             extrapolate: 'clamp' });
+  const { frontRotate, frontOpacity, backRotate, backOpacity } = useMemo(() => ({
+    frontRotate: flipAnim.interpolate({ inputRange: [0, 0.5], outputRange: ['0deg', '-90deg'], extrapolate: 'clamp' }),
+    frontOpacity: flipAnim.interpolate({ inputRange: [0.35, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }),
+    backRotate: flipAnim.interpolate({ inputRange: [0.5, 1], outputRange: ['90deg', '0deg'], extrapolate: 'clamp' }),
+    backOpacity: flipAnim.interpolate({ inputRange: [0.5, 0.65], outputRange: [0, 1], extrapolate: 'clamp' }),
+  }), [flipAnim]);
 
   const rotateKey = verticalFlip ? 'rotateX' : 'rotateY';
+
+  // Both modes remain mounted. If the user switches during a swipe/flip animation,
+  // cancel it at the currently committed card so a hidden completion cannot move the
+  // visible list afterward.
+  useLayoutEffect(() => {
+    if (active) return;
+    flipAnim.stopAnimation();
+    flipAnim.setValue(0);
+    setFlipped(false);
+    stopVoice();
+    const { curr, next, prev } = getSlots(currSlotRef.current);
+    swipeX.stopAnimation();
+    swipeX.setValue(0);
+    const bases = slotBaseXRef.current;
+    bases[curr].setValue(0);
+    bases[next].setValue(SCREEN_W);
+    bases[prev].setValue(-SCREEN_W);
+    transitioningRef.current = false;
+  }, [active, flipAnim, stopVoice, swipeX]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
   // Jump to any arbitrary index (progress scrubber, delete navigation).
   // Resets all slots to a clean layout: slot 0 = curr, slot 1 = next, slot 2 = prev.
-  const goTo = useCallback((newIdx: number) => {
+  const goTo = useCallback((newIdx: number, publishCurrentWord = true) => {
     stopVoice();
     flipAnim.setValue(0);
     setFlipped(false);
     const c  = cardsRef.current;
-    const sX = slotXRef.current;
-    setSlotCards([c[newIdx], c[newIdx + 1], c[newIdx - 1]]);
-    sX[0].setValue(0);
-    sX[1].setValue(SCREEN_W);
-    sX[2].setValue(-SCREEN_W);
+    if (c.length === 0) {
+      idxRef.current = 0;
+      setIdx(0);
+      setSlotCards([undefined, undefined, undefined]);
+      onCurrentWordChangeRef.current(null);
+      return;
+    }
+    const target = Math.max(0, Math.min(Math.trunc(newIdx), c.length - 1));
+    setSlotCards([c[target], c[target + 1], c[target - 1]]);
+    const bases = slotBaseXRef.current;
+    bases[0].setValue(0);
+    bases[1].setValue(SCREEN_W);
+    bases[2].setValue(-SCREEN_W);
+    swipeX.setValue(0);
     currSlotRef.current = 0;
     setCurrSlot(0);
-    setIdx(newIdx);
-  }, [flipAnim, stopVoice]);
+    idxRef.current = target;
+    setIdx(target);
+    const targetX = xForIndex(target, c.length);
+    thumbXRef.current = targetX;
+    committedThumbX.setValue(targetX);
+    if (publishCurrentWord) onCurrentWordChangeRef.current(c[target].id);
+  }, [committedThumbX, flipAnim, stopVoice, swipeX]);
 
   const doFlip = useCallback(() => {
     const toValue = flipped ? 0 : 1;
     Animated.timing(flipAnim, { toValue, duration: 350, useNativeDriver: true })
-      .start(() => setFlipped(f => !f));
+      .start(({ finished }) => {
+        if (finished && mountedRef.current) setFlipped(f => !f);
+      });
   }, [flipped, flipAnim]);
 
   const handleDelete = useCallback(() => {
@@ -179,7 +251,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
     } else if (hasNextRef.current) {
       flipAnim.setValue(0);
       setFlipped(false);
-      // Stay at same index; the useEffect below resyncs slots after onDelete.
+      // Stay at same index; the synchronization effect below resyncs after onDelete.
     }
     onDelete(c.id);
   }, [goTo, flipAnim, onDelete, stopVoice]);
@@ -193,18 +265,17 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
         !transitioningRef.current &&
         Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.5,
 
-      // All three slots move together by dx — no Animated.add coupling.
+      // One shared value drives all three cards and the progress thumb.
       onPanResponderMove: (_, { dx }) => {
-        const { curr, next, prev } = getSlots(currSlotRef.current);
-        const sX = slotXRef.current;
-        sX[curr].setValue(dx);
-        sX[next].setValue(SCREEN_W  + dx);
-        sX[prev].setValue(-SCREEN_W + dx);
+        // Clamp invalid edge movement here rather than using a stateful diffClamp node;
+        // this keeps the first/last progress positions exact after a cancelled drag.
+        const minX = hasNextRef.current ? -SCREEN_W : 0;
+        const maxX = hasPrevRef.current ? SCREEN_W : 0;
+        swipeX.setValue(Math.max(minX, Math.min(maxX, dx)));
       },
 
       onPanResponderRelease: (_, { dx, vx }) => {
         const slots  = getSlots(currSlotRef.current);
-        const sX     = slotXRef.current;
         const toNext = (dx < -SWIPE_THRESHOLD || vx < -0.5) && hasNextRef.current;
         const toPrev = (dx > SWIPE_THRESHOLD  || vx > 0.5)  && hasPrevRef.current;
 
@@ -214,31 +285,47 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
           const inSlot    = toNext ? slots.next : slots.prev;
           const outTarget = toNext ? -SCREEN_W : SCREEN_W;
 
-          Animated.parallel([
-            Animated.timing(sX[outSlot], { toValue: outTarget, duration: 220, useNativeDriver: false }),
-            Animated.timing(sX[inSlot],  { toValue: 0,         duration: 220, useNativeDriver: false }),
-          ]).start(() => {
+          Animated.timing(swipeX, {
+            toValue: outTarget,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(({ finished }) => {
+            if (!finished || !mountedRef.current) {
+              transitioningRef.current = false;
+              return;
+            }
             const newIdx    = toNext ? idxRef.current + 1 : idxRef.current - 1;
             const c         = cardsRef.current;
             // The third slot (not outSlot, not inSlot) was the opposite adjacent.
             // Reposition it offscreen on the other side and load the new card.
-            const unusedSlot = ([0, 1, 2] as const).find(s => s !== outSlot && s !== inSlot)!;
+            const unusedSlot = SLOT_INDICES.find(s => s !== outSlot && s !== inSlot)!;
+            const bases = slotBaseXRef.current;
 
             if (toNext) {
               // unusedSlot was prev → becomes new next (right side).
-              sX[unusedSlot].setValue(SCREEN_W);
+              bases[outSlot].setValue(-SCREEN_W);
+              bases[inSlot].setValue(0);
+              bases[unusedSlot].setValue(SCREEN_W);
               setSlotCards(prev => { const n = [...prev]; n[unusedSlot] = c[newIdx + 1]; return n; });
             } else {
               // unusedSlot was next → becomes new prev (left side).
-              sX[unusedSlot].setValue(-SCREEN_W);
+              bases[outSlot].setValue(SCREEN_W);
+              bases[inSlot].setValue(0);
+              bases[unusedSlot].setValue(-SCREEN_W);
               setSlotCards(prev => { const n = [...prev]; n[unusedSlot] = c[newIdx - 1]; return n; });
             }
+            swipeX.setValue(0);
 
             // inSlot is already at x=0 showing the correct card — no content change here.
             // outSlot is at ±SCREEN_W with its old card — it now becomes the opposite adjacent.
             currSlotRef.current = inSlot;
             setCurrSlot(inSlot);
+            idxRef.current = newIdx;
             setIdx(newIdx);
+            const targetX = xForIndex(newIdx, c.length);
+            thumbXRef.current = targetX;
+            committedThumbX.setValue(targetX);
+            onCurrentWordChangeRef.current(c[newIdx]?.id ?? null);
             flipAnim.setValue(0);
             setFlipped(false);
             stopVoice();
@@ -247,33 +334,24 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
 
         } else {
           // Threshold not reached — spring everything back to home positions.
-          const { curr, next, prev } = slots;
-          Animated.parallel([
-            Animated.spring(sX[curr], { toValue: 0,         useNativeDriver: false, restSpeedThreshold: 0.1, restDisplacementThreshold: 0.1 }),
-            Animated.spring(sX[next], { toValue: SCREEN_W,  useNativeDriver: false, restSpeedThreshold: 0.1, restDisplacementThreshold: 0.1 }),
-            Animated.spring(sX[prev], { toValue: -SCREEN_W, useNativeDriver: false, restSpeedThreshold: 0.1, restDisplacementThreshold: 0.1 }),
-          ]).start(() => {
-            sX[curr].setValue(0);
-            sX[next].setValue(SCREEN_W);
-            sX[prev].setValue(-SCREEN_W);
-          });
+          Animated.spring(swipeX, {
+            toValue: 0,
+            useNativeDriver: true,
+            restSpeedThreshold: 0.1,
+            restDisplacementThreshold: 0.1,
+          }).start();
         }
       },
 
       onPanResponderTerminate: () => {
-        const { curr, next, prev } = getSlots(currSlotRef.current);
-        const sX = slotXRef.current;
-        sX[curr].setValue(0);
-        sX[next].setValue(SCREEN_W);
-        sX[prev].setValue(-SCREEN_W);
+        swipeX.stopAnimation();
+        swipeX.setValue(0);
       },
     })
   ).current;
 
   // ── Progress bar scrubber ─────────────────────────────────────────────────
 
-  const thumbX        = useRef(new Animated.Value(0)).current;
-  const thumbXRef     = useRef(0);
   const cardsLenRef   = useRef(cards.length);
   const goToRef       = useRef(goTo);
   cardsLenRef.current = cards.length;
@@ -293,8 +371,8 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
     if (scrubbingRef.current) return;
     const x = xForIndex(idx, cards.length);
     thumbXRef.current = x;
-    thumbX.setValue(x);
-  }, [idx, cards.length, thumbX]);
+    committedThumbX.setValue(x);
+  }, [idx, cards.length, committedThumbX]);
 
   const progressPan = useRef(
     PanResponder.create({
@@ -315,11 +393,13 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
         const n = cardsLenRef.current;
         const x = Math.max(0, Math.min(TRACK_W, dragStartXRef.current + dx));
         // Continuous so the thumb tracks the finger; the card commits per tick.
-        thumbX.setValue(x);
+        scrubThumbX.setValue(x);
         const target = indexForX(x, n);
         if (target !== scrubIdxRef.current) {
           scrubIdxRef.current = target;
-          goToRef.current(target);
+          // Keep the existing live card preview, but defer shared app state and the
+          // hidden-list restoration until release instead of doing that work per tick.
+          goToRef.current(target, false);
         }
       },
 
@@ -329,8 +409,9 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
         // Settle exactly on the tick the card is showing.
         const snapX = xForIndex(target, n);
         thumbXRef.current = snapX;
-        thumbX.setValue(snapX);
+        scrubThumbX.setValue(snapX);
         if (target !== idxRef.current) goToRef.current(target);
+        else onCurrentWordChangeRef.current(cardsRef.current[target]?.id ?? null);
         scrubbingRef.current = false;
         setScrubbing(false);
       },
@@ -339,7 +420,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
         const n = cardsLenRef.current;
         const snapX = xForIndex(idxRef.current, n);
         thumbXRef.current = snapX;
-        thumbX.setValue(snapX);
+        scrubThumbX.setValue(snapX);
         scrubbingRef.current = false;
         setScrubbing(false);
       },
@@ -365,33 +446,53 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
     })
   ).current;
 
-  // ── Sync slots after external card list change (e.g. deletion) ────────────
+  // ── Sync slots after external card order/current-word changes ─────────────
 
-  useEffect(() => {
-    if (!transitioningRef.current) {
-      const i = idxRef.current;
-      const c = cardsRef.current;
-      if (c[i]) {
-        const sX = slotXRef.current;
-        setSlotCards([c[i], c[i + 1], c[i - 1]]);
-        sX[0].setValue(0);
-        sX[1].setValue(SCREEN_W);
-        sX[2].setValue(-SCREEN_W);
-        currSlotRef.current = 0;
-        setCurrSlot(0);
-      }
+  useLayoutEffect(() => {
+    if (!active) {
+      previousCardsRef.current = cards;
+      return;
     }
-  }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (transitioningRef.current) return;
+    const target = resolveCurrentWordIndex(
+      cards,
+      currentWordId,
+      idxRef.current,
+      previousCardsRef.current,
+    );
+    previousCardsRef.current = cards;
+    if (target < 0) {
+      if (currentWordId !== null) onCurrentWordChangeRef.current(null);
+      return;
+    }
+
+    const targetId = cards[target].id;
+    const centeredId = slotCardsRef.current[currSlotRef.current]?.id;
+    if (target !== idxRef.current || centeredId !== targetId) {
+      goTo(target);
+    } else if (currentWordId !== targetId) {
+      onCurrentWordChangeRef.current(targetId);
+    }
+  }, [active, cards, currentWordId, goTo]);
+
+  // Cancelling a swipe by switching modes must not let its completion callback publish
+  // a stale card after the list has already been restored.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      transitioningRef.current = false;
+      flipAnim.stopAnimation();
+      swipeX.stopAnimation();
+    };
+  }, [flipAnim, swipeX]);
 
   // ── Level stripe ──────────────────────────────────────────────────────────
 
-  const STRIPE_COLORS: Partial<Record<string, string>> = {
-    perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
-  };
-  const stripe = (c: WordCard) => {
+  const stripe = useCallback((c: WordCard) => {
     const color = showLevelLabel && c.testLevel ? STRIPE_COLORS[c.testLevel] : null;
     return color ? <View style={[s.flipStripe, { backgroundColor: color }]} /> : null;
-  };
+  }, [showLevelLabel]);
 
   // One tick per card at its exact scrubber position. Built per card count so a scrub
   // never rebuilds them, and mounted only while scrubbing.
@@ -409,8 +510,18 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
   // Slot content is intentionally stable during horizontal transitions, but
   // mutable card properties (such as notifOff) must always come from the latest
   // cards prop. This also avoids a stale first frame when Flip View is reopened.
-  const resolveLatestCard = (slotCard: WordCard | undefined) =>
-    slotCard ? cards.find(candidate => candidate.id === slotCard.id) ?? slotCard : undefined;
+  const resolveLatestCard = useCallback(
+    (slotCard: WordCard | undefined) => slotCard
+      ? cardsById.get(slotCard.id) ?? slotCard
+      : undefined,
+    [cardsById],
+  );
+
+  const displayedThumbX = scrubbing ? scrubThumbX : swipeThumbX;
+  const progressScaleX = useMemo(
+    () => Animated.divide(displayedThumbX, TRACK_W),
+    [displayedThumbX],
+  );
 
   const card = resolveLatestCard(slotCards[currSlot]);
   if (!card) return null;
@@ -425,7 +536,7 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
       <Text style={[s.counter, { color: pal.sub }]}>{`${idx + 1} / ${cards.length}`}</Text>
 
       <View style={s.deckWrap}>
-        {([0, 1, 2] as const).map(si => {
+        {SLOT_INDICES.map(si => {
           const c = resolveLatestCard(slotCards[si]);
           if (!c) return null;
           const isCurr = si === currSlot;
@@ -433,7 +544,9 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
           return (
             <Animated.View
               key={si}
-              style={[s.cardOuter, { transform: [{ translateX: slotXRef.current[si] }] }]}
+              style={[s.cardOuter, { transform: [{ translateX: slotTranslateX[si] }] }]}
+              renderToHardwareTextureAndroid={active}
+              shouldRasterizeIOS={active}
               {...(isCurr ? panResponder.panHandlers : undefined)}
             >
               {isCurr ? (
@@ -510,7 +623,15 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
       {/* Progress bar */}
       <View style={s.progressWrap}>
         <View style={[s.trackBg, { backgroundColor: pal.border }]} />
-        <Animated.View style={[s.trackFill, { backgroundColor: themeColor, width: thumbX }]} />
+        <Animated.View
+          style={[
+            s.trackFill,
+            {
+              backgroundColor: themeColor,
+              transform: [{ scaleX: progressScaleX }],
+            },
+          ]}
+        />
         {/* Tap layer covering the whole track. Declared before the thumb so the thumb
             stays on top and keeps ownership of drags. */}
         <View style={s.trackTap} {...trackTapPan.panHandlers} />
@@ -521,7 +642,10 @@ export function FlipCardBrowser({ cards, pal, themeColor, isSubscribed, onEdit, 
         )}
         {/* Invisible 44pt target; the visible 18pt circle rides inside it. */}
         <Animated.View
-          style={[s.thumbHit, { transform: [{ translateX: thumbX }] }]}
+          style={[
+            s.thumbHit,
+            { transform: [{ translateX: displayedThumbX }] },
+          ]}
           {...progressPan.panHandlers}
         >
           <View style={[s.thumb, { backgroundColor: themeColor }]} />
@@ -688,8 +812,10 @@ const s = StyleSheet.create({
   trackFill: {
     position: 'absolute',
     left: HIT_PAD,
+    width: TRACK_W,
     height: 3,
     borderRadius: 2,
+    transformOrigin: 'left center',
   },
   // Full-height tap target over the track. Spans the wrapper's padded width so a tap in
   // the slack past either end clamps to the first or last card.
@@ -739,3 +865,26 @@ const s = StyleSheet.create({
     transform: [{ rotate: '-45deg' }],
   },
 });
+
+function flipCardBrowserPropsEqual(previous: Props, next: Props) {
+  // While hidden, defer all render work. The latest props are applied synchronously by
+  // the layout effect on the render that activates Flip again.
+  if (!previous.active && !next.active) return true;
+  return previous.cards === next.cards
+    && previous.currentWordId === next.currentWordId
+    && previous.onCurrentWordChange === next.onCurrentWordChange
+    && previous.active === next.active
+    && previous.pal === next.pal
+    && previous.themeColor === next.themeColor
+    && previous.isSubscribed === next.isSubscribed
+    && previous.onEdit === next.onEdit
+    && previous.onDelete === next.onDelete
+    && previous.onMove === next.onMove
+    && previous.onToggleNotif === next.onToggleNotif
+    && previous.showLevelLabel === next.showLevelLabel
+    && previous.verticalFlip === next.verticalFlip
+    && previous.isPremium === next.isPremium
+    && previous.onCustomVoiceLocked === next.onCustomVoiceLocked;
+}
+
+export const FlipCardBrowser = memo(FlipCardBrowserComponent, flipCardBrowserPropsEqual);

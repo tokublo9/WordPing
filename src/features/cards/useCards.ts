@@ -3,7 +3,11 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import type { ReviewEntry, WordCard } from '../../types';
 import { translate } from '../../i18n';
-import { ALL_LEVEL_KEYS } from './levels';
+import {
+  ALL_LEVEL_KEYS,
+  isLevelFilterKey,
+  type LevelFiltersByFolder,
+} from './levels';
 import { createId } from '../../utils/createId';
 import {
   nextRegistrationTimestamp,
@@ -22,6 +26,8 @@ export interface UseCardsParams {
   currentFolderId: string | null;
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
+  levelFiltersByFolder: LevelFiltersByFolder;
+  setLevelFiltersByFolder: Dispatch<SetStateAction<LevelFiltersByFolder>>;
   onCardRegistered?(card: WordCard): void;
   onCardsDeleted?(ids: string[]): void;
 }
@@ -51,7 +57,6 @@ export interface UseCardsReturn {
   levelFilter: Set<string>;
   isFilterActive: boolean;
   toggleLevelFilter(level: string): void;
-  resetLevelFilter(): void;
   // Labels
   showLevelLabels: boolean;
   setShowLevelLabels: Dispatch<SetStateAction<boolean>>;
@@ -61,6 +66,8 @@ export interface UseCardsReturn {
   // View
   cardViewMode: 'list' | 'flip';
   setCardViewMode: Dispatch<SetStateAction<'list' | 'flip'>>;
+  currentWordId: string | null;
+  setCurrentWordId(id: string | null): void;
   // Card-open tracking ref (returned so App.tsx can pass it to SwipeableCard)
   closeOpenCard: MutableRefObject<(() => void) | null>;
   handleCardOpen(close: () => void): void;
@@ -106,6 +113,8 @@ export function useCards({
   currentFolderId,
   language,
   setMenuVisible,
+  levelFiltersByFolder,
+  setLevelFiltersByFolder,
   onCardRegistered,
   onCardsDeleted,
 }: UseCardsParams): UseCardsReturn {
@@ -115,7 +124,6 @@ export function useCards({
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderSortDir, setReorderSortDir] = useState<'asc' | 'desc' | 'registration' | null>(null);
   const originalFolderCards = useRef<WordCard[]>([]);
-  const [levelFilter, setLevelFilter] = useState<Set<string>>(new Set(ALL_LEVEL_KEYS));
   const [showLevelLabels, setShowLevelLabels] = useState(true);
   const closeOpenCard = useRef<(() => void) | null>(null);
   const [editingCard, setEditingCard] = useState<WordCard | null>(null);
@@ -132,6 +140,26 @@ export function useCards({
   const [wordModalVisible, setWordModalVisible] = useState(false);
   const [testModeVisible, setTestModeVisible] = useState(false);
   const [cardViewMode, setCardViewMode] = useState<'list' | 'flip'>('list');
+  const [currentWordIdsByFolder, setCurrentWordIdsByFolder] = useState<Record<string, string>>({});
+
+  // Position is retained per folder so leaving the Word List temporarily—or opening a
+  // different folder—does not discard the last word the user was reading.
+  const currentWordId = currentFolderId
+    ? currentWordIdsByFolder[currentFolderId] ?? null
+    : null;
+  const setCurrentWordId = useCallback((id: string | null) => {
+    if (!currentFolderId) return;
+    setCurrentWordIdsByFolder(previous => {
+      if (id === null) {
+        if (!(currentFolderId in previous)) return previous;
+        const next = { ...previous };
+        delete next[currentFolderId];
+        return next;
+      }
+      if (previous[currentFolderId] === id) return previous;
+      return { ...previous, [currentFolderId]: id };
+    });
+  }, [currentFolderId]);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   // Memoized because these arrays are the list's `data`. Rebuilding them on every
@@ -141,6 +169,14 @@ export function useCards({
   const folderCards = useMemo(
     () => currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [],
     [cards, currentFolderId],
+  );
+  const levelFilter = useMemo<Set<string>>(
+    () => new Set(
+      currentFolderId
+        ? (levelFiltersByFolder[currentFolderId] ?? ALL_LEVEL_KEYS)
+        : ALL_LEVEL_KEYS,
+    ),
+    [currentFolderId, levelFiltersByFolder],
   );
   const isFilterActive = levelFilter.size < ALL_LEVEL_KEYS.length;
   const filteredFolderCards = useMemo(
@@ -255,14 +291,17 @@ export function useCards({
 
   // ── Level filter ──────────────────────────────────────────────────────────────
   const toggleLevelFilter = (level: string) => {
-    setLevelFilter(prev => {
-      const next = new Set(prev);
+    if (!currentFolderId || !isLevelFilterKey(level)) return;
+    setLevelFiltersByFolder(prev => {
+      const current = prev[currentFolderId] ?? ALL_LEVEL_KEYS;
+      const next = new Set(current);
       next.has(level) ? next.delete(level) : next.add(level);
-      return next;
+      return {
+        ...prev,
+        [currentFolderId]: ALL_LEVEL_KEYS.filter(key => next.has(key)),
+      };
     });
   };
-
-  const resetLevelFilter = () => setLevelFilter(new Set(ALL_LEVEL_KEYS));
 
   // ── Card-open tracking ────────────────────────────────────────────────────────
   // useCallback with empty deps: closeOpenCard is a ref (stable reference).
@@ -407,10 +446,10 @@ export function useCards({
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleRegistrationOrder,
-    levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
+    levelFilter, isFilterActive, toggleLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
-    cardViewMode, setCardViewMode,
+    cardViewMode, setCardViewMode, currentWordId, setCurrentWordId,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,
     editingCard,

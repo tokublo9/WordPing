@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Folder, OnboardingChoices, WordCard } from '../types';
-import { HIDE_AI_TOOLS_KEY, ONBOARDING_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
+import {
+  HIDE_AI_TOOLS_KEY,
+  ONBOARDING_KEY,
+  SHOW_FULL_CARD_KEY,
+  VERTICAL_FLIP_KEY,
+  WORD_LIST_FILTERS_KEY,
+} from '../constants';
 import {
   bootstrapData,
   DEFAULT_FOLDER_ID,
@@ -13,6 +19,10 @@ import {
 import type { Settings } from '../lib/db';
 import { getPermissionStatus } from '../notifications';
 import { FORCE_SHOW_ONBOARDING } from '../components/OnboardingModal';
+import {
+  parseLevelFiltersByFolder,
+  type LevelFiltersByFolder,
+} from '../features/cards/levels';
 
 // Assigns folderId to cards that predate the folder feature.
 // Creates a default folder when none exist — the only side effect.
@@ -85,8 +95,11 @@ export interface AppBootstrapState {
   setShowOnboarding: Dispatch<SetStateAction<boolean>>;
   notificationGranted: boolean;
   setNotificationGranted: Dispatch<SetStateAction<boolean>>;
+  levelFiltersByFolder: LevelFiltersByFolder;
+  setLevelFiltersByFolder: Dispatch<SetStateAction<LevelFiltersByFolder>>;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
+  levelFiltersLoaded: MutableRefObject<boolean>;
 }
 
 export function useAppBootstrap({
@@ -103,12 +116,14 @@ export function useAppBootstrap({
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [notificationGranted, setNotificationGranted] = useState(false);
+  const [levelFiltersByFolder, setLevelFiltersByFolder] = useState<LevelFiltersByFolder>({});
 
   const hasLoaded = useRef(false);
   // Opens the cards/settings write path as soon as stored cards reach state, without
   // waiting for the later phases. A word added during those phases would otherwise be
   // held in memory only until some other change happened to trigger a write.
   const cardsLoaded = useRef(false);
+  const levelFiltersLoaded = useRef(false);
   const foldersRef = useRef<Folder[]>([]);
 
   useEffect(() => {
@@ -119,9 +134,21 @@ export function useAppBootstrap({
       // the default FOLDERS_KEY entry so readFolders() sees it immediately after.
       let local: Awaited<ReturnType<typeof bootstrapData>>;
       let storedFolders: Folder[];
+      let rawLevelFilters: string | null = null;
       try {
         local = await bootstrapData();
-        storedFolders = await readFolders();
+        [storedFolders, rawLevelFilters] = await Promise.all([
+          readFolders(),
+          AsyncStorage.getItem(WORD_LIST_FILTERS_KEY).catch(e => {
+            if (__DEV__) {
+              console.warn(
+                '[bootstrap] word-list filters load failed:',
+                e instanceof Error ? e.name : 'UnknownError',
+              );
+            }
+            return null;
+          }),
+        ]);
       } catch (e) {
         if (__DEV__) {
           console.error(
@@ -140,6 +167,10 @@ export function useAppBootstrap({
         local.cards,
         storedFolders,
       );
+      // Queue the restored filters before folders become tappable. This prevents a
+      // Word List from rendering the all-enabled default before its saved state.
+      setLevelFiltersByFolder(parseLevelFiltersByFolder(rawLevelFilters));
+      levelFiltersLoaded.current = true;
       foldersRef.current = migratedFolders;
       setCards(migratedCards);
       setFolders(migratedFolders);
@@ -224,6 +255,7 @@ export function useAppBootstrap({
         // was already opened in Phase 1; this covers the early-return failure path.
         hasLoaded.current = true;
         cardsLoaded.current = true;
+        levelFiltersLoaded.current = true;
         // markSettingsLoaded calls a state setter; only call it if still mounted.
         // On the happy path it was already called above (idempotent).
         if (!cancelled) markSettingsLoaded();
@@ -251,7 +283,9 @@ export function useAppBootstrap({
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
+    levelFiltersByFolder, setLevelFiltersByFolder,
     hasLoaded,
     cardsLoaded,
+    levelFiltersLoaded,
   };
 }

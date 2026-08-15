@@ -42,6 +42,7 @@ export const CARDS_KEY = 'vocabulary_cards';
 export const THEME_KEY = 'theme_color';
 export const APPEARANCE_KEY = 'appearance';
 export const AI_VOICE_KEY = 'ai_voice';
+export const WORD_LIST_FILTERS_KEY = 'word_list_level_filters';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 

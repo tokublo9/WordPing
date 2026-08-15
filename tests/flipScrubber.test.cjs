@@ -73,7 +73,7 @@ test('the thumb has a large touch target around an unchanged circle', () => {
     /thumbHit: \{[\s\S]*?width: THUMB_HIT_SIZE,\s*height: THUMB_HIT_SIZE,[\s\S]*?\}/u,
   );
   // The pan handlers live on the target, not on the small circle.
-  assert.match(source, /style=\{\[s\.thumbHit[\s\S]*?\{\.\.\.progressPan\.panHandlers\}/u);
+  assert.match(source, /style=\{\[\s*s\.thumbHit[\s\S]*?\{\.\.\.progressPan\.panHandlers\}/u);
   // iOS will not hit-test outside the parent, so the wrapper carries matching slack and
   // the surrounding margins shed it again — the track must not move.
   assert.match(source, /width: FLIP_CARD_W \+ THUMB_HIT_SIZE,\s*height: THUMB_HIT_SIZE,/u);
@@ -101,8 +101,8 @@ test('press and hold shows a tick per card and dragging updates the card live', 
   assert.match(source, /Array\.from\(\{ length: n \}, \(_, i\) => \(/u);
   assert.match(source, /left: HIT_PAD \+ xForIndex\(i, n\) - TICK_W \/ 2/u);
   // The thumb follows the finger continuously while the card commits per tick.
-  assert.match(source, /thumbX\.setValue\(x\);[\s\S]*?const target = indexForX\(x, n\);/u);
-  assert.match(source, /if \(target !== scrubIdxRef\.current\) \{\s*scrubIdxRef\.current = target;\s*goToRef\.current\(target\);/u);
+  assert.match(source, /scrubThumbX\.setValue\(x\);[\s\S]*?const target = indexForX\(x, n\);/u);
+  assert.match(source, /if \(target !== scrubIdxRef\.current\) \{[\s\S]*?scrubIdxRef\.current = target;[\s\S]*?goToRef\.current\(target, false\);/u);
   // Ticks are built per card count, so a drag never rebuilds them.
   assert.match(source, /const ticks = useMemo\([\s\S]*?\[cards\.length, pal\.sub\]\)/u);
 });

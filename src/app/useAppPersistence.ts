@@ -2,10 +2,16 @@ import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Appearance, Folder, WordCard } from '../types';
-import { HIDE_AI_TOOLS_KEY, SHOW_FULL_CARD_KEY, VERTICAL_FLIP_KEY } from '../constants';
+import {
+  HIDE_AI_TOOLS_KEY,
+  SHOW_FULL_CARD_KEY,
+  VERTICAL_FLIP_KEY,
+  WORD_LIST_FILTERS_KEY,
+} from '../constants';
 import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 import type { AIVoice } from '../lib/aiVoices';
+import type { LevelFiltersByFolder } from '../features/cards/levels';
 
 export interface UseAppPersistenceParams {
   cards: WordCard[];
@@ -19,8 +25,10 @@ export interface UseAppPersistenceParams {
   showFullCard: boolean;
   verticalFlip: boolean;
   hideAiTools: boolean;
+  levelFiltersByFolder: LevelFiltersByFolder;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
+  levelFiltersLoaded: MutableRefObject<boolean>;
 }
 
 export function useAppPersistence({
@@ -35,8 +43,10 @@ export function useAppPersistence({
   showFullCard,
   verticalFlip,
   hideAiTools,
+  levelFiltersByFolder,
   hasLoaded,
   cardsLoaded,
+  levelFiltersLoaded,
 }: UseAppPersistenceParams): void {
   // Persist cards + settings whenever any of them change. Gated on cardsLoaded, which
   // opens as soon as stored cards reach state: a word added while the remaining
@@ -71,4 +81,10 @@ export function useAppPersistence({
     AsyncStorage.setItem(HIDE_AI_TOOLS_KEY, hideAiTools ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setHideAiTools', e));
   }, [hideAiTools]);
+
+  useEffect(() => {
+    if (!levelFiltersLoaded.current) return;
+    AsyncStorage.setItem(WORD_LIST_FILTERS_KEY, JSON.stringify(levelFiltersByFolder))
+      .catch(e => reportSideEffectFailure('setWordListFilters', e));
+  }, [levelFiltersByFolder]);
 }

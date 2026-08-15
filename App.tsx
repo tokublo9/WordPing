@@ -80,7 +80,8 @@ export default function App() {
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
-    hasLoaded, cardsLoaded,
+    levelFiltersByFolder, setLevelFiltersByFolder,
+    hasLoaded, cardsLoaded, levelFiltersLoaded,
   } = useAppBootstrap({ applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
@@ -213,10 +214,10 @@ export default function App() {
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleRegistrationOrder,
-    levelFilter, isFilterActive, toggleLevelFilter, resetLevelFilter,
+    levelFilter, isFilterActive, toggleLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
-    cardViewMode, setCardViewMode,
+    cardViewMode, setCardViewMode, currentWordId, setCurrentWordId,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,
     editingCard,
@@ -237,6 +238,8 @@ export default function App() {
     currentFolderId,
     language,
     setMenuVisible,
+    levelFiltersByFolder,
+    setLevelFiltersByFolder,
     onCardRegistered: handleCardRegistered,
     onCardsDeleted: handleCardsDeleted,
   });
@@ -302,7 +305,8 @@ export default function App() {
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
     showFullCard, verticalFlip, hideAiTools,
-    hasLoaded, cardsLoaded,
+    levelFiltersByFolder,
+    hasLoaded, cardsLoaded, levelFiltersLoaded,
   });
 
   useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
@@ -338,6 +342,9 @@ export default function App() {
     if (closeOpenFolder.current !== close) closeOpenFolder.current?.();
     closeOpenFolder.current = close;
   }, []);
+  const handleCardViewModeToggle = useCallback(() => {
+    setCardViewMode(mode => mode === 'list' ? 'flip' : 'list');
+  }, [setCardViewMode]);
 
   const openFolder = (id: string) => {
     closeOpenFolder.current?.();
@@ -353,7 +360,6 @@ export default function App() {
     exitSelectionMode();
     exitReorderMode();
     setCurrentFolderId(null);
-    resetLevelFilter();
     // Reset depth gradient to ocean surface when navigating away from word list.
     scrollY.setValue(0);
   };
@@ -414,7 +420,9 @@ export default function App() {
           verticalFlip={verticalFlip}
           notificationsEnabled={notificationsEnabled}
           cardViewMode={cardViewMode}
-          onToggleViewMode={() => setCardViewMode(m => m === 'list' ? 'flip' : 'list')}
+          onToggleViewMode={handleCardViewModeToggle}
+          currentWordId={currentWordId}
+          onCurrentWordChange={setCurrentWordId}
           levelFilter={levelFilter}
           isFilterActive={isFilterActive}
           showLevelLabels={showLevelLabels}

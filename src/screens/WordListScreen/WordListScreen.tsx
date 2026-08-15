@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   Animated,
+  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,12 +17,17 @@ import { SwipeableCard } from '../../components/SwipeableCard';
 import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
 import { TestStatusIcon } from '../../components/TestStatusIcon';
-import { ScrollBar } from '../../components/ScrollBar';
+import {
+  getScrollBarMetrics,
+  getScrollOffsetForThumb,
+  ScrollBar,
+} from '../../components/ScrollBar';
 import {
   WordListPositionLabel,
   type WordListPositionLabelHandle,
 } from '../../components/WordListPositionLabel';
 import { mergeVisibleCardOrder } from '../../features/cards/cardSorting';
+import { resolveCurrentWordIndex } from '../../features/cards/currentWordPosition';
 
 const SEL_BAR_H = 68;
 
@@ -29,6 +35,14 @@ const SEL_BAR_H = 68;
 // "N words". Small enough that any real scroll switches to the position readout, loose
 // enough to absorb bounce and sub-pixel offsets.
 const LIST_TOP_EPSILON = 2;
+const FAST_SCROLL_LONG_PRESS_MS = 240;
+const FAST_SCROLL_MOVE_SLOP = 7;
+const FAST_SCROLL_TOUCH_WIDTH = 48;
+const FAST_SCROLL_ACTIVE_TOUCH_WIDTH = 72;
+const FAST_SCROLL_VERTICAL_HIT_SLOP = 18;
+// ReorderableList already reserves 100pt. This extra clearance keeps its final row
+// above the 58pt add button at the existing 48pt bottom offset.
+const FAB_LIST_EXTRA_CLEARANCE = 32;
 
 // Comprehension-level colors for the sort options, reusing the same green/red as
 // the level filter chips: green = highest understanding, red = lowest.
@@ -100,6 +114,8 @@ export interface WordListScreenProps {
   notificationsEnabled: boolean;
   cardViewMode: 'list' | 'flip';
   onToggleViewMode(): void;
+  currentWordId: string | null;
+  onCurrentWordChange(id: string | null): void;
 
   // Level filter
   levelFilter: Set<string>;
@@ -126,13 +142,23 @@ export function WordListScreen({
   scrollY, deepSeaSkin,
   currentFolder, folderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
-  cardViewMode, onToggleViewMode,
+  cardViewMode, onToggleViewMode, currentWordId, onCurrentWordChange,
   levelFilter, isFilterActive, showLevelLabels, onToggleLevelFilter,
   flipped, closeOpenCard, onCardOpen,
   selection, reorder, actions,
   menuBtnRef,
 }: WordListScreenProps) {
   const t = useLang();
+  const actionsRef = useRef(actions);
+  const selectionRef = useRef(selection);
+  const reorderRef = useRef(reorder);
+  const folderCardsRef = useRef(folderCards);
+  const onCardOpenRef = useRef(onCardOpen);
+  actionsRef.current = actions;
+  selectionRef.current = selection;
+  reorderRef.current = reorder;
+  folderCardsRef.current = folderCards;
+  onCardOpenRef.current = onCardOpen;
   const [horizontalSwipeLocked, setHorizontalSwipeLocked] = useState(false);
   const horizontalSwipeLockedRef = useRef(false);
   const verticalGestureLockedRef = useRef(false);
@@ -161,8 +187,80 @@ export function WordListScreen({
   const listScrollAnim = useRef(new Animated.Value(0)).current;
   // Fade animated value — controlled by show/hide callbacks below.
   const listFadeAnim   = useRef(new Animated.Value(0)).current;
+  // Press animation widens only the visible thumb; the normal 3pt width is unchanged.
+  const scrollbarShapeAnim = useRef(new Animated.Value(0)).current;
   // Timer ref for the auto-hide delay.
   const listFadeTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fastScrollLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const listScrollOffsetRef = useRef(0);
+  const listScrollToOffsetRef = useRef<((offset: number) => void) | null>(null);
+  const listScrollToIndexRef = useRef<((index: number) => void) | null>(null);
+  const listContainerRef = useRef<View>(null);
+  const listContainerBoundsRef = useRef({ pageX: 0, pageY: 0, width: 0, height: 0 });
+  const scrollbarVisibleRef = useRef(false);
+  const scrollbarPressingRef = useRef(false);
+  const scrollbarDraggingRef = useRef(false);
+  const scrollbarActiveRef = useRef(false);
+  const fastScrollCandidateRef = useRef(false);
+  const fastScrollLongPressedRef = useRef(false);
+  const fastScrollStartPageYRef = useRef(0);
+  const fastScrollGrabOffsetRef = useRef(0);
+  const suppressWordItemActionUntilRef = useRef(0);
+  const currentWordIndexRef = useRef(0);
+  const currentWordIdRef = useRef<string | null>(currentWordId);
+  const topVisibleWordIdRef = useRef<string | null>(null);
+  const previousDisplayedCardsRef = useRef(filteredFolderCards);
+  const cardViewModeRef = useRef(cardViewMode);
+  const reorderActiveRef = useRef(reorder.active);
+  const isRestoringListPositionRef = useRef(false);
+  const restoreTargetWordIdRef = useRef<string | null>(null);
+  const restoreTargetIndexRef = useRef(-1);
+  const [preparedListPosition, setPreparedListPosition] = useState<{
+    id: string;
+    index: number;
+  } | null>(null);
+  const preparedListPositionRef = useRef(preparedListPosition);
+  const trackedFolderIdRef = useRef(currentFolder?.id ?? null);
+  cardViewModeRef.current = cardViewMode;
+  reorderActiveRef.current = reorder.active;
+  preparedListPositionRef.current = preparedListPosition;
+
+  if (trackedFolderIdRef.current !== (currentFolder?.id ?? null)) {
+    trackedFolderIdRef.current = currentFolder?.id ?? null;
+    currentWordIndexRef.current = 0;
+    topVisibleWordIdRef.current = null;
+    previousDisplayedCardsRef.current = filteredFolderCards;
+    isRestoringListPositionRef.current = false;
+    restoreTargetWordIdRef.current = null;
+    restoreTargetIndexRef.current = -1;
+  }
+
+  const resolvedCurrentWordIndex = resolveCurrentWordIndex(
+    filteredFolderCards,
+    currentWordId,
+    currentWordIndexRef.current,
+    previousDisplayedCardsRef.current,
+  );
+  const resolvedCurrentWordId = resolvedCurrentWordIndex >= 0
+    ? filteredFolderCards[resolvedCurrentWordIndex]?.id ?? null
+    : null;
+  const initialListPositionRef = useRef({
+    folderId: currentFolder?.id ?? null,
+    index: Math.max(0, resolvedCurrentWordIndex),
+  });
+  if (initialListPositionRef.current.folderId !== (currentFolder?.id ?? null)) {
+    initialListPositionRef.current = {
+      folderId: currentFolder?.id ?? null,
+      index: Math.max(0, resolvedCurrentWordIndex),
+    };
+  }
+  currentWordIndexRef.current = Math.max(0, resolvedCurrentWordIndex);
+  currentWordIdRef.current = resolvedCurrentWordId;
+
+  const listPositionPrepared = resolvedCurrentWordId === null
+    || (preparedListPosition?.id === resolvedCurrentWordId
+      && preparedListPosition.index === resolvedCurrentWordIndex);
 
   // Layout dimensions — only updated on resize, not on every scroll event.
   const [listContentH, setListContentH] = useState(0);
@@ -174,21 +272,90 @@ export function WordListScreen({
   deepSeaSkinRef.current   = deepSeaSkin;
   deepSeaScrollRef.current = scrollY;
 
-  // The header label owns its state and is set imperatively, so a new last visible row
+  // The header label owns its state and is set imperatively, so a new top visible row
   // repaints that one line rather than this whole screen mid scroll.
   const positionLabelRef = useRef<WordListPositionLabelHandle>(null);
-  const handleLastVisibleIndexChange = useCallback((index: number) => {
-    positionLabelRef.current?.setLastVisibleIndex(index);
+  const markListPositionPrepared = useCallback((cardId: string, index: number) => {
+    const next = { id: cardId, index };
+    preparedListPositionRef.current = next;
+    setPreparedListPosition(previous => previous?.id === cardId && previous.index === index
+      ? previous
+      : next);
   }, []);
+
+  const handleTopVisibleCardChange = useCallback((cardId: string, index: number) => {
+    topVisibleWordIdRef.current = cardId;
+
+    if (isRestoringListPositionRef.current) {
+      if (restoreTargetWordIdRef.current !== cardId
+          || restoreTargetIndexRef.current !== index) return;
+      isRestoringListPositionRef.current = false;
+      restoreTargetWordIdRef.current = null;
+      restoreTargetIndexRef.current = -1;
+    }
+
+    markListPositionPrepared(cardId, index);
+    // The hidden list may report viewability while Flip owns the screen. Only the
+    // visible list is allowed to choose a new shared current word.
+    if (cardViewModeRef.current !== 'list' && !reorderActiveRef.current) return;
+    currentWordIndexRef.current = index;
+    currentWordIdRef.current = cardId;
+    positionLabelRef.current?.setCurrentVisibleIndex(index + 1);
+    onCurrentWordChange(cardId);
+  }, [markListPositionPrepared, onCurrentWordChange]);
+
+  useEffect(() => {
+    if (currentWordId !== resolvedCurrentWordId) {
+      onCurrentWordChange(resolvedCurrentWordId);
+    }
+  }, [currentWordId, onCurrentWordChange, resolvedCurrentWordId]);
+
+  useEffect(() => {
+    previousDisplayedCardsRef.current = filteredFolderCards;
+  }, [filteredFolderCards]);
+
+  // Both modes stay mounted. Position the hidden list before it can become visible;
+  // viewability confirms the exact stable ID/index before the layer is revealed.
+  useLayoutEffect(() => {
+    if (reorder.active || resolvedCurrentWordId === null || resolvedCurrentWordIndex < 0) {
+      isRestoringListPositionRef.current = false;
+      restoreTargetWordIdRef.current = null;
+      restoreTargetIndexRef.current = -1;
+      return;
+    }
+    const prepared = preparedListPositionRef.current;
+    if (prepared?.id === resolvedCurrentWordId
+        && prepared.index === resolvedCurrentWordIndex) return;
+    if (restoreTargetWordIdRef.current === resolvedCurrentWordId
+        && restoreTargetIndexRef.current === resolvedCurrentWordIndex) return;
+
+    isRestoringListPositionRef.current = true;
+    restoreTargetWordIdRef.current = resolvedCurrentWordId;
+    restoreTargetIndexRef.current = resolvedCurrentWordIndex;
+    listScrollToIndexRef.current?.(resolvedCurrentWordIndex);
+  }, [reorder.active, resolvedCurrentWordId, resolvedCurrentWordIndex]);
+
+  const handleToggleViewMode = useCallback(() => {
+    if (cardViewMode === 'list') {
+      const topWordId = topVisibleWordIdRef.current ?? currentWordIdRef.current;
+      if (topWordId) {
+        currentWordIdRef.current = topWordId;
+        onCurrentWordChange(topWordId);
+      }
+      // Freeze any native momentum before the list becomes non-interactive and hidden.
+      listScrollToOffsetRef.current?.(listScrollOffsetRef.current);
+    }
+    onToggleViewMode();
+  }, [cardViewMode, onCurrentWordChange, onToggleViewMode]);
 
   // listScrollAnim is fed by the list's native-driven Animated.event, so the scrollbar
   // thumb tracks the finger even while rows are rendering. This JS listener only feeds
   // the Deep Sea parallax and the label's at-top state.
   const atTopRef = useRef(true);
   const handleListScroll = useCallback((offset: number) => {
+    listScrollOffsetRef.current = offset;
     if (deepSeaSkinRef.current) deepSeaScrollRef.current.setValue(offset);
-    // The position names the *last* visible row, which at the top of the list is already
-    // row 9 or so, so "Words" needs its own signal. Only crossings reach the label.
+    // Keep the existing word-count summary only while the first row is at the top.
     const atTop = offset <= LIST_TOP_EPSILON;
     if (atTop !== atTopRef.current) {
       atTopRef.current = atTop;
@@ -199,6 +366,7 @@ export function WordListScreen({
   // Show the scrollbar thumb immediately.
   const showScrollbar = useCallback(() => {
     if (listFadeTimer.current) clearTimeout(listFadeTimer.current);
+    scrollbarVisibleRef.current = true;
     Animated.timing(listFadeAnim, { toValue: 0.55, duration: 80, useNativeDriver: true }).start();
   }, [listFadeAnim]);
 
@@ -206,11 +374,211 @@ export function WordListScreen({
   const scheduleHideScrollbar = useCallback(() => {
     if (listFadeTimer.current) clearTimeout(listFadeTimer.current);
     listFadeTimer.current = setTimeout(() => {
-      Animated.timing(listFadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      if (scrollbarPressingRef.current || scrollbarDraggingRef.current) return;
+      Animated.timing(listFadeAnim, { toValue: 0, duration: 300, useNativeDriver: true })
+        .start(({ finished }) => {
+          if (finished && !scrollbarPressingRef.current && !scrollbarDraggingRef.current) {
+            scrollbarVisibleRef.current = false;
+          }
+        });
     }, 900);
   }, [listFadeAnim]);
 
+  const measureListContainer = useCallback(() => {
+    listContainerRef.current?.measureInWindow((pageX, pageY, width, height) => {
+      listContainerBoundsRef.current = { pageX, pageY, width, height };
+    });
+  }, []);
+
+  const clearFastScrollLongPressTimer = useCallback(() => {
+    if (!fastScrollLongPressTimer.current) return;
+    clearTimeout(fastScrollLongPressTimer.current);
+    fastScrollLongPressTimer.current = null;
+  }, []);
+
+  const animateScrollbarActive = useCallback((active: boolean) => {
+    scrollbarActiveRef.current = active;
+    scrollbarShapeAnim.stopAnimation();
+    Animated.timing(scrollbarShapeAnim, {
+      toValue: active ? 1 : 0,
+      duration: active ? 90 : 130,
+      // Width and radius are layout properties, so this brief state transition stays
+      // on JS; scroll-position animation itself remains native-driven.
+      useNativeDriver: false,
+    }).start();
+  }, [scrollbarShapeAnim]);
+
+  const finishFastScrollGesture = useCallback(() => {
+    if (scrollbarActiveRef.current || fastScrollLongPressedRef.current) {
+      suppressWordItemActionUntilRef.current = Date.now() + 250;
+    }
+    clearFastScrollLongPressTimer();
+    fastScrollCandidateRef.current = false;
+    fastScrollLongPressedRef.current = false;
+    scrollbarPressingRef.current = false;
+    scrollbarDraggingRef.current = false;
+    animateScrollbarActive(false);
+    verticalGestureLockedRef.current = false;
+    scheduleHideScrollbar();
+  }, [animateScrollbarActive, clearFastScrollLongPressTimer, scheduleHideScrollbar]);
+
+  const isFastScrollGesture = useCallback(
+    () => fastScrollCandidateRef.current
+      || scrollbarActiveRef.current
+      || Date.now() < suppressWordItemActionUntilRef.current,
+    [],
+  );
+
+  const handleFastScrollMove = useCallback((pageY: number) => {
+    const { pageY: containerPageY } = listContainerBoundsRef.current;
+    const metrics = getScrollBarMetrics(listContentH, listViewH);
+    if (!metrics.show || metrics.maxTravel <= 0 || metrics.maxScroll <= 0) return;
+
+    const offset = getScrollOffsetForThumb(
+      pageY,
+      containerPageY,
+      fastScrollGrabOffsetRef.current,
+      metrics,
+    );
+
+    // FlatList applies the matching non-animated offset; its native scroll event drives
+    // the thumb, preserving the existing no-JS-updates-on-scroll performance path.
+    listScrollOffsetRef.current = offset;
+    handleListScroll(offset);
+    listScrollToOffsetRef.current?.(offset);
+  }, [handleListScroll, listContentH, listViewH]);
+
+  const fastScrollPanResponder = useMemo(() => {
+    const cancelCandidate = () => {
+      clearFastScrollLongPressTimer();
+      fastScrollCandidateRef.current = false;
+      fastScrollLongPressedRef.current = false;
+      scrollbarPressingRef.current = false;
+      animateScrollbarActive(false);
+      scheduleHideScrollbar();
+    };
+
+    const shouldClaimMove = (
+      _event: unknown,
+      gesture: { dx: number; dy: number; moveX: number },
+    ) => {
+      if (!fastScrollCandidateRef.current) return false;
+      if (!fastScrollLongPressedRef.current) {
+        if (Math.abs(gesture.dx) > FAST_SCROLL_MOVE_SLOP || Math.abs(gesture.dy) > FAST_SCROLL_MOVE_SLOP) {
+          cancelCandidate();
+        }
+        return false;
+      }
+      const bounds = listContainerBoundsRef.current;
+      const rightEdge = bounds.pageX + bounds.width;
+      const insideActiveGrabZone = gesture.moveX >= rightEdge - FAST_SCROLL_ACTIVE_TOUCH_WIDTH
+        && gesture.moveX <= rightEdge;
+      if (!insideActiveGrabZone
+          && Math.abs(gesture.dx) > Math.abs(gesture.dy)
+          && Math.abs(gesture.dx) > FAST_SCROLL_MOVE_SLOP) {
+        cancelCandidate();
+        return false;
+      }
+      return Math.abs(gesture.dy) >= 1 || (insideActiveGrabZone && Math.abs(gesture.dx) >= 1);
+    };
+
+    return PanResponder.create({
+      onStartShouldSetPanResponderCapture: (event) => {
+        clearFastScrollLongPressTimer();
+        fastScrollCandidateRef.current = false;
+        fastScrollLongPressedRef.current = false;
+
+        const { pageX, pageY } = event.nativeEvent;
+
+        const bounds = listContainerBoundsRef.current;
+        const metrics = getScrollBarMetrics(listContentH, listViewH);
+        if (!scrollbarVisibleRef.current || !metrics.show || bounds.width <= 0) return false;
+
+        const offset = Math.max(0, Math.min(metrics.maxScroll, listScrollOffsetRef.current));
+        const thumbTop = metrics.maxScroll > 0
+          ? (offset / metrics.maxScroll) * metrics.maxTravel
+          : 0;
+        const withinHorizontalTarget = pageX >= bounds.pageX + bounds.width - FAST_SCROLL_TOUCH_WIDTH
+          && pageX <= bounds.pageX + bounds.width;
+        const withinVerticalTarget = pageY >= bounds.pageY + thumbTop - FAST_SCROLL_VERTICAL_HIT_SLOP
+          && pageY <= bounds.pageY + thumbTop + metrics.thumbH + FAST_SCROLL_VERTICAL_HIT_SLOP;
+        if (!withinHorizontalTarget || !withinVerticalTarget) return false;
+
+        fastScrollCandidateRef.current = true;
+        scrollbarPressingRef.current = true;
+        fastScrollStartPageYRef.current = pageY;
+        fastScrollGrabOffsetRef.current = pageY - bounds.pageY - thumbTop;
+        // Stop any active momentum at its current position before measuring the grab.
+        listScrollToOffsetRef.current?.(offset);
+        showScrollbar();
+
+        fastScrollLongPressTimer.current = setTimeout(() => {
+          if (!fastScrollCandidateRef.current) return;
+          const latestMetrics = getScrollBarMetrics(listContentH, listViewH);
+          const latestOffset = Math.max(
+            0,
+            Math.min(latestMetrics.maxScroll, listScrollOffsetRef.current),
+          );
+          const latestThumbTop = latestMetrics.maxScroll > 0
+            ? (latestOffset / latestMetrics.maxScroll) * latestMetrics.maxTravel
+            : 0;
+          fastScrollGrabOffsetRef.current = fastScrollStartPageYRef.current
+            - listContainerBoundsRef.current.pageY
+            - latestThumbTop;
+          fastScrollLongPressedRef.current = true;
+          verticalGestureLockedRef.current = true;
+          closeOpenCard.current?.();
+          animateScrollbarActive(true);
+          showScrollbar();
+        }, FAST_SCROLL_LONG_PRESS_MS);
+        return false;
+      },
+      onMoveShouldSetPanResponderCapture: shouldClaimMove,
+      onMoveShouldSetPanResponder: shouldClaimMove,
+      onPanResponderGrant: () => {
+        scrollbarDraggingRef.current = true;
+        verticalGestureLockedRef.current = true;
+        closeOpenCard.current?.();
+        showScrollbar();
+      },
+      onPanResponderMove: (_event, gesture) => {
+        handleFastScrollMove(gesture.moveY);
+      },
+      onPanResponderRelease: finishFastScrollGesture,
+      onPanResponderTerminate: finishFastScrollGesture,
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+    });
+  }, [
+    clearFastScrollLongPressTimer,
+    closeOpenCard,
+    animateScrollbarActive,
+    finishFastScrollGesture,
+    handleFastScrollMove,
+    listContentH,
+    listViewH,
+    scheduleHideScrollbar,
+    showScrollbar,
+  ]);
+
+  const handleFastScrollTouchEnd = useCallback(() => {
+    if (scrollbarDraggingRef.current) return;
+    const wasCandidate = fastScrollCandidateRef.current || scrollbarPressingRef.current;
+    if (scrollbarActiveRef.current || fastScrollLongPressedRef.current) {
+      suppressWordItemActionUntilRef.current = Date.now() + 250;
+    }
+    clearFastScrollLongPressTimer();
+    fastScrollCandidateRef.current = false;
+    fastScrollLongPressedRef.current = false;
+    scrollbarPressingRef.current = false;
+    animateScrollbarActive(false);
+    if (wasCandidate) scheduleHideScrollbar();
+  }, [animateScrollbarActive, clearFastScrollLongPressTimer, scheduleHideScrollbar]);
+
   const handleScrollBeginDrag = useCallback(() => {
+    isRestoringListPositionRef.current = false;
+    restoreTargetWordIdRef.current = null;
+    restoreTargetIndexRef.current = -1;
     if (!horizontalSwipeLockedRef.current) verticalGestureLockedRef.current = true;
     closeOpenCard.current?.();
     showScrollbar();
@@ -225,44 +593,82 @@ export function WordListScreen({
   const handleMomentumScrollBegin = useCallback(() => { showScrollbar(); },          [showScrollbar]);
   const handleMomentumScrollEnd   = useCallback(() => { scheduleHideScrollbar(); }, [scheduleHideScrollbar]);
 
-  // Cleanup timer on unmount.
-  useEffect(() => () => { if (listFadeTimer.current) clearTimeout(listFadeTimer.current); }, []);
+  // Cleanup timers on unmount.
+  useEffect(() => () => {
+    if (listFadeTimer.current) clearTimeout(listFadeTimer.current);
+    if (fastScrollLongPressTimer.current) clearTimeout(fastScrollLongPressTimer.current);
+    scrollbarShapeAnim.stopAnimation();
+  }, [scrollbarShapeAnim]);
 
-  const renderWordCard = (
+  const renderWordCard = useCallback((
     item: WordCard,
     reorderMode = false,
     reorderHandle?: React.ReactNode,
-  ) => (
-    <SwipeableCard
-      item={item}
-      isFlipped={flipped.has(item.id)}
-      themeColor={themeColor}
-      pal={pal}
-      voiceLocked={false}
-      isSubscribed={isSubscribed}
-      onFlip={() => actions.onFlip(item.id)}
-      onEdit={() => actions.onEdit(item)}
-      onDelete={() => actions.onDelete(item.id)}
-      onMove={() => actions.onMove([item.id])}
-      onToggleNotif={() => actions.onToggleNotif(item.id)}
-      onVoiceLocked={actions.onVoiceLocked}
-      onCustomVoiceLocked={actions.onCustomVoiceLocked}
-      isPremium={isPremium}
-      onOpen={onCardOpen}
-      openCardRef={closeOpenCard}
-      selectionMode={reorderMode ? false : selection.active}
-      selected={selection.selectedIds.has(item.id)}
-      onToggleSelect={() => selection.onToggle(item.id)}
-      showLevelLabel={showLevelLabels}
-      onHorizontalSwipeLockChange={handleHorizontalSwipeLockChange}
-      onGestureStart={handleGestureStart}
-      onVerticalGestureLock={handleVerticalGestureLock}
-      isVerticalGestureLocked={isVerticalGestureLocked}
-      showFullCard={showFullCard}
-      reorderMode={reorderMode}
-      reorderHandle={reorderHandle}
-    />
-  );
+  ) => {
+    const currentActions = actionsRef.current;
+    const currentSelection = selectionRef.current;
+    return (
+      <SwipeableCard
+        item={item}
+        isFlipped={flipped.has(item.id)}
+        themeColor={themeColor}
+        pal={pal}
+        voiceLocked={false}
+        isSubscribed={isSubscribed}
+        onFlip={() => currentActions.onFlip(item.id)}
+        onEdit={() => currentActions.onEdit(item)}
+        onDelete={() => currentActions.onDelete(item.id)}
+        onMove={() => currentActions.onMove([item.id])}
+        onToggleNotif={() => currentActions.onToggleNotif(item.id)}
+        onVoiceLocked={currentActions.onVoiceLocked}
+        onCustomVoiceLocked={currentActions.onCustomVoiceLocked}
+        isPremium={isPremium}
+        onOpen={onCardOpenRef.current}
+        openCardRef={closeOpenCard}
+        selectionMode={reorderMode ? false : currentSelection.active}
+        selected={currentSelection.selectedIds.has(item.id)}
+        onToggleSelect={() => currentSelection.onToggle(item.id)}
+        showLevelLabel={showLevelLabels}
+        onHorizontalSwipeLockChange={handleHorizontalSwipeLockChange}
+        onGestureStart={handleGestureStart}
+        onVerticalGestureLock={handleVerticalGestureLock}
+        isVerticalGestureLocked={isVerticalGestureLocked}
+        isFastScrollGesture={isFastScrollGesture}
+        showFullCard={showFullCard}
+        reorderMode={reorderMode}
+        reorderHandle={reorderHandle}
+      />
+    );
+  }, [
+    closeOpenCard,
+    flipped,
+    handleGestureStart,
+    handleHorizontalSwipeLockChange,
+    handleVerticalGestureLock,
+    isFastScrollGesture,
+    isPremium,
+    isSubscribed,
+    isVerticalGestureLocked,
+    pal,
+    selection.active,
+    selection.selectedIds,
+    showFullCard,
+    showLevelLabels,
+    themeColor,
+  ]);
+
+  const handleReorderVisibleCards = useCallback((reorderedVisibleCards: WordCard[]) => {
+    reorderRef.current.onReorder(
+      mergeVisibleCardOrder(folderCardsRef.current, reorderedVisibleCards),
+    );
+  }, []);
+  const handleListFooterPress = useCallback(() => closeOpenCard.current?.(), [closeOpenCard]);
+  const handleFlipEdit = useCallback((card: WordCard) => actionsRef.current.onEdit(card), []);
+  const handleFlipDelete = useCallback((id: string) => actionsRef.current.onDelete(id), []);
+  const handleFlipMove = useCallback((card: WordCard) => actionsRef.current.onMove([card.id]), []);
+  const handleFlipToggleNotif = useCallback((id: string) => actionsRef.current.onToggleNotif(id), []);
+  const handleCustomVoiceLocked = useCallback(() => actionsRef.current.onCustomVoiceLocked(), []);
+  const handleOpenAdd = useCallback(() => actionsRef.current.onOpenAdd(), []);
 
   // ── Header ───────────────────────────────────────────────────────────────────
   // Memoized: these walk the whole folder on every render, including the renders a
@@ -350,7 +756,7 @@ export function WordListScreen({
             </TouchableOpacity>
             <TouchableOpacity
               style={s.iconBtn}
-              onPress={onToggleViewMode}
+              onPress={handleToggleViewMode}
             >
               <Ionicons
                 name={cardViewMode === 'flip' ? 'list-outline' : 'albums-outline'}
@@ -384,6 +790,8 @@ export function WordListScreen({
         ref={positionLabelRef}
         total={filteredFolderCards.length}
         topContent={wordCountSummary}
+        currentIndex={resolvedCurrentWordIndex + 1}
+        showCurrentPosition={cardViewMode === 'flip'}
         style={[s.wordCount, { color: pal.sub }]}
       />
     </View>
@@ -474,27 +882,38 @@ export function WordListScreen({
         <Text style={[s.emptyHint,  { color: pal.sub  }]}>{t('no_words_hint')}</Text>
       </View>
     );
-  } else if (cardViewMode === 'flip' && !reorder.active) {
-    cardContent = (
+  } else {
+    const showListLayer = reorder.active
+      || (cardViewMode === 'list' && listPositionPrepared);
+    const showFlipLayer = !reorder.active && !showListLayer;
+    const flipModeContent = (
       <FlipCardBrowser
-        key={Array.from(levelFilter).sort().join(',')}
         cards={filteredFolderCards}
+        currentWordId={resolvedCurrentWordId}
+        onCurrentWordChange={onCurrentWordChange}
+        active={cardViewMode === 'flip' && !reorder.active}
         pal={pal}
         themeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
-        onCustomVoiceLocked={actions.onCustomVoiceLocked}
-        onEdit={actions.onEdit}
-        onDelete={actions.onDelete}
-        onMove={card => actions.onMove([card.id])}
-        onToggleNotif={actions.onToggleNotif}
+        onCustomVoiceLocked={handleCustomVoiceLocked}
+        onEdit={handleFlipEdit}
+        onDelete={handleFlipDelete}
+        onMove={handleFlipMove}
+        onToggleNotif={handleFlipToggleNotif}
         showLevelLabel={showLevelLabels}
         verticalFlip={verticalFlip}
       />
     );
-  } else {
-    cardContent = (
-      <View style={{ flex: 1 }}>
+    const listModeContent = (
+      <View
+        ref={listContainerRef}
+        style={{ flex: 1 }}
+        onLayout={measureListContainer}
+        onTouchEndCapture={handleFastScrollTouchEnd}
+        onTouchCancel={handleFastScrollTouchEnd}
+        {...fastScrollPanResponder.panHandlers}
+      >
         {reorder.active && (
           <View key="reorder-toolbar" style={reorderToolStyles.toolbar}>
             <TouchableOpacity
@@ -578,19 +997,19 @@ export function WordListScreen({
         <ReorderableList
           key="persistent-word-list"
           cards={filteredFolderCards}
-          onReorder={reorderedVisibleCards => {
-            reorder.onReorder(mergeVisibleCardOrder(folderCards, reorderedVisibleCards));
-          }}
+          onReorder={handleReorderVisibleCards}
           pal={pal}
           reorderEnabled={reorder.active}
           extraPaddingBottom={
-            (isSubscribed ? 0 : AD_BANNER_HEIGHT) + (selection.active ? SEL_BAR_H : 0)
+            (isSubscribed ? 0 : AD_BANNER_HEIGHT)
+              + (selection.active ? SEL_BAR_H : 0)
+              + FAB_LIST_EXTRA_CLEARANCE
           }
           showLevelLabel={showLevelLabels}
           renderWordCard={renderWordCard}
           scrollEnabled={reorder.active || !horizontalSwipeLocked}
           scrollAnim={listScrollAnim}
-          onLastVisibleIndexChange={handleLastVisibleIndexChange}
+          onTopVisibleCardChange={handleTopVisibleCardChange}
           onScrollOffsetChange={handleListScroll}
           onScrollBeginDrag={handleScrollBeginDrag}
           onScrollEndDrag={handleScrollEndDrag}
@@ -598,7 +1017,10 @@ export function WordListScreen({
           onMomentumScrollEnd={handleMomentumScrollEnd}
           onContentHeightChange={setListContentH}
           onViewportHeightChange={setListViewH}
-          onFooterPress={() => closeOpenCard.current?.()}
+          onFooterPress={handleListFooterPress}
+          scrollToOffsetRef={listScrollToOffsetRef}
+          scrollToIndexRef={listScrollToIndexRef}
+          initialScrollIndex={initialListPositionRef.current.index}
         />
         {!reorder.active && (
           <ScrollBar
@@ -607,9 +1029,38 @@ export function WordListScreen({
             contentH={listContentH}
             viewH={listViewH}
             fadeAnim={listFadeAnim}
+            shapeAnim={scrollbarShapeAnim}
             color={pal.sub}
           />
         )}
+      </View>
+    );
+    cardContent = (
+      <View style={modeLayerStyles.stack}>
+        <View
+          style={[
+            modeLayerStyles.layer,
+            showListLayer ? modeLayerStyles.visible : modeLayerStyles.hidden,
+          ]}
+          pointerEvents={showListLayer ? 'auto' : 'none'}
+          accessibilityElementsHidden={!showListLayer}
+          importantForAccessibility={showListLayer ? 'auto' : 'no-hide-descendants'}
+        >
+          {listModeContent}
+        </View>
+        <View
+          style={[
+            modeLayerStyles.layer,
+            showFlipLayer ? modeLayerStyles.visible : modeLayerStyles.hidden,
+          ]}
+          pointerEvents={showFlipLayer && cardViewMode === 'flip' ? 'auto' : 'none'}
+          accessibilityElementsHidden={!showFlipLayer || cardViewMode !== 'flip'}
+          importantForAccessibility={showFlipLayer && cardViewMode === 'flip'
+            ? 'auto'
+            : 'no-hide-descendants'}
+        >
+          {flipModeContent}
+        </View>
       </View>
     );
   }
@@ -684,7 +1135,7 @@ export function WordListScreen({
           shadowColor: themeColor,
         },
       ]}
-      onPress={actions.onOpenAdd}
+      onPress={handleOpenAdd}
     >
       <Text style={s.fabText}>+</Text>
     </TouchableOpacity>
@@ -697,7 +1148,11 @@ export function WordListScreen({
       {filterBar}
       {cardContent}
       {selectionBar}
-      {fab}
+      {fab ? (
+        <View style={fabOverlayStyles.root} pointerEvents="box-none">
+          {fab}
+        </View>
+      ) : null}
     </>
   );
 }
@@ -724,6 +1179,21 @@ const wordListLayoutStyles = StyleSheet.create({
   // Normal, selection, and reorder headers contain different controls, but the
   // list must always begin at the same screen coordinate when modes change.
   header: { height: 50 },
+});
+
+const modeLayerStyles = StyleSheet.create({
+  stack: { flex: 1 },
+  layer: { ...StyleSheet.absoluteFillObject },
+  visible: { opacity: 1, zIndex: 1 },
+  hidden: { opacity: 0, zIndex: 0 },
+});
+
+const fabOverlayStyles = StyleSheet.create({
+  root: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    elevation: 100,
+  },
 });
 
 const filterStyles = StyleSheet.create({

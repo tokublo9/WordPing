@@ -24,6 +24,52 @@ test('the list data keeps its identity across unrelated renders', () => {
   assert.match(wordList, /key="persistent-word-list"/u);
 });
 
+test('mode switching keeps inactive views mounted without rebuilding their heavy content', () => {
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const reorderable = read('src/components/ReorderableList.tsx');
+  const flip = read('src/components/FlipCardBrowser.tsx');
+
+  assert.match(reorderable, /export const ReorderableList = memo\(ReorderableListComponent\);/u);
+  assert.match(wordList, /const renderWordCard = useCallback\(/u);
+  assert.match(wordList, /onReorder=\{handleReorderVisibleCards\}/u);
+  assert.match(wordList, /onFooterPress=\{handleListFooterPress\}/u);
+  assert.match(wordList, /initialScrollIndex=\{initialListPositionRef\.current\.index\}/u);
+  assert.match(flip, /if \(!previous\.active && !next\.active\) return true;/u);
+  assert.match(flip, /if \(!active\) \{\s*previousCardsRef\.current = cards;\s*return;/u);
+  assert.match(wordList, /key="persistent-word-list"/u);
+});
+
+test('Flip swipe and progress share one transform-only animated gesture graph', () => {
+  const flip = read('src/components/FlipCardBrowser.tsx');
+  const gestureMove = /onPanResponderMove: \(_, \{ dx \}\) => \{([\s\S]*?)\n\s*\},/u.exec(flip)?.[1] ?? '';
+
+  assert.match(gestureMove, /swipeX\.setValue\(Math\.max\(minX, Math\.min\(maxX, dx\)\)\);/u);
+  assert.doesNotMatch(gestureMove, /set(?:Idx|SlotCards|CurrSlot|Flipped|Scrubbing)\(/u);
+  assert.doesNotMatch(gestureMove, /onCurrentWordChange/u);
+  assert.equal((gestureMove.match(/\.setValue\(/gu) ?? []).length, 1);
+  assert.match(flip, /Animated\.add\(baseX, swipeX\)/u);
+  assert.match(flip, /const gestureProgress = Animated\.multiply\(swipeX,/u);
+  assert.match(flip, /const displayedThumbX = scrubbing \? scrubThumbX : swipeThumbX;/u);
+  assert.match(flip, /transform: \[\{ scaleX: progressScaleX \}\]/u);
+  assert.match(flip, /transform: \[\{ translateX: displayedThumbX \}\]/u);
+  assert.doesNotMatch(flip, /width: thumbX/u);
+  assert.doesNotMatch(flip, /useNativeDriver: false/u);
+  assert.match(flip, /Animated\.timing\(swipeX,[\s\S]*?useNativeDriver: true/u);
+  assert.match(flip, /Animated\.spring\(swipeX,[\s\S]*?useNativeDriver: true/u);
+  assert.match(flip, /const cardsById = useMemo\(/u);
+  assert.doesNotMatch(flip, /cards\.find\(/u);
+});
+
+test('the Word Add button owns a top-level overlay and the list clears it', () => {
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const styles = read('src/styles.ts');
+
+  assert.match(wordList, /<View style=\{fabOverlayStyles\.root\} pointerEvents="box-none">\s*\{fab\}/u);
+  assert.match(wordList, /root: \{[\s\S]*?\.\.\.StyleSheet\.absoluteFillObject,[\s\S]*?zIndex: 100,[\s\S]*?elevation: 100,/u);
+  assert.match(styles, /fab: \{[\s\S]*?position: 'absolute'[\s\S]*?zIndex: 101,[\s\S]*?elevation: 101,/u);
+  assert.match(wordList, /\+ FAB_LIST_EXTRA_CLEARANCE/u);
+});
+
 test('virtualized rows are driven by stable callbacks with an explicit repaint marker', () => {
   const source = read('src/components/ReorderableList.tsx');
   // Inline arrows here re-render every mounted cell on any parent update.
@@ -71,7 +117,7 @@ test('long lists keep fewer rows mounted while short lists render as before', ()
   assert.match(source, /removeClippedSubviews=\{Platform\.OS === 'android'\}/u);
 });
 
-test('the position reports the last visible word, counting a partial one', () => {
+test('the position reports the top visible word by stable ID', () => {
   const reorderable = read('src/components/ReorderableList.tsx');
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
 
@@ -79,10 +125,11 @@ test('the position reports the last visible word, counting a partial one', () =>
   // range comes from the list itself.
   assert.match(reorderable, /onViewableItemsChanged=\{handleViewableItemsChanged\}/u);
   assert.match(reorderable, /viewabilityConfig=\{viewabilityConfig\}/u);
-  // The highest visible index wins, so the label names the row at the bottom edge.
-  assert.match(reorderable, /if \(last === null \|\| token\.index > last\) last = token\.index;/u);
-  assert.match(reorderable, /onLastVisibleIndexChangeRef\.current\?\.\(last \+ 1\)/u);
-  // A sliver counts, so reaching the end reads "350 / 350" as the final row appears…
+  // The lowest visible index wins and its stable item ID is sent with the index.
+  assert.match(reorderable, /if \(firstIndex === null \|\| token\.index < firstIndex\)/u);
+  assert.match(reorderable, /firstCardId = \(token\.item as WordCard\)\.id;/u);
+  assert.match(reorderable, /onTopVisibleCardChangeRef\.current\?\.\(firstCardId, firstIndex\)/u);
+  // A sliver counts as the actual top card…
   const threshold = Number(/itemVisiblePercentThreshold: (\d+)/u.exec(reorderable)[1]);
   assert.ok(threshold <= 5, `threshold ${threshold} must let a partial row count`);
   // …but not 0, which reports rendered-but-offscreen rows because `percent >= 0` always
@@ -93,8 +140,8 @@ test('the position reports the last visible word, counting a partial one', () =>
   assert.match(reorderable, /const handleViewableItemsChanged = useRef\(/u);
 
   // The screen forwards it imperatively, so a new index does not re-render the screen.
-  assert.match(wordList, /positionLabelRef\.current\?\.setLastVisibleIndex\(index\)/u);
-  assert.match(wordList, /onLastVisibleIndexChange=\{handleLastVisibleIndexChange\}/u);
+  assert.match(wordList, /positionLabelRef\.current\?\.setCurrentVisibleIndex\(index \+ 1\)/u);
+  assert.match(wordList, /onTopVisibleCardChange=\{handleTopVisibleCardChange\}/u);
   assert.match(wordList, /total=\{filteredFolderCards\.length\}/u);
 });
 
@@ -102,9 +149,8 @@ test('the top-left label shows the position while scrolled and the summary at th
   const label = read('src/components/WordListPositionLabel.tsx');
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
 
-  // "At top" is an explicit signal, not an inference from the index: with the last visible
-  // row as the position, the top of the list already reads as row 9 or so, never row 1.
-  assert.match(label, /const showPosition = !state\.atTop && total > 0;/u);
+  // "At top" remains an explicit signal so the existing word-count summary is preserved.
+  assert.match(label, /const showPosition = \(showCurrentPosition \|\| !state\.atTop\) && total > 0;/u);
   assert.match(label, /\{showPosition \? `\$\{position\} \/ \$\{total\}` : topContent\}/u);
   assert.match(wordList, /const atTop = offset <= LIST_TOP_EPSILON;/u);
   assert.match(wordList, /const LIST_TOP_EPSILON = \d+;/u);
@@ -114,16 +160,16 @@ test('the top-left label shows the position while scrolled and the summary at th
     /if \(atTop !== atTopRef\.current\) \{\s*atTopRef\.current = atTop;\s*positionLabelRef\.current\?\.setAtTop\(atTop\);/u,
   );
   // Clamped, because a delete or a filter can shrink the list under a scrolled position.
-  assert.match(label, /Math\.min\(Math\.max\(state\.index, 1\), Math\.max\(total, 1\)\)/u);
+  assert.match(label, /Math\.min\(Math\.max\(currentIndex \?\? state\.index, 1\), Math\.max\(total, 1\)\)/u);
   // Own state, set through a ref, and each setter no-ops on an unchanged value: viewability
-  // repeats the same last row while scrolling within it.
-  assert.match(label, /setLastVisibleIndex: \(index: number\) => setState\(\s*prev => prev\.index === index \? prev :/u);
+  // repeats the same top row while scrolling within it.
+  assert.match(label, /setCurrentVisibleIndex: \(index: number\) => setState\(\s*prev => prev\.index === index \? prev :/u);
   assert.match(label, /setAtTop: \(atTop: boolean\) => setState\(\s*prev => prev\.atTop === atTop \? prev :/u);
 
   // It replaces the old header Text in place, keeping that line's styling.
   assert.match(
     wordList,
-    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
+    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{cardViewMode === 'flip'\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
   );
   assert.match(wordList, /const wordCountSummary = `\$\{[\s\S]*?words_singular' : 'words_plural'\)\}`;/u);
 });

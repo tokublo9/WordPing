@@ -1,7 +1,8 @@
 import {
-  useCallback, useEffect, useMemo, useRef, useState,
+  memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type ReactElement, type ReactNode,
 } from 'react';
+import type { MutableRefObject } from 'react';
 import {
   Animated,
   FlatList,
@@ -73,11 +74,8 @@ interface Props {
    * thread is busy rendering rows. `onScrollOffsetChange` still fires for JS consumers.
    */
   scrollAnim?: Animated.Value;
-  /**
-   * 1-based index of the last visible row, counting a partially visible one. Reaching the
-   * end of the list therefore reports the list length. Virtualized list only.
-   */
-  onLastVisibleIndexChange?: (index: number) => void;
+  /** Stable ID and zero-based index of the top visible row. Virtualized list only. */
+  onTopVisibleCardChange?: (cardId: string, index: number) => void;
   onScrollOffsetChange?: (offset: number) => void;
   onScrollBeginDrag?: () => void;
   onScrollEndDrag?: () => void;
@@ -86,6 +84,12 @@ interface Props {
   onContentHeightChange?: (height: number) => void;
   onViewportHeightChange?: (height: number) => void;
   onFooterPress?: () => void;
+  /** Imperative non-animated scrolling used by the Word List fast-scroll thumb. */
+  scrollToOffsetRef?: MutableRefObject<((offset: number) => void) | null>;
+  /** Imperative ID-resolved restoration used when returning from Word Flip. */
+  scrollToIndexRef?: MutableRefObject<((index: number) => void) | null>;
+  /** Mount the virtualized list at the synchronized word without showing row zero first. */
+  initialScrollIndex?: number;
 }
 
 // ── DraggableRow ──────────────────────────────────────────────────────────────
@@ -203,17 +207,19 @@ function DraggableRow({
 
 // ── ReorderableList ───────────────────────────────────────────────────────────
 
-export function ReorderableList({
+function ReorderableListComponent({
   cards, onReorder, pal, extraPaddingBottom = 0,
   showLevelLabel = true, folderData, renderWordCard,
   reorderEnabled = true, scrollEnabled = true,
-  scrollAnim, onLastVisibleIndexChange, onScrollOffsetChange,
+  scrollAnim, onTopVisibleCardChange, onScrollOffsetChange,
   onScrollBeginDrag, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd,
   onContentHeightChange, onViewportHeightChange,
   onFooterPress,
+  scrollToOffsetRef, scrollToIndexRef, initialScrollIndex,
 }: Props) {
   const t           = useLang();
   const scrollRef   = useRef<ScrollView | null>(null);
+  const flatListRef = useRef<FlatList<WordCard> | null>(null);
   const rowRefs     = useRef<(View | null)[]>([]);
   const rowMeasures = useRef<(RowMeasure | null)[]>([]);
 
@@ -244,8 +250,49 @@ export function ReorderableList({
   const onReorderRef = useRef(onReorder);
   const pendingCardsRef = useRef<WordCard[] | null>(null);
   const droppingRef = useRef(false);
+  const pendingScrollIndexRef = useRef<number | null>(null);
+  const scrollToIndexRetryCountRef = useRef(0);
+  const scrollToIndexRetryFrame = useRef<number | null>(null);
   cardsRef.current = cards;
   onReorderRef.current = onReorder;
+
+  useLayoutEffect(() => {
+    if (!scrollToOffsetRef) return;
+    const scrollToOffset = (offset: number) => {
+      flatListRef.current?.scrollToOffset({ offset, animated: false });
+    };
+    scrollToOffsetRef.current = scrollToOffset;
+    return () => {
+      if (scrollToOffsetRef.current === scrollToOffset) scrollToOffsetRef.current = null;
+    };
+  }, [scrollToOffsetRef]);
+
+  const scrollToIndex = useCallback((requestedIndex: number) => {
+    const lastIndex = cardsRef.current.length - 1;
+    if (lastIndex < 0) return;
+    const index = Math.max(0, Math.min(Math.trunc(requestedIndex), lastIndex));
+    pendingScrollIndexRef.current = index;
+    scrollToIndexRetryCountRef.current = 0;
+    if (scrollToIndexRetryFrame.current !== null) {
+      cancelAnimationFrame(scrollToIndexRetryFrame.current);
+      scrollToIndexRetryFrame.current = null;
+    }
+    flatListRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!scrollToIndexRef) return;
+    scrollToIndexRef.current = scrollToIndex;
+    return () => {
+      if (scrollToIndexRef.current === scrollToIndex) scrollToIndexRef.current = null;
+    };
+  }, [scrollToIndex, scrollToIndexRef]);
+
+  useEffect(() => () => {
+    if (scrollToIndexRetryFrame.current !== null) {
+      cancelAnimationFrame(scrollToIndexRetryFrame.current);
+    }
+  }, []);
 
   // Animated values are owned by stable item IDs, never by array positions.
   // This prevents a reordered row from inheriting another row's transform.
@@ -587,8 +634,8 @@ export function ReorderableList({
 
   // Both of these must keep the same identity for the life of the list: VirtualizedList
   // throws if onViewableItemsChanged or viewabilityConfig change on the fly.
-  const onLastVisibleIndexChangeRef = useRef(onLastVisibleIndexChange);
-  onLastVisibleIndexChangeRef.current = onLastVisibleIndexChange;
+  const onTopVisibleCardChangeRef = useRef(onTopVisibleCardChange);
+  onTopVisibleCardChangeRef.current = onTopVisibleCardChange;
 
   const viewabilityConfig = useRef({
     // A sliver counts, so the row peeking in at the bottom is already the current one.
@@ -600,14 +647,55 @@ export function ReorderableList({
 
   const handleViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      let last: number | null = null;
+      let firstIndex: number | null = null;
+      let firstCardId: string | null = null;
       for (const token of viewableItems) {
         if (token.index == null) continue;
-        if (last === null || token.index > last) last = token.index;
+        if (firstIndex === null || token.index < firstIndex) {
+          firstIndex = token.index;
+          firstCardId = (token.item as WordCard).id;
+        }
       }
-      if (last !== null) onLastVisibleIndexChangeRef.current?.(last + 1);
+      if (firstIndex !== null && firstCardId !== null) {
+        if (pendingScrollIndexRef.current === firstIndex) {
+          pendingScrollIndexRef.current = null;
+          scrollToIndexRetryCountRef.current = 0;
+          if (scrollToIndexRetryFrame.current !== null) {
+            cancelAnimationFrame(scrollToIndexRetryFrame.current);
+            scrollToIndexRetryFrame.current = null;
+          }
+        }
+        onTopVisibleCardChangeRef.current?.(firstCardId, firstIndex);
+      }
     },
   ).current;
+
+  const handleScrollToIndexFailed = useCallback((info: {
+    index: number;
+    averageItemLength: number;
+  }) => {
+    const lastIndex = cardsRef.current.length - 1;
+    if (lastIndex < 0) return;
+    const target = Math.max(0, Math.min(
+      pendingScrollIndexRef.current ?? info.index,
+      lastIndex,
+    ));
+    pendingScrollIndexRef.current = target;
+    flatListRef.current?.scrollToOffset({
+      offset: Math.max(0, info.averageItemLength * target),
+      animated: false,
+    });
+    if (scrollToIndexRetryCountRef.current >= 2) return;
+    scrollToIndexRetryCountRef.current += 1;
+    if (scrollToIndexRetryFrame.current !== null) {
+      cancelAnimationFrame(scrollToIndexRetryFrame.current);
+    }
+    scrollToIndexRetryFrame.current = requestAnimationFrame(() => {
+      scrollToIndexRetryFrame.current = null;
+      if (pendingScrollIndexRef.current !== target) return;
+      flatListRef.current?.scrollToIndex({ index: target, animated: false, viewPosition: 0 });
+    });
+  }, []);
 
   const onContentHeightChangeRef = useRef(onContentHeightChange);
   onContentHeightChangeRef.current = onContentHeightChange;
@@ -632,6 +720,7 @@ export function ReorderableList({
   if (!reorderEnabled && renderWordCard) {
     return (
       <AnimatedFlatList
+        ref={flatListRef as any}
         data={cards}
         keyExtractor={keyExtractor}
         renderItem={renderVirtualizedRow}
@@ -652,6 +741,10 @@ export function ReorderableList({
         onScroll={handleVirtualizedScroll}
         onViewableItemsChanged={handleViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        initialScrollIndex={cards.length > 0
+          ? Math.max(0, Math.min(initialScrollIndex ?? 0, cards.length - 1))
+          : undefined}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         onContentSizeChange={handleContentSizeChange}
         onLayout={handleViewportLayout}
         contentContainerStyle={[styles.list, { paddingBottom: 100 + extraPaddingBottom }]}
@@ -779,6 +872,8 @@ export function ReorderableList({
     </>
   );
 }
+
+export const ReorderableList = memo(ReorderableListComponent);
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 

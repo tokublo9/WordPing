@@ -23,11 +23,10 @@ const SCREEN_H = Dimensions.get('window').height;
 
 export const FOLDER_ICONS = [
   'folder-outline',       'folder-open-outline',  'book-outline',
-  'star-outline',         'heart-outline',         'briefcase-outline',
-  'school-outline',       'globe-outline',         'musical-notes-outline',
-  'home-outline',         'leaf-outline',          'flash-outline',
-  'cafe-outline',         'airplane-outline',      'ribbon-outline',
-  'fitness-outline',
+  'star-outline',         'briefcase-outline',     'school-outline',
+  'globe-outline',        'musical-notes-outline', 'home-outline',
+  'leaf-outline',         'flash-outline',         'cafe-outline',
+  'airplane-outline',     'ribbon-outline',        'fitness-outline',
 ] as const;
 
 export const FOLDER_COLORS = [
@@ -129,15 +128,10 @@ export function FolderCustomizeModal({
           <Animated.View style={{ transform: [{ translateY: slideY }] }}>
             {/* Rounded content sheet */}
             <View style={[styles.sheet, { backgroundColor: pal.dialog, height: sheetH }]}>
-              {/* Drag handle */}
-              <View style={styles.handleArea}>
-                <View style={[styles.handle, { backgroundColor: pal.border }]} />
-              </View>
-
               {/* Header */}
               <View style={styles.headerRow}>
                 <Text style={[styles.headerTitle, { color: pal.text }]}>{title}</Text>
-                <TouchableOpacity onPress={close} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity onPress={handleSave} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Ionicons name="close" size={22} color={pal.sub} />
                 </TouchableOpacity>
               </View>
@@ -272,21 +266,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     overflow: 'hidden',
   },
-  handleArea: {
-    paddingTop: 12,
-    paddingBottom: 6,
-    alignItems: 'center',
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
+    paddingTop: 20,
     marginBottom: 8,
   },
   headerTitle: {

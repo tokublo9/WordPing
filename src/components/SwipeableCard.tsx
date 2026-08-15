@@ -55,6 +55,8 @@ interface Props {
   onGestureStart?: () => void;
   onVerticalGestureLock?: () => void;
   isVerticalGestureLocked?: () => boolean;
+  /** Suppresses the card long-press/tap after the overlapping fast-scroll zone activates. */
+  isFastScrollGesture?: () => boolean;
   showFullCard?: boolean;
   isPremium?: boolean;
   onCustomVoiceLocked?: () => void;
@@ -68,6 +70,7 @@ export function SwipeableCard({
   selectionMode = false, selected = false, onToggleSelect,
   showLevelLabel = true, onHorizontalSwipeLockChange,
   onGestureStart, onVerticalGestureLock, isVerticalGestureLocked,
+  isFastScrollGesture,
   showFullCard = false,
   isPremium = false, onCustomVoiceLocked,
   reorderMode = false, reorderHandle,
@@ -84,10 +87,12 @@ export function SwipeableCard({
   const onGestureStartRef = useRef(onGestureStart);
   const onVerticalGestureLockRef = useRef(onVerticalGestureLock);
   const isVerticalGestureLockedRef = useRef(isVerticalGestureLocked);
+  const isFastScrollGestureRef = useRef(isFastScrollGesture);
   onHorizontalSwipeLockChangeRef.current = onHorizontalSwipeLockChange;
   onGestureStartRef.current = onGestureStart;
   onVerticalGestureLockRef.current = onVerticalGestureLock;
   isVerticalGestureLockedRef.current = isVerticalGestureLocked;
+  isFastScrollGestureRef.current = isFastScrollGesture;
   const close = useCallback(() => {
     isOpen.current = false;
     openCardRef.current = null;
@@ -175,11 +180,21 @@ export function SwipeableCard({
   ).current;
 
   const handleTap = () => {
+    if (isFastScrollGestureRef.current?.()) return;
     // This card is swiped open — close it, don't flip.
     if (isOpen.current) { close(); return; }
     // Another card is swiped open — close that one, don't flip this card.
     if (openCardRef.current) { openCardRef.current(); return; }
     onFlip();
+  };
+
+  const handleCardPress = () => {
+    if (isFastScrollGestureRef.current?.()) return;
+    if (selectionMode) {
+      onToggleSelect?.();
+      return;
+    }
+    handleTap();
   };
 
   // ── Long-press lift ──────────────────────────────────────────────────────────
@@ -188,6 +203,7 @@ export function SwipeableCard({
   const liftScale = useRef(new Animated.Value(1)).current;
 
   const handleLongPress = () => {
+    if (isFastScrollGestureRef.current?.()) return;
     if (isOpen.current) return;
     cardRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
       liftScale.setValue(0.97);
@@ -310,7 +326,7 @@ export function SwipeableCard({
         <View style={[styles.cardInner, { backgroundColor: isFlipped && !showFullCard ? themeColor : selected ? themeColor + '20' : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
           <TouchableOpacity
             style={[styles.cardFlipArea, { flex: 1 }]}
-            onPress={reorderMode ? undefined : selectionMode ? onToggleSelect : handleTap}
+            onPress={reorderMode ? undefined : handleCardPress}
             onLongPress={selectionMode || reorderMode ? undefined : handleLongPress}
             delayLongPress={380}
             activeOpacity={selectionMode && !reorderMode ? 0.7 : 1}
