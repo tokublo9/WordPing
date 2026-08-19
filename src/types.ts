@@ -29,6 +29,12 @@ export interface WordCard {
   folderId?: string;
   testMastered?: boolean;
   testNextReview?: number; // Unix ms; if set and > Date.now(), skip in test queue
+  /**
+   * Unix ms UTC. While in the future the card is hidden from every learning
+   * view, but is never deleted and still appears in backups. Set by a
+   * "Pretty good" grade when "Sync with test results" is on.
+   */
+  hiddenUntil?: number;
   testLevel?: TestLevel;
   reviewHistory?: ReviewEntry[];
   wordLang?: string;    // BCP-47 locale for free device TTS (e.g. 'en-US', 'ja-JP')

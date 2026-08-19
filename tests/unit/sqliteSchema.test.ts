@@ -134,3 +134,66 @@ test('a failed multi-table write leaves the previous state intact', async () => 
   assert.equal(words.length, 1);
   assert.equal(words[0]?.note, 'keep me');
 });
+
+test('migration 2 adds hidden_until without disturbing existing rows', async () => {
+  const db = await openTestDatabase();
+  // Build the v1 schema, insert data, then migrate — the upgrade path a real
+  // device takes.
+  await db.execAsync('PRAGMA foreign_keys = ON;');
+  await migrateSchema(db);
+
+  const columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info('learning_progress')");
+  assert.ok(columns.some(c => c.name === 'hidden_until'), 'hidden_until column missing');
+
+  // Existing progress rows default to NULL, i.e. visible — the feature starts off.
+  await writeSnapshot(db, {
+    cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', testLevel: 'good', testNextReview: 5 }],
+  });
+  const [row] = await db.getAllAsync<{ hidden_until: number | null }>(
+    'SELECT hidden_until FROM learning_progress WHERE word_id = ?', ['w1'],
+  );
+  assert.equal(row?.hidden_until, null);
+  assert.equal((await readWords(db))[0]?.hiddenUntil, undefined);
+});
+
+test('hiddenUntil round-trips through SQLite', async () => {
+  const db = await freshDatabase();
+  const until = Date.parse('2026-08-22T12:00:00Z');
+  await writeSnapshot(db, {
+    cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', testLevel: 'good', hiddenUntil: until }],
+  });
+  assert.equal((await readWords(db))[0]?.hiddenUntil, until);
+
+  // Clearing it removes the hide rather than leaving a stale timestamp.
+  await writeSnapshot(db, {
+    cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', testLevel: 'good' }],
+  });
+  assert.equal((await readWords(db))[0]?.hiddenUntil, undefined);
+});
+
+test('a hidden card is only hidden — never deleted', async () => {
+  const db = await freshDatabase();
+  await writeSnapshot(db, {
+    cards: [{
+      id: 'w1', word: 'apple', meaning: 'fruit', note: 'keep me',
+      testLevel: 'good', hiddenUntil: Date.now() + 1_000_000,
+      reviewHistory: [{ ts: 1, rating: 'good' }],
+    }],
+  });
+
+  // The row, its note and its history are all still present.
+  const words = await readWords(db);
+  assert.equal(words.length, 1);
+  assert.equal(words[0]?.note, 'keep me');
+  assert.deepEqual(words[0]?.reviewHistory, [{ ts: 1, rating: 'good' }]);
+});
+
+test('hiddenUntil alone is enough to create a progress row', async () => {
+  // A card graded Pretty good always has a level too, but the writer must not
+  // silently drop a hide if it ever arrives on its own.
+  const db = await freshDatabase();
+  await writeSnapshot(db, {
+    cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', hiddenUntil: 999_999 }],
+  });
+  assert.equal((await readWords(db))[0]?.hiddenUntil, 999_999);
+});

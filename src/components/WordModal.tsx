@@ -35,6 +35,7 @@ import type { Palette, ReviewEntry, TestLevel, WordCard } from '../types';
 import { SUPPORTED_LANGUAGES, useLang, type TranslationKey } from '../i18n';
 import { LanguageModal } from './LanguageModal';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
+import { AI_TEXT_FEATURES_ENABLED } from '../features/flags';
 import { appStyles as s } from '../styles';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 
@@ -131,6 +132,13 @@ export function WordModal({
 }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
+
+  // The AI text controls (generate meaning, example, breakdown, translate).
+  // Temporarily hidden for release via the central flag; the handlers and the
+  // user's "Hide AI" preference below it are untouched, so flipping the flag
+  // restores the previous behaviour exactly. Any AI text already saved into a
+  // word's meaning or note is ordinary field content and still displays.
+  const aiTextVisible = AI_TEXT_FEATURES_ENABLED && isPremium && !hideAiTools;
 
   // which field's picker is open
   const [pickerFor, setPickerFor] = useState<'word' | 'meaning' | 'genLang' | 'exampleLang' | 'breakdownLang' | 'meaningTransLang' | 'noteTransLang' | null>(null);
@@ -778,7 +786,7 @@ export function WordModal({
                 <View style={[styles.fieldLabelRow, { marginTop: 8 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('meaning_label')}</Text>
                   <View style={styles.audioBtnGroup}>
-                    {isPremium && !hideAiTools && (
+                    {aiTextVisible && (
                     <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
                       <TouchableOpacity
                         onPress={handleGenerate}
@@ -806,14 +814,14 @@ export function WordModal({
                 </View>
                 <View>
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isPremium && !hideAiTools && meaning.trim() ? 4 : 18 }]}
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: aiTextVisible && meaning.trim() ? 4 : 18 }]}
                     value={meaning}
                     onChangeText={onChangeMeaning}
                     multiline
                     scrollEnabled={false}
                   />
                 </View>
-                {isPremium && !hideAiTools && meaning.trim() ? (
+                {aiTextVisible && meaning.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {meaningTranslation ? (
@@ -858,7 +866,7 @@ export function WordModal({
                 <View style={[styles.fieldLabelRow, { marginTop: 24 }]}>
                   <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>{t('note_label')}</Text>
                   {/* Breakdown + AI Example — Basic Plan only */}
-                  {isPremium && !hideAiTools && (
+                  {aiTextVisible && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       {/* Breakdown with lang selector */}
                       <View style={[styles.aiGroup, { borderColor: themeColor + '40', opacity: word.trim() ? 1 : 0.35 }]}>
@@ -911,14 +919,14 @@ export function WordModal({
                 </View>
                 <View>
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: isPremium && !hideAiTools && note.trim() ? 4 : 18 }]}
+                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: aiTextVisible && note.trim() ? 4 : 18 }]}
                     value={note}
                     onChangeText={onChangeNote}
                     multiline
                     scrollEnabled={false}
                   />
                 </View>
-                {isPremium && !hideAiTools && note.trim() ? (
+                {aiTextVisible && note.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                       {noteTranslation ? (

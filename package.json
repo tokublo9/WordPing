@@ -13,6 +13,7 @@
     "pretest:unit": "tsc -p tsconfig.test.json",
     "test:unit": "node --test .test-build/tests/unit/",
     "test:worker": "npm --prefix cloudflare/wordping-api test",
+    "preflight": "node scripts/releasePreflight.cjs",
     "test": "npm run test:source && npm run test:unit && npm run test:worker",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit && npm --prefix cloudflare/wordping-api run typecheck",

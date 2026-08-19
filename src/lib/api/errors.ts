@@ -22,7 +22,12 @@ export type AIErrorKind =
   | 'usage_limited'
   | 'invalid_input'
   | 'service_unavailable'
-  | 'generation_failed';
+  | 'generation_failed'
+  | 'monthly_limit_reached'
+  /** Purchase status could not be verified. Offer Retry + Restore Purchases. */
+  | 'entitlement_unverified'
+  /** The speech service itself is misconfigured. Not the user's problem. */
+  | 'not_configured';
 
 /** Legacy codes the UI matches on. Also used as `Error.message`. */
 export type LegacyErrorCode =
@@ -33,7 +38,10 @@ export type LegacyErrorCode =
   | 'input_too_long'
   | 'invalid_request'
   | 'input_empty'
-  | 'service_unavailable';
+  | 'service_unavailable'
+  | 'monthly_api_limit_reached'
+  | 'entitlement_unverified'
+  | 'not_configured';
 
 const LEGACY_BY_KIND: Readonly<Record<AIErrorKind, LegacyErrorCode>> = {
   offline: 'service_unavailable',
@@ -45,6 +53,9 @@ const LEGACY_BY_KIND: Readonly<Record<AIErrorKind, LegacyErrorCode>> = {
   invalid_input: 'invalid_request',
   service_unavailable: 'service_unavailable',
   generation_failed: 'service_unavailable',
+  monthly_limit_reached: 'monthly_api_limit_reached',
+  entitlement_unverified: 'entitlement_unverified',
+  not_configured: 'not_configured',
 };
 
 export interface AIRequestErrorOptions {
@@ -52,6 +63,8 @@ export interface AIRequestErrorOptions {
   retryAfterSeconds?: number;
   /** The raw code the Worker returned, for diagnostics. Never user-facing. */
   serverCode?: string;
+  /** Monthly quota figures, present only on monthly_api_limit_reached. */
+  quota?: MonthlyQuotaInfo;
   /**
    * Overrides the legacy `message`. Used for the few server codes the UI
    * already handles specially, such as `input_too_long`.
@@ -64,6 +77,7 @@ export class AIRequestError extends Error {
   readonly requestId?: string;
   readonly retryAfterSeconds?: number;
   readonly serverCode?: string;
+  readonly quota?: MonthlyQuotaInfo;
 
   constructor(kind: AIErrorKind, options: AIRequestErrorOptions = {}) {
     super(options.legacyCode ?? LEGACY_BY_KIND[kind]);
@@ -72,6 +86,7 @@ export class AIRequestError extends Error {
     if (options.requestId !== undefined) this.requestId = options.requestId;
     if (options.retryAfterSeconds !== undefined) this.retryAfterSeconds = options.retryAfterSeconds;
     if (options.serverCode !== undefined) this.serverCode = options.serverCode;
+    if (options.quota !== undefined) this.quota = options.quota;
   }
 }
 
@@ -86,9 +101,14 @@ const KIND_BY_SERVER_CODE: Readonly<Record<string, AIErrorKind>> = {
   subscription_required: 'subscription_required',
   rate_limit_exceeded: 'rate_limited',
   usage_limit_exceeded: 'usage_limited',
+  monthly_api_limit_reached: 'monthly_limit_reached',
   quota_exceeded: 'rate_limited',
   feature_disabled: 'service_unavailable',
-  entitlement_service_unavailable: 'service_unavailable',
+  // These two used to collapse into a generic outage message, which is what
+  // made a rejected RevenueCat key look like a speech service failure.
+  entitlement_verification_failed: 'entitlement_unverified',
+  entitlement_service_unavailable: 'entitlement_unverified',
+  service_not_configured: 'not_configured',
   method_not_allowed: 'service_unavailable',
   not_found: 'service_unavailable',
   internal_error: 'service_unavailable',
@@ -105,12 +125,31 @@ function kindForStatus(status: number): AIErrorKind {
   return 'service_unavailable';
 }
 
+/** Verified usage figures returned by the Worker when a quota is exhausted. */
+export interface MonthlyQuotaInfo {
+  limit: number;
+  used: number;
+  /** ISO-8601 start of the next UTC month. */
+  resetsAt: string;
+  /** The tier the Worker verified, so the UI can offer the right next step. */
+  tier: 'free' | 'basic' | 'premium';
+}
+
+export function parseQuotaInfo(body: Record<string, unknown>): MonthlyQuotaInfo | undefined {
+  const { limit, used, resetsAt, tier } = body;
+  if (typeof limit !== 'number' || typeof used !== 'number') return undefined;
+  if (typeof resetsAt !== 'string' || Number.isNaN(Date.parse(resetsAt))) return undefined;
+  if (tier !== 'free' && tier !== 'basic' && tier !== 'premium') return undefined;
+  return { limit, used, resetsAt, tier };
+}
+
 export interface WorkerErrorInput {
   status: number;
   /** Parsed `error` field, when the response carried a JSON body. */
   code?: string;
   requestId?: string;
   retryAfterSeconds?: number;
+  quota?: MonthlyQuotaInfo;
 }
 
 /**
@@ -131,6 +170,7 @@ export function errorFromWorkerResponse(input: WorkerErrorInput): AIRequestError
     // The UI turns this one into "shorten your text" rather than a generic
     // validation message, so it keeps its own legacy code.
     ...(input.code === 'input_too_long' ? { legacyCode: 'input_too_long' as const } : {}),
+    ...(input.quota !== undefined ? { quota: input.quota } : {}),
   });
 }
 
@@ -161,6 +201,9 @@ export const MESSAGE_KEY_BY_KIND: Readonly<Record<AIErrorKind, string>> = {
   invalid_input: 'err_input_too_long',
   service_unavailable: 'ai_service_unavailable_msg',
   generation_failed: 'err_generation_failed',
+  monthly_limit_reached: 'err_voice_limit_basic',
+  entitlement_unverified: 'err_entitlement_unverified',
+  not_configured: 'err_service_not_configured',
 };
 
 export function isAIRequestError(value: unknown): value is AIRequestError {

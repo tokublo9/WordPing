@@ -165,6 +165,7 @@ function parseProgress(raw: unknown[], errors: Errors): BackupLearningProgress[]
     if (!nonEmptyString(entry.wordId)) errors.add(`${at}.wordId must be a non-empty string`);
     if (!optional(entry.levelId, nonEmptyString)) errors.add(`${at}.levelId must be a string`);
     if (!optional(entry.nextReviewAt, finiteNumber)) errors.add(`${at}.nextReviewAt must be a number`);
+    if (!optional(entry.hiddenUntil, finiteNumber)) errors.add(`${at}.hiddenUntil must be a number`);
     if (typeof entry.mastered !== 'boolean') errors.add(`${at}.mastered must be a boolean`);
     return errors.failed ? [] : [entry as unknown as BackupLearningProgress];
   });

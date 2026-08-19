@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Folder, OnboardingChoices, WordCard } from '../types';
 import {
   HIDE_AI_TOOLS_KEY,
+  SYNC_TEST_RESULTS_KEY,
   ONBOARDING_KEY,
   SHOW_FULL_CARD_KEY,
   VERTICAL_FLIP_KEY,
@@ -77,6 +78,7 @@ export interface UseAppBootstrapParams {
   setShowFullCard(v: boolean): void;
   setVerticalFlip(v: boolean): void;
   setHideAiTools(v: boolean): void;
+  setSyncTestResults(v: boolean): void;
 }
 
 export interface AppBootstrapState {
@@ -100,6 +102,11 @@ export interface AppBootstrapState {
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
   levelFiltersLoaded: MutableRefObject<boolean>;
+  /**
+   * Stored data could not be read. Saving is disabled for this launch so an
+   * empty screen cannot be written over the user's real vocabulary.
+   */
+  loadFailed: boolean;
 }
 
 export function useAppBootstrap({
@@ -108,6 +115,7 @@ export function useAppBootstrap({
   setShowFullCard,
   setVerticalFlip,
   setHideAiTools,
+  setSyncTestResults,
 }: UseAppBootstrapParams): AppBootstrapState {
   const [cards, setCards] = useState<WordCard[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -125,6 +133,15 @@ export function useAppBootstrap({
   const cardsLoaded = useRef(false);
   const levelFiltersLoaded = useRef(false);
   const foldersRef = useRef<Folder[]>([]);
+  // Set when the stored cards could not be read at all.
+  //
+  // This gate is the difference between "the app looks empty this launch" and
+  // "the user's vocabulary is gone". `cards` state is still [] after a failed
+  // load, and every persist writes the full array — so the first word added
+  // afterwards would delete every stored row that is not in it. Writes stay
+  // shut until a read has actually succeeded.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadFailedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,8 +173,13 @@ export function useAppBootstrap({
             e instanceof Error ? e.name : 'UnknownError',
           );
         }
-        // Return early; the finally block will call markSettingsLoaded and
-        // set hasLoaded so the app remains usable with default state.
+        // The stored cards were never read, so `cards` is [] for reasons that
+        // have nothing to do with what is on disk. Persistence must stay shut:
+        // a single word added now would otherwise be written as the complete
+        // card list and delete everything else. The UI still loads so the user
+        // can close the app rather than being stuck on a blank screen.
+        loadFailedRef.current = true;
+        if (!cancelled) setLoadFailed(true);
         return;
       }
 
@@ -183,12 +205,14 @@ export function useAppBootstrap({
       let rawShowFull: string | null = null;
       let rawVertFlip: string | null = null;
       let rawHideAi:  string | null = null;
+      let rawSyncTest: string | null = null;
       let obRaw: string | null = null;
       try {
-        [rawShowFull, rawVertFlip, rawHideAi, obRaw] = await Promise.all([
+        [rawShowFull, rawVertFlip, rawHideAi, rawSyncTest, obRaw] = await Promise.all([
           AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
           AsyncStorage.getItem(VERTICAL_FLIP_KEY),
           AsyncStorage.getItem(HIDE_AI_TOOLS_KEY),
+          AsyncStorage.getItem(SYNC_TEST_RESULTS_KEY),
           AsyncStorage.getItem(ONBOARDING_KEY),
         ]);
       } catch (e) {
@@ -204,6 +228,8 @@ export function useAppBootstrap({
       if (cancelled) return;
 
       if (rawShowFull === 'true') setShowFullCard(true);
+      // Absent means off, which is the default for existing users.
+      if (rawSyncTest === 'true') setSyncTestResults(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
       if (rawHideAi !== null) {
         setHideAiTools(rawHideAi === 'true');
@@ -250,12 +276,14 @@ export function useAppBootstrap({
         }
       })
       .finally(() => {
-        // Always finalize the persistence gates, regardless of success or failure.
-        // Both are refs — safe to write after unmount. On the happy path cardsLoaded
-        // was already opened in Phase 1; this covers the early-return failure path.
-        hasLoaded.current = true;
-        cardsLoaded.current = true;
-        levelFiltersLoaded.current = true;
+        // Finalize the persistence gates — but only when the stored data was
+        // actually read. Opening them after a failed read is what would turn a
+        // transient storage error into permanent data loss.
+        // Refs are safe to write after unmount.
+        const readSucceeded = !loadFailedRef.current;
+        hasLoaded.current = readSucceeded;
+        cardsLoaded.current = readSucceeded;
+        levelFiltersLoaded.current = readSucceeded;
         // markSettingsLoaded calls a state setter; only call it if still mounted.
         // On the happy path it was already called above (idempotent).
         if (!cancelled) markSettingsLoaded();
@@ -287,5 +315,6 @@ export function useAppBootstrap({
     hasLoaded,
     cardsLoaded,
     levelFiltersLoaded,
+    loadFailed,
   };
 }

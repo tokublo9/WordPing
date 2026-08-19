@@ -173,9 +173,12 @@ async function applyBackup(
     for (const entry of backup.data.learningProgress) {
       if (!importedWordIds.has(entry.wordId)) continue;
       await db.runAsync(
-        `INSERT INTO learning_progress (word_id, level_id, next_review_at, mastered)
-         VALUES (?, ?, ?, ?)`,
-        [entry.wordId, entry.levelId ?? null, entry.nextReviewAt ?? null, entry.mastered ? 1 : 0],
+        `INSERT INTO learning_progress (word_id, level_id, next_review_at, mastered, hidden_until)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          entry.wordId, entry.levelId ?? null, entry.nextReviewAt ?? null,
+          entry.mastered ? 1 : 0, entry.hiddenUntil ?? null,
+        ],
       );
       summary.learningProgress += 1;
     }

@@ -176,8 +176,12 @@ test('cards persist as soon as stored cards reach state, not after every phase',
     bootstrap,
     /setCards\(migratedCards\);[\s\S]*?applySettings\(local\.settings\);[\s\S]*?cardsLoaded\.current = true;/u,
   );
-  // The failure path still opens it, so a bootstrap error cannot disable saving.
-  assert.match(bootstrap, /hasLoaded\.current = true;\s*cardsLoaded\.current = true;/u);
+  // The failure path must NOT open it. This assertion previously required the
+  // opposite — "a bootstrap error cannot disable saving" — which is precisely
+  // what turned a transient read failure into permanent data loss: `cards` is []
+  // after a failed read, and the next persist writes that empty array as the
+  // complete card list. Availability is not worth the user's vocabulary.
+  assert.match(bootstrap, /hasLoaded\.current = readSucceeded;/u);
   assert.match(bootstrap, /cardsLoaded: MutableRefObject<boolean>;/u);
 
   // Card and folder writes use the earlier gate; UI preferences keep the later one,
@@ -239,4 +243,45 @@ test('AI requests never start during app bootstrap', () => {
   const client = read('src/lib/api/client.ts');
   assert.match(client, /identityRequest \?\?= resolveIdentity\(\)/u);
   assert.match(client, /const identity = await getIdentity\(\);/u);
+});
+
+test('a failed data load never opens the persistence write gate', () => {
+  // Regression: the finally block used to set cardsLoaded unconditionally. After
+  // a failed read `cards` is [] for reasons unrelated to what is on disk, and
+  // every persist writes the full array — so the first word the user added would
+  // have been written as the complete card list, deleting everything else.
+  const bootstrap = read('src/app/useAppBootstrap.ts');
+
+  assert.match(bootstrap, /loadFailedRef\.current = true;/u, 'the failure path must record that the read failed');
+  assert.match(
+    bootstrap,
+    /const readSucceeded = !loadFailedRef\.current;\s*hasLoaded\.current = readSucceeded;\s*cardsLoaded\.current = readSucceeded;\s*levelFiltersLoaded\.current = readSucceeded;/u,
+    'all three gates must be conditional on a successful read',
+  );
+  assert.doesNotMatch(bootstrap, /cardsLoaded\.current = true;\s*levelFiltersLoaded\.current = true;/u,
+    'no unconditional gate opening may remain');
+
+  // The user has to be told, or the app silently discards what they type.
+  const app = read('App.tsx');
+  assert.match(app, /if \(!loadFailed\) return;\s*Alert\.alert\(t\('load_failed_title'\)/u);
+});
+
+test('a backup import cannot be overwritten by a queued write', () => {
+  // Regression: restoreFromBackup wrote straight to the database. A snapshot
+  // queued just before the import describes pre-import data, so flushing it
+  // afterwards silently undid the restore. expo-sqlite also runs one
+  // connection, so the two transactions could collide.
+  const db = read('src/lib/db.ts');
+  const backupFile = read('src/lib/backup/backupFile.ts');
+
+  assert.match(db, /export async function runExclusive<T>/u);
+  assert.match(db, /if \(exclusiveTask !== null\) return;/u, 'flush must stand down during an exclusive task');
+  // An in-flight flush owns a transaction, so it is awaited first — but with a
+  // deadline, so a wedged write cannot leave the import spinning forever.
+  assert.match(db, /while \(flushActive && Date\.now\(\) < deadline\)/u);
+  // Stale snapshots are dropped on success, kept on failure.
+  assert.match(db, /const result = await run;[\s\S]*?pendingCards = null;\s*pendingFolders = null;\s*pendingSettings = null;/u);
+  assert.match(db, /catch \(error\) \{[\s\S]*?scheduleFlush\(\);\s*throw error;/u);
+
+  assert.match(backupFile, /return runExclusive\(\(\) => importBackup\(db, raw/u);
 });

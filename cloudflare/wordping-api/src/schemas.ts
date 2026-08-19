@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AUDIO_FORMATS, MAX_LANG_CODE_LENGTH } from './config';
+import { AUDIO_FORMATS, MAX_LANG_CODE_LENGTH, PROMO_SAMPLE_IDS } from './config';
 
 /**
  * Request body schemas.
@@ -51,6 +51,22 @@ export const voiceSampleSchema = z.object({
   sampleVersion: z.string().max(64).optional(),
 });
 export type VoiceSampleRequest = z.infer<typeof voiceSampleSchema>;
+
+/**
+ * Promotional previews for the Upgrade Plan sheet — the one speech route a
+ * caller with no subscription may reach.
+ *
+ * Deliberately has no `text` and no `voice` field. `sample` is a two-value enum
+ * and `langCode` only selects a row from a server-side table, so the worst a
+ * caller can do is choose which of the two fixed clips they hear. Unknown keys
+ * are stripped by the non-strict object, so smuggling `text` does nothing.
+ */
+export const voicePromoSchema = z.object({
+  sample: z.enum(PROMO_SAMPLE_IDS),
+  langCode: z.string().max(MAX_LANG_CODE_LENGTH).optional(),
+  sampleVersion: z.string().max(64).optional(),
+});
+export type VoicePromoRequest = z.infer<typeof voicePromoSchema>;
 
 export const voiceCustomSchema = z.object({
   text: inputText,

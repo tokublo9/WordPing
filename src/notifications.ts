@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { Folder, WordCard } from './types';
+import { isCardHidden } from './features/cards/visibility';
 import { reportSideEffectFailure } from './utils/reportSideEffectFailure';
 
 Notifications.setNotificationHandler({
@@ -105,7 +106,8 @@ async function applySchedule(cards: WordCard[], folders: Folder[]): Promise<void
 
   for (const folder of active) {
     const { intervalSeconds, displayOnlyWord } = folder.notifSettings!;
-    const eligible = cards.filter(c => c.folderId === folder.id && !c.notifOff);
+    // A temporarily hidden card is out of rotation, so it must not fire.
+    const eligible = cards.filter(c => c.folderId === folder.id && !c.notifOff && !isCardHidden(c));
     if (eligible.length === 0) continue;
 
     const pool  = shuffled(eligible);

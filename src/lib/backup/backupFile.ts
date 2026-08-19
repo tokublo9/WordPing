@@ -1,6 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { runExclusive } from '../db';
 import { getDatabase } from '../sqlite/database';
 import { exportBackup, serializeBackup } from './exportBackup';
 import { importBackup } from './importBackup';
@@ -106,10 +107,12 @@ export async function restoreFromBackup(
   options: { importSettings?: boolean } = {},
 ): Promise<ImportSummary> {
   const db = await getDatabase();
-  return importBackup(db, raw, {
+  // Exclusive: a pending card write queued just before the import would
+  // otherwise flush on top of the restored rows and undo them.
+  return runExclusive(() => importBackup(db, raw, {
     mode,
     ...(options.importSettings !== undefined ? { importSettings: options.importSettings } : {}),
-  });
+  }));
 }
 
 /** Backups previously written by this device, newest first. */

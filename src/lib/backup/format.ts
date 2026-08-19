@@ -86,6 +86,11 @@ export interface BackupLearningProgress {
   levelId?: string;
   nextReviewAt?: number;
   mastered: boolean;
+  /**
+   * Unix ms UTC. A temporarily hidden card is still the user's data, so the
+   * hide survives an export/import round trip rather than silently resetting.
+   */
+  hiddenUntil?: number;
 }
 
 export interface BackupReviewEntry {

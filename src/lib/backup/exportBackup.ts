@@ -43,7 +43,8 @@ interface WordRow {
 interface NoteRow { word_id: string; body: string }
 interface WordLabelRow { word_id: string; label_id: string }
 interface ProgressRow {
-  word_id: string; level_id: string | null; next_review_at: number | null; mastered: number;
+  word_id: string; level_id: string | null; next_review_at: number | null;
+  mastered: number; hidden_until: number | null;
 }
 interface ReviewRow { word_id: string; rated_at: number; rating: string }
 interface SettingRow { key: string; value: string }
@@ -101,7 +102,7 @@ export async function exportBackup(db: SqlDatabase, options: ExportOptions): Pro
     db.getAllAsync<NoteRow>('SELECT word_id, body FROM notes ORDER BY word_id ASC'),
     db.getAllAsync<WordLabelRow>('SELECT word_id, label_id FROM word_labels ORDER BY word_id ASC, label_id ASC'),
     db.getAllAsync<ProgressRow>(
-      'SELECT word_id, level_id, next_review_at, mastered FROM learning_progress ORDER BY word_id ASC',
+      'SELECT word_id, level_id, next_review_at, mastered, hidden_until FROM learning_progress ORDER BY word_id ASC',
     ),
     db.getAllAsync<ReviewRow>(
       'SELECT word_id, rated_at, rating FROM review_history ORDER BY word_id ASC, rated_at ASC, id ASC',
@@ -131,6 +132,7 @@ export async function exportBackup(db: SqlDatabase, options: ExportOptions): Pro
     wordId: row.word_id,
     ...(row.level_id !== null ? { levelId: row.level_id } : {}),
     ...(row.next_review_at !== null ? { nextReviewAt: row.next_review_at } : {}),
+    ...(row.hidden_until !== null ? { hiddenUntil: row.hidden_until } : {}),
     mastered: row.mastered === 1,
   }));
   const backupReviews: BackupReviewEntry[] = reviews.map(row => ({

@@ -22,7 +22,12 @@ test('every Worker error code maps to a client classification', () => {
     usage_limit_exceeded: 'usage_limited',
     quota_exceeded: 'rate_limited',
     feature_disabled: 'service_unavailable',
-    entitlement_service_unavailable: 'service_unavailable',
+    // Not 'service_unavailable': a verification failure is its own thing, and
+    // conflating them is what produced a fake speech outage.
+    entitlement_service_unavailable: 'entitlement_unverified',
+    entitlement_verification_failed: 'entitlement_unverified',
+    service_not_configured: 'not_configured',
+    monthly_api_limit_reached: 'monthly_limit_reached',
     internal_error: 'service_unavailable',
     upstream_failed: 'generation_failed',
     request_timeout: 'timeout',
@@ -123,4 +128,78 @@ test('an error message never carries server detail or user text', () => {
   // in a user-facing string by accident.
   assert.equal(error.message, 'invalid_request');
   assert.equal(error.message.includes('abc-123'), false);
+});
+
+// ── AI Voice failure classification (regression) ─────────────────────────────
+
+test('a failed entitlement verification is not reported as a speech outage', () => {
+  // Root cause of the AI Voice incident: the Worker returned 503
+  // entitlement_service_unavailable because RevenueCat rejected its key, and
+  // this collapsed into the generic "speech service unavailable" message.
+  for (const code of ['entitlement_service_unavailable', 'entitlement_verification_failed']) {
+    const error = errorFromWorkerResponse({ status: 503, code });
+    assert.equal(error.kind, 'entitlement_unverified', `${code} must classify as unverified`);
+    assert.notEqual(error.kind, 'service_unavailable');
+    assert.equal(MESSAGE_KEY_BY_KIND[error.kind], 'err_entitlement_unverified');
+  }
+});
+
+test('a misconfigured service is distinguished from a transient outage', () => {
+  const error = errorFromWorkerResponse({ status: 503, code: 'service_not_configured' });
+  assert.equal(error.kind, 'not_configured');
+  assert.equal(MESSAGE_KEY_BY_KIND[error.kind], 'err_service_not_configured');
+});
+
+test('only genuine Worker and OpenAI failures say "temporarily unavailable"', () => {
+  for (const code of ['internal_error', 'feature_disabled', 'not_found', 'method_not_allowed']) {
+    assert.equal(errorFromWorkerResponse({ status: 500, code }).kind, 'service_unavailable');
+  }
+  assert.equal(errorFromWorkerResponse({ status: 502, code: 'upstream_failed' }).kind, 'generation_failed');
+  assert.equal(MESSAGE_KEY_BY_KIND.service_unavailable, 'ai_service_unavailable_msg');
+});
+
+test('a Free user gets subscription_required, never a service failure', () => {
+  const error = errorFromWorkerResponse({ status: 403, code: 'subscription_required' });
+  assert.equal(error.kind, 'subscription_required');
+  assert.equal(error.message, 'plan_required');
+  assert.equal(MESSAGE_KEY_BY_KIND[error.kind], 'err_plan_required_speech');
+});
+
+test('the monthly voice limit is its own classification, not an outage', () => {
+  const error = errorFromWorkerResponse({
+    status: 429,
+    code: 'monthly_api_limit_reached',
+    quota: { limit: 100, used: 100, resetsAt: '2026-09-01T00:00:00.000Z', tier: 'basic' },
+  });
+  assert.equal(error.kind, 'monthly_limit_reached');
+  assert.deepEqual(error.quota, { limit: 100, used: 100, resetsAt: '2026-09-01T00:00:00.000Z', tier: 'basic' });
+});
+
+test('rate limiting, offline and timeout each keep their own message', () => {
+  assert.equal(errorFromWorkerResponse({ status: 429, code: 'rate_limit_exceeded' }).kind, 'rate_limited');
+  assert.equal(MESSAGE_KEY_BY_KIND.rate_limited, 'err_rate_limited');
+  assert.equal(errorFromNetworkFailure(new TypeError('Network request failed')).kind, 'offline');
+  assert.equal(MESSAGE_KEY_BY_KIND.offline, 'err_offline');
+  const timedOut = new Error('t'); timedOut.name = 'TimeoutError';
+  assert.equal(errorFromNetworkFailure(timedOut).kind, 'timeout');
+  assert.equal(MESSAGE_KEY_BY_KIND.timeout, 'err_timeout');
+});
+
+test('the Worker request id is retained for diagnostics', () => {
+  const error = errorFromWorkerResponse({
+    status: 503, code: 'entitlement_verification_failed', requestId: '02220567-b3e1-44ef',
+  });
+  assert.equal(error.requestId, '02220567-b3e1-44ef');
+  assert.equal(error.serverCode, 'entitlement_verification_failed');
+});
+
+test('every classification still has a message key', () => {
+  for (const kind of [
+    'offline', 'timeout', 'cancelled', 'subscription_required', 'rate_limited',
+    'usage_limited', 'invalid_input', 'service_unavailable', 'generation_failed',
+    'monthly_limit_reached', 'entitlement_unverified', 'not_configured',
+  ] as const) {
+    assert.equal(typeof MESSAGE_KEY_BY_KIND[kind], 'string');
+    assert.ok(MESSAGE_KEY_BY_KIND[kind].length > 0, `${kind} needs a message key`);
+  }
 });

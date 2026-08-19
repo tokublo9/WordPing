@@ -23,6 +23,8 @@ export interface AppModalsProps {
   rawThemeColor: string;     // themeColor — used by PaywallModal
   isSubscribed: boolean;
   isPremium: boolean;
+  /** False until RevenueCat has answered; paid features stay locked until then. */
+  isSubscriptionLoaded: boolean;
   subscribe(): Promise<void>;
   subscribePremium(): Promise<void>;
   restore(): Promise<void>;
@@ -104,6 +106,8 @@ export interface AppModalsProps {
     onToggleVerticalFlip: Dispatch<SetStateAction<boolean>>;
     hideAiTools: boolean;
     onToggleHideAiTools: Dispatch<SetStateAction<boolean>>;
+    syncTestResults: boolean;
+    onToggleSyncTestResults: Dispatch<SetStateAction<boolean>>;
     onDataReplaced(): void;
   };
 
@@ -144,6 +148,8 @@ export interface AppModalsProps {
     explanationLang: string;
     verticalFlip: boolean;
     onUpdateCard(id: string, patch: Partial<WordCard>): void;
+    onDeleteCard(id: string): void;
+    syncTestResults: boolean;
     onClose(): void;
   };
 
@@ -166,7 +172,7 @@ export interface AppModalsProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AppModals({
-  pal, themeColor, rawThemeColor, isSubscribed, isPremium,
+  pal, themeColor, rawThemeColor, isSubscribed, isPremium, isSubscriptionLoaded,
   subscribe, subscribePremium, restore, onManageSubscription,
   wordModal, bulkImport, notifModal, textToSpeech, settingsModal, paywallModal,
   proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
@@ -247,6 +253,7 @@ export function AppModals({
         onPickSkin={settingsModal.onPickSkin}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        isSubscriptionLoaded={isSubscriptionLoaded}
         onUpgrade={settingsModal.onUpgrade}
         onSubscribe={subscribe}
         onSubscribePremium={subscribePremium}
@@ -263,6 +270,8 @@ export function AppModals({
         onToggleVerticalFlip={settingsModal.onToggleVerticalFlip}
         hideAiTools={settingsModal.hideAiTools}
         onToggleHideAiTools={settingsModal.onToggleHideAiTools}
+        syncTestResults={settingsModal.syncTestResults}
+        onToggleSyncTestResults={settingsModal.onToggleSyncTestResults}
         onDataReplaced={settingsModal.onDataReplaced}
       />
 
@@ -270,7 +279,6 @@ export function AppModals({
         visible={paywallModal.visible}
         onClose={paywallModal.onClose}
         onSubscribe={subscribe}
-        onRestore={restore}
         pal={pal}
         themeColor={rawThemeColor}
       />
@@ -280,8 +288,8 @@ export function AppModals({
         onClose={proSheet.onClose}
         onSubscribe={subscribe}
         onSubscribePremium={subscribePremium}
-        onRestore={restore}
         onManageSubscription={onManageSubscription}
+        language={settingsModal.language}
         themeColor={themeColor}
         pal={pal}
         isSubscribed={isSubscribed}
@@ -326,6 +334,8 @@ export function AppModals({
         <TestModeScreen
           cards={testMode.cards}
           onUpdateCard={testMode.onUpdateCard}
+        onDeleteCard={testMode.onDeleteCard}
+        syncTestResults={testMode.syncTestResults}
           onClose={testMode.onClose}
           pal={pal}
           themeColor={themeColor}

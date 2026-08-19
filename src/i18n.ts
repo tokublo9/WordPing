@@ -9,7 +9,6 @@ export type TranslationKey =
   | 'app_info' | 'announcements' | 'advanced_settings'
   | 'notifications' | 'display_only_word' | 'display_only_word_desc' | 'test_send' | 'test_sending' | 'close'
   | 'word_label' | 'meaning_label' | 'note_label' | 'cancel' | 'save'
-  | 'how_to_use' | 'got_it'
   | 'tut1_title' | 'tut1_desc'
   | 'tut2_title' | 'tut2_desc'
   | 'tut3_title' | 'tut3_desc'
@@ -153,7 +152,14 @@ export type TranslationKey =
   | 'backup_import_replace' | 'backup_import_replace_desc'
   | 'backup_replace_confirm' | 'backup_replace_warning'
   | 'backup_import_done' | 'backup_import_summary'
-  | 'backup_invalid' | 'backup_failed' | 'backup_working';
+  | 'backup_invalid' | 'backup_failed' | 'backup_working'
+  | 'sync_test_results' | 'sync_test_results_desc'
+  | 'announcements_empty_title' | 'announcements_empty_desc'
+  | 'purchases_section' | 'retry'
+  | 'load_failed_title' | 'load_failed_message'
+  | 'err_voice_limit_title' | 'err_voice_limit_basic'
+  | 'err_entitlement_unverified' | 'err_service_not_configured'
+  | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OnboardingProfileKey =
   | 'ob_profile_title' | 'ob_profile_desc'
@@ -188,8 +194,19 @@ type BackupKey =
   | 'backup_import_done' | 'backup_import_summary'
   | 'backup_invalid' | 'backup_failed' | 'backup_working';
 
+/** Settings, announcements and AI-error copy that falls back to English. */
+type AppShellKey =
+  | 'sync_test_results' | 'sync_test_results_desc'
+  | 'announcements_empty_title' | 'announcements_empty_desc'
+  | 'purchases_section' | 'retry'
+  | 'load_failed_title' | 'load_failed_message'
+  | 'err_voice_limit_title' | 'err_voice_limit_basic'
+  | 'err_entitlement_unverified' | 'err_service_not_configured'
+  | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label';
+
 type OptionalTranslationKey =
-  | OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey | AIErrorMessageKey | BackupKey;
+  | OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey | AIErrorMessageKey | BackupKey
+  | AppShellKey;
 
 // New onboarding/catalog copy falls back to English until a locale supplies an
 // override. All established translation keys remain required for every locale.
@@ -198,6 +215,28 @@ type Dict = Record<Exclude<TranslationKey, OptionalTranslationKey>, string>
 
 // ── English (US) ───────────────────────────────────────────────────────────────
 const enUS: Dict = {
+  // ── Settings · Card Behavior ────────────────────────────────────────────────
+  sync_test_results:          'Sync with test results',
+  sync_test_results_desc:     'Links your test results with your word list. Perfect permanently deletes the card, Pretty good shows it again after 3 days, Not really shows it again after 1 day, and Don’t know leaves it unchanged.',
+
+  // ── Announcements ───────────────────────────────────────────────────────────
+  announcements_empty_title: 'No announcements yet',
+  announcements_empty_desc:  'Updates and important information from WordPing will appear here.',
+
+  // ── App Info ────────────────────────────────────────────────────────────────
+  purchases_section:  'Purchases',
+  retry:              'Retry',
+
+  // ── Local storage failure ───────────────────────────────────────────────────
+  load_failed_title:   'Could not load your words',
+  load_failed_message: 'Your saved data could not be read, so saving is paused to protect it. Please restart WordPing.',
+
+  // ── AI voice errors ─────────────────────────────────────────────────────────
+  err_voice_limit_title:     'Monthly voice limit reached',
+  err_voice_limit_basic:     'You’ve used all {limit} High-Quality AI Voice generations for this month. Upgrade to Premium for unlimited access.',
+  err_entitlement_unverified: 'Your subscription could not be verified just now. Please check your connection and try again.',
+  err_service_not_configured: 'AI features are temporarily unavailable. Please try again later.',
+
   app_name:          'WordPing',
   settings:          'Settings',
   theme_color:       'Theme Color',
@@ -226,8 +265,6 @@ const enUS: Dict = {
   cancel:            'Cancel',
   save:              'Save',
 
-  how_to_use: 'How to use WordPing',
-  got_it:     'Got it',
   tut1_title: 'Folders',
   tut1_desc:  'Tap + on the folder screen to create a folder. Long-press a folder to rename it, change its icon, or delete it.',
   tut2_title: 'Add & Edit Words',
@@ -267,7 +304,7 @@ const enUS: Dict = {
   ai_voice_all:       'AI voice for all words',
   first_words_free:   'First 10 words on free',
   subscribe_price:    'Subscribe · $2.99 / month',
-  restore_purchases:  'Restore purchases',
+  restore_purchases:  'Restore Purchases',
 
   unlock_full:          'Unlock the full experience',
   remove_ads_desc:      'Enjoy a clean, distraction-free experience with no banners.',
@@ -475,6 +512,9 @@ const enUS: Dict = {
   show_full_card_desc:      'Show the word, meaning, and note at the same time when a card is tapped in Word List mode.',
   vertical_flip:            'Vertical Flip',
   vertical_flip_desc:       'Flip cards vertically instead of horizontally.',
+  info_button_label:        'More information',
+  show_full_card_info:      'In the word list, tapping a card shows its word, meaning and note together, instead of showing only the meaning on the back of the card.',
+  vertical_flip_info:       'Changes the card-flip animation from horizontal to vertical. Applies to Flip mode and Test Mode.',
   default_voice:         'Default Voice',
   ai_voice_promo_desc:   'Listen to remarkably natural audio generated by AI. You can also choose your favorite from 13 different voices.',
   ai_meaning_promo_desc: 'Automatically generate meanings, notes, and word breakdowns in any language.',
@@ -584,8 +624,8 @@ const enUS: Dict = {
   err_usage_limited:     'You have reached your usage limit for today. It resets tomorrow.',
   err_generation_failed: 'That could not be generated. Please try again.',
   ai_service_unavailable_msg: 'The AI service is temporarily unavailable. Please try again later.',
-  backup:                'Backup',
-  backup_desc:           'Your words are stored only on this device. Export a backup to move them to a new phone.',
+  backup:                'Backup & Restore',
+  backup_desc:           'Export or restore your WordPing data.',
   backup_export:         'Export backup',
   backup_export_done:    'Backup created',
   backup_export_summary: '{words} words and {folders} folders were exported.',
@@ -605,6 +645,28 @@ const enUS: Dict = {
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
 const ja: Dict = {
+  // ── Settings · Card Behavior ────────────────────────────────────────────────
+  sync_test_results:          'テスト結果と連動',
+  sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodでは3日後、Not reallyでは1日後に再表示します。Don’t knowではそのまま残ります。',
+
+  // ── Announcements ───────────────────────────────────────────────────────────
+  announcements_empty_title: 'お知らせはまだありません',
+  announcements_empty_desc:  'WordPingのアップデートや重要なお知らせがここに表示されます。',
+
+  // ── App Info ────────────────────────────────────────────────────────────────
+  purchases_section:  '購入',
+  retry:              '再試行',
+
+  // ── Local storage failure ───────────────────────────────────────────────────
+  load_failed_title:   '単語を読み込めませんでした',
+  load_failed_message: '保存データを読み取れなかったため、データ保護のため保存を一時停止しました。WordPingを再起動してください。',
+
+  // ── AI voice errors ─────────────────────────────────────────────────────────
+  err_voice_limit_title:     '月間音声生成上限に達しました',
+  err_voice_limit_basic:     '今月の高品質AI音声生成を{limit}回使用しました。Premiumにアップグレードすると無制限で利用できます。',
+  err_entitlement_unverified: 'サブスクリプションを確認できませんでした。通信状況を確認してもう一度お試しください。',
+  err_service_not_configured: 'AI機能は現在ご利用いただけません。しばらくしてからお試しください。',
+
   app_name:          'ワードピング',
   settings:          '設定',
   theme_color:       'テーマカラー',
@@ -633,8 +695,6 @@ const ja: Dict = {
   cancel:            'キャンセル',
   save:              '保存',
 
-  how_to_use: 'WordPingの使い方',
-  got_it:     'わかった',
   tut1_title: 'フォルダ',
   tut1_desc:  'フォルダ画面で＋をタップしてフォルダを作成。長押しで名前変更・アイコン変更・削除ができます。',
   tut2_title: '単語の追加・編集',
@@ -882,6 +942,9 @@ const ja: Dict = {
   show_full_card_desc:      'リストモードでカードをタップしたとき、単語・意味・メモをまとめて表示します。',
   vertical_flip:            '縦方向に反転',
   vertical_flip_desc:       'カードを横方向ではなく縦方向に反転させます。',
+  info_button_label:        '詳細情報',
+  show_full_card_info:      '単語リストでカードをタップしたとき、裏面に意味だけを表示するのではなく、単語・意味・メモをまとめて表示します。',
+  vertical_flip_info:       'カードをめくるアニメーションを横方向から縦方向に変更します。フリップモードとテストモードに適用されます。',
   default_voice: 'デフォルト',
   ai_voice_promo_desc: 'AIボイスアイコンをタップして、より自然な発音を聞いてみましょう。',
   ai_meaning_promo_desc: 'どの言語でも意味・メモ・単語分解を自動生成します。',
@@ -989,8 +1052,8 @@ const ja: Dict = {
   err_usage_limited:     '本日の利用上限に達しました。明日リセットされます。',
   err_generation_failed: '生成できませんでした。もう一度お試しください。',
   ai_service_unavailable_msg: 'AIサービスが一時的に利用できません。しばらくしてからお試しください。',
-  backup:                'バックアップ',
-  backup_desc:           '単語はこの端末にのみ保存されます。新しい端末へ移すにはバックアップを書き出してください。',
+  backup:                'バックアップと復元',
+  backup_desc:           'WordPingのデータをエクスポートまたは復元できます。',
   backup_export:         'バックアップを書き出す',
   backup_export_done:    'バックアップを作成しました',
   backup_export_summary: '{words}語・{folders}フォルダを書き出しました。',
@@ -1038,8 +1101,6 @@ const ko: Dict = {
   cancel:            '취소',
   save:              '저장',
 
-  how_to_use: 'WordPing 사용법',
-  got_it:     '알겠어요',
   tut1_title: '폴더',
   tut1_desc:  '폴더 화면에서 + 를 눌러 폴더를 만드세요. 폴더를 길게 누르면 이름 변경, 아이콘 변경, 삭제를 할 수 있어요.',
   tut2_title: '단어 추가 및 편집',
@@ -1376,8 +1437,6 @@ const zhCN: Dict = {
   cancel:            '取消',
   save:              '保存',
 
-  how_to_use: 'WordPing 使用指南',
-  got_it:     '知道了',
   tut1_title: '文件夹',
   tut1_desc:  '在文件夹界面点击 + 新建文件夹。长按文件夹可重命名、更换图标或删除。',
   tut2_title: '添加与编辑单词',
@@ -1714,8 +1773,6 @@ const es: Dict = {
   cancel:            'Cancelar',
   save:              'Guardar',
 
-  how_to_use: 'Cómo usar WordPing',
-  got_it:     'Entendido',
   tut1_title: 'Carpetas',
   tut1_desc:  'Toca + en la pantalla de carpetas para crear una. Mantén presionada una carpeta para renombrarla, cambiar su icono o eliminarla.',
   tut2_title: 'Agregar y editar palabras',
@@ -2052,8 +2109,6 @@ const fr: Dict = {
   cancel:            'Annuler',
   save:              'Enregistrer',
 
-  how_to_use: 'Comment utiliser WordPing',
-  got_it:     'Compris',
   tut1_title: 'Dossiers',
   tut1_desc:  "Appuie sur + dans l'écran des dossiers pour en créer un. Appuie longuement sur un dossier pour le renommer, changer son icône ou le supprimer.",
   tut2_title: 'Ajouter et modifier des mots',
@@ -2390,8 +2445,6 @@ const de: Dict = {
   cancel:            'Abbrechen',
   save:              'Speichern',
 
-  how_to_use: 'So verwendest du WordPing',
-  got_it:     'Verstanden',
   tut1_title: 'Ordner',
   tut1_desc:  'Tippe auf + im Ordner-Bildschirm, um einen Ordner zu erstellen. Halte einen Ordner gedrückt, um ihn umzubenennen, das Symbol zu ändern oder ihn zu löschen.',
   tut2_title: 'Wörter hinzufügen und bearbeiten',
@@ -2728,8 +2781,6 @@ const it: Dict = {
   cancel:            'Annulla',
   save:              'Salva',
 
-  how_to_use: 'Come usare WordPing',
-  got_it:     'Capito',
   tut1_title: 'Cartelle',
   tut1_desc:  "Tocca + nella schermata delle cartelle per crearne una. Tieni premuta una cartella per rinominarla, cambiarne l'icona o eliminarla.",
   tut2_title: 'Aggiungi e modifica parole',
@@ -3066,8 +3117,6 @@ const ptBR: Dict = {
   cancel:            'Cancelar',
   save:              'Salvar',
 
-  how_to_use: 'Como usar o WordPing',
-  got_it:     'Entendi',
   tut1_title: 'Pastas',
   tut1_desc:  'Toque + na tela de pastas para criar uma. Pressione e segure uma pasta para renomeá-la, alterar o ícone ou excluí-la.',
   tut2_title: 'Adicionar e editar palavras',
@@ -3387,7 +3436,6 @@ const ru: Dict = {
   test_send: 'Отправить тест', test_sending: 'Отправка…', close: 'Закрыть',
   word_label: 'Слово', meaning_label: 'Значение', note_label: 'Заметка',
   cancel: 'Отмена', save: 'Сохранить',
-  how_to_use: 'Как пользоваться WordPing', got_it: 'Понятно',
   tut1_title: 'Добавить слово', tut1_desc: 'Нажмите + для добавления слова, значения и заметки.',
   tut2_title: 'Перевернуть карточку', tut2_desc: 'Нажмите на карточку, чтобы увидеть значение.',
   tut3_title: 'Редактировать / удалить', tut3_desc: 'Проведите влево для кнопок редактирования и удаления.',
@@ -3584,7 +3632,6 @@ const ar: Dict = {
   test_send: 'إرسال اختبار', test_sending: 'جارٍ الإرسال…', close: 'إغلاق',
   word_label: 'الكلمة', meaning_label: 'المعنى', note_label: 'ملاحظة',
   cancel: 'إلغاء', save: 'حفظ',
-  how_to_use: 'كيفية استخدام WordPing', got_it: 'حسناً',
   tut1_title: 'إضافة كلمة', tut1_desc: 'اضغط + لإضافة كلمة جديدة مع معناها وملاحظة اختيارية.',
   tut2_title: 'قلب البطاقة', tut2_desc: 'اضغط على أي بطاقة لقلبها ورؤية المعنى.',
   tut3_title: 'تعديل أو حذف', tut3_desc: 'اسحب البطاقة إلى اليسار لعرض أزرار التعديل والحذف.',
@@ -3782,7 +3829,6 @@ const hi: Dict = {
   test_send: 'टेस्ट भेजें', test_sending: 'भेज रहे हैं…', close: 'बंद करें',
   word_label: 'शब्द', meaning_label: 'अर्थ', note_label: 'नोट',
   cancel: 'रद्द करें', save: 'सहेजें',
-  how_to_use: 'WordPing का उपयोग कैसे करें', got_it: 'समझ गया',
   tut1_title: 'शब्द जोड़ें', tut1_desc: '+ दबाएं और शब्द, अर्थ और नोट दर्ज करें।',
   tut2_title: 'कार्ड पलटें', tut2_desc: 'कार्ड पर टैप करें और पीछे का अर्थ देखें।',
   tut3_title: 'संपादित या हटाएं', tut3_desc: 'संपादन और हटाने के बटन के लिए बाएं स्वाइप करें।',
@@ -3980,7 +4026,6 @@ const tr: Dict = {
   test_send: 'Test Gönder', test_sending: 'Gönderiliyor…', close: 'Kapat',
   word_label: 'Kelime', meaning_label: 'Anlam', note_label: 'Not',
   cancel: 'İptal', save: 'Kaydet',
-  how_to_use: "WordPing Nasıl Kullanılır", got_it: 'Anladım',
   tut1_title: 'Kelime Ekle', tut1_desc: 'Yeni kelime eklemek için + düğmesine dokun.',
   tut2_title: 'Kartı Çevir', tut2_desc: 'Arkadaki anlamı görmek için herhangi bir karta dokun.',
   tut3_title: 'Düzenle veya Sil', tut3_desc: 'Düzenle ve Sil düğmeleri için kartı sola kaydır.',
@@ -4178,7 +4223,6 @@ const nl: Dict = {
   test_send: 'Test verzenden', test_sending: 'Verzenden…', close: 'Sluiten',
   word_label: 'Woord', meaning_label: 'Betekenis', note_label: 'Notitie',
   cancel: 'Annuleren', save: 'Opslaan',
-  how_to_use: 'Hoe WordPing te gebruiken', got_it: 'Begrepen',
   tut1_title: 'Woord toevoegen', tut1_desc: 'Tik op + om een nieuw woord te registreren.',
   tut2_title: 'Kaart omdraaien', tut2_desc: 'Tik op een kaart om hem om te draaien en de betekenis te zien.',
   tut3_title: 'Bewerken of verwijderen', tut3_desc: 'Veeg een kaart naar links voor bewerkings- en verwijderknoppen.',
@@ -4376,7 +4420,6 @@ const vi: Dict = {
   test_send: 'Gửi thử', test_sending: 'Đang gửi…', close: 'Đóng',
   word_label: 'Từ vựng', meaning_label: 'Nghĩa', note_label: 'Ghi chú',
   cancel: 'Hủy', save: 'Lưu',
-  how_to_use: 'Cách dùng WordPing', got_it: 'Đã hiểu',
   tut1_title: 'Thêm từ vựng', tut1_desc: 'Nhấn + để thêm từ mới, nghĩa và ghi chú.',
   tut2_title: 'Lật thẻ', tut2_desc: 'Nhấn vào thẻ để lật và xem nghĩa ở mặt sau.',
   tut3_title: 'Sửa hoặc xóa', tut3_desc: 'Vuốt thẻ sang trái để hiển thị nút sửa và xóa.',
@@ -4573,7 +4616,6 @@ const th: Dict = {
   test_send: 'ส่งทดสอบ', test_sending: 'กำลังส่ง…', close: 'ปิด',
   word_label: 'คำศัพท์', meaning_label: 'ความหมาย', note_label: 'บันทึก',
   cancel: 'ยกเลิก', save: 'บันทึก',
-  how_to_use: 'วิธีใช้ WordPing', got_it: 'เข้าใจแล้ว',
   tut1_title: 'เพิ่มคำศัพท์', tut1_desc: 'กด + เพื่อเพิ่มคำใหม่พร้อมความหมายและบันทึก',
   tut2_title: 'พลิกการ์ด', tut2_desc: 'กดการ์ดเพื่อพลิกดูความหมายด้านหลัง',
   tut3_title: 'แก้ไขหรือลบ', tut3_desc: 'ปัดการ์ดไปทางซ้ายเพื่อแสดงปุ่มแก้ไขและลบ',
@@ -4770,7 +4812,6 @@ const id: Dict = {
   test_send: 'Kirim Tes', test_sending: 'Mengirim…', close: 'Tutup',
   word_label: 'Kata', meaning_label: 'Arti', note_label: 'Catatan',
   cancel: 'Batal', save: 'Simpan',
-  how_to_use: 'Cara Menggunakan WordPing', got_it: 'Mengerti',
   tut1_title: 'Tambah Kata', tut1_desc: 'Ketuk + untuk menambahkan kata baru beserta artinya.',
   tut2_title: 'Balik Kartu', tut2_desc: 'Ketuk kartu untuk membaliknya dan melihat artinya.',
   tut3_title: 'Edit atau Hapus', tut3_desc: 'Geser kartu ke kiri untuk tombol edit dan hapus.',
@@ -4967,7 +5008,6 @@ const pl: Dict = {
   test_send: 'Wyślij test', test_sending: 'Wysyłanie…', close: 'Zamknij',
   word_label: 'Słowo', meaning_label: 'Znaczenie', note_label: 'Notatka',
   cancel: 'Anuluj', save: 'Zapisz',
-  how_to_use: 'Jak używać WordPing', got_it: 'Rozumiem',
   tut1_title: 'Dodaj słowo', tut1_desc: 'Naciśnij +, aby dodać nowe słowo ze znaczeniem i notatką.',
   tut2_title: 'Odwróć kartę', tut2_desc: 'Naciśnij kartę, aby ją odwrócić i zobaczyć znaczenie.',
   tut3_title: 'Edytuj lub usuń', tut3_desc: 'Przesuń kartę w lewo, aby wyświetlić przyciski edycji i usunięcia.',
@@ -5164,7 +5204,6 @@ const el: Dict = {
   test_send: 'Αποστολή δοκιμής', test_sending: 'Αποστολή…', close: 'Κλείσιμο',
   word_label: 'Λέξη', meaning_label: 'Σημασία', note_label: 'Σημείωση',
   cancel: 'Ακύρωση', save: 'Αποθήκευση',
-  how_to_use: 'Πώς να χρησιμοποιήσετε το WordPing', got_it: 'Κατάλαβα',
   tut1_title: 'Προσθήκη λέξης', tut1_desc: 'Πατήστε + για να προσθέσετε νέα λέξη με σημασία και σημείωση.',
   tut2_title: 'Αναστροφή κάρτας', tut2_desc: 'Πατήστε κάρτα για να την αναστρέψετε και να δείτε τη σημασία.',
   tut3_title: 'Επεξεργασία ή διαγραφή', tut3_desc: 'Σύρτε κάρτα αριστερά για κουμπιά επεξεργασίας και διαγραφής.',
@@ -5361,7 +5400,6 @@ const sv: Dict = {
   test_send: 'Skicka test', test_sending: 'Skickar…', close: 'Stäng',
   word_label: 'Ord', meaning_label: 'Betydelse', note_label: 'Anteckning',
   cancel: 'Avbryt', save: 'Spara',
-  how_to_use: 'Hur man använder WordPing', got_it: 'Förstått',
   tut1_title: 'Lägg till ett ord', tut1_desc: 'Tryck + för att lägga till ett nytt ord med betydelse och anteckning.',
   tut2_title: 'Vänd ett kort', tut2_desc: 'Tryck på ett kort för att vända det och se betydelsen på baksidan.',
   tut3_title: 'Redigera eller ta bort', tut3_desc: 'Svep ett kort åt vänster för att visa redigera- och ta bort-knappar.',

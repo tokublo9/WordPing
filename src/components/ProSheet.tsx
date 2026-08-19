@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  ActivityIndicator,
+  Alert,
   Animated,
   AppState,
   Dimensions,
@@ -23,8 +25,12 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { OnboardingChoices, Palette, ThemeSkin } from '../types';
 import { FREE_THEME_COLOR, ONBOARDING_KEY, SKINS } from '../constants';
 import { useLang, type TranslationKey } from '../i18n';
+import { filterAiTextEntries, isAiTextFeatureKey } from '../features/flags';
+import { formatVoiceMonthlyLimit } from '../lib/planLimits';
 import { formatPrice } from '../lib/pricing';
-import { speak, stopPlayback } from '../lib/tts';
+import { PROMO_SAMPLE_TEXT, type PromoSampleId } from '../lib/promoVoiceSamples';
+import { AIRequestError } from '../lib/api/errors';
+import { speak, speakPromoSample, stopPlayback } from '../lib/tts';
 import {
   PremiumSkinPreview,
   THEME_SCREENSHOTS,
@@ -69,27 +75,19 @@ function isDarkColor(color: string): boolean {
 // ── Demo word + sentence ──────────────────────────────────────────────────────
 interface DemoContent { word: string; sentence: string }
 
-const DEMO_SAMPLES: Record<string, DemoContent> = {
-  en: { word: 'Spontaneous',     sentence: 'The morning light filtered through the trees.' },
-  ja: { word: '自発的',           sentence: '朝の光が木々の間から差し込んでいた。' },
-  ko: { word: '자연스러운',       sentence: '아침 햇살이 나무 사이로 스며들었다.' },
-  zh: { word: '自发的',           sentence: '清晨的阳光透过树木洒落下来。' },
-  es: { word: 'Espontáneo',      sentence: 'La luz de la mañana se filtraba entre los árboles.' },
-  fr: { word: 'Spontané',        sentence: 'La lumière du matin filtrait à travers les arbres.' },
-  de: { word: 'Spontan',         sentence: 'Das Morgenlicht drang durch die Bäume.' },
-  it: { word: 'Spontaneo',       sentence: 'La luce del mattino filtrava tra gli alberi.' },
-  pt: { word: 'Espontâneo',      sentence: 'A luz da manhã filtrava-se pelas árvores.' },
-  ru: { word: 'Спонтанный',      sentence: 'Утренний свет проникал сквозь деревья.' },
-  ar: { word: 'عفوي',            sentence: 'تسرَّب ضوء الصباح عبر الأشجار.' },
-  hi: { word: 'स्वतःस्फूर्त',  sentence: 'सुबह की रोशनी पेड़ों के बीच से छनकर आ रही थी।' },
-  tr: { word: 'Kendiliğinden',   sentence: 'Sabah ışığı ağaçların arasından süzülüyordu.' },
-  nl: { word: 'Spontaan',        sentence: 'Het ochtendlicht filterde door de bomen.' },
-  vi: { word: 'Ngẫu hứng',       sentence: 'Ánh sáng ban mai lọc qua tán cây.' },
-  th: { word: 'โดยธรรมชาติ',     sentence: 'แสงเช้ากรองผ่านต้นไม้อย่างงดงาม' },
-  id: { word: 'Spontan',         sentence: 'Cahaya pagi menyaring melalui pepohonan.' },
-  pl: { word: 'Spontaniczny',    sentence: 'Poranne światło przesączało się przez drzewa.' },
-  el: { word: 'Αυθόρμητος',      sentence: 'Το πρωινό φως διαπερνούσε τα δέντρα.' },
-  sv: { word: 'Spontan',         sentence: 'Morgonljuset filtrerades genom träden.' },
+// Built from the shared promo table so the words on screen are exactly the words
+// the Worker speaks — see src/lib/promoVoiceSamples.ts.
+const DEMO_SAMPLES: Record<string, DemoContent> = Object.fromEntries(
+  Object.keys(PROMO_SAMPLE_TEXT.spontaneous).map(lang => [lang, {
+    word: PROMO_SAMPLE_TEXT.spontaneous[lang] as string,
+    sentence: PROMO_SAMPLE_TEXT.morning_light[lang] as string,
+  }]),
+);
+
+/** Which fixed promo clip each AI demo button plays. */
+const PROMO_SAMPLE_BY_DEMO: Readonly<Record<'word_ai' | 'sentence_ai', PromoSampleId>> = {
+  word_ai: 'spontaneous',
+  sentence_ai: 'morning_light',
 };
 
 function normalizeLangCode(code: string | undefined): string {
@@ -158,7 +156,16 @@ interface FeatureConfig {
 // but gets its own icon + blue-family accent as a small distinctive touch. The AI
 // sections show screenshots; Priority Support / Data Transfer use wide artwork.
 // `basic`/`premium` mirror the plan comparison table.
-const FEATURE_SECTIONS: FeatureConfig[] = [
+// The four GPT-backed text features are temporarily hidden via
+// AI_TEXT_FEATURES_ENABLED. Their definitions stay — including Basic/Premium
+// availability and pricing — so flipping the flag restores the paywall exactly.
+/**
+ * Priority Support availability, defined once so the promo section and the
+ * comparison table cannot disagree. Premium only.
+ */
+const PRIORITY_SUPPORT = { basic: false, premium: true } as const;
+
+const ALL_FEATURE_SECTIONS: FeatureConfig[] = [
   { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', noteKey: 'feat_custom_voice_note', image: PAYWALL_IMAGES.custom, icon: 'mic-outline', accent: '#0891B2', basic: false, premium: true },
   {
     key: 'text_to_speech',
@@ -175,9 +182,16 @@ const FEATURE_SECTIONS: FeatureConfig[] = [
   { key: 'example',   titleKey: 'cmp_ai_example',       descKey: 'feat_example_desc',     noteKey: 'feat_example_note',     image: PAYWALL_IMAGES.example,   icon: 'chatbubbles-outline', accent: '#3B82F6', basic: false, premium: true },
   { key: 'translate', titleKey: 'cmp_ai_translation',   descKey: 'feat_translation_desc', noteKey: 'feat_translation_note', image: PAYWALL_IMAGES.translate, icon: 'language-outline',    accent: '#2563EB', basic: false, premium: true },
   { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   noteKey: 'feat_breakdown_note',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
-  { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    image: PAYWALL_IMAGES.prioritySupport, icon: 'headset',         accent: '#4338CA', basic: true, premium: true, wideImage: true },
+  { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    image: PAYWALL_IMAGES.prioritySupport, icon: 'headset',         accent: '#4338CA', basic: PRIORITY_SUPPORT.basic, premium: PRIORITY_SUPPORT.premium, wideImage: true },
   { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    image: PAYWALL_IMAGES.dataTransfer,    icon: 'swap-horizontal', accent: '#0284C7', basic: true, premium: true, wideImage: true },
 ];
+
+// Sections are laid out in a plain vertical stack with per-card spacing, so
+// dropping entries leaves no gap or orphaned separator.
+const FEATURE_SECTIONS: FeatureConfig[] = filterAiTextEntries(
+  ALL_FEATURE_SECTIONS,
+  feature => isAiTextFeatureKey(feature.key),
+);
 
 
 // ── Hero section ──────────────────────────────────────────────────────────────
@@ -300,14 +314,17 @@ interface VoiceRowProps {
   demoKeyDefault: DemoKey;
   demoKeyAi: DemoKey;
   playingDemo: DemoKey | null;
+  /** The one sample fetching audio, if any. Independent per row. */
+  loadingDemo: DemoKey | null;
   onPlay: (key: DemoKey) => void;
   defaultLabel: string;
   aiLabel: string;
 }
 
-const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo, onPlay, defaultLabel, aiLabel }: VoiceRowProps) => {
+const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo, loadingDemo, onPlay, defaultLabel, aiLabel }: VoiceRowProps) => {
   const defaultPlaying = playingDemo === demoKeyDefault;
   const aiPlaying      = playingDemo === demoKeyAi;
+  const aiLoading      = loadingDemo === demoKeyAi;
   return (
     <View style={av.row}>
       <Text style={[av.sampleText, { color: pal.text }]}>{text}</Text>
@@ -317,7 +334,9 @@ const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo
           style={[av.defaultBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
           onPress={() => onPlay(demoKeyDefault)}
           activeOpacity={0.8}
-          accessibilityLabel={defaultLabel}
+          accessibilityRole="button"
+          accessibilityLabel={`${defaultLabel}: ${text}`}
+          accessibilityState={{ selected: defaultPlaying }}
         >
           <Ionicons name={defaultPlaying ? 'pause' : 'play'} size={13} color={pal.sub} />
           <Text style={[av.defaultLabel, { color: pal.sub }]} numberOfLines={1}>{defaultLabel}</Text>
@@ -328,13 +347,21 @@ const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo
           style={[av.aiBtnWrap, aiPlaying && av.aiGlow]}
           onPress={() => onPlay(demoKeyAi)}
           activeOpacity={0.9}
-          accessibilityLabel={aiLabel}
+          accessibilityRole="button"
+          accessibilityLabel={`${aiLabel}: ${text}`}
+          accessibilityState={{ busy: aiLoading, selected: aiPlaying }}
         >
           <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={av.aiBtn}>
-            <Ionicons name={aiPlaying ? 'pause' : 'play'} size={13} color="#fff" />
-            {aiPlaying
-              ? <Waveform active color="#fff" height={16} barWidth={2.5} />
-              : <Text style={av.aiLabel} numberOfLines={1}>AI</Text>}
+            {aiLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name={aiPlaying ? 'pause' : 'play'} size={13} color="#fff" />
+                {aiPlaying
+                  ? <Waveform active color="#fff" height={16} barWidth={2.5} />
+                  : <Text style={av.aiLabel} numberOfLines={1}>AI</Text>}
+              </>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -346,9 +373,9 @@ const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo
 // Bright, white-based premium card: rich blue accents, a subtle gold flourish,
 // soft shadows, and a refined sound-wave.
 
-interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: TranslationKey) => string }
+interface AIVoiceCardProps { pal: Palette; demo: DemoContent; playingDemo: DemoKey | null; loadingDemo: DemoKey | null; onPlay: (key: DemoKey) => void; t: (k: TranslationKey) => string }
 
-const AIVoiceCard = React.memo(({ pal, demo, playingDemo, onPlay, t }: AIVoiceCardProps) => {
+const AIVoiceCard = React.memo(({ pal, demo, playingDemo, loadingDemo, onPlay, t }: AIVoiceCardProps) => {
   const aiLabel = t('cmp_ai_voice_hq');
   return (
     <View style={av.cardShadow}>
@@ -361,9 +388,9 @@ const AIVoiceCard = React.memo(({ pal, demo, playingDemo, onPlay, t }: AIVoiceCa
 
         {/* Default vs AI comparison */}
         <View style={[av.panel, { backgroundColor: pal.input, borderColor: pal.border }]}>
-          <VoiceRow pal={pal} text={demo.word}     demoKeyDefault="word_default"     demoKeyAi="word_ai"     playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <VoiceRow pal={pal} text={demo.word}     demoKeyDefault="word_default"     demoKeyAi="word_ai"     playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
           <View style={[av.divider, { backgroundColor: pal.border }]} />
-          <VoiceRow pal={pal} text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <VoiceRow pal={pal} text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
         </View>
 
         <PlanLabels basic premium t={t} />
@@ -843,20 +870,41 @@ function TableCell({ value, accent }: { value: CellValue; accent: string }) {
 interface TableRowData { label: string; basic: CellValue; premium: CellValue }
 
 const PlanComparisonTable = React.memo(function PlanComparisonTable({
-  t, pal,
-}: { t: (k: TranslationKey) => string; pal: Palette }) {
-  const rows: TableRowData[] = [
+  t, pal, language,
+}: { t: (k: TranslationKey) => string; pal: Palette; language: string }) {
+  // The four AI text rows are temporarily hidden for release. They keep their
+  // definitions — and Basic/Premium availability — so re-enabling the flag
+  // restores the table exactly. Row separators are drawn from the *filtered*
+  // length below, so no dangling divider or broken striping is left behind.
+  // High-Quality AI Voice is a metered allowance on Basic and included on
+  // Premium, so Basic shows a count and Premium keeps the standard included
+  // symbol. Values come from lib/planLimits.ts — the same constants the Worker
+  // enforces — so the promise and the enforcement cannot drift. A null limit
+  // means "included", which renders as the shared circle.
+  const voiceBasic = formatVoiceMonthlyLimit('basic', language);
+  const voicePremium = formatVoiceMonthlyLimit('premium', language);
+
+  const allRows: (TableRowData & { aiText?: true })[] = [
     { label: t('cmp_themes'),           basic: 'circle', premium: 'circle' },
-    { label: t('cmp_ai_voice_hq'),      basic: 'circle', premium: 'circle' },
+    {
+      label: t('cmp_ai_voice_hq'),
+      basic: voiceBasic ?? 'circle',
+      premium: voicePremium ?? 'circle',
+    },
     { label: t('cmp_custom_voice'),     basic: 'cross', premium: 'circle' },
     { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle' },
-    { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle' },
-    { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'circle' },
-    { label: t('cmp_ai_meaning'),       basic: 'cross', premium: 'circle' },
-    { label: t('cmp_ai_translation'),   basic: 'cross', premium: 'circle' },
-    { label: t('cmp_priority_support'), basic: 'circle', premium: 'circle' },
+    { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle', aiText: true },
+    { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'circle', aiText: true },
+    { label: t('cmp_ai_meaning'),       basic: 'cross', premium: 'circle', aiText: true },
+    { label: t('cmp_ai_translation'),   basic: 'cross', premium: 'circle', aiText: true },
+    {
+      label: t('cmp_priority_support'),
+      basic: PRIORITY_SUPPORT.basic ? 'circle' : 'cross',
+      premium: PRIORITY_SUPPORT.premium ? 'circle' : 'cross',
+    },
     { label: t('cmp_data_transfer'),    basic: 'circle', premium: 'circle' },
   ];
+  const rows: TableRowData[] = filterAiTextEntries(allRows, row => row.aiText === true);
 
   return (
     <View style={[tbl.container, { backgroundColor: pal.card, borderColor: pal.border }]}>
@@ -921,13 +969,12 @@ interface FixedPurchaseBarProps {
   bottomInset: number;
   onSubscribeBasic: () => void;
   onSubscribePremium: () => void;
-  onRestore: () => void;
   onManageSubscription?: () => void;
   onMeasure: (h: number) => void;
 }
 
 const FixedPurchaseBar = React.memo(({
-  pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, onSubscribeBasic, onSubscribePremium, onRestore, onManageSubscription, onMeasure,
+  pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, onSubscribeBasic, onSubscribePremium, onManageSubscription, onMeasure,
 }: FixedPurchaseBarProps) => {
   const basicLoading   = loadingPlan === 'basic';
   const premiumLoading = loadingPlan === 'premium';
@@ -1012,15 +1059,8 @@ const FixedPurchaseBar = React.memo(({
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={bar.restoreBtn}
-        onPress={onRestore}
-        disabled={anyLoading}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: anyLoading }}
-      >
-        <Text style={[bar.restoreText, { color: pal.sub }]}>{t('restore_purchases')}</Text>
-      </TouchableOpacity>
+      {/* Restore Purchases now lives in Settings → App Info → Purchases, so it
+          is reachable without opening the paywall and appears exactly once. */}
 
     </View>
   );
@@ -1035,7 +1075,8 @@ interface Props {
   onSubscribe: () => Promise<void>;
   /** Optional Premium purchase flow. Falls back to onSubscribe when not wired. */
   onSubscribePremium?: () => Promise<void>;
-  onRestore: () => Promise<void>;
+  /** BCP-47 tag, used to format the API allowance in the comparison table. */
+  language: string;
   themeColor: string;
   pal: Palette;
   isSubscribed?: boolean;
@@ -1054,7 +1095,7 @@ export function ProSheet({
   onClose,
   onSubscribe,
   onSubscribePremium,
-  onRestore,
+  language,
   themeColor,
   pal,
   isSubscribed = false,
@@ -1071,6 +1112,8 @@ export function ProSheet({
   const backdropO    = useRef(new Animated.Value(0)).current;
   const mainScrollRef = useRef<ScrollView>(null);
   const demoSequence = useRef(0);
+  // Independent of playingDemo: a sample can be loading without playing yet.
+  const [loadingDemo, setLoadingDemo] = useState<DemoKey | null>(null);
   const hasPreloadedMedia = useRef(false);
 
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
@@ -1134,24 +1177,60 @@ export function ProSheet({
       ]).start();
       demoSequence.current++;
       setPlayingDemo(null);
+      setLoadingDemo(null);
       stopPlayback();
     }
   }, [visible]);
 
-  useEffect(() => { demoSequence.current++; setPlayingDemo(null); stopPlayback(); }, [sampleKey]);
+  useEffect(() => { demoSequence.current++; setPlayingDemo(null); setLoadingDemo(null); stopPlayback(); }, [sampleKey]);
 
   const handlePlayDemo = async (key: DemoKey) => {
+    // Tapping the sample that is playing stops it, matching the word card.
     if (playingDemo === key) {
       demoSequence.current++;
       stopPlayback();
       setPlayingDemo(null);
+      setLoadingDemo(null);
       return;
     }
+    // Starting one sample supersedes the other: the sequence bump invalidates
+    // the previous call's finally block and stopPlayback releases its player.
     const sequence = ++demoSequence.current;
+    stopPlayback();
     setPlayingDemo(key);
-    const text = key.startsWith('word') ? demo.word : demo.sentence;
-    try { await speak(text, key.endsWith('ai'), resolvedSampleLang); }
-    finally { if (demoSequence.current === sequence) setPlayingDemo(null); }
+    setLoadingDemo(null);
+
+    const isAI = key.endsWith('ai');
+    try {
+      if (isAI) {
+        // The two promotional previews. These go to the Worker's free
+        // /v1/voice/promo route, which needs no entitlement — so a Free user
+        // hears them — and which speaks a fixed, server-chosen sentence. It
+        // never unlocks AI voice anywhere else in the app.
+        const sample = PROMO_SAMPLE_BY_DEMO[key as 'word_ai' | 'sentence_ai'];
+        await speakPromoSample(sample, resolvedSampleLang, {
+          onPhaseChange: phase => {
+            if (demoSequence.current !== sequence) return;
+            // Only a genuine network fetch shows a spinner; a cached replay is
+            // instant and must not flash one.
+            setLoadingDemo(phase === 'generating-or-downloading' ? key : null);
+          },
+        });
+      } else {
+        await speak(demo[key.startsWith('word') ? 'word' : 'sentence'], false, resolvedSampleLang);
+      }
+    } catch (error) {
+      if (demoSequence.current !== sequence) return;
+      // Offline is the one failure the user can act on, so it gets its own
+      // message; everything else is the shared generation-failure copy.
+      const offline = error instanceof AIRequestError && error.kind === 'offline';
+      Alert.alert(t('cmp_ai_voice_hq'), t(offline ? 'err_offline' : 'err_generation_failed'));
+    } finally {
+      if (demoSequence.current === sequence) {
+        setPlayingDemo(null);
+        setLoadingDemo(null);
+      }
+    }
   };
 
   const handleSubscribeBasic = async () => {
@@ -1212,7 +1291,7 @@ export function ProSheet({
           <RibbonBanner label={t('plan_compare_title')} />
 
           {/* 4. Plan comparison table */}
-          <PlanComparisonTable t={t} pal={pal} />
+          <PlanComparisonTable t={t} pal={pal} language={language} />
 
           {/* 5. What's included */}
           <RibbonBanner label={t('whats_included')} />
@@ -1226,7 +1305,7 @@ export function ProSheet({
             onOpenDetails={setDetailsItem}
           />
 
-          <AIVoiceCard demo={demo} playingDemo={playingDemo} onPlay={handlePlayDemo} t={t} pal={pal} />
+          <AIVoiceCard demo={demo} playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={handlePlayDemo} t={t} pal={pal} />
 
           {/* AI + plan feature showcases */}
           {FEATURE_SECTIONS.map(f => (
@@ -1275,7 +1354,6 @@ export function ProSheet({
           bottomInset={insets.bottom}
           onSubscribeBasic={handleSubscribeBasic}
           onSubscribePremium={handleSubscribePremium}
-          onRestore={onRestore}
           onManageSubscription={onManageSubscription}
           onMeasure={setBarHeight}
         />
@@ -1287,12 +1365,12 @@ export function ProSheet({
         item={detailsItem}
         onClose={() => setDetailsItem(null)}
         effectiveSkinId={skinId ?? 'solid_blue'}
-        isOwned={isSubscribed}
-        isSubscribed={isSubscribed}
+        isUnlocked={isSubscribed}
         pal={pal}
         themeColor={themeColor}
+        // Inside the Upgrade sheet the plan buttons are already on screen, so a
+        // locked theme just closes the details rather than reopening this sheet.
         onApply={(item) => { if (isSubscribed) onPickSkin?.(item.id); setDetailsItem(null); }}
-        onUpgrade={() => setDetailsItem(null)}
       />
     </View>
   );

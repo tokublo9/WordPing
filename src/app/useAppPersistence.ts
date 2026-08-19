@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Appearance, Folder, WordCard } from '../types';
 import {
   HIDE_AI_TOOLS_KEY,
+  SYNC_TEST_RESULTS_KEY,
   SHOW_FULL_CARD_KEY,
   VERTICAL_FLIP_KEY,
   WORD_LIST_FILTERS_KEY,
@@ -25,6 +26,7 @@ export interface UseAppPersistenceParams {
   showFullCard: boolean;
   verticalFlip: boolean;
   hideAiTools: boolean;
+  syncTestResults: boolean;
   levelFiltersByFolder: LevelFiltersByFolder;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
@@ -43,6 +45,7 @@ export function useAppPersistence({
   showFullCard,
   verticalFlip,
   hideAiTools,
+  syncTestResults,
   levelFiltersByFolder,
   hasLoaded,
   cardsLoaded,
@@ -82,6 +85,12 @@ export function useAppPersistence({
     AsyncStorage.setItem(HIDE_AI_TOOLS_KEY, hideAiTools ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setHideAiTools', e));
   }, [hideAiTools]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(SYNC_TEST_RESULTS_KEY, syncTestResults ? 'true' : 'false')
+      .catch(e => reportSideEffectFailure('setSyncTestResults', e));
+  }, [syncTestResults]);
 
   useEffect(() => {
     if (!levelFiltersLoaded.current) return;

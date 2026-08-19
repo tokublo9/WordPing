@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import type { ReviewEntry, WordCard } from '../../types';
+import { CLEAR_HIDE, nextHideExpiry, visibleCards } from './visibility';
 import { translate } from '../../i18n';
 import {
   ALL_LEVEL_KEYS,
@@ -10,6 +11,7 @@ import {
 } from './levels';
 import { createId } from '../../utils/createId';
 import {
+  mergeVisibleCardOrder,
   nextRegistrationTimestamp,
   sortByRating,
   sortByRegistrationOrder,
@@ -51,6 +53,8 @@ export interface UseCardsReturn {
   enterReorderMode(): void;
   exitReorderMode(): void;
   cancelReorderMode(): void;
+  /** Apply a new order for the current folder without discarding hidden cards. */
+  replaceFolderOrder(orderedVisible: readonly WordCard[]): void;
   handleSortByLevel(dir: 'asc' | 'desc'): void;
   handleRegistrationOrder(): void;
   // Level filter
@@ -166,10 +170,38 @@ export function useCards({
   // App render handed the list a new identity for unrelated state changes (a modal
   // opening, a banner, a subscription refresh), which re-ran the filter over every
   // card and made the virtualized list re-evaluate its cells.
+  // Temporarily hidden cards drop out of every learning view. They stay in
+  // SQLite and in backups — see features/cards/visibility.ts.
+  //
+  // A hide ends by wall-clock time, and nothing in `cards` changes at that
+  // instant, so on its own this memo would keep serving the filtered array
+  // until some unrelated state change happened to rebuild it — a screen left
+  // open never got the card back. `hideEpoch` is the wake-up: the effect below
+  // schedules one timeout at the next expiry and bumps it, which is the only
+  // reason it is a dependency here.
+  const [hideEpoch, setHideEpoch] = useState(0);
   const folderCards = useMemo(
-    () => currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [],
-    [cards, currentFolderId],
+    () => currentFolderId
+      ? visibleCards(cards.filter(c => c.folderId === currentFolderId)) as WordCard[]
+      : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hideEpoch is a clock tick, not a value read here
+    [cards, currentFolderId, hideEpoch],
   );
+
+  // One timer for the soonest hide, re-armed whenever it fires or the cards
+  // change. No polling, and nothing is written: `visibleCards` re-reads the
+  // stored timestamp, so a timer that fires late (the OS suspends them while
+  // backgrounded) still produces the correct result.
+  useEffect(() => {
+    const expiry = nextHideExpiry(cards);
+    if (expiry === null) return;
+    // A delay past setTimeout's 32-bit range fires immediately, which would
+    // re-arm in a loop. A hide is 24 h, but an imported backup can carry any
+    // timestamp, so clamp and let the effect re-arm from the shorter remainder.
+    const delay = Math.min(Math.max(0, expiry - Date.now()), 2_147_483_647);
+    const timer = setTimeout(() => setHideEpoch(epoch => epoch + 1), delay);
+    return () => clearTimeout(timer);
+  }, [cards, hideEpoch]);
   const levelFilter = useMemo<Set<string>>(
     () => new Set(
       currentFolderId
@@ -243,6 +275,27 @@ export function useCards({
   };
 
   // ── Reorder ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Apply a new order for the current folder.
+   *
+   * Every ordering path used to rebuild the folder as `[...ordered, ...cards in
+   * other folders]`, and `ordered` is always derived from the *visible* list.
+   * Any temporarily hidden card was therefore dropped from state by a sort, a
+   * drag or a cancel, and the next persist deleted its row — a hidden card
+   * could be destroyed by an action that has nothing to do with it. Merging
+   * against the folder's full contents keeps those cards, in their own slots.
+   */
+  const replaceFolderOrder = useCallback((orderedVisible: readonly WordCard[]) => {
+    setCards(prev => {
+      const inFolder = prev.filter(c => c.folderId === currentFolderId);
+      return [
+        ...mergeVisibleCardOrder(inFolder, orderedVisible),
+        ...prev.filter(c => c.folderId !== currentFolderId),
+      ];
+    });
+  }, [currentFolderId, setCards]);
+
   const exitReorderMode = () => {
     setReorderMode(false);
     setReorderSortDir(null);
@@ -252,12 +305,7 @@ export function useCards({
   // when reorder mode was entered, then exit.
   const cancelReorderMode = () => {
     const orig = originalFolderCards.current;
-    if (orig.length) {
-      setCards(prev => [
-        ...orig,
-        ...prev.filter(c => c.folderId !== currentFolderId),
-      ]);
-    }
+    if (orig.length) replaceFolderOrder(orig);
     setReorderMode(false);
     setReorderSortDir(null);
   };
@@ -273,20 +321,12 @@ export function useCards({
 
   const handleSortByLevel = (dir: 'asc' | 'desc') => {
     setReorderSortDir(dir);
-    const sorted = sortByRating(folderCards, dir === 'asc' ? 'highest' : 'lowest');
-    setCards(prev => [
-      ...sorted,
-      ...prev.filter(c => c.folderId !== currentFolderId),
-    ]);
+    replaceFolderOrder(sortByRating(folderCards, dir === 'asc' ? 'highest' : 'lowest'));
   };
 
   const handleRegistrationOrder = () => {
     setReorderSortDir('registration');
-    const sorted = sortByRegistrationOrder(folderCards);
-    setCards(prev => [
-      ...sorted,
-      ...prev.filter(c => c.folderId !== currentFolderId),
-    ]);
+    replaceFolderOrder(sortByRegistrationOrder(folderCards));
   };
 
   // ── Level filter ──────────────────────────────────────────────────────────────
@@ -371,6 +411,8 @@ export function useCards({
                 testLevel: undefined,
                 testNextReview: undefined,
                 testMastered: undefined,
+                // Clearing the grade has to clear the hide it produced.
+                ...CLEAR_HIDE,
               } : {}),
             }
           : c
@@ -445,7 +487,8 @@ export function useCards({
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
-    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleRegistrationOrder,
+    enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
+    handleSortByLevel, handleRegistrationOrder,
     levelFilter, isFilterActive, toggleLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,

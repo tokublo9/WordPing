@@ -186,6 +186,7 @@ A stateless AI proxy. It stores no user data. See its README for routes and oper
 |---|---|
 | `POST /v1/voice/card` | Basic |
 | `POST /v1/voice/sample` | Basic |
+| `POST /v1/voice/promo` | Nothing — the only free route. Two fixed promo clips, no client text |
 | `POST /v1/voice/custom` | Premium |
 | `POST /v1/meaning`, `/v1/breakdown`, `/v1/translate`, `/v1/examples` | Premium |
 

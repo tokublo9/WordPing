@@ -17,13 +17,12 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSubscribe: () => Promise<void>;
-  onRestore: () => Promise<void>;
   pal: Palette;
   themeColor: string;
 }
 
 export function PaywallModal({
-  visible, onClose, onSubscribe, onRestore, pal, themeColor,
+  visible, onClose, onSubscribe, pal, themeColor,
 }: Props) {
   const t = useLang();
   const [busy, setBusy] = useState(false);
@@ -83,10 +82,8 @@ export function PaywallModal({
               : <Text style={styles.subscribeBtnText}>{t('subscribe_price')}</Text>
             }
           </TouchableOpacity>
-
-          <TouchableOpacity style={s.cancelBtn} onPress={() => run(onRestore)} disabled={busy}>
-            <Text style={[s.cancelBtnText, { color: pal.sub }]}>{t('restore_purchases')}</Text>
-          </TouchableOpacity>
+          {/* Restore Purchases now lives in Settings → App Info → Purchases, so
+              it is reachable without opening the paywall and exists once. */}
         </View>
       </View>
     </Modal>

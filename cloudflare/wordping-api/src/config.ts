@@ -8,7 +8,6 @@
  * The numeric limits can be overridden at runtime from KV (`config:limits`)
  * so budgets can be tightened without shipping a new mobile build.
  */
-
 export const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 export const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
 export const REVENUECAT_API_BASE = 'https://api.revenuecat.com/v1';
@@ -43,17 +42,27 @@ export type AudioFormat = (typeof AUDIO_FORMATS)[number];
 
 /** Every billable operation this Worker exposes. Used for kill switches too. */
 export const FEATURES = [
-  'voice_card', 'voice_sample', 'voice_custom',
+  'voice_card', 'voice_sample', 'voice_promo', 'voice_custom',
   'meaning', 'breakdown', 'translation', 'example',
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
 export type Tier = 'free' | 'basic' | 'premium';
 
-/** Minimum entitlement tier required for each feature. */
-export const FEATURE_TIER: Readonly<Record<Feature, Exclude<Tier, 'free'>>> = {
+/**
+ * Minimum entitlement tier required for each feature.
+ *
+ * `voice_promo` is the single 'free' entry and the only route that skips the
+ * RevenueCat lookup. That is safe because the route accepts no text and no
+ * voice: it serves two fixed, server-authored clips that live in KV and are
+ * shared by every caller, so the whole feature costs two OpenAI generations per
+ * cache lifetime no matter how many people play it. It is still subject to the
+ * kill switch, the input cap and the per-minute and per-day rate limits.
+ */
+export const FEATURE_TIER: Readonly<Record<Feature, Tier>> = {
   voice_card: 'basic',
   voice_sample: 'basic',
+  voice_promo: 'free',
   voice_custom: 'premium',
   meaning: 'premium',
   breakdown: 'premium',
@@ -99,6 +108,14 @@ export const DEFAULT_LIMITS: LimitTable = {
     basic: { maxCharsPerRequest: 120, maxRequestsPerMinute: 8, maxRequestsPerDay: 40, maxCharsPerDay: 4_000 },
     premium: { maxCharsPerRequest: 120, maxRequestsPerMinute: 8, maxRequestsPerDay: 40, maxCharsPerDay: 4_000 },
   },
+  // Free by design; the tight per-minute and per-day caps are what stop the
+  // route being used as an anonymous speech API. Every tier gets the same
+  // budget because the response is the same shared cached object either way.
+  voice_promo: {
+    free:    { maxCharsPerRequest: 200, maxRequestsPerMinute: 6, maxRequestsPerDay: 30, maxCharsPerDay: 4_000 },
+    basic:   { maxCharsPerRequest: 200, maxRequestsPerMinute: 6, maxRequestsPerDay: 30, maxCharsPerDay: 4_000 },
+    premium: { maxCharsPerRequest: 200, maxRequestsPerMinute: 6, maxRequestsPerDay: 30, maxCharsPerDay: 4_000 },
+  },
   voice_custom: {
     free: NO_ACCESS,
     basic: NO_ACCESS,
@@ -143,12 +160,100 @@ export const VOICE_SAMPLE_TEXT: Readonly<Partial<Record<Voice, string>>> = {
   shimmer: 'Welcome to WordPing. This is the Shimmer voice.',
 };
 
+/** Longest langCode we will even look at, so the map lookup cannot be abused. */
+export const MAX_LANG_CODE_LENGTH = 16;
+
+/**
+ * Promotional voice previews for the Upgrade Plan sheet.
+ *
+ * These are the only speech clips a caller with no subscription can obtain, and
+ * the request body cannot influence what is spoken: a client sends a sample id
+ * from the two-value allowlist below plus a language code, and the text comes
+ * from this table. There is no `text` field on the schema at all, so there is
+ * no shape of request that turns this into a general speech API.
+ *
+ * The copy is identical to the text the sheet displays (src/lib/promoVoiceSamples.ts
+ * in the app); a source test asserts the two tables agree, because audio that
+ * does not match the words on screen is worse than no preview.
+ */
+export const PROMO_SAMPLE_IDS = ['spontaneous', 'morning_light'] as const;
+export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
+
+const PROMO_SAMPLE_ID_SET: ReadonlySet<string> = new Set(PROMO_SAMPLE_IDS);
+
+export function isPromoSampleId(value: unknown): value is PromoSampleId {
+  return typeof value === 'string' && PROMO_SAMPLE_ID_SET.has(value);
+}
+
+/** Fixed server-side. The client cannot choose a voice for a promo preview. */
+export const PROMO_SAMPLE_VOICE: Voice = DEFAULT_VOICE;
+
+/** Bump to invalidate every cached promo clip after a copy change. */
+export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v1';
+export const PROMO_SAMPLE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<string, string>>>> = {
+  spontaneous: {
+    en: 'Spontaneous',
+    ja: '自発的',
+    ko: '자연스러운',
+    zh: '自发的',
+    es: 'Espontáneo',
+    fr: 'Spontané',
+    de: 'Spontan',
+    it: 'Spontaneo',
+    pt: 'Espontâneo',
+    ru: 'Спонтанный',
+    ar: 'عفوي',
+    hi: 'स्वतःस्फूर्त',
+    tr: 'Kendiliğinden',
+    nl: 'Spontaan',
+    vi: 'Ngẫu hứng',
+    th: 'โดยธรรมชาติ',
+    id: 'Spontan',
+    pl: 'Spontaniczny',
+    el: 'Αυθόρμητος',
+    sv: 'Spontan',
+  },
+  morning_light: {
+    en: 'The morning light filtered through the trees.',
+    ja: '朝の光が木々の間から差し込んでいた。',
+    ko: '아침 햇살이 나무 사이로 스며들었다.',
+    zh: '清晨的阳光透过树木洒落下来。',
+    es: 'La luz de la mañana se filtraba entre los árboles.',
+    fr: 'La lumière du matin filtrait à travers les arbres.',
+    de: 'Das Morgenlicht drang durch die Bäume.',
+    it: 'La luce del mattino filtrava tra gli alberi.',
+    pt: 'A luz da manhã filtrava-se pelas árvores.',
+    ru: 'Утренний свет проникал сквозь деревья.',
+    ar: 'تسرَّب ضوء الصباح عبر الأشجار.',
+    hi: 'सुबह की रोशनी पेड़ों के बीच से छनकर आ रही थी।',
+    tr: 'Sabah ışığı ağaçların arasından süzülüyordu.',
+    nl: 'Het ochtendlicht filterde door de bomen.',
+    vi: 'Ánh sáng ban mai lọc qua tán cây.',
+    th: 'แสงเช้ากรองผ่านต้นไม้อย่างงดงาม',
+    id: 'Cahaya pagi menyaring melalui pepohonan.',
+    pl: 'Poranne światło przesączało się przez drzewa.',
+    el: 'Το πρωινό φως διαπερνούσε τα δέντρα.',
+    sv: 'Morgonljuset filtrerades genom träden.',
+  },
+};
+
+/** The base subtag this table has copy for, or 'en'. Never trusts the raw value. */
+export function resolvePromoLang(langCode: unknown): string {
+  if (typeof langCode !== 'string' || langCode.length > MAX_LANG_CODE_LENGTH) return 'en';
+  const base = langCode.split(/[-_]/u)[0]?.toLowerCase() ?? '';
+  return PROMO_SAMPLE_TEXT.spontaneous[base] !== undefined ? base : 'en';
+}
+
+/** The fixed text for a promo clip. Both arguments are already allowlisted. */
+export function promoSampleText(sample: PromoSampleId, lang: string): string {
+  return PROMO_SAMPLE_TEXT[sample][lang] ?? PROMO_SAMPLE_TEXT[sample].en as string;
+}
+
 export const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
   'en-US': 'English', es: 'Spanish', fr: 'French', ja: 'Japanese', ko: 'Korean',
   'zh-CN': 'Chinese (Simplified)', de: 'German', it: 'Italian', 'pt-BR': 'Portuguese',
   ru: 'Russian', ar: 'Arabic', hi: 'Hindi', tr: 'Turkish', nl: 'Dutch', vi: 'Vietnamese',
   th: 'Thai', id: 'Indonesian', pl: 'Polish', el: 'Greek', sv: 'Swedish',
 };
-
-/** Longest langCode we will even look at, so the map lookup cannot be abused. */
-export const MAX_LANG_CODE_LENGTH = 16;

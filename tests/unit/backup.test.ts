@@ -6,6 +6,7 @@ import { exportBackup, serializeBackup } from '../../src/lib/backup/exportBackup
 import { BackupImportError, importBackup } from '../../src/lib/backup/importBackup';
 import { validateBackup } from '../../src/lib/backup/validate';
 import { BACKUP_FORMAT_VERSION } from '../../src/lib/backup/format';
+import { CURRENT_SCHEMA_VERSION } from '../../src/lib/sqlite/schema';
 import type { SqlDatabase } from '../../src/lib/sqlite/types';
 import type { Folder, WordCard } from '../../src/types';
 import { openTestDatabase } from './support/sqljs';
@@ -59,7 +60,7 @@ test('export produces a versioned, self-describing document', async () => {
 
   assert.equal(backup.kind, 'wordping-backup');
   assert.equal(backup.formatVersion, BACKUP_FORMAT_VERSION);
-  assert.equal(backup.schemaVersion, 1);
+  assert.equal(backup.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.equal(backup.appVersion, '1.0.0');
   assert.equal(backup.exportedAt, '2026-08-19T00:00:00.000Z');
 });
@@ -361,4 +362,47 @@ test('an older but supported format version still imports', async () => {
   const summary = await importBackup(target, older, { mode: 'replace' });
   assert.equal(summary.words, 3);
   assert.equal(summary.settings, 0);
+});
+
+test('a temporarily hidden card is exported and restored with its hide intact', async () => {
+  const db = await freshDatabase();
+  const until = Date.parse('2026-08-22T12:00:00Z');
+  await writeSnapshot(db, {
+    cards: [
+      { id: 'w-hidden', word: 'apple', meaning: 'fruit', note: 'keep', testLevel: 'good', hiddenUntil: until },
+      { id: 'w-visible', word: 'pear', meaning: 'fruit', note: '' },
+    ],
+  });
+
+  const backup = await exportBackup(db, EXPORT_OPTIONS);
+  // Hidden cards are user data: they must be in the backup, not filtered out.
+  assert.deepEqual(backup.data.words.map(word => word.id), ['w-hidden', 'w-visible']);
+  assert.equal(backup.data.learningProgress[0]?.hiddenUntil, until);
+
+  const target = await freshDatabase();
+  await importBackup(target, JSON.parse(serializeBackup(backup)), { mode: 'replace' });
+  const restored = await readWords(target);
+  assert.equal(restored.find(word => word.id === 'w-hidden')?.hiddenUntil, until);
+  assert.equal(restored.find(word => word.id === 'w-visible')?.hiddenUntil, undefined);
+});
+
+test('a backup without hiddenUntil still imports', async () => {
+  // Files written by an older build have no such field.
+  const db = await freshDatabase();
+  await writeSnapshot(db, { cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', testLevel: 'good' }] });
+  const backup = JSON.parse(serializeBackup(await exportBackup(db, EXPORT_OPTIONS)));
+  assert.equal(backup.data.learningProgress[0].hiddenUntil, undefined);
+
+  const target = await freshDatabase();
+  const summary = await importBackup(target, backup, { mode: 'replace' });
+  assert.equal(summary.words, 1);
+  assert.equal((await readWords(target))[0]?.hiddenUntil, undefined);
+});
+
+test('a malformed hiddenUntil is rejected by validation', async () => {
+  const db = await freshDatabase();
+  await writeSnapshot(db, { cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', testLevel: 'good' }] });
+  const broken = JSON.parse(serializeBackup(await exportBackup(db, EXPORT_OPTIONS)));
+  broken.data.learningProgress[0].hiddenUntil = 'three days';
+  assert.equal(validateBackup(broken).ok, false);
 });

@@ -180,6 +180,15 @@ let pendingFolders: Folder[] | null = null;
 let pendingSettings: Map<string, string> | null = null;
 let flushScheduled = false;
 let flushActive = false;
+/**
+ * Set while an exclusive database task (a backup import) is running.
+ *
+ * Two things would otherwise go wrong. A snapshot queued before the import
+ * describes the pre-import data, so flushing it afterwards would silently undo
+ * what the user just restored. And expo-sqlite runs one connection: a `persist`
+ * transaction overlapping an import transaction is a nested-transaction error.
+ */
+let exclusiveTask: Promise<unknown> | null = null;
 
 function scheduleFlush(): void {
   if (flushScheduled) return;
@@ -194,6 +203,9 @@ function scheduleFlush(): void {
 
 async function flush(): Promise<void> {
   if (flushActive) return;
+  // An import is in progress and owns the database. Queued snapshots stay
+  // queued; runExclusive drops the stale ones before releasing the gate.
+  if (exclusiveTask !== null) return;
   flushActive = true;
   try {
     while (pendingCards !== null || pendingFolders !== null || pendingSettings !== null) {
@@ -221,6 +233,47 @@ async function flush(): Promise<void> {
     if (pendingCards !== null || pendingFolders !== null || pendingSettings !== null) {
       scheduleFlush();
     }
+  }
+}
+
+/**
+ * Runs `task` with sole ownership of the database.
+ *
+ * Used by backup import. Any snapshot already queued describes the data as it
+ * was *before* the import, so it is discarded once the task succeeds rather
+ * than being written on top of the restored rows. Callers re-read the database
+ * afterwards, which re-queues the correct state.
+ */
+export async function runExclusive<T>(task: () => Promise<T>): Promise<T> {
+  // Let an in-flight flush finish; it owns a transaction right now. Bounded so
+  // a wedged write cannot leave an import spinning forever with no way out —
+  // after the deadline the import proceeds and SQLite serialises the two.
+  const deadline = Date.now() + 5_000;
+  while (flushActive && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+
+  const run = (async () => {
+    try {
+      return await task();
+    } finally {
+      exclusiveTask = null;
+    }
+  })();
+  exclusiveTask = run;
+
+  try {
+    const result = await run;
+    // Succeeded: everything queued before this point is pre-import state.
+    pendingCards = null;
+    pendingFolders = null;
+    pendingSettings = null;
+    return result;
+  } catch (error) {
+    // Failed and rolled back, so the queued snapshots still describe the
+    // database accurately. Let them flush.
+    scheduleFlush();
+    throw error;
   }
 }
 

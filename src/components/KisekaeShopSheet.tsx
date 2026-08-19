@@ -18,7 +18,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
 import { SKINS } from '../constants';
-import { formatPrice } from '../lib/pricing';
+import { resolveThemeAccess } from '../features/themes/themeAccess';
 import { type ShopItem, PremiumSkinPreview } from './ThemeSkinPreview';
 import { ThemeDetailsSheet } from './ThemeDetailsSheet';
 
@@ -101,30 +101,23 @@ const FREE_TAB_IDS = new Set(['solid_blue', 'solid_gray']);
 // ── SkinCard ──────────────────────────────────────────────────────────────────
 
 const SkinCard = memo(function SkinCard({
-  item, isSelected, isOwned, isSubscribed, onPress, themeColor, pal,
+  item, isSelected, isLocked, onPress, themeColor, pal,
 }: {
   item: ShopItem;
   isSelected: boolean;
-  isOwned: boolean;
-  isSubscribed: boolean;
+  /** Paid theme, no active subscription. Tapping opens the Upgrade sheet. */
+  isLocked: boolean;
   onPress: () => void;
   themeColor: string;
   pal: Palette;
 }) {
   const t = useLang();
 
-  // Show "Using" when active, nothing for subscribers, price for purchasable skins.
-  const statusLabel: string =
-    isSelected                    ? t('shop_using')
-    : isSubscribed                ? ''
-    : (isOwned && item.price > 0) ? t('shop_owned')
-    : item.price > 0              ? formatPrice(item.price)
-    :                               '';
-
-  const statusColor =
-    isSelected ? themeColor
-    : isOwned  ? '#22C55E'
-    :            '#EF4444';
+  // Themes are not sold individually, so a card carries no price, no ownership
+  // badge and no purchase state — only the preview, the name, the selected
+  // marker and, for users without a subscription, a lock. Nothing is rendered
+  // below the name and no placeholder reserves space for it, so every card in
+  // the grid is exactly as tall as its preview plus its name.
 
   // Stable reference: item.id never changes (comes from the module-level constant).
   const skinData = useMemo(() => SKINS.find(s => s.id === item.id), [item.id]);
@@ -141,7 +134,15 @@ const SkinCard = memo(function SkinCard({
   const borderWidth = isSelected ? 2.5 : 1;
 
   return (
-    <TouchableOpacity style={[styles.card, { width: CARD_W }]} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={[styles.card, { width: CARD_W }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={t(item.nameKey)}
+      accessibilityState={{ selected: isSelected, disabled: false }}
+      accessibilityHint={isLocked ? t('theme_details_included_basic') : undefined}
+    >
       {/* Border lives on the outer view (no clipping) so it follows the rounded
           corners continuously; the media is clipped by the inner view. */}
       <View style={[styles.thumb, { width: CARD_W, height: THUMB_H, borderColor, borderWidth }]}>
@@ -157,18 +158,17 @@ const SkinCard = memo(function SkinCard({
             </>
           )}
         </View>
-        {isSelected && (
+        {isSelected ? (
           <View style={[styles.selectedBadge, { backgroundColor: themeColor }]}>
             <Ionicons name="checkmark" size={10} color="#fff" />
           </View>
-        )}
+        ) : isLocked ? (
+          <View style={styles.lockBadge}>
+            <Ionicons name="lock-closed" size={10} color="#fff" />
+          </View>
+        ) : null}
       </View>
       <Text style={[styles.cardName, { color: pal.text }]} numberOfLines={2}>{t(item.nameKey)}</Text>
-      {statusLabel ? (
-        <Text style={[styles.cardPrice, { color: statusColor }]}>{statusLabel}</Text>
-      ) : (
-        <Text style={styles.cardPrice}>{' '}</Text>
-      )}
     </TouchableOpacity>
   );
 });
@@ -232,10 +232,13 @@ interface Props {
   pal: Palette;
   themeColor: string;
   onUpgrade?: () => void;
+  /** False until RevenueCat has answered. Paid themes stay locked until it has. */
+  isSubscriptionLoaded?: boolean;
 }
 
 export function KisekaeShopSheet({
   visible, onClose, skinId, onPickSkin, isSubscribed, pal, themeColor, onUpgrade,
+  isSubscriptionLoaded = true,
 }: Props) {
   const insets  = useSafeAreaInsets();
   const t       = useLang();
@@ -280,11 +283,18 @@ export function KisekaeShopSheet({
       .start(() => onClose());
   }, [onClose]);
 
-  const isOwned = useCallback((item: ShopItem): boolean => {
-    if (FREE_TAB_IDS.has(item.id)) return true;  // solid_blue / solid_gray: always free
-    if (!isSubscribed) return false;               // non-subscribers own nothing else
-    return true;                                   // Basic subscribers own everything
-  }, [isSubscribed]);
+  // Access comes from features/themes/themeAccess.ts: free for everyone, or
+  // included in an active Basic/Premium subscription. Nothing is sold per theme.
+  const accessFor = useCallback((item: ShopItem) => resolveThemeAccess({
+    price: FREE_TAB_IDS.has(item.id) ? 0 : item.price,
+    isSubscribed,
+    isSubscriptionLoaded,
+  }), [isSubscribed, isSubscriptionLoaded]);
+
+  const isUnlocked = useCallback(
+    (item: ShopItem): boolean => accessFor(item).state === 'unlocked',
+    [accessFor],
+  );
 
   // solid_blue is the baseline: when no skin is explicitly picked it is still active.
   const effectiveSkinId = skinId ?? 'solid_blue';
@@ -292,13 +302,17 @@ export function KisekaeShopSheet({
   const handleTap = useCallback((item: ShopItem) => {
     // Already active — do nothing (prevent clearing to an empty/no-theme state).
     if (effectiveSkinId === item.id) return;
-    if (isOwned(item)) {
+
+    if (accessFor(item).state === 'unlocked') {
       const exists = SKINS.some(s => s.id === item.id);
       onPickSkin(exists ? item.id : null);
-    } else {
-      onUpgrade?.();
+      return;
     }
-  }, [effectiveSkinId, onPickSkin, isOwned, onUpgrade]);
+    // Locked: a paid theme with no active subscription — which also covers the
+    // case where RevenueCat has not answered yet. The only route to it is a
+    // subscription, so the Upgrade sheet is the whole offer.
+    onUpgrade?.();
+  }, [effectiveSkinId, onPickSkin, accessFor, onUpgrade]);
 
   const filtered = useMemo(
     () => SHOP_ITEMS
@@ -311,13 +325,12 @@ export function KisekaeShopSheet({
     <SkinCard
       item={item}
       isSelected={effectiveSkinId === item.id}
-      isOwned={isOwned(item)}
-      isSubscribed={isSubscribed}
+      isLocked={!isUnlocked(item)}
       onPress={() => setDetailsItem(item)}
       themeColor={themeColor}
       pal={pal}
     />
-  ), [effectiveSkinId, isOwned, isSubscribed, themeColor, pal]);
+  ), [effectiveSkinId, isUnlocked, themeColor, pal]);
 
   // Keep mounted even when hidden so wallpaper images stay in memory.
   // Pointer events are blocked and the sheet is off-screen when !visible.
@@ -398,12 +411,10 @@ export function KisekaeShopSheet({
         item={detailsItem}
         onClose={() => setDetailsItem(null)}
         effectiveSkinId={effectiveSkinId}
-        isOwned={detailsItem ? isOwned(detailsItem) : false}
-        isSubscribed={isSubscribed}
+        isUnlocked={detailsItem ? isUnlocked(detailsItem) : false}
         pal={pal}
         themeColor={themeColor}
         onApply={handleTap}
-        onUpgrade={() => onUpgrade?.()}
       />
     </Animated.View>
   );
@@ -461,10 +472,17 @@ const styles = StyleSheet.create({
     width: 18, height: 18, borderRadius: 9,
     alignItems: 'center', justifyContent: 'center',
   },
+  lockBadge: {
+    position: 'absolute', top: 6, right: 6,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: 'rgba(15,23,42,0.62)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   wordPingCenter: { alignItems: 'center', justifyContent: 'center' },
   cardWordPing:   { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  // Nothing renders below the name, so no price row and no placeholder: card
+  // height is preview + name for every tile on every plan.
   cardName:       { fontSize: 13, lineHeight: 16, fontWeight: '400', marginBottom: 0, textAlign: 'center' },
-  cardPrice:      { fontSize: 12.5, fontWeight: '400', textAlign: 'center' },
 
   empty:     { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: 14 },

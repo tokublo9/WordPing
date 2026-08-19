@@ -26,6 +26,7 @@ request that is not answered from a short cache.
 |---|---|---|---|
 | `POST /v1/voice/card` | Basic | `{ text, voice, format? }` | `audio/wav` or `audio/mpeg` |
 | `POST /v1/voice/sample` | Basic | `{ voice, sampleVersion? }` | `audio/wav` |
+| `POST /v1/voice/promo` | — (free) | `{ sample, langCode?, sampleVersion? }` | `audio/wav` |
 | `POST /v1/voice/custom` | Premium | `{ text, voice, format?, instructions? }` | `audio/wav` or `audio/mpeg` |
 | `POST /v1/meaning` | Premium | `{ text, langCode? }` | `{ text }` |
 | `POST /v1/breakdown` | Premium | `{ text, langCode? }` | `{ text }` |

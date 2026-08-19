@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   PanResponder,
@@ -67,6 +68,7 @@ export default function App() {
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
+    syncTestResults, setSyncTestResults,
     settingsLoaded,
     applySettings, markSettingsLoaded,
   } = useAppSettings();
@@ -81,10 +83,20 @@ export default function App() {
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
     levelFiltersByFolder, setLevelFiltersByFolder,
-    hasLoaded, cardsLoaded, levelFiltersLoaded,
-  } = useAppBootstrap({ applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools });
+    hasLoaded, cardsLoaded, levelFiltersLoaded, loadFailed,
+  } = useAppBootstrap({
+    applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools, setSyncTestResults,
+  });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
+
+  // Saving is switched off when stored data could not be read, so the user has
+  // to be told — otherwise the app looks empty and silently discards anything
+  // they type. Restarting is what usually clears a transient storage error.
+  useEffect(() => {
+    if (!loadFailed) return;
+    Alert.alert(t('load_failed_title'), t('load_failed_message'));
+  }, [loadFailed, t]);
 
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
   const [bulkImportVisible, setBulkImportVisible] = useState(false);
@@ -235,7 +247,8 @@ export default function App() {
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
-    enterReorderMode, exitReorderMode, cancelReorderMode, handleSortByLevel, handleRegistrationOrder,
+    enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
+    handleSortByLevel, handleRegistrationOrder,
     levelFilter, isFilterActive, toggleLevelFilter,
     showLevelLabels, setShowLevelLabels,
     folderCards, filteredFolderCards,
@@ -326,7 +339,7 @@ export default function App() {
   useAppPersistence({
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
-    showFullCard, verticalFlip, hideAiTools,
+    showFullCard, verticalFlip, hideAiTools, syncTestResults,
     levelFiltersByFolder,
     hasLoaded, cardsLoaded, levelFiltersLoaded,
   });
@@ -467,11 +480,9 @@ export default function App() {
             sortDir: reorderSortDir,
             onSortByLevel: handleSortByLevel,
             onRegistrationOrder: handleRegistrationOrder,
-            onReorder: (reorderedCards) =>
-              setCards(prev => [
-                ...reorderedCards,
-                ...prev.filter(c => c.folderId !== currentFolderId),
-              ]),
+            // Merged against the folder's full contents, so a drag cannot drop
+            // temporarily hidden cards out of state.
+            onReorder: replaceFolderOrder,
             onExit: exitReorderMode,
             onCancel: cancelReorderMode,
           }}
@@ -505,6 +516,7 @@ export default function App() {
         rawThemeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        isSubscriptionLoaded={isSubscriptionLoaded}
         subscribe={subscribe}
         subscribePremium={subscribePremium}
         restore={restore}
@@ -585,6 +597,8 @@ export default function App() {
           onToggleVerticalFlip: setVerticalFlip,
           hideAiTools,
           onToggleHideAiTools: setHideAiTools,
+          syncTestResults,
+          onToggleSyncTestResults: setSyncTestResults,
           onDataReplaced: reloadAfterImport,
         }}
         paywallModal={{
@@ -615,6 +629,10 @@ export default function App() {
           explanationLang: nativeLang,
           verticalFlip,
           onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
+          // The canonical deletion path, so folder links, notes, labels, review
+          // history, cached audio and notification rescheduling are all handled.
+          onDeleteCard: deleteCard,
+          syncTestResults,
           onClose: () => setTestModeVisible(false),
         }}
         movePicker={{

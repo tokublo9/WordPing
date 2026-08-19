@@ -12,6 +12,8 @@ import { errorResponse, type ErrorCode, type ResponseContext } from './http';
 import { clientIp, privacyHash, readIdentity, type CallerIdentity } from './identity';
 import { log } from './log';
 import { consume } from './ratelimit';
+import { reserveMonthlyQuota } from './monthlyQuota';
+import { isVoiceQuotaFeature } from './planLimits';
 import { characterCount } from './schemas';
 import type { RuntimeConfig } from './runtimeConfig';
 
@@ -34,6 +36,14 @@ export interface FeatureRequestSpec<T> {
   validate?(body: T): ErrorCode | null;
   /** Text charged against the caller's character budget. */
   billableText(body: T): string;
+  /**
+   * Defer the monthly quota reservation to the route.
+   *
+   * Set for voice previews, which may be answered from the shared KV cache
+   * without reaching OpenAI. Those cost nothing and must not consume a unit, so
+   * the route reserves only after it knows it has a cache miss.
+   */
+  deferQuota?: boolean;
 }
 
 export interface ApprovedRequest<T> {
@@ -42,6 +52,14 @@ export interface ApprovedRequest<T> {
   identity: CallerIdentity;
   limits: FeatureLimits;
   characters: number;
+  /**
+   * Reserves one High-Quality AI Voice generation against the caller's monthly
+   * allowance. A no-op for routes outside VOICE_QUOTA_FEATURES and for tiers
+   * with no monthly quota. Already called for you unless the spec set
+   * `deferQuota`. Returns an error Response when the allowance is exhausted, or
+   * null when the request may proceed. Calling it twice charges twice.
+   */
+  reserveQuota(): Promise<Response | null>;
 }
 
 export type GuardResult<T> =
@@ -129,6 +147,17 @@ export async function guard<T>(
   if (extraError) return reject(extraError, 400);
 
   const requiredTier = FEATURE_TIER[spec.feature];
+
+  // A feature declared 'free' in FEATURE_TIER needs no entitlement, so the
+  // RevenueCat lookup is skipped rather than performed and ignored. This is a
+  // server-side constant keyed on the route — there is no request field that
+  // can reach it, and no route sets it except the two fixed promo clips.
+  // Skipping also means a RevenueCat outage cannot take the promo previews
+  // down, which is the point of having them.
+  if (requiredTier === 'free') {
+    return approve(context, spec, parsed.data, 'free', identity);
+  }
+
   let tier: Tier;
   try {
     const entitlement = await resolveEntitlement(env, resolved, identity.appUserId, response.requestId);
@@ -138,9 +167,19 @@ export async function guard<T>(
     });
   } catch (error) {
     if (error instanceof EntitlementServiceError) {
-      // Fail closed. Granting access on a verification outage would make the
-      // outage the cheapest way to get free AI.
-      return reject('entitlement_service_unavailable', 503, { reason: error.reason }, { 'Retry-After': '30' });
+      // Fail closed either way — granting access on a verification failure would
+      // make that failure the cheapest route to free AI — but say which it is.
+      // A rejected key is our misconfiguration and retrying will never fix it;
+      // a timeout or upstream error genuinely is worth retrying.
+      if (error.reason === 'unauthorized') {
+        return reject('service_not_configured', 503, { reason: 'entitlement_credentials' });
+      }
+      return reject(
+        'entitlement_verification_failed',
+        503,
+        { reason: error.reason },
+        { 'Retry-After': '30' },
+      );
     }
     throw error;
   }
@@ -149,8 +188,31 @@ export async function guard<T>(
     return reject('subscription_required', 403, { requiredTier });
   }
 
+  return approve(context, spec, parsed.data, tier, identity);
+}
+
+/**
+ * Everything after the tier is known: input cap, rate limits, monthly quota.
+ *
+ * Shared by the entitlement-checked routes and the free promo route so the
+ * protective half of the pipeline cannot be bypassed by skipping RevenueCat —
+ * only the entitlement step itself is skipped, never the limits.
+ */
+async function approve<T>(
+  context: GuardContext,
+  spec: FeatureRequestSpec<T>,
+  body: T,
+  tier: Tier,
+  identity: CallerIdentity,
+): Promise<GuardResult<T>> {
+  const { request, env, runtime, response } = context;
+  const reject = (code: ErrorCode, status: number, details = {}, headers = {}): GuardResult<T> => ({
+    ok: false,
+    response: errorResponse(response, code, status, details, headers),
+  });
+
   const limits = runtime.limitsFor(spec.feature, tier);
-  const characters = characterCount(spec.billableText(parsed.data));
+  const characters = characterCount(spec.billableText(body));
   if (characters > limits.maxCharsPerRequest) {
     return reject('input_too_long', 400, { maxCharacters: limits.maxCharsPerRequest });
   }
@@ -174,5 +236,42 @@ export async function guard<T>(
     );
   }
 
-  return { ok: true, value: { body: parsed.data, tier, identity, limits, characters } };
+  // Monthly allowance last: a request rejected by validation, entitlement or
+  // the per-minute limiter must not consume a generation.
+  //
+  // Only the High-Quality AI Voice generation routes are metered — voice_card
+  // and voice_sample. voice_promo is deliberately absent from
+  // VOICE_QUOTA_FEATURES, so a promotional preview never spends a unit of the
+  // Basic monthly allowance.
+  const meteredForVoice = isVoiceQuotaFeature(spec.feature);
+  const hashedAppUserId = meteredForVoice
+    ? await privacyHash(env, 'rcuser', identity.appUserId)
+    : '';
+  const reserveQuota = async (): Promise<Response | null> => {
+    if (!meteredForVoice) return null;
+    const quota = await reserveMonthlyQuota(
+      env,
+      { tier, hashedAppUserId },
+      response.requestId,
+    );
+    if (quota.allowed) return null;
+    return errorResponse(response, 'monthly_api_limit_reached', 429, {
+      // limit is never null on this path: a tier with no monthly quota is
+      // always allowed, so it cannot reach the rejection branch.
+      limit: quota.limit ?? 0,
+      used: quota.used,
+      resetsAt: quota.resetsAt,
+      tier,
+    });
+  };
+
+  if (spec.deferQuota !== true) {
+    const exhausted = await reserveQuota();
+    if (exhausted) return { ok: false, response: exhausted };
+  }
+
+  return {
+    ok: true,
+    value: { body, tier, identity, limits, characters, reserveQuota },
+  };
 }

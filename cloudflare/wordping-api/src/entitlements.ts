@@ -18,8 +18,56 @@ import { log, redactError } from './log';
  */
 
 /** RevenueCat is unreachable or erroring. Distinct from "verified as free". */
+export type EntitlementFailureReason =
+  /** RevenueCat rejected our credentials. Our configuration is wrong, not theirs. */
+  | 'unauthorized'
+  | 'timeout'
+  | 'upstream_error'
+  | 'malformed_response';
+
+/**
+ * Authorization headers for the RevenueCat API.
+ *
+ * The secret is trimmed. `wrangler secret put` stores exactly what it is given,
+ * and piping a value in (`echo "sk_..." | wrangler secret put`) appends a
+ * newline — which would travel inside the header as `Bearer sk_...\n` and be
+ * rejected with 401 even though the key itself is perfectly valid. Trimming
+ * here means no call site can reintroduce that.
+ */
+function revenueCatHeaders(env: Env): Record<string, string> {
+  return {
+    Authorization: `Bearer ${env.REVENUECAT_SECRET_API_KEY.trim()}`,
+    Accept: 'application/json',
+    // NO X-Platform HEADER.
+    //
+    // Sending `X-Platform: ios` tells RevenueCat the caller is an iOS *app*,
+    // and it then refuses the request with
+    //   403, code 7243: "Secret API keys should not be used in your app."
+    // — a deliberate protection against shipping a secret key in a client.
+    // This is server-to-server, so the header is both wrong and harmful. The
+    // key was valid the whole time; this header was the rejection.
+  };
+}
+
+/**
+ * Classifies a RevenueCat response by status alone.
+ *
+ * ANY 2xx means our credentials were accepted. That includes 201, which
+ * RevenueCat returns when the GET creates a subscriber it has not seen before —
+ * the normal response for a new anonymous id, and a success.
+ *
+ * Only 401 and 403 mean unauthorized. Everything else is an upstream problem.
+ */
+export function classifyRevenueCatStatus(status: number): 'ok' | 'unauthorized' | 'unreachable' {
+  if (status >= 200 && status < 300) return 'ok';
+  if (status === 401 || status === 403) return 'unauthorized';
+  // 404 is a definitive "no such subscriber", which still means the key worked.
+  if (status === 404) return 'ok';
+  return 'unreachable';
+}
+
 export class EntitlementServiceError extends Error {
-  constructor(readonly reason: 'timeout' | 'upstream_error' | 'malformed_response') {
+  constructor(readonly reason: EntitlementFailureReason) {
     super(`entitlement_service_${reason}`);
     this.name = 'EntitlementServiceError';
   }
@@ -70,11 +118,7 @@ async function fetchTier(
   try {
     response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${env.REVENUECAT_SECRET_API_KEY}`,
-        Accept: 'application/json',
-        'X-Platform': 'ios',
-      },
+      headers: revenueCatHeaders(env),
       signal: AbortSignal.timeout(resolved.revenueCatTimeoutMs),
     });
   } catch (error) {
@@ -86,14 +130,27 @@ async function fetchTier(
     throw new EntitlementServiceError(timedOut ? 'timeout' : 'upstream_error');
   }
 
-  // 404 means RevenueCat has never seen this ID. That is a definitive answer:
-  // the caller has no purchases, so they are free.
-  if (response.status === 404) return 'free';
+  const classification = classifyRevenueCatStatus(response.status);
 
-  if (!response.ok) {
+  // 401/403 is RevenueCat rejecting *our* key, not a problem with the user or a
+  // transient outage. Surfaced separately so it is not mistaken for a temporary
+  // blip and retried forever — the operator has to fix the secret.
+  if (classification === 'unauthorized') {
+    log('error', 'entitlement_key_rejected', requestId, {
+      status: response.status,
+      upstream: await readUpstreamMessage(response),
+    });
+    throw new EntitlementServiceError('unauthorized');
+  }
+
+  if (classification === 'unreachable') {
     log('warn', 'entitlement_lookup_status', requestId, { status: response.status });
     throw new EntitlementServiceError('upstream_error');
   }
+
+  // 404 means RevenueCat has never seen this ID. That is a definitive answer:
+  // the caller has no purchases, so they are free.
+  if (response.status === 404) return 'free';
 
   let payload: RevenueCatSubscriberResponse;
   try {
@@ -154,4 +211,78 @@ const TIER_RANK: Readonly<Record<Tier, number>> = { free: 0, basic: 1, premium: 
 
 export function tierSatisfies(actual: Tier, required: Tier): boolean {
   return TIER_RANK[actual] >= TIER_RANK[required];
+}
+
+
+export type EntitlementAuthStatus = 'ok' | 'unauthorized' | 'unreachable';
+
+export interface EntitlementAuthProbe {
+  status: EntitlementAuthStatus;
+  /** The upstream HTTP status, so a failure is diagnosable without log access. */
+  upstreamStatus: number | null;
+  /**
+   * RevenueCat's own explanation of a rejection, truncated.
+   *
+   * RevenueCat states *why* it refused — wrong key type, wrong project, missing
+   * permission — and guessing at that from a bare status code wastes far more
+   * time than showing it. Their error bodies describe the request, never our
+   * credentials, and `sanitizeUpstreamMessage` strips anything key-shaped
+   * before it is returned.
+   */
+  upstreamMessage?: string;
+}
+
+/** Removes anything key-shaped and caps the length. */
+export function sanitizeUpstreamMessage(raw: string): string {
+  return raw
+    .replace(/\b(sk|appl|goog|test|pk)[-_][A-Za-z0-9]{6,}/gu, '[redacted]')
+    .replace(/Bearer\s+\S+/giu, '[redacted]')
+    .slice(0, 200);
+}
+
+async function readUpstreamMessage(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as { message?: unknown; code?: unknown };
+    const parts = [
+      typeof body.code === 'number' || typeof body.code === 'string' ? `code ${body.code}` : '',
+      typeof body.message === 'string' ? body.message : '',
+    ].filter(Boolean);
+    return parts.length > 0 ? sanitizeUpstreamMessage(parts.join(': ')) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Checks whether our RevenueCat credentials are accepted, for /v1/health.
+ *
+ * Uses exactly the same headers as the real entitlement lookup, so the probe
+ * cannot pass while live requests fail. Reports a status word and the upstream
+ * HTTP code only — the key, the response body and any subscriber data stay
+ * inside this function. The probe id belongs to nobody, so the check can never
+ * read a real customer's record.
+ */
+export async function probeEntitlementAuth(
+  env: Env,
+  resolved: ResolvedEnv,
+): Promise<EntitlementAuthProbe> {
+  try {
+    const response = await fetch(
+      `${REVENUECAT_API_BASE}/subscribers/${encodeURIComponent('$RCAnonymousID:wordping-health-probe')}`,
+      {
+        method: 'GET',
+        headers: revenueCatHeaders(env),
+        signal: AbortSignal.timeout(resolved.revenueCatTimeoutMs),
+      },
+    );
+    const status = classifyRevenueCatStatus(response.status);
+    const upstreamMessage = status === 'ok' ? undefined : await readUpstreamMessage(response);
+    return {
+      status,
+      upstreamStatus: response.status,
+      ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
+    };
+  } catch {
+    return { status: 'unreachable', upstreamStatus: null };
+  }
 }

@@ -42,6 +42,9 @@ export function parseCard(value: unknown): WordCard | null {
   if (typeof c.testNextReview === 'number' && Number.isFinite(c.testNextReview)) {
     card.testNextReview = c.testNextReview;
   }
+  if (typeof c.hiddenUntil === 'number' && Number.isFinite(c.hiddenUntil) && c.hiddenUntil > 0) {
+    card.hiddenUntil = c.hiddenUntil;
+  }
   if (c.testLevel === 'perfect' || c.testLevel === 'good' || c.testLevel === 'slightly' || c.testLevel === 'unknown') {
     card.testLevel = c.testLevel;
   }

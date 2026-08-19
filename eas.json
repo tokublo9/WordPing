@@ -8,19 +8,22 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_fLEoATmCLXIwIwewgvKndTEIPXG"
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_fLEoATmCLXIwIwewgvKndTEIPXG",
+        "EXPO_PUBLIC_WORDPING_API_BASE_URL": "https://wordping-api.wordping-daiki.workers.dev"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_fLEoATmCLXIwIwewgvKndTEIPXG"
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_fLEoATmCLXIwIwewgvKndTEIPXG",
+        "EXPO_PUBLIC_WORDPING_API_BASE_URL": "https://wordping-api.wordping-daiki.workers.dev"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_REPLACE_WITH_PRODUCTION_IOS_KEY"
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_REPLACE_WITH_PRODUCTION_IOS_KEY",
+        "EXPO_PUBLIC_WORDPING_API_BASE_URL": "https://wordping-api.wordping-daiki.workers.dev"
       }
     }
   },

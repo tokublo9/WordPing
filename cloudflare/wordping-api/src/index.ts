@@ -1,3 +1,4 @@
+import { probeEntitlementAuth } from './entitlements';
 import { resolveEnv, type Env } from './env';
 import {
   errorResponse,
@@ -11,7 +12,7 @@ import { OpenAIError } from './openai';
 import type { GuardContext } from './pipeline';
 import { loadRuntimeConfig } from './runtimeConfig';
 import { handleTextAction } from './routes/text';
-import { handleVoiceCard, handleVoiceCustom, handleVoiceSample } from './routes/voice';
+import { handleVoiceCard, handleVoiceCustom, handleVoicePromo, handleVoiceSample } from './routes/voice';
 
 /**
  * WordPing AI proxy.
@@ -27,12 +28,20 @@ type RouteHandler = (context: GuardContext) => Promise<Response>;
 const ROUTES: Readonly<Record<string, RouteHandler>> = {
   '/v1/voice/card': handleVoiceCard,
   '/v1/voice/sample': handleVoiceSample,
+  '/v1/voice/promo': handleVoicePromo,
   '/v1/voice/custom': handleVoiceCustom,
   '/v1/meaning': context => handleTextAction(context, 'meaning'),
   '/v1/breakdown': context => handleTextAction(context, 'breakdown'),
   '/v1/translate': context => handleTextAction(context, 'translation'),
   '/v1/examples': context => handleTextAction(context, 'example'),
 };
+
+/**
+ * Non-secret build identifier, bumped by hand when the Worker's behaviour
+ * changes. Lets a deployed Worker be compared against the source in the repo,
+ * which is how a stale deployment gets spotted.
+ */
+export const WORKER_VERSION = '2026-08-19.voice-promo.1';
 
 const LOCAL_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
 
@@ -78,11 +87,28 @@ export async function handleRequest(
       return errorResponse(response, 'method_not_allowed', 405, {}, { Allow: 'GET' });
     }
     // Reports readiness, never the values themselves.
+    //
+    // `revenueCatKeyConfigured` only means the secret is non-empty, which is why
+    // this endpoint looked green while every request failed: an invalid key is
+    // still a present one. `revenueCatAuth` actually asks RevenueCat whether the
+    // key is accepted, which is the check that would have caught it.
+    const probe = env.REVENUECAT_SECRET_API_KEY.trim()
+      ? await probeEntitlementAuth(env, resolved)
+      : { status: 'unauthorized' as const, upstreamStatus: null };
+
     return jsonResponse(response, {
-      ok: true,
+      ok: Boolean(env.OPENAI_API_KEY.trim()) && probe.status === 'ok',
+      version: WORKER_VERSION,
       requestId,
-      openAIKeyConfigured: Boolean(env.OPENAI_API_KEY),
-      revenueCatKeyConfigured: Boolean(env.REVENUECAT_SECRET_API_KEY),
+      openAIKeyConfigured: Boolean(env.OPENAI_API_KEY.trim()),
+      revenueCatKeyConfigured: Boolean(env.REVENUECAT_SECRET_API_KEY.trim()),
+      revenueCatAuth: probe.status,
+      // The upstream code, so a failure is diagnosable without log access.
+      // 200 and 201 are both success — 201 is what RevenueCat returns when the
+      // lookup creates a subscriber it has not seen before.
+      revenueCatStatus: probe.upstreamStatus,
+      // RevenueCat's own reason for a rejection, sanitized and truncated.
+      revenueCatMessage: probe.upstreamMessage ?? null,
       rateLimitSaltConfigured: Boolean(env.RATE_LIMIT_SALT),
     });
   }

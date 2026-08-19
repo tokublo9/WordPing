@@ -1,7 +1,13 @@
 import Purchases from 'react-native-purchases';
 import { getInstallId } from '../installId';
 import { configureRevenueCat } from '../purchases';
-import { AIRequestError, errorFromNetworkFailure, errorFromWorkerResponse } from './errors';
+import {
+  AIRequestError,
+  errorFromNetworkFailure,
+  errorFromWorkerResponse,
+  parseQuotaInfo,
+  type MonthlyQuotaInfo,
+} from './errors';
 
 /**
  * The single network boundary for AI features.
@@ -114,14 +120,20 @@ interface ErrorBody {
   requestId?: unknown;
 }
 
-async function readErrorCode(response: Response): Promise<{ code?: string; requestId?: string }> {
+async function readErrorCode(
+  response: Response,
+): Promise<{ code?: string; requestId?: string; quota?: MonthlyQuotaInfo }> {
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) return {};
   try {
-    const body = (await response.json()) as ErrorBody;
+    const body = (await response.json()) as ErrorBody & Record<string, unknown>;
+    // Verified usage figures, when the Worker reports an exhausted quota. Only
+    // a well-formed set is accepted; the UI never invents these numbers.
+    const quota = body.error === 'monthly_api_limit_reached' ? parseQuotaInfo(body) : undefined;
     return {
       ...(typeof body.error === 'string' ? { code: body.error } : {}),
       ...(typeof body.requestId === 'string' ? { requestId: body.requestId } : {}),
+      ...(quota !== undefined ? { quota } : {}),
     };
   } catch {
     return {};
@@ -174,7 +186,7 @@ async function post(
   }
 
   if (!response.ok) {
-    const { code, requestId } = await readErrorCode(response);
+    const { code, requestId, quota } = await readErrorCode(response);
     const retryAfter = retryAfterSeconds(response);
     if (__DEV__) {
       // Codes and identifiers only — never the request body or the user's text.
@@ -190,6 +202,7 @@ async function post(
       ...(code !== undefined ? { code } : {}),
       ...(requestId !== undefined ? { requestId } : {}),
       ...(retryAfter !== undefined ? { retryAfterSeconds: retryAfter } : {}),
+      ...(quota !== undefined ? { quota } : {}),
     });
   }
 
@@ -228,11 +241,13 @@ export async function postText(
   return payload.text.trim();
 }
 
-export type VoiceEndpoint = 'card' | 'sample' | 'custom';
+export type VoiceEndpoint = 'card' | 'sample' | 'promo' | 'custom';
 
 const VOICE_PATHS: Readonly<Record<VoiceEndpoint, string>> = {
   card: '/v1/voice/card',
   sample: '/v1/voice/sample',
+  // Free promotional previews. Carries no user text — see promoVoiceSamples.ts.
+  promo: '/v1/voice/promo',
   custom: '/v1/voice/custom',
 };
 

@@ -113,6 +113,7 @@ interface WordRow {
   level_id: string | null;
   next_review_at: number | null;
   mastered: number | null;
+  hidden_until: number | null;
 }
 
 interface ReviewRow {
@@ -125,7 +126,7 @@ const WORD_SELECT = `
   SELECT w.id, w.folder_id, w.word, w.meaning, w.created_at, w.notif_off,
          w.word_lang, w.meaning_lang, w.audio_uri, w.audio_speed, w.audio_volume,
          n.body AS note,
-         p.level_id, p.next_review_at, p.mastered
+         p.level_id, p.next_review_at, p.mastered, p.hidden_until
     FROM words w
     LEFT JOIN notes             n ON n.word_id = w.id
     LEFT JOIN learning_progress p ON p.word_id = w.id
@@ -144,6 +145,7 @@ function toWordCard(row: WordRow, history: ReviewEntry[] | undefined): WordCard 
   if (row.folder_id !== null) card.folderId = row.folder_id;
   if (row.mastered === 1) card.testMastered = true;
   if (row.next_review_at !== null) card.testNextReview = row.next_review_at;
+  if (row.hidden_until !== null) card.hiddenUntil = row.hidden_until;
 
   const level = levelFromId(row.level_id);
   if (level !== null) card.testLevel = level;
@@ -251,16 +253,23 @@ async function syncWords(
     }
 
     const levelId = card.testLevel ? levelIdFor(card.testLevel as LevelName) : null;
-    const hasProgress = levelId !== null || card.testNextReview !== undefined || card.testMastered === true;
+    const hasProgress = levelId !== null
+      || card.testNextReview !== undefined
+      || card.testMastered === true
+      || card.hiddenUntil !== undefined;
     if (hasProgress) {
       await db.runAsync(
-        `INSERT INTO learning_progress (word_id, level_id, next_review_at, mastered)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO learning_progress (word_id, level_id, next_review_at, mastered, hidden_until)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(word_id) DO UPDATE SET
            level_id = excluded.level_id,
            next_review_at = excluded.next_review_at,
-           mastered = excluded.mastered`,
-        [card.id, levelId, card.testNextReview ?? null, card.testMastered === true ? 1 : 0],
+           mastered = excluded.mastered,
+           hidden_until = excluded.hidden_until`,
+        [
+          card.id, levelId, card.testNextReview ?? null,
+          card.testMastered === true ? 1 : 0, card.hiddenUntil ?? null,
+        ],
       );
     } else {
       await db.runAsync('DELETE FROM learning_progress WHERE word_id = ?', [card.id]);

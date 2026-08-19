@@ -1,9 +1,14 @@
 import {
   DEFAULT_VOICE,
   MAX_AUDIO_RESPONSE_BYTES,
+  PROMO_SAMPLE_CACHE_TTL_SECONDS,
+  PROMO_SAMPLE_VERSION,
+  PROMO_SAMPLE_VOICE,
   VOICE_SAMPLE_CACHE_TTL_SECONDS,
   VOICE_SAMPLE_TEXT,
   VOICE_SAMPLE_VERSION,
+  promoSampleText,
+  resolvePromoLang,
   resolveVoice,
   type AudioFormat,
   type Voice,
@@ -12,7 +17,7 @@ import { audioResponse, errorResponse, type ResponseContext } from '../http';
 import { log } from '../log';
 import { requestSpeech } from '../openai';
 import { guard, type GuardContext } from '../pipeline';
-import { voiceCardSchema, voiceCustomSchema, voiceSampleSchema } from '../schemas';
+import { voiceCardSchema, voiceCustomSchema, voicePromoSchema, voiceSampleSchema } from '../schemas';
 
 function contentTypeFor(format: AudioFormat): string {
   return format === 'mp3' ? 'audio/mpeg' : 'audio/wav';
@@ -90,6 +95,9 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
   const result = await guard(context, {
     feature: 'voice_sample',
     schema: voiceSampleSchema,
+    // Previews are identical for every caller and usually served from KV. A
+    // cache hit costs nothing upstream, so it must not consume monthly quota.
+    deferQuota: true,
     validate: body => {
       const voice = resolveVoice(body.voice);
       if (voice === null) return 'invalid_voice';
@@ -114,6 +122,10 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
       'Content-Length': String(cached.byteLength),
     });
   }
+
+  // Cache miss: this request is about to reach OpenAI, so it is charged.
+  const exhausted = await result.value.reserveQuota();
+  if (exhausted) return exhausted;
 
   const upstream = await requestSpeech(
     {
@@ -142,6 +154,75 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
   );
 
   log('info', 'voice_sample_ok', context.response.requestId, { voice });
+  return relay(context.response, upstream, 'wav', 'miss', toClient);
+}
+
+/**
+ * POST /v1/voice/promo — the two promotional clips in the Upgrade Plan sheet.
+ *
+ * The only speech route reachable without a subscription. What makes that safe
+ * is not a flag but the shape of the request: there is no text field and no
+ * voice field, so a caller picks one of two server-authored sentences and
+ * nothing else. Both clips live in KV, shared by every user, which means the
+ * entire feature costs two OpenAI generations per cache lifetime.
+ *
+ * Never metered against the Basic monthly voice allowance — `voice_promo` is
+ * absent from VOICE_QUOTA_FEATURES — and never a substitute for /v1/voice/card,
+ * which still requires an entitlement for arbitrary text.
+ */
+export async function handleVoicePromo(context: GuardContext): Promise<Response> {
+  const result = await guard(context, {
+    feature: 'voice_promo',
+    schema: voicePromoSchema,
+    // A cached clip costs nothing upstream; the route reserves only on a miss.
+    // (No tier meters this feature today, so this is belt and braces.)
+    deferQuota: true,
+    billableText: body => promoSampleText(body.sample, resolvePromoLang(body.langCode)),
+  });
+  if (!result.ok) return result.response;
+
+  const { sample } = result.value.body;
+  const lang = resolvePromoLang(result.value.body.langCode);
+  const text = promoSampleText(sample, lang);
+  const cacheKey = `promo:${PROMO_SAMPLE_VERSION}:${sample}:${lang}.wav`;
+
+  const cached = await context.env.WORDPING_KV.get(cacheKey, 'arrayBuffer').catch(() => null);
+  if (cached) {
+    log('info', 'voice_promo_cache_hit', context.response.requestId, { sample, lang });
+    return audioResponse(context.response, cached, contentTypeFor('wav'), {
+      'X-WordPing-Cache': 'hit',
+      'Content-Length': String(cached.byteLength),
+    });
+  }
+
+  const exhausted = await result.value.reserveQuota();
+  if (exhausted) return exhausted;
+
+  const upstream = await requestSpeech(
+    {
+      apiKey: context.env.OPENAI_API_KEY,
+      text,
+      voice: PROMO_SAMPLE_VOICE,
+      format: 'wav',
+      timeoutMs: context.resolved.speechTimeoutMs,
+    },
+    context.response.requestId,
+  );
+  if (tooLarge(upstream)) {
+    await upstream.body?.cancel();
+    return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_too_large' });
+  }
+
+  const [toClient, toCache] = upstream.body!.tee();
+  context.ctx.waitUntil(
+    context.env.WORDPING_KV
+      .put(cacheKey, toCache, { expirationTtl: PROMO_SAMPLE_CACHE_TTL_SECONDS })
+      .catch(() => {
+        log('warn', 'voice_promo_cache_write_failed', context.response.requestId, { sample, lang });
+      }),
+  );
+
+  log('info', 'voice_promo_ok', context.response.requestId, { sample, lang });
   return relay(context.response, upstream, 'wav', 'miss', toClient);
 }
 

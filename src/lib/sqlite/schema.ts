@@ -10,7 +10,7 @@ import type { SqlDatabase } from './types';
  */
 
 /** Bumped whenever a new entry is appended to MIGRATIONS. */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 /** Identifiers of the built-in review levels, seeded into `labels`. */
 export const LEVEL_LABEL_IDS = {
@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS learning_progress (
   next_review_at INTEGER,
   mastered       INTEGER NOT NULL DEFAULT 0
 );
+-- hidden_until is added by migration 2 rather than here, so an install created
+-- at version 1 and one created today converge on the same schema.
 
 CREATE TABLE IF NOT EXISTS review_history (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,6 +152,21 @@ const MIGRATIONS: readonly Migration[] = [
     async up(db) {
       await db.execAsync(INITIAL_SCHEMA);
       await db.execAsync(SEED_LEVEL_LABELS);
+    },
+  },
+  {
+    // "Sync with test results": a Pretty good grade hides the card for 72 hours.
+    //
+    // Unix milliseconds UTC, matching next_review_at, so a timezone change
+    // cannot shorten or extend the period and no parsing happens per row.
+    // NULL means visible, which is what every existing row gets — so the
+    // feature starts off for everyone, as required.
+    version: 2,
+    async up(db) {
+      await db.execAsync('ALTER TABLE learning_progress ADD COLUMN hidden_until INTEGER;');
+      await db.execAsync(
+        'CREATE INDEX IF NOT EXISTS idx_learning_hidden_until ON learning_progress(hidden_until);',
+      );
     },
   },
 ];

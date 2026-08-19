@@ -12,7 +12,19 @@ test('the list data keeps its identity across unrelated renders', () => {
   // App render, re-running the filter and making the list re-evaluate its cells.
   assert.match(
     useCards,
-    /const folderCards = useMemo\(\s*\(\) => currentFolderId \? cards\.filter\([\s\S]*?\[cards, currentFolderId\],\s*\);/u,
+    /const folderCards = useMemo\([\s\S]*?cards\.filter\(c => c\.folderId === currentFolderId\)[\s\S]*?\[cards, currentFolderId, hideEpoch\],\s*\);/u,
+  );
+  // hideEpoch only changes when a hide runs out, so it costs nothing on an
+  // ordinary render — but without it an idle screen never gets the card back.
+  assert.match(useCards, /const \[hideEpoch, setHideEpoch\] = useState\(0\);/u);
+  assert.match(useCards, /setTimeout\(\s*\(\) => setHideEpoch\(epoch => epoch \+ 1\),/u);
+  // Hiding is applied inside the same memo, and visibleCards returns the very
+  // same array when nothing is hidden — so the common case keeps its identity
+  // and the list is not re-evaluated.
+  assert.match(useCards, /visibleCards\(/u);
+  assert.match(
+    read('src/features/cards/visibility.ts'),
+    /return cards\.some\(card => isCardHidden\(card, now\)\)\s*\? cards\.filter[\s\S]*?: cards;/u,
   );
   assert.match(
     useCards,

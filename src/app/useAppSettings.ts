@@ -21,6 +21,8 @@ export interface AppSettingsState {
   verticalFlip: boolean;
   setVerticalFlip: Dispatch<SetStateAction<boolean>>;
   hideAiTools: boolean;
+  syncTestResults: boolean;
+  setSyncTestResults: Dispatch<SetStateAction<boolean>>;
   setHideAiTools: Dispatch<SetStateAction<boolean>>;
   settingsLoaded: boolean;
   // Called by useAppBootstrap after the async data load completes.
@@ -37,6 +39,8 @@ export function useAppSettings(): AppSettingsState {
   const [showFullCard, setShowFullCard] = useState(false);
   const [verticalFlip, setVerticalFlip] = useState(false);
   const [hideAiTools, setHideAiTools]   = useState(false);
+  // Off by default for existing and new users; Test Mode behaves as before.
+  const [syncTestResults, setSyncTestResults] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const applySettings = useCallback((s: Settings) => {
@@ -58,6 +62,7 @@ export function useAppSettings(): AppSettingsState {
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
+    syncTestResults, setSyncTestResults,
     settingsLoaded,
     applySettings,
     markSettingsLoaded,

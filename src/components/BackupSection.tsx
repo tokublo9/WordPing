@@ -12,6 +12,7 @@ import {
 } from '../lib/backup/backupFile';
 import { BackupImportError } from '../lib/backup/importBackup';
 import type { ImportMode } from '../lib/backup/format';
+import { canUseBackup } from '../features/backup/backupAccess';
 
 /**
  * Backup and restore, in Settings.
@@ -27,6 +28,14 @@ interface Props {
   themeColor: string;
   /** Reload cards and folders from the database after an import replaces them. */
   onDataReplaced(): void;
+  /** RevenueCat entitlement state. Basic and Premium both unlock backup. */
+  isSubscribed: boolean;
+  /**
+   * False until RevenueCat has answered. Treated as not-entitled: an unknown
+   * plan must never open a paid feature, and a stale "yes" would be worse than
+   * a brief lock during launch, a restore, or an offline cache refresh.
+   */
+  isSubscriptionLoaded: boolean;
 }
 
 type Busy = 'export' | 'import' | null;
@@ -36,13 +45,34 @@ function fill(template: string, values: Record<string, number>): string {
     key in values ? String(values[key]) : match);
 }
 
-export function BackupSection({ pal, themeColor, onDataReplaced }: Props) {
+export function BackupSection({
+  pal,
+  themeColor,
+  onDataReplaced,
+  isSubscribed,
+  isSubscriptionLoaded,
+}: Props) {
   const t = useLang();
   const [busy, setBusy] = useState<Busy>(null);
 
   const appVersion = Constants.expoConfig?.version ?? '0.0.0';
 
+  // Resolved in features/backup/backupAccess.ts so the locked UI below and the
+  // guard inside every handler cannot disagree about who is entitled.
+  const unlocked = canUseBackup({ isSubscribed, isSubscriptionLoaded });
+
+  /**
+   * The single access check, called first inside every backup action.
+   *
+   * The section is not rendered at all for an unentitled user, so in practice
+   * this never fires — which is exactly why it stays. A stale callback captured
+   * before an entitlement lapsed, a queued Alert action, or any future
+   * programmatic path must not be able to read or overwrite the user's data.
+   */
+  const ensureEntitled = useCallback((): boolean => unlocked, [unlocked]);
+
   const runExport = useCallback(async () => {
+    if (!ensureEntitled()) return;
     if (busy !== null) return;
     setBusy('export');
     try {
@@ -63,9 +93,13 @@ export function BackupSection({ pal, themeColor, onDataReplaced }: Props) {
     } finally {
       setBusy(null);
     }
-  }, [appVersion, busy, t]);
+  }, [appVersion, busy, ensureEntitled, t]);
 
   const applyImport = useCallback(async (raw: unknown, mode: ImportMode) => {
+    // Re-checked here as well as at the entry point: this is the function that
+    // writes to the database, and it is reached through two Alert callbacks
+    // that the user could linger on while an entitlement expires.
+    if (!ensureEntitled()) return;
     setBusy('import');
     try {
       const summary = await restoreFromBackup(raw, mode);
@@ -87,7 +121,7 @@ export function BackupSection({ pal, themeColor, onDataReplaced }: Props) {
     } finally {
       setBusy(null);
     }
-  }, [onDataReplaced, t]);
+  }, [ensureEntitled, onDataReplaced, t]);
 
   const confirmReplace = useCallback((raw: unknown) => {
     Alert.alert(
@@ -105,6 +139,7 @@ export function BackupSection({ pal, themeColor, onDataReplaced }: Props) {
   }, [applyImport, t]);
 
   const runImport = useCallback(async () => {
+    if (!ensureEntitled()) return;
     if (busy !== null) return;
     const picked = await pickBackupFile();
     if (picked.status === 'cancelled') return;
@@ -130,41 +165,42 @@ export function BackupSection({ pal, themeColor, onDataReplaced }: Props) {
         },
       ],
     );
-  }, [applyImport, busy, confirmReplace, t]);
+  }, [applyImport, busy, confirmReplace, ensureEntitled, t]);
+
+  // Free, loading, expired or a RevenueCat failure: render nothing. No locked
+  // row, badge, description, divider or spacing — the caller renders the whole
+  // section (heading included) only when this returns content.
+  if (!unlocked) return null;
+
+  const renderRow = (
+    kind: Exclude<Busy, null>,
+    icon: 'share-outline' | 'download-outline',
+    label: string,
+    onPress: () => void,
+  ) => (
+    <TouchableOpacity
+      style={styles.row}
+      onPress={onPress}
+      disabled={busy !== null}
+      activeOpacity={0.6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: busy !== null }}
+    >
+      <Ionicons name={icon} size={18} color={pal.sub} />
+      <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
+      {busy === kind
+        ? <ActivityIndicator size="small" color={themeColor} />
+        : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
+    </TouchableOpacity>
+  );
 
   return (
     <View>
       <Text style={[styles.description, { color: pal.sub }]}>{t('backup_desc')}</Text>
 
-      <TouchableOpacity
-        style={styles.row}
-        onPress={() => { void runExport(); }}
-        disabled={busy !== null}
-        activeOpacity={0.6}
-        accessibilityRole="button"
-        accessibilityLabel={t('backup_export')}
-      >
-        <Ionicons name="share-outline" size={18} color={pal.sub} />
-        <Text style={[styles.rowLabel, { color: pal.text }]}>{t('backup_export')}</Text>
-        {busy === 'export'
-          ? <ActivityIndicator size="small" color={themeColor} />
-          : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.row}
-        onPress={() => { void runImport(); }}
-        disabled={busy !== null}
-        activeOpacity={0.6}
-        accessibilityRole="button"
-        accessibilityLabel={t('backup_import')}
-      >
-        <Ionicons name="download-outline" size={18} color={pal.sub} />
-        <Text style={[styles.rowLabel, { color: pal.text }]}>{t('backup_import')}</Text>
-        {busy === 'import'
-          ? <ActivityIndicator size="small" color={themeColor} />
-          : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
-      </TouchableOpacity>
+      {renderRow('export', 'share-outline', t('backup_export'), () => { void runExport(); })}
+      {renderRow('import', 'download-outline', t('backup_import'), () => { void runImport(); })}
     </View>
   );
 }

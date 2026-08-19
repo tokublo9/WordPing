@@ -120,13 +120,20 @@ export function requestAIText(
 // ── Speech ───────────────────────────────────────────────────────────────────
 
 /** Legacy action names, kept so the TTS pipeline did not need reworking. */
-export type AISpeechAction = 'speech' | 'speech_custom' | 'speech_sample';
+export type AISpeechAction = 'speech' | 'speech_custom' | 'speech_sample' | 'speech_promo';
 
 const VOICE_ENDPOINTS: Readonly<Record<AISpeechAction, VoiceEndpoint>> = {
   speech: 'card',
   speech_custom: 'custom',
   speech_sample: 'sample',
+  speech_promo: 'promo',
 };
+
+/** Identifies one of the two fixed promotional clips. Never carries text. */
+export interface PromoSpeechRequest {
+  sample: string;
+  langCode: string;
+}
 
 export async function requestAISpeech(
   text: string,
@@ -135,19 +142,30 @@ export async function requestAISpeech(
   format: 'wav' | 'mp3' = 'wav',
   action: AISpeechAction = 'speech',
   sampleVersion?: string,
+  promo?: PromoSpeechRequest,
 ): Promise<ArrayBuffer> {
   const trimmedText = typeof text === 'string' ? text.trim() : '';
-  // A voice preview carries no user text: the sentence is chosen server-side.
-  if (!trimmedText && action !== 'speech_sample') throw new AIRequestError('invalid_input');
+  // Neither preview route carries user text: the sentence is chosen server-side.
+  const serverAuthoredText = action === 'speech_sample' || action === 'speech_promo';
+  if (!trimmedText && !serverAuthoredText) throw new AIRequestError('invalid_input');
+  if (action === 'speech_promo' && !promo) throw new AIRequestError('invalid_input');
 
   // Normalise and validate the voice — a persisted value can be stale, have
   // leftover whitespace, or be a legacy name the server no longer accepts.
   const normalizedVoice = typeof voice === 'string' ? voice.trim().toLowerCase() : '';
   const validVoice: AIVoice = isAIVoice(normalizedVoice) ? normalizedVoice : DEFAULT_AI_VOICE;
 
-  const body: Record<string, unknown> = action === 'speech_sample'
-    ? { voice: validVoice, ...(sampleVersion ? { sampleVersion } : {}) }
-    : { text: trimmedText, voice: validVoice, format };
+  // The promo body deliberately omits both `text` and `voice`: the Worker picks
+  // the sentence from the sample id and speaks it in its own fixed voice.
+  const body: Record<string, unknown> = action === 'speech_promo'
+    ? {
+        sample: promo!.sample,
+        langCode: promo!.langCode,
+        ...(sampleVersion ? { sampleVersion } : {}),
+      }
+    : action === 'speech_sample'
+      ? { voice: validVoice, ...(sampleVersion ? { sampleVersion } : {}) }
+      : { text: trimmedText, voice: validVoice, format };
 
   const requestStartedAtMs = performance.now();
   const result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });

@@ -116,8 +116,10 @@ describe('entitlement enforcement', () => {
     );
     expect(response.status).toBe(503);
     expect(response.headers.get('Retry-After')).toBe('30');
+    // Renamed: a transient failure is now distinct from a rejected key, which
+    // reports service_not_configured instead.
     await expect(response.json()).resolves.toMatchObject({
-      error: 'entitlement_service_unavailable',
+      error: 'entitlement_verification_failed',
     });
   });
 

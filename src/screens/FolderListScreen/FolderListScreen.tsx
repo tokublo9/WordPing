@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Folder, Palette, WordCard } from '../../types';
+import { isCardHidden } from '../../features/cards/visibility';
 import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
 import { AD_BANNER_HEIGHT } from '../../components/AdBannerPlaceholder';
@@ -71,6 +72,9 @@ export function FolderListScreen({
     const metrics = new Map<string, { count: number; untestedCount: number }>();
     for (const card of cards) {
       if (!card.folderId) continue;
+      // A temporarily hidden card is out of the user's rotation, so counting it
+      // would promise words the folder will not actually show.
+      if (isCardHidden(card)) continue;
       const current = metrics.get(card.folderId) ?? { count: 0, untestedCount: 0 };
       current.count++;
       if (!card.testLevel) current.untestedCount++;

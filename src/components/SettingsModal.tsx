@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -11,10 +11,14 @@ import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
 import { BackupSection } from './BackupSection';
+import { AI_TEXT_FEATURES_ENABLED } from '../features/flags';
+import { canUseBackup } from '../features/backup/backupAccess';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
 import { LanguageModal } from './LanguageModal';
 import { ProSheet } from './ProSheet';
-import { TutorialModal } from './TutorialModal';
+import { AnnouncementsSheet } from './AnnouncementsSheet';
+import { CompactSwitch } from './CompactSwitch';
+import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
 import {
   AI_VOICE_GROUPS,
   getAIVoiceDescription,
@@ -31,6 +35,15 @@ const LICENSE_URL  = 'https://wordping.app/license';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 const SW = Dimensions.get('window').width;
+
+/**
+ * Vertical space above and below every Settings divider. Reduced from 20 so the
+ * screen scrolls less, while still reading as separate groups.
+ */
+export const SETTINGS_DIVIDER_MARGIN = 17;
+
+/** Minimum touch target for the information buttons, per Apple HIG. */
+const INFO_BUTTON_TARGET = 44;
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
@@ -43,6 +56,8 @@ interface Props {
   onPickSkin: (id: string | null) => void;
   isSubscribed: boolean;
   isPremium: boolean;
+  /** False until RevenueCat has answered. Paid features stay locked until then. */
+  isSubscriptionLoaded: boolean;
   onUpgrade: () => void;
   onSubscribe: () => Promise<void>;
   onSubscribePremium: () => Promise<void>;
@@ -60,18 +75,22 @@ interface Props {
   onToggleVerticalFlip: (v: boolean) => void;
   hideAiTools: boolean;
   onToggleHideAiTools: (v: boolean) => void;
+  syncTestResults: boolean;
+  onToggleSyncTestResults: (v: boolean) => void;
   /** Re-read cards and folders after a backup import replaced them. */
   onDataReplaced: () => void;
 }
 
 export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
-  skinId, onPickSkin, isSubscribed, isPremium, onUpgrade: _onUpgrade,
+  skinId, onPickSkin, isSubscribed, isPremium, isSubscriptionLoaded,
+  onUpgrade: _onUpgrade,
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription, pal, language, onPickLanguage,
   aiVoice, onPickAIVoice,
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
+  syncTestResults, onToggleSyncTestResults,
   onDataReplaced,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
@@ -80,9 +99,12 @@ export function SettingsModal({
   const [proSheetVisible,  setProSheetVisible]  = useState(false);
   const [shopVisible,      setShopVisible]      = useState(false);
   const [langModalVisible, setLangModalVisible] = useState(false);
-  const [tutorialVisible,  setTutorialVisible]  = useState(false);
+  const [announcementsVisible, setAnnouncementsVisible] = useState(false);
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
   const [voicePickerVisible, setVoicePickerVisible] = useState(false);
+  // One slot for every information button in Settings. A second tap replaces
+  // the content rather than stacking a second modal, so only one can be open.
+  const [infoContent, setInfoContent] = useState<SettingsInfoContent | null>(null);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
 
@@ -201,20 +223,11 @@ export function SettingsModal({
           </TouchableOpacity>
 
           {/* ── Backup ────────────────────────────────────────────────────── */}
+          {/* ── Announcements / Language ───────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
-          <View style={{ marginBottom: 12 }}>
-            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('backup')}</Text>
-          </View>
-          <BackupSection pal={pal} themeColor={themeColor} onDataReplaced={onDataReplaced} />
-
-          {/* ── Announcements / How to use / Language ──────────────────────── */}
-          <View style={[styles.divider, { backgroundColor: pal.border }]} />
-
-          <SettingRow icon="megaphone-outline" label={t('announcements')} pal={pal} />
-
-          <SettingRow icon="help-circle-outline" label={t('how_to_use')} pal={pal}
-            onPress={() => setTutorialVisible(true)} />
+          <SettingRow icon="megaphone-outline" label={t('announcements')} pal={pal}
+            onPress={() => setAnnouncementsVisible(true)} />
 
           <TouchableOpacity style={styles.removeAdsRow} onPress={() => setLangModalVisible(true)} activeOpacity={0.7}>
             <Ionicons name="language-outline" size={18} color={pal.sub} />
@@ -243,7 +256,8 @@ export function SettingsModal({
           )}
           <ToggleRow
             label={t('show_full_card')}
-            description={t('show_full_card_desc')}
+            info={t('show_full_card_info')}
+            onShowInfo={setInfoContent}
             value={showFullCard}
             onToggle={onToggleShowFullCard}
             themeColor={themeColor}
@@ -251,16 +265,30 @@ export function SettingsModal({
           />
           <ToggleRow
             label={t('vertical_flip')}
-            description={t('vertical_flip_desc')}
+            info={t('vertical_flip_info')}
+            onShowInfo={setInfoContent}
             value={verticalFlip}
             onToggle={onToggleVerticalFlip}
             themeColor={themeColor}
             pal={pal}
           />
-          {isPremium && (
+          <ToggleRow
+            label={t('sync_test_results')}
+            info={t('sync_test_results_desc')}
+            onShowInfo={setInfoContent}
+            value={syncTestResults}
+            onToggle={onToggleSyncTestResults}
+            themeColor={themeColor}
+            pal={pal}
+          />
+          {/* "Hide AI" controls the AI text tools, which are temporarily hidden,
+              so the row would have nothing to act on. Rendering nothing at all
+              leaves no gap: ToggleRow owns its own spacing. The saved preference
+              is deliberately left untouched and applies again when the flag
+              returns. */}
+          {AI_TEXT_FEATURES_ENABLED && isPremium && (
             <ToggleRow
               label={t('hide_ai_tools')}
-              description={t('hide_ai_tools_desc')}
               value={hideAiTools}
               onToggle={onToggleHideAiTools}
               themeColor={themeColor}
@@ -292,9 +320,17 @@ export function SettingsModal({
           skinId={skinId}
           onPickSkin={onPickSkin}
           isSubscribed={isSubscribed}
+          isSubscriptionLoaded={isSubscriptionLoaded}
           pal={pal}
           themeColor={themeColor}
           onUpgrade={() => setProSheetVisible(true)}
+        />
+
+        <SettingsInfoPopup
+          content={infoContent}
+          onClose={() => setInfoContent(null)}
+          pal={pal}
+          themeColor={themeColor}
         />
 
         {/* Rendered after the shop so Upgrade overlays Theme Details while the
@@ -304,8 +340,8 @@ export function SettingsModal({
           onClose={() => setProSheetVisible(false)}
           onSubscribe={onSubscribe}
           onSubscribePremium={onSubscribePremium}
-          onRestore={onRestore}
           onManageSubscription={onManageSubscription}
+          language={language}
           themeColor={themeColor}
           pal={pal}
           isSubscribed={isSubscribed}
@@ -314,14 +350,23 @@ export function SettingsModal({
           onPickSkin={onPickSkin}
         />
 
-        <TutorialModal
-          visible={tutorialVisible}
-          onClose={() => setTutorialVisible(false)}
+        <AnnouncementsSheet
+          visible={announcementsVisible}
+          onClose={() => setAnnouncementsVisible(false)}
           pal={pal}
-          themeColor={themeColor}
+          language={language}
         />
 
-        <AppInfoSheet visible={appInfoVisible} onClose={() => setAppInfoVisible(false)} pal={pal} />
+        <AppInfoSheet
+          visible={appInfoVisible}
+          onClose={() => setAppInfoVisible(false)}
+          pal={pal}
+          themeColor={themeColor}
+          onRestore={onRestore}
+          isSubscribed={isSubscribed}
+          isSubscriptionLoaded={isSubscriptionLoaded}
+          onDataReplaced={onDataReplaced}
+        />
 
         <VoiceSelectionScreen
           visible={voicePickerVisible}
@@ -511,9 +556,42 @@ function VoiceSelectionScreen({
 }
 
 // ── App Info sheet ─────────────────────────────────────────────────────────────
-function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: () => void; pal: Palette }) {
+function AppInfoSheet({
+  visible, onClose, pal, themeColor, onRestore,
+  isSubscribed, isSubscriptionLoaded, onDataReplaced,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  pal: Palette;
+  themeColor: string;
+  /** The shared RevenueCat restore handler from useSubscription. */
+  onRestore: () => Promise<void>;
+  isSubscribed: boolean;
+  isSubscriptionLoaded: boolean;
+  onDataReplaced: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const t = useLang();
+  // Restore lives here rather than on the paywall so it stays reachable for
+  // Free, Basic and Premium alike — including a user whose entitlement was
+  // misdetected, who is exactly the person who needs it. It is deliberately
+  // outside the Backup section and its subscription gate.
+  const [restoring, setRestoring] = useState(false);
+  // Same entitlement rule the section itself applies, so the heading and its
+  // divider can never appear above an empty body.
+  const backupVisible = canUseBackup({ isSubscribed, isSubscriptionLoaded });
+  const handleRestore = useCallback(async () => {
+    // Guard against a second tap while a restore is already in flight.
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      // Reuses the existing handler: loading, success, no-purchases-found and
+      // error feedback all remain owned by useSubscription.
+      await onRestore();
+    } finally {
+      setRestoring(false);
+    }
+  }, [onRestore, restoring]);
   const slideX = useRef(new Animated.Value(SW)).current;
   const openExternal = useCallback(async (url: string) => {
     try {
@@ -553,6 +631,46 @@ function AppInfoSheet({ visible, onClose, pal }: { visible: boolean; onClose: ()
         <View style={styles.backBtn} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <View style={{ marginBottom: 12 }}>
+          <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('purchases_section')}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => { void handleRestore(); }}
+          disabled={restoring}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={t('restore_purchases')}
+          accessibilityState={{ disabled: restoring, busy: restoring }}
+        >
+          <Ionicons name="refresh-outline" size={18} color={pal.sub} />
+          <Text style={[styles.rowLabel, { color: pal.text }]}>{t('restore_purchases')}</Text>
+          {restoring
+            ? <ActivityIndicator size="small" color={themeColor} />
+            : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
+        </TouchableOpacity>
+
+        {/* Backup & Restore — rendered only for an active Basic or Premium
+            entitlement. BackupSection returns null otherwise, so the heading and
+            divider are gated on the same check to avoid an empty section. */}
+        {backupVisible && (
+          <>
+            <View style={[styles.divider, { backgroundColor: pal.border }]} />
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('backup')}</Text>
+            </View>
+            <BackupSection
+              pal={pal}
+              themeColor={themeColor}
+              onDataReplaced={onDataReplaced}
+              isSubscribed={isSubscribed}
+              isSubscriptionLoaded={isSubscriptionLoaded}
+            />
+          </>
+        )}
+
+        <View style={[styles.divider, { backgroundColor: pal.border }]} />
+
         <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
           onPress={() => void openExternal(PRIVACY_URL)} />
         <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
@@ -586,23 +704,50 @@ function SettingRow({ icon, label, value, onPress, pal }: {
 }
 
 // ── Toggle row ─────────────────────────────────────────────────────────────────
-function ToggleRow({ label, description, value, onToggle, themeColor, pal }: {
-  label: string; description: string; value: boolean;
-  onToggle: (v: boolean) => void; themeColor: string; pal: Palette;
+function ToggleRow({ label, info, value, onToggle, onShowInfo, themeColor, pal }: {
+  label: string;
+  /** Full explanation for the popup. Supplying it renders the information button. */
+  info?: string;
+  value: boolean;
+  onToggle: (v: boolean) => void;
+  onShowInfo?: (content: { title: string; body: string }) => void;
+  themeColor: string;
+  pal: Palette;
 }) {
+  const t = useLang();
   const offTrackColor = getToggleOffTrackColor(pal.bg, pal.border);
+  const showInfoButton = info !== undefined && onShowInfo !== undefined;
   return (
     <View style={styles.toggleRow}>
-      <View style={styles.toggleText}>
-        <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
-        <Text style={[styles.toggleDesc, { color: pal.sub }]}>{description}</Text>
+      {/* Title and its information button travel together as one group, so the
+          icon reads as belonging to the setting rather than to the switch. The
+          group takes the free space; the switch is the only thing on the right,
+          which is what keeps all three switches on the same right edge. */}
+      <View style={styles.titleAndInfo}>
+        <Text style={[styles.toggleLabel, { color: pal.text }]}>{label}</Text>
+        {/* Its own 44x44 target, and a separate touchable from the switch: a tap
+            on one can never reach the other. VoiceOver order stays label, then
+            Info, then the switch. */}
+        {showInfoButton && (
+          <TouchableOpacity
+            style={styles.infoButton}
+            onPress={() => onShowInfo(({ title: label, body: info }))}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={`${label}: ${t('info_button_label')}`}
+          >
+            <Ionicons name="information-circle-outline" size={20} color={pal.sub} />
+          </TouchableOpacity>
+        )}
       </View>
-      <Switch
+      {/* Only the control is compact — the title keeps styles.toggleLabel. */}
+      <CompactSwitch
         value={value}
         onValueChange={onToggle}
-        trackColor={{ false: offTrackColor, true: themeColor + '88' }}
-        thumbColor={value ? themeColor : '#fff'}
-        ios_backgroundColor={offTrackColor}
+        accessibilityLabel={label}
+        {...(info ? { accessibilityHint: info } : {})}
+        themeColor={themeColor}
+        offTrackColor={offTrackColor}
       />
     </View>
   );
@@ -624,7 +769,15 @@ const styles = StyleSheet.create({
   proBadge: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
   proBadgeText: { fontSize: 12, fontWeight: '700' },
 
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 20 },
+  // Settings-only divider spacing. Scoped to this screen and its sub-sheets;
+  // Word List, Test Mode and everything else keep their own.
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: SETTINGS_DIVIDER_MARGIN },
+  infoButton: {
+    width: INFO_BUTTON_TARGET,
+    height: INFO_BUTTON_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
@@ -649,9 +802,18 @@ const styles = StyleSheet.create({
   voiceDescription: { fontSize: 13, lineHeight: 18, marginTop: 3 },
   previewButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
 
+  // One shared layout for all three Card Behavior rows. `alignItems: 'center'`
+  // puts the title, the information icon and the switch on the same horizontal
+  // centre line; the 44pt controls set the row height, so every row is the same
+  // height with the same vertical padding and no per-row offsets.
   toggleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 },
-  toggleText: { flex: 1 },
-  toggleDesc: { fontSize: 12, marginTop: 2, lineHeight: 17 },
+  titleAndInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  // Deliberately NOT styles.rowLabel: that carries `flex: 1` for the plain
+  // Settings rows, where the label is a direct child of a row. Here it used to
+  // sit in a column wrapper, where `flex: 1` stretched the Text to the full
+  // 44pt row height and rendered the title against its top edge — the upward
+  // offset. `flexShrink` keeps a long title from pushing the icon off the row.
+  toggleLabel: { fontSize: 15, flexShrink: 1 },
 
   // Appearance-disabled toast
   hintBanner: {

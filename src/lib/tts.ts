@@ -1,6 +1,20 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { MAX_AI_INPUT_CHARS } from '../constants';
 import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
+
+/**
+ * Promotional previews always use the app's default voice, matching the voice
+ * the Worker speaks them in. The user's saved voice preference is irrelevant
+ * here: the clip is a fixed marketing asset shared by every caller and cached
+ * server-side, so it must not vary per user.
+ */
+const PROMO_PREVIEW_VOICE: AIVoice = DEFAULT_AI_VOICE;
+import {
+  PROMO_SAMPLE_VERSION,
+  promoSampleText,
+  resolvePromoLang,
+  type PromoSampleId,
+} from './promoVoiceSamples';
 import {
   AI_VOICE_SAMPLES,
   AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
@@ -17,6 +31,7 @@ import {
   isAISpeechTimingDiagnostics,
   requestAISpeech,
   type AISpeechTimingDiagnostics,
+  type PromoSpeechRequest,
 } from './openaiGateway';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
 import {
@@ -87,6 +102,14 @@ interface AudioCacheLookupOptions {
   loadingIndicatorAvailable?: boolean;
   trackAsActiveGeneration?: boolean;
   sampleVersion?: string;
+  /**
+   * Fetch a fixed promotional clip instead of speaking `text`.
+   *
+   * `text` is still supplied — it is what the sample says — but it is used only
+   * for the local cache key and never leaves the device: the request body
+   * carries the sample id and language code alone.
+   */
+  promo?: PromoSpeechRequest;
 }
 
 // Session-level index: cache key → file URI (avoids repeated File.exists checks)
@@ -242,8 +265,9 @@ async function fetchAndCacheAudio(
         voice,
         signal,
         request.format,
-        request.contentVersion ? 'speech_sample' : 'speech',
+        options.promo ? 'speech_promo' : request.contentVersion ? 'speech_sample' : 'speech',
         request.contentVersion,
+        options.promo,
       );
       const networkCompletedAtMs = performance.now();
       const timing = getAISpeechTiming(ab);
@@ -679,6 +703,7 @@ async function speakWithAI(
   voice: AIVoice = activeAIVoice,
   options: TTSPlaybackOptions = {},
   sampleVersion?: string,
+  promo?: PromoSpeechRequest,
 ): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
   const buttonPressAtMs = options.buttonPressedAtMs ?? performance.now();
@@ -722,6 +747,7 @@ async function speakWithAI(
         reportPhase('generating-or-downloading');
       },
       sampleVersion,
+      ...(promo ? { promo } : {}),
     });
     const audioLoadCompletedAtMs = performance.now();
     reportPhase('ready');
@@ -1058,6 +1084,30 @@ export function previewAIVoice(
 ): Promise<void> {
   const sample = getAIVoiceSample(voice);
   return speakWithAI(sample.text, voice, options, sample.contentVersion);
+}
+
+/**
+ * Play one of the two promotional previews in the Upgrade Plan sheet.
+ *
+ * Available on every plan, including Free and while the subscription is still
+ * loading, because the Worker route needs no entitlement. It reuses the same
+ * persistent file cache as every other AI clip, so a second play — and a play
+ * with no network — is served from disk. It changes nothing about word-card
+ * voice, which still goes through `speak()` and stays gated.
+ */
+export function speakPromoSample(
+  sample: PromoSampleId,
+  langCode: string | undefined,
+  options?: TTSPlaybackOptions,
+): Promise<void> {
+  const lang = resolvePromoLang(langCode);
+  return speakWithAI(
+    promoSampleText(sample, lang),
+    PROMO_PREVIEW_VOICE,
+    options,
+    PROMO_SAMPLE_VERSION,
+    { sample, langCode: lang },
+  );
 }
 
 /** Stop any active playback immediately (e.g. on component unmount). */
