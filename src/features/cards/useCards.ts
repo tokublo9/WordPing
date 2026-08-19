@@ -412,8 +412,8 @@ export function useCards({
         firstCreatedAt: nextRegistrationTimestamp(cards),
         createId: () => createId('card'),
       });
-      // One state update feeds the existing AsyncStorage and Supabase snapshot
-      // persistence path. Bulk imports intentionally do not auto-preload AI audio.
+      // One state update feeds the existing snapshot persistence path.
+      // Bulk imports intentionally do not auto-preload AI audio.
       setCards(prev => [...prev, ...batch.cards]);
       return {
         added: batch.cards.length,

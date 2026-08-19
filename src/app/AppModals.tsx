@@ -104,6 +104,7 @@ export interface AppModalsProps {
     onToggleVerticalFlip: Dispatch<SetStateAction<boolean>>;
     hideAiTools: boolean;
     onToggleHideAiTools: Dispatch<SetStateAction<boolean>>;
+    onDataReplaced(): void;
   };
 
   // PaywallModal
@@ -262,6 +263,7 @@ export function AppModals({
         onToggleVerticalFlip={settingsModal.onToggleVerticalFlip}
         hideAiTools={settingsModal.hideAiTools}
         onToggleHideAiTools={settingsModal.onToggleHideAiTools}
+        onDataReplaced={settingsModal.onDataReplaced}
       />
 
       <PaywallModal

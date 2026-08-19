@@ -145,7 +145,15 @@ export type TranslationKey =
   | 'sub_info_payment' | 'sub_info_manage' | 'back_to_top'
   | 'ai_features_explain'
   | 'plan_usage_title' | 'plan_usage_desc'
-  | 'err_plan_required_speech' | 'err_plan_required_text';
+  | 'err_plan_required_speech' | 'err_plan_required_text'
+  | 'err_offline' | 'err_timeout' | 'err_cancelled' | 'err_rate_limited'
+  | 'err_usage_limited' | 'err_generation_failed' | 'ai_service_unavailable_msg'
+  | 'backup' | 'backup_desc' | 'backup_export' | 'backup_export_done' | 'backup_export_summary'
+  | 'backup_import' | 'backup_import_merge' | 'backup_import_merge_desc'
+  | 'backup_import_replace' | 'backup_import_replace_desc'
+  | 'backup_replace_confirm' | 'backup_replace_warning'
+  | 'backup_import_done' | 'backup_import_summary'
+  | 'backup_invalid' | 'backup_failed' | 'backup_working';
 
 type OnboardingProfileKey =
   | 'ob_profile_title' | 'ob_profile_desc'
@@ -167,7 +175,21 @@ type LocalizedCatalogKey =
 
 type PlanErrorKey = 'err_plan_required_speech' | 'err_plan_required_text';
 
-type OptionalTranslationKey = OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey;
+/** Classifications produced by src/lib/api/errors.ts. */
+type AIErrorMessageKey =
+  | 'err_offline' | 'err_timeout' | 'err_cancelled' | 'err_rate_limited'
+  | 'err_usage_limited' | 'err_generation_failed' | 'ai_service_unavailable_msg';
+
+type BackupKey =
+  | 'backup' | 'backup_desc' | 'backup_export' | 'backup_export_done' | 'backup_export_summary'
+  | 'backup_import' | 'backup_import_merge' | 'backup_import_merge_desc'
+  | 'backup_import_replace' | 'backup_import_replace_desc'
+  | 'backup_replace_confirm' | 'backup_replace_warning'
+  | 'backup_import_done' | 'backup_import_summary'
+  | 'backup_invalid' | 'backup_failed' | 'backup_working';
+
+type OptionalTranslationKey =
+  | OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey | AIErrorMessageKey | BackupKey;
 
 // New onboarding/catalog copy falls back to English until a locale supplies an
 // override. All established translation keys remain required for every locale.
@@ -555,6 +577,30 @@ const enUS: Dict = {
   plan_usage_desc:  'Upgrade to Basic for unlimited word cards and Natural AI Voice — no limits on your learning.',
   err_plan_required_speech: 'AI voice requires a Basic plan. Please upgrade to continue.',
   err_plan_required_text:   'AI text features require a Premium plan. Please upgrade to continue.',
+  err_offline:           'No internet connection. Your words are all still here — only AI features need to be online.',
+  err_timeout:           'That took too long. Please try again.',
+  err_cancelled:         'Cancelled.',
+  err_rate_limited:      'Too many requests just now. Please wait a moment and try again.',
+  err_usage_limited:     'You have reached your usage limit for today. It resets tomorrow.',
+  err_generation_failed: 'That could not be generated. Please try again.',
+  ai_service_unavailable_msg: 'The AI service is temporarily unavailable. Please try again later.',
+  backup:                'Backup',
+  backup_desc:           'Your words are stored only on this device. Export a backup to move them to a new phone.',
+  backup_export:         'Export backup',
+  backup_export_done:    'Backup created',
+  backup_export_summary: '{words} words and {folders} folders were exported.',
+  backup_import:         'Import backup',
+  backup_import_merge:   'Add to my words',
+  backup_import_merge_desc: 'Keeps everything you have now and adds anything new from the backup.',
+  backup_import_replace: 'Replace everything',
+  backup_import_replace_desc: 'Deletes all words and folders on this device first. This cannot be undone.',
+  backup_replace_confirm: 'Replace all your words?',
+  backup_replace_warning: 'Every word and folder on this device will be deleted and replaced with the backup. This cannot be undone.',
+  backup_import_done:    'Backup imported',
+  backup_import_summary: '{words} words and {folders} folders were added.',
+  backup_invalid:        'That file is not a valid WordPing backup.',
+  backup_failed:         'The backup could not be completed. Nothing was changed.',
+  backup_working:        'Working…',
 };
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
@@ -936,6 +982,30 @@ const ja: Dict = {
   cmp_val_all_skins:  '15種以上',
   plan_usage_title: 'Basicでもっと活用',
   plan_usage_desc:  'ベーシックプランで単語カードもAI音声も無制限。学習に制限なし。',
+  err_offline:           'インターネットに接続していません。単語はすべて端末に残っています。オンラインが必要なのはAI機能だけです。',
+  err_timeout:           '時間がかかりすぎました。もう一度お試しください。',
+  err_cancelled:         'キャンセルしました。',
+  err_rate_limited:      'リクエストが多すぎます。少し待ってからお試しください。',
+  err_usage_limited:     '本日の利用上限に達しました。明日リセットされます。',
+  err_generation_failed: '生成できませんでした。もう一度お試しください。',
+  ai_service_unavailable_msg: 'AIサービスが一時的に利用できません。しばらくしてからお試しください。',
+  backup:                'バックアップ',
+  backup_desc:           '単語はこの端末にのみ保存されます。新しい端末へ移すにはバックアップを書き出してください。',
+  backup_export:         'バックアップを書き出す',
+  backup_export_done:    'バックアップを作成しました',
+  backup_export_summary: '{words}語・{folders}フォルダを書き出しました。',
+  backup_import:         'バックアップを読み込む',
+  backup_import_merge:   '今の単語に追加する',
+  backup_import_merge_desc: '今ある単語をそのまま残し、バックアップにある新しいものだけを追加します。',
+  backup_import_replace: 'すべて置き換える',
+  backup_import_replace_desc: 'この端末の単語とフォルダをすべて削除してから読み込みます。元に戻せません。',
+  backup_replace_confirm: 'すべての単語を置き換えますか？',
+  backup_replace_warning: 'この端末の単語とフォルダはすべて削除され、バックアップの内容に置き換わります。元に戻せません。',
+  backup_import_done:    'バックアップを読み込みました',
+  backup_import_summary: '{words}語・{folders}フォルダを追加しました。',
+  backup_invalid:        'このファイルは WordPing のバックアップではありません。',
+  backup_failed:         'バックアップを完了できませんでした。データは変更されていません。',
+  backup_working:        '処理中…',
 };
 
 // ── Korean ─────────────────────────────────────────────────────────────────────

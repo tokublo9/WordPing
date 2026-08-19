@@ -10,6 +10,7 @@ import { getToggleOffTrackColor } from '../constants';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
+import { BackupSection } from './BackupSection';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
 import { LanguageModal } from './LanguageModal';
 import { ProSheet } from './ProSheet';
@@ -59,6 +60,8 @@ interface Props {
   onToggleVerticalFlip: (v: boolean) => void;
   hideAiTools: boolean;
   onToggleHideAiTools: (v: boolean) => void;
+  /** Re-read cards and folders after a backup import replaced them. */
+  onDataReplaced: () => void;
 }
 
 export function SettingsModal({
@@ -69,6 +72,7 @@ export function SettingsModal({
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
+  onDataReplaced,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
   const insets = useSafeAreaInsets();
@@ -195,6 +199,14 @@ export function SettingsModal({
             <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('kisekae_shop')}</Text>
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
+
+          {/* ── Backup ────────────────────────────────────────────────────── */}
+          <View style={[styles.divider, { backgroundColor: pal.border }]} />
+
+          <View style={{ marginBottom: 12 }}>
+            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('backup')}</Text>
+          </View>
+          <BackupSection pal={pal} themeColor={themeColor} onDataReplaced={onDataReplaced} />
 
           {/* ── Announcements / How to use / Language ──────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />

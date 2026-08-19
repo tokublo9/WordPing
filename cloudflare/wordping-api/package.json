@@ -1,0 +1,23 @@
+{
+  "name": "wordping-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WordPing AI proxy. Keeps the OpenAI key server-side and verifies RevenueCat entitlements before any billable upstream call.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.9.2",
+    "vitest": "^2.1.9",
+    "wrangler": "^4.86.0"
+  }
+}

@@ -71,7 +71,11 @@ test('returning to Word List prepositions the mounted hidden list before reveali
     /if \(restoreTargetWordIdRef\.current !== cardId[\s\S]*?restoreTargetIndexRef\.current !== index\) return;/u,
   );
   assert.match(wordList, /useLayoutEffect\(\(\) => \{[\s\S]*?listScrollToIndexRef\.current\?\.\(resolvedCurrentWordIndex\);/u);
-  assert.match(wordList, /cardViewMode === 'list' && listPositionPrepared/u);
+  // The layer decision moved into features/cards/modeLayers.ts so it could be
+  // unit-tested; see tests/unit/modeLayers.test.ts for its behaviour.
+  const modeLayers = read('src/features/cards/modeLayers.ts');
+  assert.match(modeLayers, /cardViewMode === 'list' && listPositionPrepared/u);
+  assert.match(wordList, /resolveModeLayers\(\{[\s\S]*?listPositionPrepared,/u);
   assert.match(wordList, /const flipModeContent = \(/u);
   assert.match(wordList, /const listModeContent = \(/u);
   assert.match(wordList, /pointerEvents=\{showListLayer \? 'auto' : 'none'\}/u);

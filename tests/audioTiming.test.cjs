@@ -20,8 +20,10 @@ function loadTypeScriptModule(path, imports = {}) {
   return module.exports;
 }
 
+// Silence analysis runs on the client: the Worker streams audio straight
+// through without buffering it.
 const { analyzeWavBestEffort, trimWavTrailingSilence } = loadTypeScriptModule(
-  'supabase/functions/openai/wavSilence.ts',
+  'src/lib/wavSilence.ts',
 );
 const {
   AUDIBLE_START_PREROLL_MS,
@@ -29,13 +31,12 @@ const {
   safeAudibleStartSeconds,
   withSafeAudibleStartMs,
 } = loadTypeScriptModule('src/lib/audioTiming.ts');
-const { readSpeechTiming } = loadTypeScriptModule('src/lib/openaiGateway.ts', {
+const { isAISpeechTimingDiagnostics } = loadTypeScriptModule('src/lib/openaiGateway.ts', {
   './aiVoices': { DEFAULT_AI_VOICE: 'marin', isAIVoice: () => true },
-  './supabase': { requireSupabaseSession: async () => null, supabase: null },
+  './api/client': { postSpeech: async () => ({}), postText: async () => '' },
+  './api/errors': { AIRequestError: class AIRequestError extends Error {} },
+  './wavSilence': { analyzeWavBestEffort },
 });
-const { fetchOpenAISpeech } = loadTypeScriptModule(
-  'supabase/functions/openai/speechUpstream.ts',
-);
 const {
   DeduplicatedRequestRegistry,
   isSupportedCachedWav,
@@ -238,31 +239,48 @@ test('successful audio survives an unexpected timing-analysis exception unchange
   assert.equal(result.failure.stage, 'pcm_analysis');
 });
 
-test('client falls back when timing headers are missing or inconsistent', () => {
-  assert.equal(readSpeechTiming(new Response(new Uint8Array([1]))), null);
-  const invalid = new Response(new Uint8Array([1]), {
-    headers: {
-      'X-WordPing-Audio-Original-Duration-Ms': '1000',
-      'X-WordPing-Audio-Original-Audible-End-Ms': '900',
-      'X-WordPing-Audio-Duration-Ms': '500',
-      'X-WordPing-Audio-Audible-End-Ms': '700',
-      'X-WordPing-Audio-Trailing-Silence-Ms': '0',
-    },
-  });
-  assert.equal(readSpeechTiming(invalid), null);
+test('client rejects incomplete or self-inconsistent cached timing metadata', () => {
+  // The sidecar JSON next to a cached WAV is read back on a later launch and is
+  // as untrusted as any other file on disk.
+  assert.equal(isAISpeechTimingDiagnostics(null), false);
+  assert.equal(isAISpeechTimingDiagnostics({}), false);
+  assert.equal(
+    isAISpeechTimingDiagnostics({
+      originalDurationMs: 1000, originalAudibleEndMs: 900,
+      durationMs: 500, audibleEndMs: 700, trailingSilenceMs: 0,
+    }),
+    false,
+    'audibleEndMs beyond durationMs must be rejected',
+  );
+  assert.equal(
+    isAISpeechTimingDiagnostics({
+      originalDurationMs: 1000, originalAudibleEndMs: 900,
+      durationMs: 950, audibleEndMs: 900, trailingSilenceMs: 50,
+      audibleStartMs: 20, leadingSilenceMs: 20,
+    }),
+    true,
+  );
 });
 
-test('failed OpenAI response remains distinguishable from a successful audio response', async () => {
-  const response = await fetchOpenAISpeech({
-    apiKey: 'not-a-real-key',
-    model: 'test-model',
-    text: 'not logged',
-    voice: 'marin',
-    format: 'wav',
-  }, async () => Response.json({ error: { type: 'server_error' } }, { status: 503 }));
-  assert.equal(response.ok, false);
-  assert.equal(response.status, 503);
-  assert.match(response.headers.get('content-type'), /application\/json/);
+test('no OpenAI credential or upstream URL is reachable from the client bundle', () => {
+  // The whole point of the proxy: the key lives only as a Cloudflare secret.
+  for (const path of [
+    'src/lib/openaiGateway.ts',
+    'src/lib/api/client.ts',
+    'src/lib/tts.ts',
+    'src/lib/prototypeTextToSpeech.ts',
+    'src/lib/generateMeaning.ts',
+  ]) {
+    const source = fs.readFileSync(path, 'utf8');
+    assert.doesNotMatch(source, /api\.openai\.com/u, `${path} must not address OpenAI directly`);
+    assert.doesNotMatch(source, /OPENAI_API_KEY/u, `${path} must not reference an OpenAI key`);
+    assert.doesNotMatch(source, /sk-[A-Za-z0-9]/u, `${path} must not contain a key literal`);
+  }
+
+  const env = fs.readFileSync('.env.example', 'utf8');
+  assert.doesNotMatch(env, /OPENAI/u);
+  // Only the public RevenueCat SDK key belongs in the client env.
+  assert.doesNotMatch(env, /REVENUECAT_SECRET/u);
 });
 
 test('TTS cache identity normalizes text and includes every audio-generation parameter', () => {
@@ -389,23 +407,34 @@ test('Natural AI Voice preload is entitlement-gated and contains exactly eight f
   assert.ok(AI_VOICE_SAMPLES.every(sample => sample.contentVersion === AI_VOICE_SAMPLE_CONTENT_VERSION));
 });
 
-test('client and Edge Function keep the fixed sample version, voices, and copy synchronized', () => {
-  const edgeSource = fs.readFileSync('supabase/functions/openai/index.ts', 'utf8');
-  assert.match(edgeSource, new RegExp(`VOICE_SAMPLE_VERSION = '${AI_VOICE_SAMPLE_CONTENT_VERSION}'`));
+test('client and Worker keep the fixed sample version, voices, and copy synchronized', () => {
+  const workerConfig = fs.readFileSync('cloudflare/wordping-api/src/config.ts', 'utf8');
+  assert.match(workerConfig, new RegExp(`VOICE_SAMPLE_VERSION = '${AI_VOICE_SAMPLE_CONTENT_VERSION}'`));
   for (const sample of AI_VOICE_SAMPLES) {
-    assert.ok(edgeSource.includes(`${sample.voice}: '${sample.text}'`));
+    // The sample sentence is chosen server-side; a mismatch would mean the
+    // client bills for a preview whose text it did not expect.
+    assert.ok(
+      workerConfig.includes(`${sample.voice}: '${sample.text}'`),
+      `Worker is missing the ${sample.voice} sample sentence`,
+    );
   }
-  assert.ok(edgeSource.includes("action === 'speech_sample'"));
 });
 
-test('shared voice sample metadata and cache RPCs remain service-role only', () => {
-  const migration = fs.readFileSync(
-    'supabase/migrations/20260803000001_shared_voice_samples.sql',
-    'utf8',
-  );
-  assert.ok(migration.includes('ALTER TABLE public.voice_sample_generations ENABLE ROW LEVEL SECURITY'));
-  assert.ok(migration.includes('REVOKE ALL ON public.voice_sample_generations FROM PUBLIC, anon, authenticated'));
-  assert.ok(migration.includes('GRANT EXECUTE ON FUNCTION public.claim_voice_sample_generation(text) TO service_role'));
+test('the Worker voice allowlist is a superset of the voices the app offers', () => {
+  // CLAUDE.md rule: adding a voice to AI_VOICES without adding it to the Worker
+  // produces invalid_voice at runtime.
+  const workerConfig = fs.readFileSync('cloudflare/wordping-api/src/config.ts', 'utf8');
+  const allowlist = workerConfig.match(/export const VOICES = \[([\s\S]*?)\] as const;/u);
+  assert.ok(allowlist, 'Worker VOICES allowlist not found');
+  const workerVoices = new Set([...allowlist[1].matchAll(/'([a-z]+)'/gu)].map(match => match[1]));
+
+  const clientVoices = fs.readFileSync('src/lib/aiVoices.ts', 'utf8')
+    .match(/export const AI_VOICES = \[([\s\S]*?)\] as const;/u);
+  assert.ok(clientVoices, 'client AI_VOICES not found');
+
+  for (const [, voice] of clientVoices[1].matchAll(/'([a-z]+)'/gu)) {
+    assert.ok(workerVoices.has(voice), `Worker allowlist is missing the "${voice}" voice`);
+  }
 });
 
 test('voice sample cache identity includes text, voice, model, speed, format, and content version', () => {

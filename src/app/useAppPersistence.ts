@@ -51,7 +51,8 @@ export function useAppPersistence({
   // Persist cards + settings whenever any of them change. Gated on cardsLoaded, which
   // opens as soon as stored cards reach state: a word added while the remaining
   // bootstrap phases are still running must reach storage, not sit in memory. `persist`
-  // writes AsyncStorage right away and debounces only the Supabase upsert.
+  // queues the write; db.ts coalesces it with the folder write below into one
+  // SQLite transaction, folders first, so foreign keys hold.
   useEffect(() => {
     if (!cardsLoaded.current) return;
     persist({ cards, settings: { themeColor, appearance, skinId, language, aiVoice } });

@@ -7,7 +7,7 @@ import Purchases, {
   PurchasesError,
   PurchasesOfferings,
 } from 'react-native-purchases';
-import { requireSupabaseSession } from '../lib/supabase';
+import { resetApiIdentity } from '../lib/api/client';
 import {
   configureRevenueCat,
   logActiveRevenueCatEntitlements,
@@ -18,7 +18,7 @@ import {
 export type Plan = 'free' | 'basic' | 'premium';
 export type RevenueCatEntitlementSource =
   | 'customer-info-listener'
-  | 'after-login-refresh'
+  | 'after-configure-refresh'
   | 'after-purchase-refresh'
   | 'after-restore-refresh'
   | 'manual-refresh'
@@ -119,24 +119,26 @@ export function useSubscription() {
         };
         if (active) Purchases.addCustomerInfoUpdateListener(listener);
 
-        const session = await requireSupabaseSession();
-        const previousAppUserId = await Purchases.getAppUserID();
-        const { customerInfo: loginCustomerInfo } = await Purchases.logIn(session.user.id);
+        // WordPing has no accounts, so there is nothing to log in as.
+        //
+        // `logIn` is deliberately NOT called. The SDK persists whichever App
+        // User ID it is already using and restores it on every launch, so a
+        // fresh install gets a RevenueCat anonymous id and an upgrading user
+        // keeps the id their purchases are already attached to. Calling
+        // `logOut` here would mint a new anonymous user and strand existing
+        // subscribers until they found "Restore Purchases".
         const appUserId = await Purchases.getAppUserID();
         if (__DEV__) {
           console.info('[RC diagnostic]', {
             source: 'identity',
-            appUserId,
-            switchedFromAnonymousUser: previousAppUserId.startsWith('$RCAnonymousID:'),
-            matchesAuthenticatedUser: appUserId === session.user.id,
+            isAnonymous: appUserId.startsWith('$RCAnonymousID:'),
           });
         }
-        logActiveRevenueCatEntitlements('login-response', loginCustomerInfo);
 
-        const customerInfo = await fetchFreshCustomerInfo('after-login-refresh');
-        const nextOfferings = await fetchOfferings('after-login');
+        const customerInfo = await fetchFreshCustomerInfo('after-configure-refresh');
+        const nextOfferings = await fetchOfferings('after-configure');
         if (active) {
-          applyVerifiedCustomerInfo('after-login-refresh', customerInfo);
+          applyVerifiedCustomerInfo('after-configure-refresh', customerInfo);
           setOfferings(nextOfferings);
         }
 
@@ -239,6 +241,9 @@ export function useSubscription() {
     if (!__DEV__) return;
     try {
       const anonymousInfo = await Purchases.logOut();
+      // logOut mints a new anonymous App User ID, so the cached identity the
+      // API client sends must be discarded or it would keep quoting the old one.
+      resetApiIdentity();
       logActiveRevenueCatEntitlements('logout-response', anonymousInfo);
       const refreshedInfo = await fetchFreshCustomerInfo('after-logout-refresh');
       applyVerifiedCustomerInfo('after-logout-refresh', refreshedInfo);

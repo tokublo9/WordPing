@@ -19,7 +19,7 @@
   ],
   "exclude": [
     "website",
-    "supabase/functions",
+    "cloudflare",
     "node_modules"
   ]
 }

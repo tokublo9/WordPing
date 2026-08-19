@@ -20,3 +20,7 @@ web-build/
 .env.*.local
 google-service-account.json
 .claude/settings.local.json
+.test-build/
+cloudflare/**/node_modules/
+cloudflare/**/.wrangler/
+cloudflare/**/.dev.vars

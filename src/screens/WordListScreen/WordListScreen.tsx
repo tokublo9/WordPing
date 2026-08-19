@@ -28,6 +28,7 @@ import {
 } from '../../components/WordListPositionLabel';
 import { mergeVisibleCardOrder } from '../../features/cards/cardSorting';
 import { resolveCurrentWordIndex } from '../../features/cards/currentWordPosition';
+import { committedLayer, resolveModeLayers } from '../../features/cards/modeLayers';
 
 const SEL_BAR_H = 68;
 
@@ -221,6 +222,9 @@ export function WordListScreen({
     index: number;
   } | null>(null);
   const preparedListPositionRef = useRef(preparedListPosition);
+  // The layer the user is actually looking at, recorded after commit. Only a
+  // layer that is already on screen is allowed to cover a mode change.
+  const visibleLayerRef = useRef<'list' | 'flip' | null>(null);
   const trackedFolderIdRef = useRef(currentFolder?.id ?? null);
   cardViewModeRef.current = cardViewMode;
   reorderActiveRef.current = reorder.active;
@@ -234,6 +238,9 @@ export function WordListScreen({
     isRestoringListPositionRef.current = false;
     restoreTargetWordIdRef.current = null;
     restoreTargetIndexRef.current = -1;
+    // A different folder is a fresh screen: nothing from the previous one is on
+    // display, so the previous folder's Flip must not cover this folder's list.
+    visibleLayerRef.current = null;
   }
 
   const resolvedCurrentWordIndex = resolveCurrentWordIndex(
@@ -261,6 +268,25 @@ export function WordListScreen({
   const listPositionPrepared = resolvedCurrentWordId === null
     || (preparedListPosition?.id === resolvedCurrentWordId
       && preparedListPosition.index === resolvedCurrentWordIndex);
+
+  // Both mode layers stay mounted; this decides visibility only. See modeLayers.ts
+  // for the rule — in short, Flip is a destination and never a loading placeholder.
+  const layerVisibility = resolveModeLayers({
+    cardViewMode,
+    reorderActive: reorder.active,
+    listPositionPrepared,
+    visibleLayer: visibleLayerRef.current,
+  });
+  const { showListLayer, showFlipLayer } = layerVisibility;
+  // An empty folder renders the empty state instead of either layer, so neither
+  // was really on screen and neither may hold it later.
+  const hasCards = folderCards.length > 0;
+
+  useEffect(() => {
+    visibleLayerRef.current = hasCards
+      ? committedLayer({ showListLayer, showFlipLayer })
+      : null;
+  }, [hasCards, showListLayer, showFlipLayer]);
 
   // Layout dimensions — only updated on resize, not on every scroll event.
   const [listContentH, setListContentH] = useState(0);
@@ -883,9 +909,6 @@ export function WordListScreen({
       </View>
     );
   } else {
-    const showListLayer = reorder.active
-      || (cardViewMode === 'list' && listPositionPrepared);
-    const showFlipLayer = !reorder.active && !showListLayer;
     const flipModeContent = (
       <FlipCardBrowser
         cards={filteredFolderCards}

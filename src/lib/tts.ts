@@ -269,27 +269,15 @@ async function fetchAndCacheAudio(
           ttsRequestCompleteMs: Math.round(
             requestTiming.responseReceivedAtMs - requestTiming.requestStartedAtMs,
           ),
-          audioDownloadCompleteMs: Math.round(
-            requestTiming.downloadCompletedAtMs - requestTiming.requestStartedAtMs,
-          ),
-          sessionLookupMs: Math.round(
-            requestTiming.sessionLookupCompletedAtMs - requestTiming.sessionLookupStartedAtMs,
-          ),
-          responseTransferMs: Math.round(
-            requestTiming.downloadCompletedAtMs - requestTiming.responseReceivedAtMs,
+          // Silence analysis moved from the server to the client, so it is now
+          // a local stage between download and file write rather than an
+          // opaque slice of the server's total time.
+          audioAnalysisMs: Math.round(
+            requestTiming.analysisCompletedAtMs - requestTiming.responseReceivedAtMs,
           ),
           localFileWriteMs: Math.round(fileWriteCompletedAtMs - fileWriteStartedAtMs),
-          edgeRequestId: requestTiming.edgeRequestId,
-          edgeCache: requestTiming.edgeCache,
-          edgeColdStart: requestTiming.edgeColdStart,
-          edgeTotalMs: requestTiming.edgeTotalMs,
-          edgeAuthMs: requestTiming.edgeAuthMs,
-          edgePlanMs: requestTiming.edgePlanMs,
-          edgePreOpenAIMs: requestTiming.edgePreOpenAIMs,
-          edgeOpenAIMs: requestTiming.edgeOpenAIMs,
-          edgeAudioReadMs: requestTiming.edgeAudioReadMs,
-          edgeWavAnalysisMs: requestTiming.edgeWavAnalysisMs,
-          edgeResponsePreparationMs: requestTiming.edgeResponsePreparationMs,
+          apiRequestId: requestTiming.requestId,
+          apiCache: requestTiming.cache,
         });
       }
       return {

@@ -187,23 +187,56 @@ test('cards persist as soon as stored cards reach state, not after every phase',
   assert.match(persistence, /if \(!hasLoaded\.current\) return;\s*AsyncStorage\.setItem\(SHOW_FULL_CARD_KEY/u);
 });
 
-test('local storage is written immediately and never overwritten by a late remote read', () => {
+test('vocabulary data is local-only and never waits on the network', () => {
   const db = read('src/lib/db.ts');
 
-  // persist() writes AsyncStorage on the spot; only the Supabase upsert is debounced.
-  assert.match(db, /pendingLocal = data;\s*void flushLocal\(\);/u);
-  assert.match(db, /remoteTimer = setTimeout\(\(\) => \{[\s\S]*?void flushRemote\(\);\s*\}, 750\);/u);
-  assert.match(db, /AsyncStorage\.setItem\(CARDS_KEY, JSON\.stringify\(cards\)\)/u);
+  // persist() and persistFolders() both feed one queued transaction, so a word
+  // created alongside a brand-new folder satisfies its foreign key.
+  assert.match(db, /pendingCards = data\.cards;/u);
+  assert.match(db, /pendingFolders = folders;/u);
+  assert.match(db, /\.\.\.\(folders !== null \? \{ folders \} : \{\}\),\s*\.\.\.\(cards !== null \? \{ cards \} : \{\}\)/u);
 
-  // The single remote read is awaited inside bootstrapData and only runs when there is
-  // no local card data, so a slow server response can never land on newer local cards.
-  const remoteReads = db.match(/\.from\('device_data'\)\s*\n?\s*\.select\(/gu) ?? [];
-  assert.equal(remoteReads.length, 1, 'one remote read, inside bootstrapData');
-  assert.match(db, /if \(local\.cards\.length === 0 && supabase && deviceId\) \{[\s\S]*?await withTimeout\(/u);
-
-  // Restoring is a load-time decision only: no module here pushes remote data into
-  // state after bootstrap, which is what would clobber newer local edits.
-  for (const path of ['src/app/useAppBootstrap.ts', 'src/app/useAppPersistence.ts', 'App.tsx']) {
-    assert.doesNotMatch(read(path), /device_data|\.select\(/u, `${path} must not read remote data`);
+  // Nothing in the local data path can fail because the device is offline.
+  for (const path of [
+    'src/lib/db.ts',
+    'src/lib/sqlite/repositories.ts',
+    'src/lib/sqlite/legacyMigration.ts',
+    'src/app/useAppBootstrap.ts',
+    'src/app/useAppPersistence.ts',
+  ]) {
+    const source = read(path);
+    assert.doesNotMatch(source, /\bfetch\(/u, `${path} must not make a network request`);
   }
+});
+
+test('the app depends on no hosted backend or auth provider', () => {
+  // WordPing has no accounts and no server-side copy of user data. The only
+  // backend is the stateless AI proxy in cloudflare/wordping-api, which the app
+  // reaches through src/lib/api/client.ts and nothing else.
+  const pkg = JSON.parse(read('package.json'));
+  const installed = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+
+  for (const forbidden of [
+    '@supabase/supabase-js', 'firebase', '@aws-amplify/core',
+    'appwrite', 'pocketbase', '@auth0/auth0-react',
+  ]) {
+    assert.ok(!installed.includes(forbidden), `${forbidden} must not be a dependency`);
+  }
+
+  // api/client.ts owns every outbound request, so a second fetch caller would be
+  // a network path outside the timeout, error-mapping and identity rules.
+  const clientSource = read('src/lib/api/client.ts');
+  assert.match(clientSource, /EXPO_PUBLIC_WORDPING_API_BASE_URL/u);
+  assert.match(clientSource, /await fetch\(`\$\{BASE_URL\}\$\{path\}`/u);
+});
+
+test('AI requests never start during app bootstrap', () => {
+  const bootstrap = read('src/app/useAppBootstrap.ts');
+  // Local vocabulary must load without waiting on RevenueCat or the AI proxy.
+  assert.doesNotMatch(bootstrap, /openaiGateway|api\/client|Purchases/u);
+
+  // The API client resolves its identity lazily, on first use.
+  const client = read('src/lib/api/client.ts');
+  assert.match(client, /identityRequest \?\?= resolveIdentity\(\)/u);
+  assert.match(client, /const identity = await getIdentity\(\);/u);
 });

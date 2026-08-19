@@ -1,12 +1,21 @@
 import { DEFAULT_AI_VOICE, isAIVoice, type AIVoice } from './aiVoices';
-import { requireSupabaseSession, supabase } from './supabase';
+import { AIRequestError } from './api/errors';
+import { postSpeech, postText, type TextEndpoint, type VoiceEndpoint } from './api/client';
+import { analyzeWavBestEffort, type WavTrimResult } from './wavSilence';
+
+/**
+ * AI gateway.
+ *
+ * Shapes AI requests and hands them to api/client, which talks to the Cloudflare
+ * Worker in cloudflare/wordping-api. Nothing here holds a credential.
+ *
+ * Silence analysis runs on the client, deliberately: the Worker streams audio
+ * straight through without buffering it, and the analysis then runs here on the
+ * buffer the client already has in memory. Keeping it on this side means there
+ * is no audio timing metadata to carry across a network boundary.
+ */
 
 export type AITextAction = 'meaning' | 'breakdown' | 'translation' | 'example';
-
-interface GatewayResponse {
-  text?: string;
-  error?: string;
-}
 
 export interface AISpeechTimingDiagnostics {
   originalDurationMs: number;
@@ -20,22 +29,11 @@ export interface AISpeechTimingDiagnostics {
 }
 
 export interface AISpeechRequestDiagnostics {
-  sessionLookupStartedAtMs: number;
-  sessionLookupCompletedAtMs: number;
   requestStartedAtMs: number;
   responseReceivedAtMs: number;
-  downloadCompletedAtMs: number;
-  edgeRequestId?: string;
-  edgeCache?: 'hit' | 'miss';
-  edgeColdStart?: boolean;
-  edgeTotalMs?: number;
-  edgeAuthMs?: number;
-  edgePlanMs?: number;
-  edgePreOpenAIMs?: number;
-  edgeOpenAIMs?: number;
-  edgeAudioReadMs?: number;
-  edgeWavAnalysisMs?: number;
-  edgeResponsePreparationMs?: number;
+  analysisCompletedAtMs: number;
+  requestId?: string;
+  cache: 'hit' | 'miss';
 }
 
 export function isAISpeechTimingDiagnostics(value: unknown): value is AISpeechTimingDiagnostics {
@@ -73,46 +71,12 @@ export function isAISpeechTimingDiagnostics(value: unknown): value is AISpeechTi
   );
 }
 
+/**
+ * Keyed by the returned buffer so the diagnostics are garbage-collected with
+ * the audio and cannot accumulate across a long session.
+ */
 const speechTimingByAudio = new WeakMap<ArrayBuffer, AISpeechTimingDiagnostics>();
 const speechRequestTimingByAudio = new WeakMap<ArrayBuffer, AISpeechRequestDiagnostics>();
-
-function numericHeader(response: Response, name: string): number | null {
-  const value = response.headers.get(name);
-  if (value == null || value.trim() === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function booleanHeader(response: Response, name: string): boolean | undefined {
-  const value = response.headers.get(name);
-  return value === 'true' ? true : value === 'false' ? false : undefined;
-}
-
-export function readSpeechTiming(response: Response): AISpeechTimingDiagnostics | null {
-  const originalDurationMs = numericHeader(response, 'X-WordPing-Audio-Original-Duration-Ms');
-  const originalAudibleStartMs = numericHeader(response, 'X-WordPing-Audio-Original-Audible-Start-Ms');
-  const originalAudibleEndMs = numericHeader(response, 'X-WordPing-Audio-Original-Audible-End-Ms');
-  const durationMs = numericHeader(response, 'X-WordPing-Audio-Duration-Ms');
-  const audibleStartMs = numericHeader(response, 'X-WordPing-Audio-Audible-Start-Ms');
-  const audibleEndMs = numericHeader(response, 'X-WordPing-Audio-Audible-End-Ms');
-  const leadingSilenceMs = numericHeader(response, 'X-WordPing-Audio-Leading-Silence-Ms');
-  const trailingSilenceMs = numericHeader(response, 'X-WordPing-Audio-Trailing-Silence-Ms');
-  if (
-    originalDurationMs == null || originalAudibleEndMs == null || durationMs == null ||
-    audibleEndMs == null || trailingSilenceMs == null
-  ) return null;
-  const timing = {
-    originalDurationMs,
-    originalAudibleEndMs,
-    durationMs,
-    audibleEndMs,
-    trailingSilenceMs,
-    ...(originalAudibleStartMs != null ? { originalAudibleStartMs } : {}),
-    ...(audibleStartMs != null ? { audibleStartMs } : {}),
-    ...(leadingSilenceMs != null ? { leadingSilenceMs } : {}),
-  };
-  return isAISpeechTimingDiagnostics(timing) ? timing : null;
-}
 
 export function getAISpeechTiming(audio: ArrayBuffer): AISpeechTimingDiagnostics | undefined {
   return speechTimingByAudio.get(audio);
@@ -122,238 +86,103 @@ export function getAISpeechRequestTiming(audio: ArrayBuffer): AISpeechRequestDia
   return speechRequestTimingByAudio.get(audio);
 }
 
-function statusFromError(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const context = (error as { context?: unknown }).context;
-  if (context instanceof Response) return context.status;
-  if (context && typeof context === 'object' && typeof (context as { status?: unknown }).status === 'number') {
-    return (context as { status: number }).status;
-  }
-  return undefined;
+function toDiagnostics(result: WavTrimResult): AISpeechTimingDiagnostics {
+  return {
+    originalDurationMs: result.before.durationMs,
+    originalAudibleStartMs: result.before.audibleStartMs,
+    originalAudibleEndMs: result.before.audibleEndMs,
+    durationMs: result.after.durationMs,
+    audibleStartMs: result.after.audibleStartMs,
+    audibleEndMs: result.after.audibleEndMs,
+    leadingSilenceMs: result.after.leadingSilenceMs,
+    trailingSilenceMs: result.after.trailingSilenceMs,
+  };
 }
 
-async function invokeGateway(
-  body: Record<string, unknown>,
-  signal?: AbortSignal,
-  timeout = 30000,
-): Promise<GatewayResponse> {
-  if (!supabase) throw new Error('service_unavailable');
-  await requireSupabaseSession();
+// ── Text ─────────────────────────────────────────────────────────────────────
 
-  const { data, error, response } = await supabase.functions.invoke<GatewayResponse>('openai', {
-    body,
-    signal,
-    timeout,
-  });
+const TEXT_ENDPOINTS: Readonly<Record<AITextAction, TextEndpoint>> = {
+  meaning: 'meaning',
+  breakdown: 'breakdown',
+  translation: 'translate',
+  example: 'examples',
+};
 
-  if (error) {
-    const status = response?.status ?? statusFromError(error);
-    if (status === 403) {
-      // Distinguish plan_required (server refused based on plan) from auth failures.
-      try {
-        const body = await response?.json();
-        if (body?.error === 'plan_required') throw new Error('plan_required');
-      } catch (e) {
-        if (e instanceof Error && e.message === 'plan_required') throw e;
-      }
-      throw new Error('authentication_failed');
-    }
-    if (status === 401) throw new Error('authentication_failed');
-    if (status === 429) throw new Error('quota_exceeded');
-    throw new Error('service_unavailable');
-  }
-  if (!data || data.error) throw new Error(data?.error ?? 'service_unavailable');
-  return data;
-}
-
-export async function requestAIText(
+export function requestAIText(
   action: AITextAction,
   text: string,
   langCode: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const result = await invokeGateway({ action, text, langCode }, signal);
-  if (typeof result.text !== 'string') throw new Error('invalid_response');
-  return result.text.trim();
+  return postText(TEXT_ENDPOINTS[action], text, langCode, { ...(signal ? { signal } : {}) });
 }
+
+// ── Speech ───────────────────────────────────────────────────────────────────
+
+/** Legacy action names, kept so the TTS pipeline did not need reworking. */
+export type AISpeechAction = 'speech' | 'speech_custom' | 'speech_sample';
+
+const VOICE_ENDPOINTS: Readonly<Record<AISpeechAction, VoiceEndpoint>> = {
+  speech: 'card',
+  speech_custom: 'custom',
+  speech_sample: 'sample',
+};
 
 export async function requestAISpeech(
   text: string,
   voice: AIVoice,
   signal?: AbortSignal,
   format: 'wav' | 'mp3' = 'wav',
-  action: 'speech' | 'speech_custom' | 'speech_sample' = 'speech',
+  action: AISpeechAction = 'speech',
   sampleVersion?: string,
 ): Promise<ArrayBuffer> {
   const trimmedText = typeof text === 'string' ? text.trim() : '';
-  if (!trimmedText) throw new Error('input_empty');
+  // A voice preview carries no user text: the sentence is chosen server-side.
+  if (!trimmedText && action !== 'speech_sample') throw new AIRequestError('invalid_input');
 
-  // Normalize and validate voice — fall back to default if the persisted value
-  // is missing, has stale whitespace, or is a legacy name the server rejects.
+  // Normalise and validate the voice — a persisted value can be stale, have
+  // leftover whitespace, or be a legacy name the server no longer accepts.
   const normalizedVoice = typeof voice === 'string' ? voice.trim().toLowerCase() : '';
   const validVoice: AIVoice = isAIVoice(normalizedVoice) ? normalizedVoice : DEFAULT_AI_VOICE;
 
-  if (!supabase) throw new Error('service_unavailable');
-  const sessionLookupStartedAtMs = performance.now();
-  const session = await requireSupabaseSession();
-  const sessionLookupCompletedAtMs = performance.now();
+  const body: Record<string, unknown> = action === 'speech_sample'
+    ? { voice: validVoice, ...(sampleVersion ? { sampleVersion } : {}) }
+    : { text: trimmedText, voice: validVoice, format };
+
+  const requestStartedAtMs = performance.now();
+  const result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });
+  const responseReceivedAtMs = performance.now();
+
+  // Best-effort by contract: unanalysable audio is returned untouched rather
+  // than turned into an error, so a codec quirk can never break playback.
+  const analysis = format === 'wav' ? analyzeWavBestEffort(result.audio) : null;
+  const audio = analysis?.audio ?? result.audio;
+  const analysisCompletedAtMs = performance.now();
+
+  if (analysis?.timing) speechTimingByAudio.set(audio, toDiagnostics(analysis.timing));
+  speechRequestTimingByAudio.set(audio, {
+    requestStartedAtMs,
+    responseReceivedAtMs,
+    analysisCompletedAtMs,
+    ...(result.requestId !== null ? { requestId: result.requestId } : {}),
+    cache: result.cache,
+  });
 
   if (__DEV__) {
-    // ── Temporary auth/plan diagnostic ───────────────────────────────────────
-    // Prints the anonymous user ID that the Edge Function will look up in
-    // user_plans. If the plan check returns 403, run this SQL in the Supabase
-    // Dashboard → SQL Editor to grant access:
-    //
-    //   INSERT INTO public.user_plans (user_id, plan, updated_at)
-    //   VALUES ('<userId below>', 'basic', now())
-    //   ON CONFLICT (user_id) DO UPDATE SET plan='basic', updated_at=now();
-    //
-    console.log('[TTS auth debug]', {
-      userId: session.user.id,
-      isAnonymous: session.user.is_anonymous,
-      jwtSub: session.user.id,  // Supabase JWT sub == user.id
+    // Sizes and durations only. The text being spoken is never logged.
+    console.log('[TTS request]', {
       action,
       textLength: trimmedText.length,
       voice: validVoice,
       format,
-    });
-    // ─────────────────────────────────────────────────────────────────────────
-  }
-
-  const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/openai`;
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-
-  const requestStartedAtMs = performance.now();
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        apikey: anonKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action,
-        text: trimmedText,
-        voice: validVoice,
-        format,
-        ...(action === 'speech_sample' && sampleVersion ? { sampleVersion } : {}),
-      }),
-      signal,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw error;
-    if (error instanceof TypeError) {
-      if (__DEV__) {
-        console.warn('[TTS service warning]', {
-          stage: 'network_request',
-          action,
-          textLength: trimmedText.length,
-          errorName: error.name,
-          errorMessage: error.message,
-        });
-      }
-      throw new Error('service_unavailable');
-    }
-    throw error;
-  }
-  const responseReceivedAtMs = performance.now();
-
-  if (!response.ok) {
-    const responseContentType = response.headers.get('content-type') ?? '';
-    const errorBody = responseContentType.includes('application/json')
-      ? await response.json()
-      : await response.text();
-    if (__DEV__) console.warn('[TTS service warning]', {
-      stage: 'edge_response',
-      status: response.status,
-      requestId: response.headers.get('X-WordPing-Request-ID'),
-      errorCode: typeof errorBody === 'object' && errorBody !== null
-        ? (errorBody as Record<string, unknown>).error
-        : undefined,
-    });
-    const errorCode = typeof errorBody === 'object' && errorBody !== null
-      ? (errorBody as Record<string, unknown>).error
-      : undefined;
-    if (response.status === 403) {
-      if (errorCode === 'premium_required') throw new Error('premium_required');
-      if (errorCode === 'plan_required') throw new Error('plan_required');
-      throw new Error('authentication_failed');
-    }
-    if (response.status === 401) throw new Error('authentication_failed');
-    if (response.status === 429) {
-      if (errorCode === 'rate_limit_exceeded') throw new Error('rate_limit_exceeded');
-      if (errorCode === 'usage_limit_exceeded') throw new Error('usage_limit_exceeded');
-      throw new Error('quota_exceeded');
-    }
-    if (response.status === 400 && errorCode === 'input_too_long') throw new Error('input_too_long');
-    if ([500, 502, 503, 504].includes(response.status)) throw new Error('service_unavailable');
-    throw new Error('service_unavailable');
-  }
-
-  const audio = await response.arrayBuffer();
-  const downloadCompletedAtMs = performance.now();
-  const edgeTiming = {
-    edgeTotalMs: numericHeader(response, 'X-WordPing-Edge-Total-Ms') ?? undefined,
-    edgeAuthMs: numericHeader(response, 'X-WordPing-Edge-Auth-Ms') ?? undefined,
-    edgePlanMs: numericHeader(response, 'X-WordPing-Edge-Plan-Ms') ?? undefined,
-    edgePreOpenAIMs: numericHeader(response, 'X-WordPing-Edge-Pre-OpenAI-Ms') ?? undefined,
-    edgeOpenAIMs: numericHeader(response, 'X-WordPing-Edge-OpenAI-Ms') ?? undefined,
-    edgeAudioReadMs: numericHeader(response, 'X-WordPing-Edge-Audio-Read-Ms') ?? undefined,
-    edgeWavAnalysisMs: numericHeader(response, 'X-WordPing-Edge-Wav-Analysis-Ms') ?? undefined,
-    edgeResponsePreparationMs: numericHeader(response, 'X-WordPing-Edge-Response-Preparation-Ms') ?? undefined,
-  };
-  const requestTiming: AISpeechRequestDiagnostics = {
-    sessionLookupStartedAtMs,
-    sessionLookupCompletedAtMs,
-    requestStartedAtMs,
-    responseReceivedAtMs,
-    downloadCompletedAtMs,
-    edgeRequestId: response.headers.get('X-WordPing-Request-ID') ?? undefined,
-    edgeCache: response.headers.get('X-WordPing-Cache') === 'hit' ? 'hit' : 'miss',
-    edgeColdStart: booleanHeader(response, 'X-WordPing-Edge-Cold-Start'),
-    ...edgeTiming,
-  };
-  speechRequestTimingByAudio.set(audio, requestTiming);
-  const timing = readSpeechTiming(response);
-  if (timing) {
-    speechTimingByAudio.set(audio, timing);
-    if (__DEV__) {
-      console.log('[TTS audio timing]', {
-        action,
-        textLength: trimmedText.length,
-        before: {
-          durationMs: timing.originalDurationMs,
-          detectedAudibleStartMs: timing.originalAudibleStartMs,
-          detectedAudibleEndMs: timing.originalAudibleEndMs,
-          leadingSilenceMs: timing.originalAudibleStartMs,
-          trailingSilenceMs: timing.originalDurationMs - timing.originalAudibleEndMs,
-        },
-        after: {
-          durationMs: timing.durationMs,
-          detectedAudibleStartMs: timing.audibleStartMs,
-          detectedAudibleEndMs: timing.audibleEndMs,
-          leadingSilenceMs: timing.leadingSilenceMs,
-          trailingSilenceMs: timing.trailingSilenceMs,
-        },
-      });
-    }
-  }
-  if (__DEV__) {
-    console.log('[TTS request timing]', {
-      action,
-      textLength: trimmedText.length,
-      sessionLookupMs: Math.round(sessionLookupCompletedAtMs - sessionLookupStartedAtMs),
-      requestStartMs: 0,
-      ttsResponseReceivedMs: Math.round(responseReceivedAtMs - requestStartedAtMs),
-      audioDownloadCompleteMs: Math.round(downloadCompletedAtMs - requestStartedAtMs),
-      downloadDurationMs: Math.round(downloadCompletedAtMs - responseReceivedAtMs),
-      edgeRequestId: requestTiming.edgeRequestId,
-      edgeCache: requestTiming.edgeCache,
-      edgeColdStart: requestTiming.edgeColdStart,
-      edge: edgeTiming,
+      requestMs: Math.round(responseReceivedAtMs - requestStartedAtMs),
+      analysisMs: Math.round(analysisCompletedAtMs - responseReceivedAtMs),
+      cache: result.cache,
+      requestId: result.requestId,
+      trimmed: analysis?.timing?.trimmed ?? false,
+      analysisFailure: analysis?.failure?.stage,
     });
   }
+
   return audio;
 }

@@ -1,0 +1,17 @@
+# Copy to .dev.vars for local `wrangler dev`. .dev.vars is gitignored.
+# PLACEHOLDERS ONLY — never commit real keys to this file.
+
+# OpenAI project API key. Server-side only; must never reach the Expo bundle.
+OPENAI_API_KEY="sk-proj-REPLACE_ME"
+
+# RevenueCat *secret* API key (starts with sk_). NOT the public SDK key that
+# the app uses. Found under RevenueCat Dashboard -> Project -> API keys.
+REVENUECAT_SECRET_API_KEY="sk_REPLACE_ME"
+
+# Salt for privacy-preserving rate-limit identity hashes. Any long random
+# string; rotating it resets every rate-limit counter.
+RATE_LIMIT_SALT="REPLACE_WITH_LONG_RANDOM_STRING"
+
+# Optional local override: skip RevenueCat and treat every caller as premium.
+# Only honoured by `wrangler dev`; a deployed Worker refuses to start with this on.
+DEV_BYPASS_ENTITLEMENTS="0"

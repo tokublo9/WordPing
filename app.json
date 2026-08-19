@@ -44,7 +44,9 @@
       ],
       "expo-asset",
       "expo-video",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-sqlite",
+      "expo-secure-store"
     ],
     "ios": {
       "supportsTablet": true,

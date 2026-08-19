@@ -12,7 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { WELCOME_FOLDER_ID } from './src/lib/db';
+import { reloadLocalData, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, WordCard } from './src/types';
@@ -154,6 +154,28 @@ export default function App() {
   const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
   const voiceBannerAnim = useRef(new Animated.Value(0)).current;
   const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A backup import in "replace" mode swaps out every row, so React state and
+  // the database have to be resynchronised. Navigation is reset to the folder
+  // list because the folder that was open may no longer exist.
+  const reloadAfterImport = useCallback(() => {
+    reloadLocalData()
+      .then(snapshot => {
+        setCurrentFolderId(null);
+        foldersRef.current = snapshot.folders;
+        setFolders(snapshot.folders);
+        setCards(snapshot.cards);
+        applySettings(snapshot.settings);
+      })
+      .catch(error => {
+        if (__DEV__) {
+          console.error(
+            '[app] reload after import failed:',
+            error instanceof Error ? error.name : 'UnknownError',
+          );
+        }
+      });
+  }, [applySettings, foldersRef, setCards, setCurrentFolderId, setFolders]);
 
   const dismissVoiceBanner = useCallback(() => {
     if (voiceBannerTimer.current) { clearTimeout(voiceBannerTimer.current); voiceBannerTimer.current = null; }
@@ -563,6 +585,7 @@ export default function App() {
           onToggleVerticalFlip: setVerticalFlip,
           hideAiTools,
           onToggleHideAiTools: setHideAiTools,
+          onDataReplaced: reloadAfterImport,
         }}
         paywallModal={{
           visible: paywallVisible,

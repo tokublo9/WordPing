@@ -1,0 +1,44 @@
+name = "wordping-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets are NEVER declared here. Set them with:
+#   npx wrangler secret put OPENAI_API_KEY
+#   npx wrangler secret put REVENUECAT_SECRET_API_KEY
+#
+# Non-secret tunables live in [vars] so limits can be changed without
+# shipping a new mobile build.
+[vars]
+# Comma-separated list of Origins allowed to send browser (CORS) requests.
+# Native Expo builds send no Origin header and are unaffected by this.
+# CORS is a browser convenience here, never an authentication mechanism.
+ALLOWED_ORIGINS = "http://localhost:8081,http://localhost:19006"
+# Entitlement identifiers as configured in the RevenueCat dashboard.
+ENTITLEMENT_BASIC = "basic"
+ENTITLEMENT_PREMIUM = "premium"
+# Upstream timeouts, milliseconds.
+OPENAI_TEXT_TIMEOUT_MS = "25000"
+OPENAI_SPEECH_TIMEOUT_MS = "50000"
+REVENUECAT_TIMEOUT_MS = "5000"
+# Set to "1" to bypass RevenueCat and treat every caller as premium.
+# LOCAL DEVELOPMENT ONLY. Never set this on a deployed environment.
+DEV_BYPASS_ENTITLEMENTS = "0"
+
+# KV holds rate-limit counters, the entitlement cache, operator kill switches,
+# and the shared voice-sample audio cache. Create it once with:
+#   npx wrangler kv namespace create WORDPING_KV
+#   npx wrangler kv namespace create WORDPING_KV --preview
+# then paste the returned ids below.
+[[kv_namespaces]]
+binding = "WORDPING_KV"
+id = "a2e62680a8d9438db17c0480206c42c0"
+preview_id = "REPLACE_WITH_KV_PREVIEW_NAMESPACE_ID"
+
+[observability]
+enabled = true
+
+[observability.logs]
+# Structured diagnostics only. See src/log.ts — request text, secrets and
+# Authorization headers are never written to logs.
+enabled = true

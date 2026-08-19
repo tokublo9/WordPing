@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "//": "Only modules with no react-native or expo imports. Compiling them to plain CommonJS lets `node --test` exercise the real migration, repository and backup code against a real SQLite engine.",
+  "include": [
+    "src/types.ts",
+    "src/lib/parsing.ts",
+    "src/features/cards/modeLayers.ts",
+    "src/lib/sqlite/types.ts",
+    "src/lib/sqlite/schema.ts",
+    "src/lib/sqlite/repositories.ts",
+    "src/lib/sqlite/legacyMigration.ts",
+    "src/lib/backup/**/*.ts",
+    "src/lib/api/errors.ts",
+    "tests/unit/**/*.ts"
+  ]
+}

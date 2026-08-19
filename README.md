@@ -26,7 +26,7 @@ Users add words they want to remember. WordPing helps them review those words th
 - Up to 64 notifications pre-scheduled on iOS
 
 ### AI & Voice
-- **AI meaning generation** — auto-generate a meaning or example note using GPT-4o-mini through an authenticated Supabase Edge Function
+- **AI meaning generation** — auto-generate a meaning or example note using GPT-4o-mini through the WordPing API proxy, which keeps the OpenAI key server-side
 - **Text-to-Speech prototype (Premium)** — generate speech with the Natural AI Voice selected in Settings, then play, rename, save, or share it from a persistent 10-file history
 - **Text-to-speech** — tap the speaker icon on any card to hear the word or meaning read aloud; supports 10+ language locales
 - Device text-to-speech is used on the Free plan; paid plans use Natural AI Voice
@@ -63,9 +63,15 @@ Users add words they want to remember. WordPing helps them review those words th
 | Blur | expo-blur |
 | Text-to-speech | expo-speech |
 | Audio files / export | expo-file-system / expo-sharing |
-| Backend / Sync | Supabase (anonymous auth + device data sync) |
-| AI generation | OpenAI GPT-4o-mini |
-| Subscription | AsyncStorage stub (RevenueCat / react-native-purchases required for real IAP) |
+| Vocabulary storage | expo-sqlite (on-device, no account, works offline) |
+| UI preferences | @react-native-async-storage/async-storage |
+| Device identifier | expo-secure-store |
+| AI proxy | Cloudflare Worker (`cloudflare/wordping-api`) — holds the OpenAI key, verifies entitlements |
+| AI generation | OpenAI GPT-4o-mini (text) / gpt-4o-mini-tts (voice) |
+| Subscription | RevenueCat (`react-native-purchases`), anonymous customers, verified server-side |
+
+**There is no account, no login, and no cloud sync.** All vocabulary lives on the
+device; the only way it leaves is a backup the user exports themselves.
 
 ---
 
@@ -90,19 +96,41 @@ npx expo start --web
 
 ### Environment variables
 
-Create a `.env.local` file in the project root:
+Copy `.env.example` to `.env` in the project root:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-client-safe-anon-key
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_your-public-sdk-key
+EXPO_PUBLIC_WORDPING_API_BASE_URL=https://wordping-api.<subdomain>.workers.dev
 ```
 
-Never put the OpenAI key in an `EXPO_PUBLIC_` variable. Configure it only as a
-Supabase Edge Function secret (`supabase secrets set OPENAI_API_KEY=...`) and
-deploy `supabase/functions/openai`.
+Everything prefixed `EXPO_PUBLIC_` is compiled into the app bundle and readable
+by anyone who downloads it. Both values above are public by design: the base URL
+is the address of a proxy, and the RevenueCat SDK key cannot read or grant
+entitlements on its own.
 
-The Supabase anon key is designed for client use, but Row Level Security must
-remain enabled. Never place a service-role key in the app.
+**Never put the OpenAI key — or any secret — in an `EXPO_PUBLIC_` variable.**
+`OPENAI_API_KEY`, `REVENUECAT_SECRET_API_KEY` and `RATE_LIMIT_SALT` exist only
+as Cloudflare Worker secrets. See `cloudflare/wordping-api/README.md`.
+
+### Running the AI proxy locally
+
+```bash
+cd cloudflare/wordping-api
+npm install
+cp .dev.vars.example .dev.vars    # fill in real values
+npx wrangler dev                  # http://127.0.0.1:8787
+```
+
+Then point `EXPO_PUBLIC_WORDPING_API_BASE_URL` at `http://127.0.0.1:8787`.
+
+### Backup and restore
+
+There is no cloud restore. Settings → Backup exports a versioned JSON file
+containing words, folders, notes, labels, review progress and transferable
+settings. Import supports **merge** (keep what you have, add what is new) and
+**replace** (wipe first, with a confirmation). Imports run in a single
+transaction and roll back completely on any failure. API keys, tokens,
+RevenueCat identifiers and device-local file paths are never exported.
 
 ---
 
@@ -119,12 +147,15 @@ WordPing/
 │   ├── i18n.ts                     # Localisation — translations + useLang hook
 │   ├── notifications.ts            # Permission request + notification scheduling (up to 64 slots)
 │   ├── hooks/
-│   │   └── useSubscription.ts      # Basic plan subscription state (AsyncStorage-backed)
+│   │   └── useSubscription.ts      # RevenueCat subscription state (UI only; the proxy verifies access)
 │   ├── lib/
-│   │   ├── db.ts                   # AsyncStorage persistence + Supabase sync
+│   │   ├── db.ts                   # Local data API over the SQLite repositories
+│   │   ├── sqlite/                 # Schema, migrations, repositories, AsyncStorage import
+│   │   ├── backup/                 # Versioned backup export / import (replaces cloud restore)
+│   │   ├── api/                    # Typed client for the Cloudflare Worker + error mapping
+│   │   ├── installId.ts            # Random install id in SecureStore (not authentication)
 │   │   ├── tts.ts                  # Text-to-speech wrapper (expo-speech)
-│   │   ├── generateMeaning.ts      # AI meaning / note generation via OpenAI
-│   │   └── supabase.ts             # Supabase client + anonymous auth
+│   │   └── generateMeaning.ts      # AI meaning / note generation via the API proxy
 │   └── components/
 │       ├── SwipeableCard.tsx        # PanResponder card — flip animation, swipe-reveal actions, long-press menu
 │       ├── SwipeableFolder.tsx      # Folder row with swipe-reveal edit/delete
