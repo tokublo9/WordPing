@@ -25,6 +25,7 @@ import {
   analyzeBulkImport,
   BulkImportExecutionGuard,
   parseBulkImportText,
+  type BulkImportAnalysis,
   type BulkImportDraft,
   type BulkImportResult,
 } from '../features/cards/bulkImport';
@@ -70,11 +71,13 @@ export function BulkImportModal({
   const [drafts, setDrafts] = useState<BulkImportDraft[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState(false);
-  // True from the moment a successful import closes the sheet until it reopens: the
-  // body renders nothing so the closing sheet cannot repaint the preview.
-  const [imported, setImported] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
   const executionGuard = useRef(new BulkImportExecutionGuard()).current;
+  // Keep the submitted rows stable while the native full-screen Modal dismisses.
+  // The import updates `existingTexts`, which would otherwise repaint every row as
+  // a duplicate. Crucially, the content stays mounted instead of collapsing to an
+  // empty full-screen surface during the dismissal animation.
+  const submittedAnalysisRef = useRef<BulkImportAnalysis | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
   const dragStartScrollYRef = useRef(0);
@@ -128,7 +131,7 @@ export function BulkImportModal({
       setDrafts([]);
       setImporting(false);
       setImportError(false);
-      setImported(false);
+      submittedAnalysisRef.current = null;
       inputFocusedRef.current = false;
     }
   }
@@ -158,12 +161,17 @@ export function BulkImportModal({
     () => analyzeBulkImport(drafts, existingTexts),
     [drafts, existingTexts],
   );
+  const renderedPreviewAnalysis = importing && submittedAnalysisRef.current
+    ? submittedAnalysisRef.current
+    : previewAnalysis;
   const importDisabled = importing
     || previewAnalysis.validItems.length === 0;
   const resetDisabled = input.length === 0;
 
   const close = () => {
-    if (!importing) onClose();
+    if (importing) return;
+    Keyboard.dismiss();
+    onClose();
   };
 
   const openPreview = () => {
@@ -190,35 +198,30 @@ export function BulkImportModal({
 
   const runImport = () => executionGuard.run(async () => {
     if (importDisabled) return;
+    Keyboard.dismiss();
+    const analysisAtSubmission = previewAnalysis;
+    submittedAnalysisRef.current = analysisAtSubmission;
     setImportError(false);
     setImporting(true);
     try {
       const importResult = await onImport(
-        previewAnalysis.items.map(item => ({ id: item.id, text: item.normalizedText })),
+        analysisAtSubmission.items.map(item => ({ id: item.id, text: item.normalizedText })),
       );
       if (importResult.error) {
+        submittedAnalysisRef.current = null;
         setImportError(true);
         setImporting(false);
         return;
       }
-      // Stop rendering the preview in the same update that closes the sheet. Importing
-      // grows the word list, which flows back in through `existingTexts` and would
-      // otherwise repaint every reviewed row as a duplicate while the sheet slides
-      // away. `importing` deliberately stays true so the footer cannot change either;
-      // reopening the sheet resets both.
-      setImported(true);
+      // Keep `importing` and the submitted snapshot intact until native dismissal
+      // completes. Reopening resets the session before it can paint.
       onClose();
     } catch {
+      submittedAnalysisRef.current = null;
       setImportError(true);
       setImporting(false);
     }
   });
-
-  // A finished import leaves only the sheet's own background to slide away, so the
-  // word list is the next thing on screen — no preview, no header, no flash.
-  if (imported) {
-    return <FullScreenSheet visible={visible} pal={pal} onRequestClose={close} />;
-  }
 
   return (
     <FullScreenSheet visible={visible} pal={pal} onRequestClose={close}>
@@ -346,7 +349,7 @@ export function BulkImportModal({
               <View style={[styles.previewSummary, { borderBottomColor: pal.border }]}>
                 <Text style={[styles.previewHeading, { color: pal.text }]}>{t('bulk_import_preview')}</Text>
                 <Text style={[styles.count, { color: pal.sub }]}>
-                  {formatCount(t('bulk_import_valid_count'), previewAnalysis.validItems.length)}
+                  {formatCount(t('bulk_import_valid_count'), renderedPreviewAnalysis.validItems.length)}
                 </Text>
               </View>
               <ScrollView
@@ -358,7 +361,7 @@ export function BulkImportModal({
                 nestedScrollEnabled
                 showsVerticalScrollIndicator={false}
               >
-                {previewAnalysis.items.map((item, index) => (
+                {renderedPreviewAnalysis.items.map((item, index) => (
                   <View
                     key={item.id}
                     style={[styles.previewItem, { backgroundColor: pal.card, borderColor: pal.border }]}
@@ -404,7 +407,7 @@ export function BulkImportModal({
                   <View style={styles.progressRow}>
                     <ActivityIndicator size="small" color={themeColor} />
                     <Text style={[styles.count, { color: pal.sub }]}>
-                      {formatCount(t('bulk_import_importing'), previewAnalysis.validItems.length)}
+                      {formatCount(t('bulk_import_importing'), renderedPreviewAnalysis.validItems.length)}
                     </Text>
                   </View>
                 )}

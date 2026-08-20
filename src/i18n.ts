@@ -217,7 +217,7 @@ type Dict = Record<Exclude<TranslationKey, OptionalTranslationKey>, string>
 const enUS: Dict = {
   // ── Settings · Card Behavior ────────────────────────────────────────────────
   sync_test_results:          'Sync with test results',
-  sync_test_results_desc:     'Links your test results with your word list. Perfect permanently deletes the card, Pretty good shows it again after 3 days, Not really shows it again after 1 day, and Don’t know leaves it unchanged.',
+  sync_test_results_desc:     'Links test results with your word list. Perfect permanently deletes the card, Pretty good returns after 3 days, Not really returns after 1 day, and Don’t know stays visible.',
 
   // ── Announcements ───────────────────────────────────────────────────────────
   announcements_empty_title: 'No announcements yet',
@@ -647,7 +647,7 @@ const enUS: Dict = {
 const ja: Dict = {
   // ── Settings · Card Behavior ────────────────────────────────────────────────
   sync_test_results:          'テスト結果と連動',
-  sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodでは3日後、Not reallyでは1日後に再表示します。Don’t knowではそのまま残ります。',
+  sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodは3日後、Not reallyは1日後に再表示されます。Don’t knowは表示されたままです。',
 
   // ── Announcements ───────────────────────────────────────────────────────────
   announcements_empty_title: 'お知らせはまだありません',

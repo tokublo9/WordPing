@@ -29,6 +29,22 @@
  */
 export const AI_TEXT_FEATURES_ENABLED = false;
 
+/**
+ * Standalone Text-to-Speech.
+ *
+ * TEMPORARILY HIDDEN FROM THE APP. The screen, saved audio/history, client
+ * implementation, translations and Worker route remain intact. Flip this to
+ * `true` to restore the folder-header entry point and both Upgrade Plan rows.
+ */
+export const TEXT_TO_SPEECH_ENABLED = false;
+
+/**
+ * Links every Test Mode grade to card visibility. The former Settings toggle
+ * is intentionally dormant; keep the grading option itself so configurability
+ * can be restored later without rebuilding the grading rules.
+ */
+export const SYNC_WITH_TEST_RESULTS_ENABLED = true;
+
 /** Feature keys of the four hidden text features, as used by the paywall. */
 export const AI_TEXT_FEATURE_KEYS = ['meaning', 'example', 'translate', 'breakdown'] as const;
 
@@ -52,4 +68,13 @@ export function filterAiTextEntries<T>(
   enabled: boolean = AI_TEXT_FEATURES_ENABLED,
 ): T[] {
   return enabled ? [...items] : items.filter(item => !isAiText(item));
+}
+
+/** Drops Text-to-Speech entries while retaining their source definitions. */
+export function filterTextToSpeechEntries<T>(
+  items: readonly T[],
+  isTextToSpeech: (item: T) => boolean,
+  enabled: boolean = TEXT_TO_SPEECH_ENABLED,
+): T[] {
+  return enabled ? [...items] : items.filter(item => !isTextToSpeech(item));
 }

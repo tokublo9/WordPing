@@ -19,12 +19,12 @@ test('the client mirrors the Worker limits exactly', () => {
 });
 
 test('Basic is metered and Premium has no monthly product quota', () => {
-  assert.deepEqual(VOICE_MONTHLY_LIMITS, { free: 0, basic: 100, premium: null });
+  assert.deepEqual(VOICE_MONTHLY_LIMITS, { free: 0, basic: 200, premium: null });
 });
 
 test('Basic renders a count and Premium defers to the included symbol', () => {
-  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US'), '100 / month');
-  assert.equal(formatVoiceMonthlyLimit('basic', 'ja'), '月100回');
+  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US'), '200 / month');
+  assert.equal(formatVoiceMonthlyLimit('basic', 'ja'), '月200回');
   // null tells the table to render its shared circle rather than a number.
   assert.equal(formatVoiceMonthlyLimit('premium', 'en-US'), null);
   assert.equal(formatVoiceMonthlyLimit('premium', 'ja'), null);
@@ -41,13 +41,13 @@ test('the Basic value is short enough for an iPhone SE column', () => {
 
 test('a Basic user at the voice limit gets the voice message and the upgrade', () => {
   const message = buildQuotaMessage(
-    { limit: 100, used: 100, resetsAt: '2026-09-01T00:00:00.000Z', tier: 'basic' },
+    { limit: 200, used: 200, resetsAt: '2026-09-01T00:00:00.000Z', tier: 'basic' },
     'en-US',
   );
   assert.equal(message.titleKey, 'err_voice_limit_title');
   assert.equal(message.bodyKey, 'err_voice_limit_basic');
   assert.equal(message.offerUpgrade, true);
-  assert.equal(message.values.limit, '100');
+  assert.equal(message.values.limit, '200');
   // The reset date is available where the UI wants it.
   assert.match(message.values.date, /September|2026/u);
 });

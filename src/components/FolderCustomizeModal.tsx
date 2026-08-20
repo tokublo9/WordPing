@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette } from '../types';
@@ -64,6 +64,7 @@ export function FolderCustomizeModal({
 
   const slideY          = useRef(new Animated.Value(SCREEN_H)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const closingRef      = useRef(false);
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -75,6 +76,7 @@ export function FolderCustomizeModal({
 
   useEffect(() => {
     if (visible) {
+      closingRef.current = false;
       setSelectedIcon(currentValue);
       setEditName(folderName);
       slideY.setValue(SCREEN_H);
@@ -86,14 +88,21 @@ export function FolderCustomizeModal({
     }
   }, [visible, currentValue, folderName]);
 
-  const close = () => {
+  const close = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    Keyboard.dismiss();
     Animated.parallel([
       Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: false }),
       Animated.timing(slideY, { toValue: SCREEN_H, duration: 220, useNativeDriver: false }),
-    ]).start(() => onClose());
-  };
+    ]).start(({ finished }) => {
+      if (finished) onClose();
+      else closingRef.current = false;
+    });
+  }, [backdropOpacity, onClose, slideY]);
 
   const handleSave = () => {
+    if (closingRef.current) return;
     if (mode === 'edit') {
       const trimmed = editName.trim();
       if (!trimmed) return;
@@ -131,7 +140,13 @@ export function FolderCustomizeModal({
               {/* Header */}
               <View style={styles.headerRow}>
                 <Text style={[styles.headerTitle, { color: pal.text }]}>{title}</Text>
-                <TouchableOpacity onPress={handleSave} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity
+                  style={styles.headerCloseButton}
+                  onPress={close}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('close')}
+                >
                   <Ionicons name="close" size={22} color={pal.sub} />
                 </TouchableOpacity>
               </View>
@@ -277,6 +292,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
+  },
+  headerCloseButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    elevation: 2,
   },
   scrollContent: {
     paddingHorizontal: 24,

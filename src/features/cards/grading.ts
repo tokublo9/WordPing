@@ -29,9 +29,7 @@ const NEXT_REVIEW_DELAY_MS: Record<AnswerKind, number | null> = {
  * How long each grade hides the card from the learning views, with "Sync with
  * test results" on. `null` means the grade never hides.
  *
- * The single mapping from grade to hide duration. `perfect` is null because it
- * deletes rather than hides; `unknown` is null because a word the user could
- * not recall has to stay in front of them.
+ * Perfect is handled as a delete before this mapping; unknown remains visible.
  */
 const HIDE_MS: Record<AnswerKind, number | null> = {
   perfect:  null,
@@ -43,41 +41,37 @@ const HIDE_MS: Record<AnswerKind, number | null> = {
 /**
  * The hide half of a patch, or nothing.
  *
- * Returns an empty object when the toggle is off, so no `hiddenUntil` is ever
+ * Returns an empty object when the toggle is off, so `hiddenUntil` is not
  * created or changed and the existing scoring behaviour is untouched.
  */
-function hidePatch(kind: AnswerKind, now: number, syncTestResults: boolean): { hiddenUntil?: number } {
+function hidePatch(kind: AnswerKind, now: number, syncTestResults: boolean): Pick<WordCard, 'hiddenUntil'> | {} {
+  if (!syncTestResults) return {};
   const duration = HIDE_MS[kind];
-  if (!syncTestResults || duration === null) return {};
-  return { hiddenUntil: hiddenUntilFor(now, duration) };
+  return duration === null
+    ? { hiddenUntil: undefined }
+    : { hiddenUntil: hiddenUntilFor(now, duration) };
 }
 
 export interface GradeOptions {
   now: number;
   /**
    * "Sync with test results". On: Perfect deletes, Pretty good hides for 72 h,
-   * Not really hides for 24 h, Don't know is unchanged. Off: nothing is deleted
-   * and no hiddenUntil is written.
+   * Not really hides for 24 h, Don't know is visible. Off: no sync-controlled
+   * visibility state is changed.
    */
   syncTestResults: boolean;
-  /** Whether the caller supplied the app's canonical delete path. */
-  canDelete: boolean;
 }
 
 export function gradeCard(
   card: Pick<WordCard, 'reviewHistory'>,
   kind: AnswerKind,
-  { now, syncTestResults, canDelete }: GradeOptions,
+  { now, syncTestResults }: GradeOptions,
 ): GradeOutcome {
   const entry: ReviewEntry = { ts: now, rating: kind };
   const reviewHistory: ReviewEntry[] = [...(card.reviewHistory ?? []), entry];
 
   if (kind === 'perfect') {
-    // Deleted through the app's canonical path, so folder links, notes, labels,
-    // review history, cached audio and notification rescheduling are all
-    // cleaned up by the existing rules. No update follows: the row is gone, and
-    // writing to it would resurrect a partial record.
-    if (syncTestResults && canDelete) return { action: 'delete' };
+    if (syncTestResults) return { action: 'delete' };
     return { action: 'update', patch: { testMastered: true, testLevel: 'perfect', reviewHistory } };
   }
 
@@ -107,6 +101,8 @@ export function gradeCard(
     };
   }
 
-  // "Don't know" never hides and never deletes: the card stays visible.
-  return { action: 'update', patch: { testLevel: 'unknown', reviewHistory } };
+  return {
+    action: 'update',
+    patch: { testLevel: 'unknown', reviewHistory, ...hidePatch(kind, now, syncTestResults) },
+  };
 }

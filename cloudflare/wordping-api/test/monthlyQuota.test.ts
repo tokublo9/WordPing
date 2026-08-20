@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_LIMITS } from '../src/config';
 import { handleRequest } from '../src/index';
 import { VOICE_MONTHLY_LIMITS, monthKey, monthResetsAt } from '../src/planLimits';
 import {
@@ -42,7 +43,14 @@ async function call(env: ReturnType<typeof makeEnv>, path = '/v1/voice/card', bo
 
 describe('monthly limits are centrally defined', () => {
   it('meters Basic and leaves Premium without a monthly product quota', () => {
-    expect(VOICE_MONTHLY_LIMITS).toEqual({ free: 0, basic: 100, premium: null });
+    expect(VOICE_MONTHLY_LIMITS).toEqual({ free: 0, basic: 200, premium: null });
+  });
+
+  it('keeps Premium at the requested 20/minute and 300/day abuse limits', () => {
+    expect(DEFAULT_LIMITS.voice_card.premium).toMatchObject({
+      maxRequestsPerMinute: 20,
+      maxRequestsPerDay: 300,
+    });
   });
 
   it('accounts by UTC calendar month', () => {
@@ -63,7 +71,7 @@ describe('quota enforcement', () => {
     expect(calls.some(c => c.url.includes('openai.com'))).toBe(false);
   });
 
-  it('Basic gets exactly 100 requests, and the 101st is refused', async () => {
+  it('Basic gets exactly 200 requests, and the 201st is refused', async () => {
     mockFetch(upstreams(BASIC));
     const env = makeEnv();
     // Raise the per-minute/day limiter so only the monthly quota binds.
@@ -72,7 +80,7 @@ describe('quota enforcement', () => {
       JSON.stringify({ voice_card: { basic: { maxRequestsPerMinute: 100000, maxRequestsPerDay: 100000, maxCharsPerDay: 100000000 } } }),
     );
 
-    for (let i = 0; i < 100; i += 1) {
+    for (let i = 0; i < 200; i += 1) {
       expect((await call(env)).status).toBe(200);
     }
 
@@ -80,8 +88,8 @@ describe('quota enforcement', () => {
     expect(blocked.status).toBe(429);
     await expect(blocked.json()).resolves.toMatchObject({
       error: 'monthly_api_limit_reached',
-      limit: 100,
-      used: 100,
+      limit: 200,
+      used: 200,
       tier: 'basic',
     });
   });
@@ -133,13 +141,13 @@ describe('quota enforcement', () => {
     await env.WORDPING_KV.put('config:limits', JSON.stringify({ voice_card: { basic: { maxRequestsPerMinute: 100000 } } }));
     await call(env); // creates the counter under its hashed key
     const counterKey = env.WORDPING_KV.keysStartingWith(key)[0]!;
-    await env.WORDPING_KV.put(counterKey, '100');
+    await env.WORDPING_KV.put(counterKey, '200');
 
     const blocked = await call(env);
     const body = (await blocked.json()) as Record<string, unknown>;
     expect(body.error).toBe('monthly_api_limit_reached');
-    expect(body.limit).toBe(100);
-    expect(body.used).toBe(100);
+    expect(body.limit).toBe(200);
+    expect(body.used).toBe(200);
     expect(typeof body.resetsAt).toBe('string');
     expect(Date.parse(body.resetsAt as string)).toBeGreaterThan(Date.now());
     // No secrets or upstream payloads leak.
@@ -154,7 +162,7 @@ describe('quota enforcement', () => {
     await call(env);
 
     const augustKey = env.WORDPING_KV.keysStartingWith('quota:')[0]!;
-    await env.WORDPING_KV.put(augustKey, '100');
+    await env.WORDPING_KV.put(augustKey, '200');
     expect((await call(env)).status).toBe(429);
 
     // A new month uses a new key, so the allowance is whole again.
@@ -240,8 +248,8 @@ describe('what is not counted', () => {
     expect(usedAfter).toBe(usedBefore);
   });
 
-  it('a cached voice preview is not counted, but a cache miss is', async () => {
-    mockFetch(upstreams(BASIC));
+  it('voice-picker previews never count, and cached replay avoids OpenAI', async () => {
+    const { calls } = mockFetch(upstreams(BASIC));
     const env = makeEnv();
 
     const first = makeCtx();
@@ -250,13 +258,14 @@ describe('what is not counted', () => {
     await miss.arrayBuffer();
     await settle(first);
 
-    const quotaKey = env.WORDPING_KV.keysStartingWith('quota:')[0]!;
-    expect(Number(await env.WORDPING_KV.get(quotaKey))).toBe(1);
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
+    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
 
     const hit = await handleRequest(makeRequest('/v1/voice/sample', { body: { voice: 'marin' } }), env, makeCtx());
     expect(hit.headers.get('X-WordPing-Cache')).toBe('hit');
-    // Served from KV, no OpenAI call, so still 1.
-    expect(Number(await env.WORDPING_KV.get(quotaKey))).toBe(1);
+    // Served from KV, so it remains quota-free and makes no second OpenAI call.
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
+    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
   });
 
   it('an upstream OpenAI failure is counted, so a failing retry cannot loop for free', async () => {
@@ -281,7 +290,7 @@ describe('concurrency', () => {
     // Sit one below the limit, then fire a burst at it.
     await call(env);
     const quotaKey = env.WORDPING_KV.keysStartingWith('quota:')[0]!;
-    await env.WORDPING_KV.put(quotaKey, '99');
+    await env.WORDPING_KV.put(quotaKey, '199');
 
     const results = await Promise.all(Array.from({ length: 12 }, () => call(env)));
     const succeeded = results.filter(r => r.status === 200).length;

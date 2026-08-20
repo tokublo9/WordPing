@@ -39,7 +39,8 @@ export function useAppSettings(): AppSettingsState {
   const [showFullCard, setShowFullCard] = useState(false);
   const [verticalFlip, setVerticalFlip] = useState(false);
   const [hideAiTools, setHideAiTools]   = useState(false);
-  // Off by default for existing and new users; Test Mode behaves as before.
+  // Dormant saved preference retained for a possible future UI restoration.
+  // Test Mode currently uses SYNC_WITH_TEST_RESULTS_ENABLED instead.
   const [syncTestResults, setSyncTestResults] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 

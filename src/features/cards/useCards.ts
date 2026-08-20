@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import type { ReviewEntry, WordCard } from '../../types';
-import { CLEAR_HIDE, nextHideExpiry, visibleCards } from './visibility';
+import { appNow } from '../../lib/appClock';
+import { CLEAR_HIDE, cardsForVisibility, nextHideExpiry } from './visibility';
 import { translate } from '../../i18n';
 import {
-  ALL_LEVEL_KEYS,
   isLevelFilterKey,
-  type LevelFiltersByFolder,
+  toggleActiveResultFilter,
+  type ActiveResultFilter,
+  type ActiveResultFiltersByFolder,
 } from './levels';
 import { createId } from '../../utils/createId';
 import {
@@ -28,8 +30,8 @@ export interface UseCardsParams {
   currentFolderId: string | null;
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
-  levelFiltersByFolder: LevelFiltersByFolder;
-  setLevelFiltersByFolder: Dispatch<SetStateAction<LevelFiltersByFolder>>;
+  activeResultFiltersByFolder: ActiveResultFiltersByFolder;
+  setActiveResultFiltersByFolder: Dispatch<SetStateAction<ActiveResultFiltersByFolder>>;
   onCardRegistered?(card: WordCard): void;
   onCardsDeleted?(ids: string[]): void;
 }
@@ -58,13 +60,13 @@ export interface UseCardsReturn {
   handleSortByLevel(dir: 'asc' | 'desc'): void;
   handleRegistrationOrder(): void;
   // Level filter
-  levelFilter: Set<string>;
-  isFilterActive: boolean;
-  toggleLevelFilter(level: string): void;
+  activeResultFilter: ActiveResultFilter;
+  toggleResultFilter(level: string): void;
   // Labels
   showLevelLabels: boolean;
   setShowLevelLabels: Dispatch<SetStateAction<boolean>>;
   // Derived card lists (computed from injected cards + currentFolderId)
+  allFolderCards: WordCard[];
   folderCards: WordCard[];
   filteredFolderCards: WordCard[];
   // View
@@ -117,8 +119,8 @@ export function useCards({
   currentFolderId,
   language,
   setMenuVisible,
-  levelFiltersByFolder,
-  setLevelFiltersByFolder,
+  activeResultFiltersByFolder,
+  setActiveResultFiltersByFolder,
   onCardRegistered,
   onCardsDeleted,
 }: UseCardsParams): UseCardsReturn {
@@ -170,8 +172,8 @@ export function useCards({
   // App render handed the list a new identity for unrelated state changes (a modal
   // opening, a banner, a subscription refresh), which re-ran the filter over every
   // card and made the virtualized list re-evaluate its cells.
-  // Temporarily hidden cards drop out of every learning view. They stay in
-  // SQLite and in backups — see features/cards/visibility.ts.
+  // Sync-hidden cards drop out of ordinary learning views. A selected result
+  // filter can reveal matching cards; all remain in SQLite and backups.
   //
   // A hide ends by wall-clock time, and nothing in `cards` changes at that
   // instant, so on its own this memo would keep serving the filtered array
@@ -180,42 +182,44 @@ export function useCards({
   // schedules one timeout at the next expiry and bumps it, which is the only
   // reason it is a dependency here.
   const [hideEpoch, setHideEpoch] = useState(0);
+  const allFolderCards = useMemo(
+    () => currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [],
+    [cards, currentFolderId],
+  );
   const folderCards = useMemo(
-    () => currentFolderId
-      ? visibleCards(cards.filter(c => c.folderId === currentFolderId)) as WordCard[]
-      : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hideEpoch is a clock tick, not a value read here
-    [cards, currentFolderId, hideEpoch],
+    () => cardsForVisibility(allFolderCards, {
+      now: appNow(),
+      activeResultFilter: null,
+    }) as WordCard[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hideEpoch is a clock signal, not a value read here
+    [allFolderCards, hideEpoch],
   );
 
   // One timer for the soonest hide, re-armed whenever it fires or the cards
-  // change. No polling, and nothing is written: `visibleCards` re-reads the
+  // change. No polling, and nothing is written: the selector re-reads the
   // stored timestamp, so a timer that fires late (the OS suspends them while
   // backgrounded) still produces the correct result.
   useEffect(() => {
-    const expiry = nextHideExpiry(cards);
+    const now = appNow();
+    const expiry = nextHideExpiry(cards, now);
     if (expiry === null) return;
     // A delay past setTimeout's 32-bit range fires immediately, which would
     // re-arm in a loop. A hide is 24 h, but an imported backup can carry any
     // timestamp, so clamp and let the effect re-arm from the shorter remainder.
-    const delay = Math.min(Math.max(0, expiry - Date.now()), 2_147_483_647);
+    const delay = Math.min(Math.max(0, expiry - now), 2_147_483_647);
     const timer = setTimeout(() => setHideEpoch(epoch => epoch + 1), delay);
     return () => clearTimeout(timer);
   }, [cards, hideEpoch]);
-  const levelFilter = useMemo<Set<string>>(
-    () => new Set(
-      currentFolderId
-        ? (levelFiltersByFolder[currentFolderId] ?? ALL_LEVEL_KEYS)
-        : ALL_LEVEL_KEYS,
-    ),
-    [currentFolderId, levelFiltersByFolder],
-  );
-  const isFilterActive = levelFilter.size < ALL_LEVEL_KEYS.length;
+  const activeResultFilter = currentFolderId
+    ? (activeResultFiltersByFolder[currentFolderId] ?? null)
+    : null;
   const filteredFolderCards = useMemo(
-    () => isFilterActive
-      ? folderCards.filter(c => levelFilter.has(c.testLevel ?? 'none'))
-      : folderCards,
-    [folderCards, isFilterActive, levelFilter],
+    () => cardsForVisibility(allFolderCards, {
+      now: appNow(),
+      activeResultFilter,
+    }) as WordCard[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- epochs wake time-dependent visibility
+    [allFolderCards, activeResultFilter, hideEpoch],
   );
 
   // ── Flip ─────────────────────────────────────────────────────────────────────
@@ -330,17 +334,22 @@ export function useCards({
   };
 
   // ── Level filter ──────────────────────────────────────────────────────────────
-  const toggleLevelFilter = (level: string) => {
+  const toggleResultFilter = (level: string) => {
     if (!currentFolderId || !isLevelFilterKey(level)) return;
-    setLevelFiltersByFolder(prev => {
-      const current = prev[currentFolderId] ?? ALL_LEVEL_KEYS;
-      const next = new Set(current);
-      next.has(level) ? next.delete(level) : next.add(level);
-      return {
-        ...prev,
-        [currentFolderId]: ALL_LEVEL_KEYS.filter(key => next.has(key)),
-      };
-    });
+    const nextFilter = toggleActiveResultFilter(activeResultFilter, level);
+    const firstCardId = cardsForVisibility(allFolderCards, {
+      now: appNow(),
+      activeResultFilter: nextFilter,
+    })[0]?.id ?? null;
+
+    // Both learning modes consume this shared ID. Publishing the first card in
+    // the destination view makes List scroll to index 0 and Flip center index 0
+    // for every filter-on, filter-switch and filter-off transition.
+    setCurrentWordId(firstCardId);
+    setActiveResultFiltersByFolder(prev => ({
+      ...prev,
+      [currentFolderId]: nextFilter,
+    }));
   };
 
   // ── Card-open tracking ────────────────────────────────────────────────────────
@@ -489,9 +498,9 @@ export function useCards({
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
     handleSortByLevel, handleRegistrationOrder,
-    levelFilter, isFilterActive, toggleLevelFilter,
+    activeResultFilter, toggleResultFilter,
     showLevelLabels, setShowLevelLabels,
-    folderCards, filteredFolderCards,
+    allFolderCards, folderCards, filteredFolderCards,
     cardViewMode, setCardViewMode, currentWordId, setCurrentWordId,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,

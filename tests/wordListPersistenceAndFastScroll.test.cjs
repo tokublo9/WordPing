@@ -21,20 +21,125 @@ function loadTypeScriptModule(path, mocks = {}) {
   return loaded.exports;
 }
 
-test('all five filters round-trip per folder and invalid storage falls back safely', () => {
+test('exclusive filters load new values and safely migrate legacy multi-select arrays', () => {
   const levels = loadTypeScriptModule('src/features/cards/levels.ts');
-  assert.deepEqual(levels.ALL_LEVEL_KEYS, ['perfect', 'good', 'slightly', 'unknown', 'none']);
+  assert.deepEqual(levels.ALL_LEVEL_KEYS, ['good', 'slightly', 'unknown', 'none']);
+  assert.deepEqual(levels.LEVEL_FILTER_OPTIONS.map(option => option.level), [
+    'good', 'slightly', 'unknown', 'none',
+  ]);
 
-  const restored = levels.parseLevelFiltersByFolder(JSON.stringify({
+  const restored = levels.parseActiveResultFiltersByFolder(JSON.stringify({
+    current: 'good',
+    cleared: null,
+    legacySingle: ['slightly'],
     alpha: ['none', 'perfect', 'perfect', 'unknown'],
     empty: [],
     corrupt: ['future-level'],
   }));
   assert.deepEqual(restored, {
-    alpha: ['perfect', 'unknown', 'none'],
-    empty: [],
+    current: 'good',
+    cleared: null,
+    legacySingle: 'slightly',
+    alpha: null,
+    empty: null,
   });
-  assert.deepEqual(levels.parseLevelFiltersByFolder('{broken'), {});
+  assert.deepEqual(levels.parseActiveResultFiltersByFolder('{broken'), {});
+});
+
+test('remaining colorful counts include sync-hidden cards and exclude Perfect', () => {
+  const levels = loadTypeScriptModule('src/features/cards/levels.ts');
+  assert.deepEqual(levels.countCardsByResult([
+    { testLevel: 'perfect' },
+    { testLevel: 'good', hiddenUntil: Date.now() + 100_000 },
+    { testLevel: 'slightly', hiddenUntil: Date.now() + 100_000 },
+    { testLevel: 'unknown' },
+    {},
+  ]), { good: 1, slightly: 1, unknown: 1, none: 1 });
+});
+
+test('regrading a retained card moves it between exactly one latest-result count', () => {
+  const levels = loadTypeScriptModule('src/features/cards/levels.ts');
+  const retained = { testLevel: 'good', hiddenUntil: Date.now() + 100_000 };
+  assert.deepEqual(levels.countCardsByResult([retained]), {
+    good: 1, slightly: 0, unknown: 0, none: 0,
+  });
+  retained.testLevel = 'slightly';
+  assert.deepEqual(levels.countCardsByResult([retained]), {
+    good: 0, slightly: 1, unknown: 0, none: 0,
+  });
+});
+
+test('the shared filter row has four accessible buttons with no Perfect gap', () => {
+  const levels = read('src/features/cards/levels.ts');
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const testMode = read('src/components/TestModeScreen.tsx');
+
+  assert.doesNotMatch(levels, /\{ level: 'perfect'/u);
+  assert.match(wordList, /LEVEL_FILTER_OPTIONS\.map/u);
+  assert.match(wordList, /chipGroup: \{[\s\S]*?gap: 8,/u);
+  assert.doesNotMatch(wordList, /filterStyles\.separator|filterStyles\.divider/u);
+  assert.match(wordList, /accessibilityRole="button"/u);
+  assert.match(wordList, /accessibilityLabel=\{`\$\{accessibilityLabel\}, \$\{count\}`\}/u);
+  assert.match(wordList, /accessibilityState=\{\{ selected: on \}\}/u);
+  assert.match(wordList, /const on = activeResultFilter === level;/u);
+
+  // Only the user-facing filter is gone; the Perfect grading answer remains.
+  assert.match(testMode, /\{ kind: 'perfect',[^\n]*labelKey: 'test_know_perfectly'/u);
+});
+
+test('the gray filter uses the same transparent structure and border width as every color', () => {
+  const levels = loadTypeScriptModule('src/features/cards/levels.ts');
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const gray = levels.LEVEL_FILTER_OPTIONS.find(option => option.level === 'none');
+
+  assert.deepEqual(gray, {
+    level: 'none',
+    icon: null,
+    color: '#6B7280',
+  });
+  assert.ok(levels.LEVEL_FILTER_OPTIONS.every(option => Object.keys(option).every(
+    key => ['level', 'icon', 'color'].includes(key),
+  )));
+  assert.match(wordList, /const FILTER_BORDER_WIDTH = 1;/u);
+  assert.match(wordList, /chip: \{[\s\S]*?borderWidth: FILTER_BORDER_WIDTH,[\s\S]*?backgroundColor: 'transparent',/u);
+  assert.match(wordList, /style=\{\[\s*filterStyles\.chip,\s*\{ borderColor: on \? color : pal\.border \},\s*\]\}/u);
+  assert.match(wordList, /const contentColor = on \? color : '#9CA3AF';/u);
+  assert.doesNotMatch(wordList, /selectedBorderWidth|selectedBackgroundColor|backgroundColor: '#FFFFFF'/u);
+  assert.match(wordList, /accessibilityRole="button"/u);
+  assert.match(wordList, /accessibilityState=\{\{ selected: on \}\}/u);
+});
+
+test('tapping filters is exclusive and tapping the active filter clears it', () => {
+  const levels = loadTypeScriptModule('src/features/cards/levels.ts');
+  const colors = ['good', 'slightly', 'unknown', 'none'];
+  for (const color of colors) {
+    assert.equal(levels.toggleActiveResultFilter(null, color), color);
+    assert.equal(levels.toggleActiveResultFilter(color, color), null);
+  }
+  for (const current of colors) {
+    for (const next of colors) {
+      if (current !== next) {
+        assert.equal(levels.toggleActiveResultFilter(current, next), next);
+      }
+    }
+  }
+
+  const useCards = read('src/features/cards/useCards.ts');
+  assert.match(
+    useCards,
+    /const nextFilter = toggleActiveResultFilter\(activeResultFilter, level\);/u,
+  );
+  assert.match(
+    useCards,
+    /const firstCardId = cardsForVisibility\(allFolderCards, \{\s*now: appNow\(\),\s*activeResultFilter: nextFilter,\s*\}\)\[0\]\?\.id \?\? null;/u,
+  );
+  assert.match(useCards, /setCurrentWordId\(firstCardId\);/u);
+  assert.match(useCards, /\[currentFolderId\]: nextFilter,/u);
+  assert.doesNotMatch(useCards, /new Set\(current\)|\.add\(level\)|\.delete\(level\)/u);
+  assert.match(
+    useCards,
+    /activeResultFilter: ActiveResultFilter;/u,
+  );
 });
 
 test('filters load before folders are exposed and persist without a navigation reset', () => {
@@ -45,15 +150,15 @@ test('filters load before folders are exposed and persist without a navigation r
 
   assert.match(bootstrap, /AsyncStorage\.getItem\(WORD_LIST_FILTERS_KEY\)/u);
   assert.ok(
-    bootstrap.indexOf('setLevelFiltersByFolder(parseLevelFiltersByFolder(rawLevelFilters))')
+    bootstrap.indexOf('setActiveResultFiltersByFolder(parseActiveResultFiltersByFolder(rawLevelFilters))')
       < bootstrap.indexOf('setFolders(migratedFolders)'),
     'saved filters must be queued before folders can be opened',
   );
   assert.match(
     persistence,
-    /AsyncStorage\.setItem\(WORD_LIST_FILTERS_KEY, JSON\.stringify\(levelFiltersByFolder\)\)/u,
+    /AsyncStorage\.setItem\(WORD_LIST_FILTERS_KEY, JSON\.stringify\(activeResultFiltersByFolder\)\)/u,
   );
-  assert.match(useCards, /levelFiltersByFolder\[currentFolderId\] \?\? ALL_LEVEL_KEYS/u);
+  assert.match(useCards, /activeResultFiltersByFolder\[currentFolderId\] \?\? null/u);
   assert.doesNotMatch(app, /resetLevelFilter/u);
 });
 

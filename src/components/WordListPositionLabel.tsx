@@ -15,14 +15,14 @@ interface Props {
   topContent: string;
   /** Shared 1-based position, used to keep List and Flip indicators identical. */
   currentIndex?: number;
-  /** Flip mode always shows its current position, including the first word. */
+  /** Whether to show the current position even while the list is at its first word. */
   showCurrentPosition?: boolean;
   style?: StyleProp<TextStyle>;
 }
 
 /**
- * The word list's top-left label. Reads "N words" at the top of the list and switches to
- * "28 / 350" once scrolled, naming the word currently at the top of the screen.
+ * The word list's top-left label. Shows the supplied count summary at the top and
+ * switches to "28 / 350" once scrolled, naming the word currently at the top.
  *
  * "At the top" is passed separately so the existing word-count summary remains visible
  * while the first word is at the top.

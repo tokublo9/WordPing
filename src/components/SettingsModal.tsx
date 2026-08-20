@@ -44,6 +44,13 @@ export const SETTINGS_DIVIDER_MARGIN = 17;
 
 /** Minimum touch target for the information buttons, per Apple HIG. */
 const INFO_BUTTON_TARGET = 44;
+/** Shared geometry for the remaining rows in Card Behavior only. */
+export const CARD_BEHAVIOR_ROW_HEIGHT = 52;
+export const CARD_BEHAVIOR_ROW_VERTICAL_PADDING = 4;
+export const CARD_BEHAVIOR_ICON_SIZE = 18;
+export const CARD_BEHAVIOR_ICON_WIDTH = 24;
+/** Keeps the info glyph secondary without weakening its 44pt touch target. */
+export const INFO_ICON_OPACITY = 0.62;
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
@@ -75,8 +82,6 @@ interface Props {
   onToggleVerticalFlip: (v: boolean) => void;
   hideAiTools: boolean;
   onToggleHideAiTools: (v: boolean) => void;
-  syncTestResults: boolean;
-  onToggleSyncTestResults: (v: boolean) => void;
   /** Re-read cards and folders after a backup import replaced them. */
   onDataReplaced: () => void;
 }
@@ -90,7 +95,6 @@ export function SettingsModal({
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
-  syncTestResults, onToggleSyncTestResults,
   onDataReplaced,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
@@ -102,9 +106,29 @@ export function SettingsModal({
   const [announcementsVisible, setAnnouncementsVisible] = useState(false);
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
   const [voicePickerVisible, setVoicePickerVisible] = useState(false);
-  // One slot for every information button in Settings. A second tap replaces
-  // the content rather than stacking a second modal, so only one can be open.
+  // Mounted content and native Modal visibility are deliberately separate.
+  // The content stays mounted throughout the fade-out and is cleared only once
+  // the native dismissal has completed.
   const [infoContent, setInfoContent] = useState<SettingsInfoContent | null>(null);
+  const [infoPopupVisible, setInfoPopupVisible] = useState(false);
+  const infoPopupClosing = useRef(false);
+
+  const showInfoPopup = useCallback((content: SettingsInfoContent) => {
+    infoPopupClosing.current = false;
+    setInfoContent(content);
+    setInfoPopupVisible(true);
+  }, []);
+
+  const closeInfoPopup = useCallback(() => {
+    if (infoPopupClosing.current) return;
+    infoPopupClosing.current = true;
+    setInfoPopupVisible(false);
+  }, []);
+
+  const dismissInfoPopup = useCallback(() => {
+    setInfoContent(null);
+    infoPopupClosing.current = false;
+  }, []);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
 
@@ -244,40 +268,39 @@ export function SettingsModal({
           </View>
           {isSubscribed && (
             <TouchableOpacity
-              style={styles.removeAdsRow}
+              style={styles.cardBehaviorRow}
               onPress={() => setVoicePickerVisible(true)}
               activeOpacity={0.7}
+              accessibilityRole="button"
               accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
             >
-              <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
-              <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
-              <Ionicons name="chevron-forward" size={15} color={pal.sub} />
+              <CardBehaviorIcon name="mic-outline" color={pal.sub} />
+              <View style={styles.titleAndInfo}>
+                <Text style={[styles.toggleLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
+              </View>
+              <View style={styles.voiceRowControl}>
+                <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
+                <Ionicons name="chevron-forward" size={15} color={pal.sub} />
+              </View>
             </TouchableOpacity>
           )}
           <ToggleRow
+            icon="reader-outline"
             label={t('show_full_card')}
             info={t('show_full_card_info')}
-            onShowInfo={setInfoContent}
+            onShowInfo={showInfoPopup}
             value={showFullCard}
             onToggle={onToggleShowFullCard}
             themeColor={themeColor}
             pal={pal}
           />
           <ToggleRow
+            icon="swap-vertical-outline"
             label={t('vertical_flip')}
             info={t('vertical_flip_info')}
-            onShowInfo={setInfoContent}
+            onShowInfo={showInfoPopup}
             value={verticalFlip}
             onToggle={onToggleVerticalFlip}
-            themeColor={themeColor}
-            pal={pal}
-          />
-          <ToggleRow
-            label={t('sync_test_results')}
-            info={t('sync_test_results_desc')}
-            onShowInfo={setInfoContent}
-            value={syncTestResults}
-            onToggle={onToggleSyncTestResults}
             themeColor={themeColor}
             pal={pal}
           />
@@ -327,8 +350,10 @@ export function SettingsModal({
         />
 
         <SettingsInfoPopup
+          visible={infoPopupVisible}
           content={infoContent}
-          onClose={() => setInfoContent(null)}
+          onClose={closeInfoPopup}
+          onDismiss={dismissInfoPopup}
           pal={pal}
           themeColor={themeColor}
         />
@@ -704,7 +729,16 @@ function SettingRow({ icon, label, value, onPress, pal }: {
 }
 
 // ── Toggle row ─────────────────────────────────────────────────────────────────
-function ToggleRow({ label, info, value, onToggle, onShowInfo, themeColor, pal }: {
+function CardBehaviorIcon({ name, color }: { name: IoniconName; color: string }) {
+  return (
+    <View style={styles.cardBehaviorIconColumn}>
+      <Ionicons name={name} size={CARD_BEHAVIOR_ICON_SIZE} color={color} />
+    </View>
+  );
+}
+
+function ToggleRow({ icon, label, info, value, onToggle, onShowInfo, themeColor, pal }: {
+  icon?: IoniconName;
   label: string;
   /** Full explanation for the popup. Supplying it renders the information button. */
   info?: string;
@@ -718,7 +752,8 @@ function ToggleRow({ label, info, value, onToggle, onShowInfo, themeColor, pal }
   const offTrackColor = getToggleOffTrackColor(pal.bg, pal.border);
   const showInfoButton = info !== undefined && onShowInfo !== undefined;
   return (
-    <View style={styles.toggleRow}>
+    <View style={icon ? styles.cardBehaviorRow : styles.toggleRow}>
+      {icon && <CardBehaviorIcon name={icon} color={pal.sub} />}
       {/* Title and its information button travel together as one group, so the
           icon reads as belonging to the setting rather than to the switch. The
           group takes the free space; the switch is the only thing on the right,
@@ -736,7 +771,12 @@ function ToggleRow({ label, info, value, onToggle, onShowInfo, themeColor, pal }
             accessibilityRole="button"
             accessibilityLabel={`${label}: ${t('info_button_label')}`}
           >
-            <Ionicons name="information-circle-outline" size={20} color={pal.sub} />
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={pal.sub}
+              style={styles.subtleInfoIcon}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -778,6 +818,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  subtleInfoIcon: { opacity: INFO_ICON_OPACITY },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
@@ -802,18 +843,31 @@ const styles = StyleSheet.create({
   voiceDescription: { fontSize: 13, lineHeight: 18, marginTop: 3 },
   previewButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
 
-  // One shared layout for all three Card Behavior rows. `alignItems: 'center'`
-  // puts the title, the information icon and the switch on the same horizontal
-  // centre line; the 44pt controls set the row height, so every row is the same
-  // height with the same vertical padding and no per-row offsets.
+  // Shared only by the four Card Behavior rows. The 44pt controls fit inside a
+  // 52pt row, reducing inter-row whitespace without shrinking any touch target.
+  cardBehaviorRow: {
+    minHeight: CARD_BEHAVIOR_ROW_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: CARD_BEHAVIOR_ROW_VERTICAL_PADDING,
+    gap: 8,
+  },
+  // Retained for the currently hidden Hide AI Tools row, so this task changes
+  // only the four named Card Behavior rows.
   toggleRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 },
-  titleAndInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  cardBehaviorIconColumn: {
+    width: CARD_BEHAVIOR_ICON_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleAndInfo: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+  voiceRowControl: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   // Deliberately NOT styles.rowLabel: that carries `flex: 1` for the plain
   // Settings rows, where the label is a direct child of a row. Here it used to
   // sit in a column wrapper, where `flex: 1` stretched the Text to the full
   // 44pt row height and rendered the title against its top edge — the upward
   // offset. `flexShrink` keeps a long title from pushing the icon off the row.
-  toggleLabel: { fontSize: 15, flexShrink: 1 },
+  toggleLabel: { fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' },
 
   // Appearance-disabled toast
   hintBanner: {

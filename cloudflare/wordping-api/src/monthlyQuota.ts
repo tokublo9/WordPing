@@ -11,9 +11,9 @@ import {
 /**
  * Monthly High-Quality AI Voice allowance.
  *
- * Applies to the voice *generation* routes only (see VOICE_QUOTA_FEATURES).
- * Basic gets 100 generations per UTC month; Premium has no monthly product
- * quota; Free cannot reach these routes at all.
+ * Applies to word-card voice generation only (see VOICE_QUOTA_FEATURES). Basic
+ * gets 200 generations per UTC month; Premium has no monthly product quota;
+ * Free cannot reach the metered route at all.
  *
  * Counted per RevenueCat App User ID, not per install: the allowance belongs to
  * the subscription, so reinstalling or adding a second device must not hand out
@@ -21,13 +21,12 @@ import {
  *
  * WHAT COUNTS: exactly one unit per generation accepted for upstream
  * processing — a request that has passed validation, entitlement verification,
- * the per-minute/day rate limits, and (for voice previews) missed the shared
- * cache. Everything else is free:
+ * the per-minute/day rate limits. Everything else is free:
  *
  *   - health checks and unknown routes            never reach this module
  *   - malformed or unauthorised requests          rejected before reserving
  *   - entitlement-verification failures (503)     rejected before reserving
- *   - voice previews served from the KV cache     no OpenAI call, no charge
+ *   - voice-picker previews, including cache miss outside monthly allowance
  *   - audio replayed from the client's file cache never reaches the Worker
  *   - free-plan device TTS (expo-speech)          never reaches the Worker
  *   - every non-voice route                       not a voice generation

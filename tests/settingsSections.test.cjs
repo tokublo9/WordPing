@@ -33,6 +33,20 @@ test('handler-level access still rejects an unentitled caller', () => {
   assert.match(section, /canUseBackup\(\{ isSubscribed, isSubscriptionLoaded \}\)/u);
 });
 
+test('Backup keeps its title and actions but renders no description or spacer', () => {
+  const section = read('src/components/BackupSection.tsx');
+  const settings = read('src/components/SettingsModal.tsx');
+
+  assert.match(settings, /\{t\('backup'\)\}/u);
+  assert.match(section, /t\('backup_export'\)/u);
+  assert.match(section, /t\('backup_import'\)/u);
+  assert.doesNotMatch(section, /t\('backup_desc'\)|styles\.description|description:\s*\{/u);
+
+  // Keep the translation for possible reuse; this is a UI removal, not broad
+  // translation cleanup.
+  assert.match(read('src/i18n.ts'), /backup_desc:/u);
+});
+
 test('Backup lives in App Info, not on the main Settings screen, and appears once', () => {
   const settings = read('src/components/SettingsModal.tsx');
   assert.equal((settings.match(/<BackupSection/gu) ?? []).length, 1, 'exactly one Backup section');
@@ -219,7 +233,7 @@ test('the "Hide AI" settings row is hidden without leaving a gap', () => {
 test('the plan comparison table contains none of the four AI rows', () => {
   const sheet = read('src/components/ProSheet.tsx');
   // Rows keep their definitions but are filtered through the shared helper.
-  assert.match(sheet, /const rows: TableRowData\[\] = filterAiTextEntries\(allRows, row => row\.aiText === true\);/u);
+  assert.match(sheet, /filterAiTextEntries\(allRows, row => row\.aiText === true\)/u);
   for (const key of ['cmp_ai_example', 'cmp_ai_breakdown', 'cmp_ai_meaning', 'cmp_ai_translation']) {
     assert.match(sheet, new RegExp(`t\\('${key}'\\)[^\\n]*aiText: true`, 'u'),
       `${key} must be marked aiText so it is filtered`);
@@ -236,7 +250,7 @@ test('the plan comparison table contains none of the four AI rows', () => {
 
 test('the Upgrade Plan sheet promotes none of the four AI features', () => {
   const sheet = read('src/components/ProSheet.tsx');
-  assert.match(sheet, /const FEATURE_SECTIONS: FeatureConfig\[\] = filterAiTextEntries\(\s*ALL_FEATURE_SECTIONS,\s*feature => isAiTextFeatureKey\(feature\.key\),\s*\);/u);
+  assert.match(sheet, /filterAiTextEntries\(\s*ALL_FEATURE_SECTIONS,\s*feature => isAiTextFeatureKey\(feature\.key\),\s*\)/u);
   // Definitions retained for re-enabling.
   for (const key of ['meaning', 'example', 'translate', 'breakdown']) {
     assert.match(sheet, new RegExp(`\\{ key: '${key}',`, 'u'), `${key} definition must remain`);
@@ -447,7 +461,7 @@ test('unrelated comparison rows keep their circle and cross rendering', () => {
 
 test('the four hidden AI rows remain absent from the table', () => {
   const sheet = read('src/components/ProSheet.tsx');
-  assert.match(sheet, /const rows: TableRowData\[\] = filterAiTextEntries\(allRows, row => row\.aiText === true\);/u);
+  assert.match(sheet, /filterAiTextEntries\(allRows, row => row\.aiText === true\)/u);
   for (const key of ['cmp_ai_example', 'cmp_ai_breakdown', 'cmp_ai_meaning', 'cmp_ai_translation']) {
     assert.match(sheet, new RegExp(`t\\('${key}'\\)[^\\n]*aiText: true`, 'u'));
   }
@@ -472,7 +486,8 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   const limits = read('cloudflare/wordping-api/src/planLimits.ts');
 
   // Only the High-Quality AI Voice generation routes are metered.
-  assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card', 'voice_sample'\]/u);
+  assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\]/u);
+  assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
   assert.match(pipeline, /const meteredForVoice = isVoiceQuotaFeature\(spec\.feature\);/u);
   assert.match(pipeline, /if \(!meteredForVoice\) return null;/u);
 
@@ -546,23 +561,26 @@ test('Priority Support is Premium-only, from a single definition', () => {
 
 // ── Sync with test results ───────────────────────────────────────────────────
 
-test('the toggle sits directly below Vertical Flip and defaults to off', () => {
+test('Sync is absent from Settings and enabled from one internal flag', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  assert.match(
-    settings,
-    /value=\{verticalFlip\}[\s\S]{0,160}\/>\s*<ToggleRow\s*label=\{t\('sync_test_results'\)\}/u,
-    'the toggle must render immediately after Vertical Flip',
-  );
-  // Off by default for existing and new users.
+  assert.doesNotMatch(settings, /sync_test_results|syncTestResults|onToggleSyncTestResults|sync-outline/u);
+  assert.doesNotMatch(read('src/app/AppModals.tsx'), /settingsModal\.syncTestResults|onToggleSyncTestResults/u);
+  assert.doesNotMatch(read('App.tsx'), /onToggleSyncTestResults/u);
+
+  const flags = read('src/features/flags.ts');
+  assert.match(flags, /export const SYNC_WITH_TEST_RESULTS_ENABLED = true;/u);
+  const screen = read('src/components/TestModeScreen.tsx');
+  assert.match(screen, /import \{ SYNC_WITH_TEST_RESULTS_ENABLED \} from '\.\.\/features\/flags';/u);
+  assert.match(screen, /syncTestResults: SYNC_WITH_TEST_RESULTS_ENABLED,/u);
+  assert.doesNotMatch(screen, /syncTestResults\??: boolean|syncTestResults = false/u);
+
+  // The dormant preference remains available for a future restoration.
   assert.match(read('src/app/useAppSettings.ts'), /const \[syncTestResults, setSyncTestResults\] = useState\(false\);/u);
-  // Absent storage means off.
-  assert.match(read('src/app/useAppBootstrap.ts'), /if \(rawSyncTest === 'true'\) setSyncTestResults\(true\);/u);
-  // Persisted through the existing architecture, never sent anywhere.
   assert.match(read('src/app/useAppPersistence.ts'), /AsyncStorage\.setItem\(SYNC_TEST_RESULTS_KEY/u);
   assert.doesNotMatch(read('src/lib/api/client.ts'), /syncTestResults/u);
 });
 
-test('the toggle is accessible', () => {
+test('the remaining toggles are accessible', () => {
   // The row supplies the label and hint; the shared control owns the semantics.
   const settings = read('src/components/SettingsModal.tsx');
   assert.match(settings, /accessibilityLabel=\{label\}/u);
@@ -576,17 +594,19 @@ test('the toggle is accessible', () => {
 
 // ── Compact Settings switches ────────────────────────────────────────────────
 
-test('exactly the three Settings toggles use the compact control', () => {
+test('exactly the two visible Settings toggles use the compact control', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // One shared component, used once inside ToggleRow — not three transforms.
   assert.equal((settings.match(/<CompactSwitch/gu) ?? []).length, 1);
   assert.doesNotMatch(settings, /<Switch\b/u);
   assert.doesNotMatch(settings, /transform: \[\{ scale/u);
 
-  // ToggleRow renders exactly the three visible Card Behavior toggles.
-  const rows = [...settings.matchAll(/<ToggleRow\s+label=\{t\('([a-z_]+)'\)\}/gu)].map(m => m[1]);
-  assert.deepEqual(rows, ['show_full_card', 'vertical_flip', 'sync_test_results', 'hide_ai_tools']);
-  // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
+  // ToggleRow defines the two visible Card Behavior toggles plus dormant Hide AI.
+  const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
+    .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
+    .filter(Boolean);
+  assert.deepEqual(rows, ['show_full_card', 'vertical_flip', 'hide_ai_tools']);
+  // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so two render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
 
   // Nothing else in the app adopts it by accident.
@@ -604,31 +624,34 @@ test('the compact switch keeps a 44x44 target and does not shrink the text', () 
   assert.match(control, /control: \{ transform: \[\{ scale: COMPACT_SWITCH_SCALE \}\] \}/u);
   assert.doesNotMatch(control, /overflow: 'hidden'/u);
 
-  // Row height and the label/description type sizes are untouched.
+  // The remaining Card Behavior rows use the shared compact row without changing
+  // the control's own target.
   const settings = read('src/components/SettingsModal.tsx');
-  assert.match(settings, /toggleRow: \{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 \}/u);
+  assert.match(settings, /export const CARD_BEHAVIOR_ROW_HEIGHT = 52;/u);
+  assert.match(settings, /export const CARD_BEHAVIOR_ROW_VERTICAL_PADDING = 4;/u);
+  assert.match(settings, /minHeight: CARD_BEHAVIOR_ROW_HEIGHT,/u);
+  assert.match(settings, /paddingVertical: CARD_BEHAVIOR_ROW_VERTICAL_PADDING,/u);
   // The title keeps the same 15pt size the plain Settings rows use.
-  assert.match(settings, /toggleLabel: \{ fontSize: 15, flexShrink: 1 \}/u);
+  assert.match(settings, /toggleLabel: \{ fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' \}/u);
   assert.match(settings, /rowLabel: \{ flex: 1, fontSize: 15 \}/u);
 });
 
-test('toggle state and persistence are unchanged', () => {
+test('remaining toggle state is unchanged and the dormant Sync preference is preserved', () => {
   const settings = read('src/components/SettingsModal.tsx');
   for (const [value, handler] of [
     ['showFullCard', 'onToggleShowFullCard'],
     ['verticalFlip', 'onToggleVerticalFlip'],
-    ['syncTestResults', 'onToggleSyncTestResults'],
   ]) {
     assert.match(settings, new RegExp(`value=\\{${value}\\}\\s*onToggle=\\{${handler}\\}`, 'u'));
   }
-  // The same three AsyncStorage writers still run.
+  // Existing storage remains intact, including dormant Sync data.
   const persistence = read('src/app/useAppPersistence.ts');
   for (const key of ['SHOW_FULL_CARD_KEY', 'VERTICAL_FLIP_KEY', 'SYNC_TEST_RESULTS_KEY']) {
     assert.match(persistence, new RegExp(`AsyncStorage\\.setItem\\(${key}`, 'u'));
   }
 });
 
-test('the toggle copy is translated in English and Japanese', () => {
+test('the dormant Sync copy is retained in English and Japanese', () => {
   const i18n = read('src/i18n.ts');
   assert.match(i18n, /sync_test_results:          'Sync with test results',/u);
   assert.match(i18n, /sync_test_results:          'テスト結果と連動',/u);
@@ -636,11 +659,11 @@ test('the toggle copy is translated in English and Japanese', () => {
   // The complete explanation, used by the information popup.
   assert.match(
     i18n,
-    /sync_test_results_desc:     'Links your test results with your word list\. Perfect permanently deletes the card, Pretty good shows it again after 3 days, Not really shows it again after 1 day, and Don’t know leaves it unchanged\.',/u,
+    /sync_test_results_desc:     'Links test results with your word list\. Perfect permanently deletes the card, Pretty good returns after 3 days, Not really returns after 1 day, and Don’t know stays visible\.',/u,
   );
   assert.match(
     i18n,
-    /sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodでは3日後、Not reallyでは1日後に再表示します。Don’t knowではそのまま残ります。',/u,
+    /sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodは3日後、Not reallyは1日後に再表示されます。Don’t knowは表示されたままです。',/u,
   );
 });
 
@@ -672,7 +695,7 @@ test('no conflicting older Sync description survives', () => {
   assert.equal((i18n.match(/sync_test_results_desc:/gu) ?? []).length, 2);
 });
 
-test('exactly three Settings rows carry an information button', () => {
+test('exactly two Settings rows carry an information button', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // The button is rendered once, inside ToggleRow, gated on `info` being given.
   // (The same icon also names the App Info and App version rows, which are
@@ -681,10 +704,10 @@ test('exactly three Settings rows carry an information button', () => {
   assert.equal((toggleRow.match(/information-circle-outline/gu) ?? []).length, 1);
   assert.match(settings, /const showInfoButton = info !== undefined && onShowInfo !== undefined;/u);
 
-  const withInfo = [...settings.matchAll(/<ToggleRow\s+label=\{t\('([a-z_]+)'\)\}[\s\S]{0,400}?\/>/gu)]
-    .filter(match => match[0].includes('info={t('))
-    .map(match => match[1]);
-  assert.deepEqual(withInfo, ['show_full_card', 'vertical_flip', 'sync_test_results']);
+  const withInfo = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
+    .filter(match => match[1].includes('info={t('))
+    .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]);
+  assert.deepEqual(withInfo, ['show_full_card', 'vertical_flip']);
 
   // No unrelated row gets one: SettingRow and the plain rows are untouched.
   const settingRow = settings.slice(settings.indexOf('function SettingRow'), settings.indexOf('// ── Toggle row'));
@@ -694,11 +717,31 @@ test('exactly three Settings rows carry an information button', () => {
   assert.doesNotMatch(settings, /label=\{t\('hide_ai_tools'\)\}[\s\S]{0,200}info=\{/u);
 });
 
-test('all three toggle rows use the same title-info-switch layout', () => {
+test('exactly three Card Behavior rows use the compact shared layout and aligned icon column', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  const rows = [...settings.matchAll(/<ToggleRow\s+label=\{t\('([a-z_]+)'\)\}[\s\S]{0,400}?\/>/gu)]
-    .filter(match => match[0].includes('info={t('));
-  assert.deepEqual(rows.map(match => match[1]), ['show_full_card', 'vertical_flip', 'sync_test_results']);
+  const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
+    .filter(match => match[1].includes('info={t('));
+  assert.deepEqual(
+    rows.map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]),
+    ['show_full_card', 'vertical_flip'],
+  );
+
+  // Natural AI Voice plus the two icon-bearing toggles are the only named
+  // rows that opt into cardBehaviorRow. The hidden Hide AI Tools row retains
+  // its previous layout and has no icon prop.
+  assert.match(settings, /style=\{styles\.cardBehaviorRow\}[\s\S]{0,500}t\('feature_ai_voice'\)/u);
+  const iconRows = [...settings.matchAll(/<ToggleRow\s+icon="([^"]+)"\s+label=\{t\('([a-z_]+)'\)\}/gu)];
+  assert.deepEqual(iconRows.map(match => [match[2], match[1]]), [
+    ['show_full_card', 'reader-outline'],
+    ['vertical_flip', 'swap-vertical-outline'],
+  ]);
+  assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\} \/>/u);
+  assert.doesNotMatch(settings, /icon="eye-off-outline"/u);
+
+  assert.match(settings, /export const CARD_BEHAVIOR_ICON_SIZE = 18;/u);
+  assert.match(settings, /export const CARD_BEHAVIOR_ICON_WIDTH = 24;/u);
+  assert.match(settings, /width: CARD_BEHAVIOR_ICON_WIDTH,/u);
+  assert.match(settings, /<Ionicons name=\{name\} size=\{CARD_BEHAVIOR_ICON_SIZE\} color=\{color\} \/>/u);
 
   // No row renders a subtitle, and the prop that produced one is gone, so no
   // row can reintroduce a second line and break the shared height.
@@ -706,8 +749,8 @@ test('all three toggle rows use the same title-info-switch layout', () => {
   assert.doesNotMatch(settings, /toggleDesc|toggleText/u);
 
   // One shared layout: the group takes the free space, the switch is the only
-  // thing on the right, so all three switches share a right edge.
-  assert.match(settings, /titleAndInfo: \{ flex: 1, flexDirection: 'row', alignItems: 'center' \}/u);
+  // thing on the right, so both switches share a right edge.
+  assert.match(settings, /titleAndInfo: \{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' \}/u);
   assert.match(
     settings,
     /<View style=\{styles\.titleAndInfo\}>\s*<Text style=\{\[styles\.toggleLabel, \{ color: pal\.text \}\]\}>\{label\}<\/Text>/u,
@@ -716,11 +759,11 @@ test('all three toggle rows use the same title-info-switch layout', () => {
   assert.match(settings, /<View style=\{styles\.titleAndInfo\}>[\s\S]{0,900}styles\.infoButton[\s\S]{0,600}<\/View>\s*\{\/\*/u);
 
   // Centred on one line, with no per-row offsets anywhere.
-  assert.match(settings, /toggleRow: \{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 \}/u);
+  assert.match(settings, /minHeight: CARD_BEHAVIOR_ROW_HEIGHT,[\s\S]{0,180}paddingVertical: CARD_BEHAVIOR_ROW_VERTICAL_PADDING,/u);
   assert.doesNotMatch(settings, /styles\.toggleRow[\s\S]{0,200}marginTop:/u);
   // The title must not carry flex: 1 — that is what stretched it to the top of
   // the row and produced the upward offset.
-  assert.match(settings, /toggleLabel: \{ fontSize: 15, flexShrink: 1 \}/u);
+  assert.match(settings, /toggleLabel: \{ fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' \}/u);
   assert.doesNotMatch(settings, /toggleLabel: \{[^}]*flex: 1/u);
 
   // VoiceOver still reaches the explanation through the switch's hint.
@@ -733,12 +776,11 @@ test('all three toggle rows use the same title-info-switch layout', () => {
   assert.match(i18n, /vertical_flip_desc:/u);
 });
 
-test('each button opens its own description, and the toggle is untouched', () => {
+test('each remaining button opens its own description, and its toggle is untouched', () => {
   const settings = read('src/components/SettingsModal.tsx');
   for (const [row, body] of [
     ['show_full_card', 'show_full_card_info'],
     ['vertical_flip', 'vertical_flip_info'],
-    ['sync_test_results', 'sync_test_results_desc'],
   ]) {
     assert.match(
       settings,
@@ -749,22 +791,34 @@ test('each button opens its own description, and the toggle is untouched', () =>
   assert.match(settings, /onPress=\{\(\) => onShowInfo\(\(\{ title: label, body: info \}\)\)\}/u);
   // The information button is a separate touchable from the switch, so neither
   // tap can reach the other.
-  assert.match(settings, /<TouchableOpacity\s*style=\{styles\.infoButton\}[\s\S]{0,400}<\/TouchableOpacity>\s*\)\}/u);
+  assert.match(settings, /<TouchableOpacity\s*style=\{styles\.infoButton\}[\s\S]{0,700}<\/TouchableOpacity>\s*\)\}/u);
   assert.match(settings, /accessibilityRole="button"\s*accessibilityLabel=\{`\$\{label\}: \$\{t\('info_button_label'\)\}`\}/u);
 });
 
-test('only one popup can be open, and closing it changes no setting', () => {
+test('only one popup can be open, and dismissal keeps content mounted until completion', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  // A single content slot: a second tap replaces it rather than stacking.
+  // One content slot and one visibility flag: a second item replaces the slot,
+  // while closing changes only visibility until native dismissal completes.
   assert.match(settings, /const \[infoContent, setInfoContent\] = useState<SettingsInfoContent \| null>\(null\);/u);
+  assert.match(settings, /const \[infoPopupVisible, setInfoPopupVisible\] = useState\(false\);/u);
   assert.equal((settings.match(/<SettingsInfoPopup/gu) ?? []).length, 1);
-  assert.match(settings, /content=\{infoContent\}\s*onClose=\{\(\) => setInfoContent\(null\)\}/u);
+  assert.match(settings, /visible=\{infoPopupVisible\}\s*content=\{infoContent\}\s*onClose=\{closeInfoPopup\}\s*onDismiss=\{dismissInfoPopup\}/u);
+  assert.match(settings, /const closeInfoPopup = useCallback\(\(\) => \{\s*if \(infoPopupClosing\.current\) return;\s*infoPopupClosing\.current = true;\s*setInfoPopupVisible\(false\);/u);
+  assert.doesNotMatch(
+    settings.slice(settings.indexOf('const closeInfoPopup'), settings.indexOf('const activeLang')),
+    /setTimeout/u,
+  );
+  assert.match(settings, /const dismissInfoPopup = useCallback\(\(\) => \{\s*setInfoContent\(null\);/u);
 
   const popup = read('src/components/SettingsInfoPopup.tsx');
   // The popup neither reads nor writes any setting.
   assert.doesNotMatch(popup, /onToggle|onValueChange|Switch|setShowFullCard|setVerticalFlip|syncTestResults/u);
-  // Back button and outside tap both dismiss.
+  // System back, backdrop and OK all use the same guarded onClose path.
   assert.match(popup, /onRequestClose=\{onClose\}/u);
+  assert.equal((popup.match(/onPress=\{onClose\}/gu) ?? []).length, 2);
+  assert.match(popup, /onDismiss=\{onDismiss\}/u);
+  assert.match(popup, /Platform\.OS === 'android' && !visible && content !== null/u);
+  assert.doesNotMatch(popup, /setTimeout/u);
   assert.match(popup, /accessibilityViewIsModal/u);
   // Theme, safe area and wrapping.
   assert.match(popup, /backgroundColor: pal\.dialog/u);
@@ -778,6 +832,9 @@ test('both controls keep a 44x44 target and the switch styling is unchanged', ()
   const settings = read('src/components/SettingsModal.tsx');
   assert.match(settings, /const INFO_BUTTON_TARGET = 44;/u);
   assert.match(settings, /infoButton: \{\s*width: INFO_BUTTON_TARGET,\s*height: INFO_BUTTON_TARGET,/u);
+  assert.match(settings, /export const INFO_ICON_OPACITY = 0\.62;/u);
+  assert.match(settings, /style=\{styles\.subtleInfoIcon\}/u);
+  assert.match(settings, /subtleInfoIcon: \{ opacity: INFO_ICON_OPACITY \}/u);
 
   // The compact switch is exactly as it was.
   const control = read('src/components/CompactSwitch.tsx');
@@ -824,19 +881,17 @@ test('Settings dividers use one shared, tightened value', () => {
 
 // ── Test Mode grading behaviour ──────────────────────────────────────────────
 
-test('Perfect deletes through the canonical path only when the toggle is on', () => {
+test('Perfect deletes once through the canonical path only when Sync is on', () => {
   const grading = read('src/features/cards/grading.ts');
-  assert.match(grading, /if \(syncTestResults && canDelete\) return \{ action: 'delete' \};/u);
-  // Off keeps the previous behaviour exactly.
-  assert.match(
-    grading,
-    /return \{ action: 'update', patch: \{ testMastered: true, testLevel: 'perfect', reviewHistory \} \};/u,
-  );
+  assert.match(grading, /if \(syncTestResults\) return \{ action: 'delete' \};/u);
+  assert.match(grading, /testMastered: true, testLevel: 'perfect', reviewHistory/u);
+  assert.doesNotMatch(grading, /hiddenIndefinitely/u);
   // The screen owns no grading rule of its own and no second delete path.
   const screen = read('src/components/TestModeScreen.tsx');
   assert.doesNotMatch(screen, /setCards\(|DELETE FROM|deleteWord/u);
   assert.match(screen, /const outcome = gradeCard\(card, kind, \{/u);
-  // App passes the app's own deleteCard.
+  assert.match(screen, /if \(outcome\.action === 'delete'\) onDeleteCard\(card\.id\);/u);
+  assert.equal((screen.match(/onDeleteCard\(card\.id\)/gu) ?? []).length, 1);
   assert.match(read('App.tsx'), /onDeleteCard: deleteCard,/u);
 });
 
@@ -853,16 +908,16 @@ test('restarting the session makes every card answerable again', () => {
   assert.match(screen, /setSessionKey\(k => k \+ 1\);[\s\S]{0,400}gradedIdsRef\.current = new Set\(\);/u);
 });
 
-test('each grade hides for its own fixed period, only when the toggle is on', () => {
+test('each grade hides for its own fixed period when the sync option is enabled', () => {
   const grading = read('src/features/cards/grading.ts');
   // One mapping from grade to duration, so no call site can invent its own.
   assert.match(
     grading,
     /const HIDE_MS: Record<AnswerKind, number \| null> = \{\s*perfect:\s*null,\s*good:\s*PRETTY_GOOD_HIDE_MS,\s*slightly:\s*NOT_REALLY_HIDE_MS,\s*unknown:\s*null,\s*\};/u,
   );
-  // Off means no hiddenUntil is created or changed at all.
-  assert.match(grading, /if \(!syncTestResults \|\| duration === null\) return \{\};/u);
-  assert.match(grading, /return \{ hiddenUntil: hiddenUntilFor\(now, duration\) \};/u);
+  // Off means no sync visibility field is created or changed at all.
+  assert.match(grading, /if \(!syncTestResults\) return \{\};/u);
+  assert.match(grading, /hiddenUntil: hiddenUntilFor\(now, duration\)/u);
 
   const visibility = read('src/features/cards/visibility.ts');
   assert.match(visibility, /export const PRETTY_GOOD_HIDE_MS = 72 \* 60 \* 60 \* 1000;/u);
@@ -873,9 +928,7 @@ test('each grade hides for its own fixed period, only when the toggle is on', ()
   // Existing scoring is unchanged either way.
   assert.match(grading, /testNextReview: now \+ \(NEXT_REVIEW_DELAY_MS\.good as number\),\s*testLevel: 'good',/u);
   assert.match(grading, /testNextReview: now \+ \(NEXT_REVIEW_DELAY_MS\.slightly as number\),\s*testLevel: 'slightly',/u);
-  // Only Perfect deletes; no other grade may.
-  assert.match(grading, /if \(syncTestResults && canDelete\) return \{ action: 'delete' \};/u);
-  assert.equal((grading.match(/return \{ action: 'delete' \}/gu) ?? []).length, 1);
+  assert.equal((grading.match(/action: 'delete'/gu) ?? []).length, 2);
 });
 
 test('clearing a test result also lifts the hide it produced', () => {
@@ -883,9 +936,25 @@ test('clearing a test result also lifts the hide it produced', () => {
   // screen explaining why.
   assert.match(
     read('src/components/TestModeScreen.tsx'),
-    /testMastered: false, testNextReview: 0, testLevel: undefined, \.\.\.CLEAR_HIDE,/u,
+    /testMastered: false,\s*testNextReview: 0,\s*testLevel: undefined,\s*\.\.\.CLEAR_HIDE,/u,
   );
   assert.match(read('src/features/cards/useCards.ts'), /testMastered: undefined,\s*\/\/[^\n]*\n\s*\.\.\.CLEAR_HIDE,/u);
+});
+
+test('Test Mode Reset moves every existing folder card into the gray category', () => {
+  const app = read('App.tsx');
+  const modals = read('src/app/AppModals.tsx');
+  const screen = read('src/components/TestModeScreen.tsx');
+
+  // The ordinary queue still excludes temporarily hidden cards, while Reset
+  // deliberately receives the complete folder collection.
+  assert.match(app, /cards: folderCards,\s*resetCards: allFolderCards,/u);
+  assert.match(modals, /cards=\{testMode\.cards\}\s*resetCards=\{testMode\.resetCards\}/u);
+  assert.match(screen, /const resetQueue = resetCards\.map\(c => \(\{ \.\.\.c, \.\.\.resetPatch \}\)\);/u);
+  assert.match(screen, /resetCards\.forEach\(c => \{[\s\S]*?onUpdateCard\(c\.id, resetPatch\);/u);
+  assert.match(screen, /testLevel: undefined,[\s\S]*?\.\.\.CLEAR_HIDE,/u);
+  assert.match(screen, /restart\(resetQueue\);/u);
+  assert.doesNotMatch(screen, /cards\.forEach\(c => \{[\s\S]*?onUpdateCard\(c\.id/u);
 });
 
 test('reordering never drops a hidden card out of state', () => {
@@ -905,14 +974,20 @@ test('reordering never drops a hidden card out of state', () => {
   assert.match(read('App.tsx'), /onReorder: replaceFolderOrder,/u);
 });
 
-test('hidden cards are excluded from every learning view but kept in data', () => {
-  // Word List, Flip and search all derive from folderCards.
-  assert.match(read('src/features/cards/useCards.ts'), /visibleCards\(cards\.filter\(c => c\.folderId === currentFolderId\)\)/u);
+test('one selector hides ordinary cards but result filters override visibility', () => {
+  const useCards = read('src/features/cards/useCards.ts');
+  const visibility = read('src/features/cards/visibility.ts');
+  assert.match(useCards, /const allFolderCards = useMemo/u);
+  assert.match(useCards, /cardsForVisibility\(allFolderCards/u);
+  assert.match(visibility, /\(card\.testLevel \?\? 'none'\) === context\.activeResultFilter/u);
+  assert.match(read('App.tsx'), /allFolderCards=\{allFolderCards\}/u);
+  assert.match(read('src/screens/WordListScreen/WordListScreen.tsx'), /countCardsByResult\(allFolderCards\)/u);
   // Notifications and folder counts.
   assert.match(read('src/notifications.ts'), /!isCardHidden\(c\)/u);
-  assert.match(read('src/screens/FolderListScreen/FolderListScreen.tsx'), /if \(isCardHidden\(card\)\) continue;/u);
-  // Test Mode receives the already-filtered folderCards.
-  assert.match(read('App.tsx'), /cards: folderCards,/u);
+  assert.match(read('src/screens/FolderListScreen/FolderListScreen.tsx'), /if \(isCardHidden\(card, now\)\) continue;/u);
+  // Test Mode studies the ordinary visible cards, but Reset can clear grading
+  // and hiding from every existing card in the folder.
+  assert.match(read('App.tsx'), /cards: folderCards,\s*resetCards: allFolderCards,/u);
 
   // But never from backup, migration or repository reads.
   for (const path of [
@@ -925,11 +1000,12 @@ test('hidden cards are excluded from every learning view but kept in data', () =
   }
 });
 
-test('hiddenUntil is an absolute UTC timestamp persisted in SQLite', () => {
+test('only scheduled hiding is persisted in SQLite', () => {
   const schema = read('src/lib/sqlite/schema.ts');
   assert.match(schema, /ALTER TABLE learning_progress ADD COLUMN hidden_until INTEGER;/u);
   assert.match(schema, /version: 2,/u);
   assert.match(schema, /CURRENT_SCHEMA_VERSION = 2/u);
+  assert.doesNotMatch(schema, /hidden_indefinitely/u);
   // Derived on read, never a timer.
   const visibility = read('src/features/cards/visibility.ts');
   assert.match(visibility, /card\.hiddenUntil > now/u);

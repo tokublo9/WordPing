@@ -12,23 +12,23 @@ test('the list data keeps its identity across unrelated renders', () => {
   // App render, re-running the filter and making the list re-evaluate its cells.
   assert.match(
     useCards,
-    /const folderCards = useMemo\([\s\S]*?cards\.filter\(c => c\.folderId === currentFolderId\)[\s\S]*?\[cards, currentFolderId, hideEpoch\],\s*\);/u,
+    /const allFolderCards = useMemo\([\s\S]*?cards\.filter\(c => c\.folderId === currentFolderId\)[\s\S]*?\[cards, currentFolderId\],\s*\);/u,
   );
-  // hideEpoch only changes when a hide runs out, so it costs nothing on an
-  // ordinary render — but without it an idle screen never gets the card back.
+  // hideEpoch changes only when a hide runs out, so unrelated renders do not
+  // invalidate the memoized list data.
   assert.match(useCards, /const \[hideEpoch, setHideEpoch\] = useState\(0\);/u);
   assert.match(useCards, /setTimeout\(\s*\(\) => setHideEpoch\(epoch => epoch \+ 1\),/u);
-  // Hiding is applied inside the same memo, and visibleCards returns the very
+  // Hiding is applied inside the same memo, and cardsForVisibility returns the very
   // same array when nothing is hidden — so the common case keeps its identity
   // and the list is not re-evaluated.
-  assert.match(useCards, /visibleCards\(/u);
+  assert.match(useCards, /cardsForVisibility\(/u);
   assert.match(
     read('src/features/cards/visibility.ts'),
-    /return cards\.some\(card => isCardHidden\(card, now\)\)\s*\? cards\.filter[\s\S]*?: cards;/u,
+    /return cards\.some\(card => !shouldShowCard\(card, context\)\)\s*\? cards\.filter[\s\S]*?: cards;/u,
   );
   assert.match(
     useCards,
-    /const filteredFolderCards = useMemo\([\s\S]*?\[folderCards, isFilterActive, levelFilter\],\s*\);/u,
+    /const filteredFolderCards = useMemo\([\s\S]*?\[allFolderCards, activeResultFilter, hideEpoch\],\s*\);/u,
   );
   // Cards live in App state, so leaving the screen and coming back re-renders from
   // state. Nothing may key the list on anything that changes during a transition.
@@ -157,7 +157,7 @@ test('the position reports the top visible word by stable ID', () => {
   assert.match(wordList, /total=\{filteredFolderCards\.length\}/u);
 });
 
-test('the top-left label shows the position while scrolled and the summary at the top', () => {
+test('the default count shows visible over all existing cards in List and Flip', () => {
   const label = read('src/components/WordListPositionLabel.tsx');
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
 
@@ -181,9 +181,13 @@ test('the top-left label shows the position while scrolled and the summary at th
   // It replaces the old header Text in place, keeping that line's styling.
   assert.match(
     wordList,
-    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{cardViewMode === 'flip'\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
+    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{cardViewMode === 'flip' && isFilterActive\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
   );
-  assert.match(wordList, /const wordCountSummary = `\$\{[\s\S]*?words_singular' : 'words_plural'\)\}`;/u);
+  assert.match(
+    wordList,
+    /const wordCountSummary = `\$\{filteredFolderCards\.length\} \/ \$\{allFolderCards\.length\} \$\{[\s\S]*?allFolderCards\.length === 1/u,
+  );
+  assert.doesNotMatch(wordList, /isFilterActive\s*\? `\$\{filteredFolderCards\.length\} \/ \$\{allFolderCards\.length\}`\s*:\s*folderCards\.length/u);
 });
 
 test('no floating indicator and no per-card numbering were added', () => {
@@ -203,10 +207,10 @@ test('no floating indicator and no per-card numbering were added', () => {
 
 test('per-render passes over the folder are collapsed into one', () => {
   const source = read('src/screens/WordListScreen/WordListScreen.tsx');
-  // One loop yields the untested total and every chip count.
-  assert.match(source, /const levelCounts = useMemo\(\(\) => \{[\s\S]*?for \(const card of folderCards\)/u);
-  assert.match(source, /const count = levelCounts\.counts\[level\] \?\? 0;/u);
-  assert.match(source, /const untestedCount = levelCounts\.untested;/u);
+  // One helper pass over the complete folder yields every chip count.
+  assert.match(source, /const levelCounts = useMemo\(\(\) => countCardsByResult\(allFolderCards\), \[allFolderCards\]\);/u);
+  assert.match(source, /const count = levelCounts\[level\];/u);
+  assert.match(source, /const untestedCount = levelCounts\.none;/u);
   assert.match(source, /const allVisibleCardsSelected = useMemo\(/u);
   // No stray per-render scans of the folder left in the render path.
   assert.doesNotMatch(source, /folderCards\.filter\(/u);

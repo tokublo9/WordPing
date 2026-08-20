@@ -21,8 +21,8 @@ import type { Settings } from '../lib/db';
 import { getPermissionStatus } from '../notifications';
 import { FORCE_SHOW_ONBOARDING } from '../components/OnboardingModal';
 import {
-  parseLevelFiltersByFolder,
-  type LevelFiltersByFolder,
+  parseActiveResultFiltersByFolder,
+  type ActiveResultFiltersByFolder,
 } from '../features/cards/levels';
 
 // Assigns folderId to cards that predate the folder feature.
@@ -97,11 +97,11 @@ export interface AppBootstrapState {
   setShowOnboarding: Dispatch<SetStateAction<boolean>>;
   notificationGranted: boolean;
   setNotificationGranted: Dispatch<SetStateAction<boolean>>;
-  levelFiltersByFolder: LevelFiltersByFolder;
-  setLevelFiltersByFolder: Dispatch<SetStateAction<LevelFiltersByFolder>>;
+  activeResultFiltersByFolder: ActiveResultFiltersByFolder;
+  setActiveResultFiltersByFolder: Dispatch<SetStateAction<ActiveResultFiltersByFolder>>;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
-  levelFiltersLoaded: MutableRefObject<boolean>;
+  activeResultFiltersLoaded: MutableRefObject<boolean>;
   /**
    * Stored data could not be read. Saving is disabled for this launch so an
    * empty screen cannot be written over the user's real vocabulary.
@@ -124,14 +124,14 @@ export function useAppBootstrap({
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [notificationGranted, setNotificationGranted] = useState(false);
-  const [levelFiltersByFolder, setLevelFiltersByFolder] = useState<LevelFiltersByFolder>({});
+  const [activeResultFiltersByFolder, setActiveResultFiltersByFolder] = useState<ActiveResultFiltersByFolder>({});
 
   const hasLoaded = useRef(false);
   // Opens the cards/settings write path as soon as stored cards reach state, without
   // waiting for the later phases. A word added during those phases would otherwise be
   // held in memory only until some other change happened to trigger a write.
   const cardsLoaded = useRef(false);
-  const levelFiltersLoaded = useRef(false);
+  const activeResultFiltersLoaded = useRef(false);
   const foldersRef = useRef<Folder[]>([]);
   // Set when the stored cards could not be read at all.
   //
@@ -191,8 +191,8 @@ export function useAppBootstrap({
       );
       // Queue the restored filters before folders become tappable. This prevents a
       // Word List from rendering the all-enabled default before its saved state.
-      setLevelFiltersByFolder(parseLevelFiltersByFolder(rawLevelFilters));
-      levelFiltersLoaded.current = true;
+      setActiveResultFiltersByFolder(parseActiveResultFiltersByFolder(rawLevelFilters));
+      activeResultFiltersLoaded.current = true;
       foldersRef.current = migratedFolders;
       setCards(migratedCards);
       setFolders(migratedFolders);
@@ -283,7 +283,7 @@ export function useAppBootstrap({
         const readSucceeded = !loadFailedRef.current;
         hasLoaded.current = readSucceeded;
         cardsLoaded.current = readSucceeded;
-        levelFiltersLoaded.current = readSucceeded;
+        activeResultFiltersLoaded.current = readSucceeded;
         // markSettingsLoaded calls a state setter; only call it if still mounted.
         // On the happy path it was already called above (idempotent).
         if (!cancelled) markSettingsLoaded();
@@ -311,10 +311,10 @@ export function useAppBootstrap({
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
-    levelFiltersByFolder, setLevelFiltersByFolder,
+    activeResultFiltersByFolder, setActiveResultFiltersByFolder,
     hasLoaded,
     cardsLoaded,
-    levelFiltersLoaded,
+    activeResultFiltersLoaded,
     loadFailed,
   };
 }

@@ -130,7 +130,8 @@ test('an unapproved sample id is rejected by the schema', () => {
 
 test('promo playback never spends the Basic monthly voice allowance', () => {
   const limits = read('cloudflare/wordping-api/src/planLimits.ts');
-  assert.match(limits, /export const VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card', 'voice_sample'\];/u);
+  assert.match(limits, /export const VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\];/u);
+  assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
   assert.doesNotMatch(limits, /voice_promo/u);
 });
 

@@ -12,7 +12,11 @@ import type { Folder, Palette, WordCard } from '../../types';
 import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
 import { AD_BANNER_HEIGHT } from '../../components/AdBannerPlaceholder';
-import { LEVEL_FILTER_OPTIONS } from '../../features/cards/levels';
+import {
+  LEVEL_FILTER_OPTIONS,
+  countCardsByResult,
+  type ActiveResultFilter,
+} from '../../features/cards/levels';
 import { SwipeableCard } from '../../components/SwipeableCard';
 import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
@@ -29,6 +33,7 @@ import {
 import { mergeVisibleCardOrder } from '../../features/cards/cardSorting';
 import { resolveCurrentWordIndex } from '../../features/cards/currentWordPosition';
 import { committedLayer, resolveModeLayers } from '../../features/cards/modeLayers';
+import { TEXT_TO_SPEECH_ENABLED } from '../../features/flags';
 
 const SEL_BAR_H = 68;
 
@@ -41,13 +46,14 @@ const FAST_SCROLL_MOVE_SLOP = 7;
 const FAST_SCROLL_TOUCH_WIDTH = 48;
 const FAST_SCROLL_ACTIVE_TOUCH_WIDTH = 72;
 const FAST_SCROLL_VERTICAL_HIT_SLOP = 18;
+const FILTER_BORDER_WIDTH = 1;
 // ReorderableList already reserves 100pt. This extra clearance keeps its final row
 // above the 58pt add button at the existing 48pt bottom offset.
 const FAB_LIST_EXTRA_CLEARANCE = 32;
 
 // Comprehension-level colors for the sort options, reusing the same green/red as
 // the level filter chips: green = highest understanding, red = lowest.
-const LEVEL_HIGH_COLOR = LEVEL_FILTER_OPTIONS.find(o => o.level === 'perfect')?.color ?? '#5EBF84';
+const LEVEL_HIGH_COLOR = '#5EBF84';
 const LEVEL_LOW_COLOR  = LEVEL_FILTER_OPTIONS.find(o => o.level === 'unknown')?.color ?? '#ED7373';
 
 const emptyIconWrap = {
@@ -108,7 +114,8 @@ export interface WordListScreenProps {
 
   // Folder / data
   currentFolder: Folder | null;
-  folderCards: WordCard[];
+  /** All existing cards in the folder, including sync-hidden result cards. */
+  allFolderCards: WordCard[];
   filteredFolderCards: WordCard[];
   showFullCard: boolean;
   verticalFlip: boolean;
@@ -119,10 +126,9 @@ export interface WordListScreenProps {
   onCurrentWordChange(id: string | null): void;
 
   // Level filter
-  levelFilter: Set<string>;
-  isFilterActive: boolean;
+  activeResultFilter: ActiveResultFilter;
   showLevelLabels: boolean;
-  onToggleLevelFilter(level: string): void;
+  onToggleResultFilter(level: string): void;
 
   // Card-open tracking
   flipped: Set<string>;
@@ -141,10 +147,10 @@ export interface WordListScreenProps {
 export function WordListScreen({
   pal, themeColor, isSubscribed, isPremium = false, hasTextToSpeechHistory = false,
   scrollY, deepSeaSkin,
-  currentFolder, folderCards, filteredFolderCards,
+  currentFolder, allFolderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
   cardViewMode, onToggleViewMode, currentWordId, onCurrentWordChange,
-  levelFilter, isFilterActive, showLevelLabels, onToggleLevelFilter,
+  activeResultFilter, showLevelLabels, onToggleResultFilter,
   flipped, closeOpenCard, onCardOpen,
   selection, reorder, actions,
   menuBtnRef,
@@ -153,12 +159,12 @@ export function WordListScreen({
   const actionsRef = useRef(actions);
   const selectionRef = useRef(selection);
   const reorderRef = useRef(reorder);
-  const folderCardsRef = useRef(folderCards);
+  const allFolderCardsRef = useRef(allFolderCards);
   const onCardOpenRef = useRef(onCardOpen);
   actionsRef.current = actions;
   selectionRef.current = selection;
   reorderRef.current = reorder;
-  folderCardsRef.current = folderCards;
+  allFolderCardsRef.current = allFolderCards;
   onCardOpenRef.current = onCardOpen;
   const [horizontalSwipeLocked, setHorizontalSwipeLocked] = useState(false);
   const horizontalSwipeLockedRef = useRef(false);
@@ -280,7 +286,7 @@ export function WordListScreen({
   const { showListLayer, showFlipLayer } = layerVisibility;
   // An empty folder renders the empty state instead of either layer, so neither
   // was really on screen and neither may hold it later.
-  const hasCards = folderCards.length > 0;
+  const hasCards = filteredFolderCards.length > 0;
 
   useEffect(() => {
     visibleLayerRef.current = hasCards
@@ -685,7 +691,7 @@ export function WordListScreen({
 
   const handleReorderVisibleCards = useCallback((reorderedVisibleCards: WordCard[]) => {
     reorderRef.current.onReorder(
-      mergeVisibleCardOrder(folderCardsRef.current, reorderedVisibleCards),
+      mergeVisibleCardOrder(allFolderCardsRef.current, reorderedVisibleCards),
     );
   }, []);
   const handleListFooterPress = useCallback(() => closeOpenCard.current?.(), [closeOpenCard]);
@@ -764,7 +770,7 @@ export function WordListScreen({
             </Text>
           </TouchableOpacity>
           <View style={s.headerIcons}>
-            {(isPremium || hasTextToSpeechHistory) && (
+            {TEXT_TO_SPEECH_ENABLED && (isPremium || hasTextToSpeechHistory) && (
               <TouchableOpacity
                 style={s.iconBtn}
                 onPress={actions.onOpenTextToSpeech}
@@ -802,13 +808,13 @@ export function WordListScreen({
   );
 
   // ── Word count / scroll position ──────────────────────────────────────────────
-  // Doubles as the scroll position readout: the same line reads "350 words" at the top
-  // of the list and "120 / 350" once scrolled.
-  const wordCountSummary = `${
-    isFilterActive
-      ? `${filteredFolderCards.length} / ${folderCards.length}`
-      : folderCards.length
-  } ${t(folderCards.length === 1 ? 'words_singular' : 'words_plural')}`;
+  // The default summary distinguishes cards currently available for study from every
+  // existing card in the folder. The same line becomes a position readout once the
+  // list is scrolled, or while browsing an explicitly selected result category.
+  const isFilterActive = activeResultFilter !== null;
+  const wordCountSummary = `${filteredFolderCards.length} / ${allFolderCards.length} ${
+    t(allFolderCards.length === 1 ? 'words_singular' : 'words_plural')
+  }`;
 
   const wordCount = (
     <View onTouchStart={() => closeOpenCard.current?.()}>
@@ -817,7 +823,7 @@ export function WordListScreen({
         total={filteredFolderCards.length}
         topContent={wordCountSummary}
         currentIndex={resolvedCurrentWordIndex + 1}
-        showCurrentPosition={cardViewMode === 'flip'}
+        showCurrentPosition={cardViewMode === 'flip' && isFilterActive}
         style={[s.wordCount, { color: pal.sub }]}
       />
     </View>
@@ -826,22 +832,13 @@ export function WordListScreen({
   // ── Level filter bar ──────────────────────────────────────────────────────────
   // One pass over the folder produces the untested total and every chip count, instead
   // of six separate passes on each render.
-  const levelCounts = useMemo(() => {
-    const counts: Record<string, number> = { none: 0 };
-    let untested = 0;
-    for (const card of folderCards) {
-      const level = card.testLevel ?? 'none';
-      counts[level] = (counts[level] ?? 0) + 1;
-      if (!card.testLevel) untested += 1;
-    }
-    return { counts, untested };
-  }, [folderCards]);
-  const untestedCount = levelCounts.untested;
-  const isTestComplete = folderCards.length > 0 && untestedCount === 0;
+  const levelCounts = useMemo(() => countCardsByResult(allFolderCards), [allFolderCards]);
+  const untestedCount = levelCounts.none;
+  const isTestComplete = allFolderCards.length > 0 && untestedCount === 0;
 
   // Keep this slot only when it has visible label controls or when the reorder
   // toolbar is using it. Hiding labels should restore the compact list offset.
-  const filterBar = folderCards.length > 0 && !selection.active && (showLevelLabels || reorder.active) ? (
+  const filterBar = allFolderCards.length > 0 && !selection.active && (showLevelLabels || reorder.active) ? (
     <View
       style={[filterStyles.bar, reorder.active && filterStyles.hidden]}
       pointerEvents={reorder.active ? 'none' : 'auto'}
@@ -851,21 +848,33 @@ export function WordListScreen({
         <>
           <View style={filterStyles.chipGroup}>
             {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
-              const count = levelCounts.counts[level] ?? 0;
-              const on = levelFilter.has(level);
+              const count = levelCounts[level];
+              const on = activeResultFilter === level;
+              const contentColor = on ? color : '#9CA3AF';
+              const accessibilityLabel = level === 'good'
+                ? t('test_know_good')
+                : level === 'slightly'
+                ? t('test_know_slightly')
+                : level === 'unknown'
+                ? t('test_dont_know')
+                : 'Not tested';
               return (
                 <TouchableOpacity
                   key={level}
-                  style={[filterStyles.chip, { borderColor: on ? color : pal.border }]}
-                  onPress={() => onToggleLevelFilter(level)}
+                  style={[
+                    filterStyles.chip,
+                    { borderColor: on ? color : pal.border },
+                  ]}
+                  onPress={() => onToggleResultFilter(level)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${accessibilityLabel}, ${count}`}
+                  accessibilityState={{ selected: on }}
                 >
-                  {icon === '◎'
-                    ? <Text style={{ fontSize: 14, color: on ? color : '#9CA3AF', lineHeight: 15 }}>◎</Text>
-                    : icon != null
-                    ? <Ionicons name={icon as any} size={13} color={on ? color : '#9CA3AF'} />
+                  {icon != null
+                    ? <Ionicons name={icon as any} size={13} color={contentColor} />
                     : null
                   }
-                  <Text style={[filterStyles.chipCount, { color: on ? color : '#9CA3AF' }]}>
+                  <Text style={[filterStyles.chipCount, { color: contentColor }]}>
                     {count}
                   </Text>
                 </TouchableOpacity>
@@ -885,7 +894,7 @@ export function WordListScreen({
             }
           >
             <TestStatusIcon
-              cardCount={folderCards.length}
+              cardCount={allFolderCards.length}
               untestedCount={untestedCount}
               themeColor={themeColor}
               pal={pal}
@@ -898,7 +907,7 @@ export function WordListScreen({
 
   // ── Card list content ─────────────────────────────────────────────────────────
   let cardContent: React.ReactNode;
-  if (folderCards.length === 0) {
+  if (filteredFolderCards.length === 0) {
     cardContent = (
       <View style={s.empty}>
         <View style={[emptyIconWrap, { backgroundColor: themeColor + '18' }]}>
@@ -1241,7 +1250,8 @@ const filterStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: FILTER_BORDER_WIDTH,
+    backgroundColor: 'transparent',
   },
   chipCount: {
     fontSize: 12,

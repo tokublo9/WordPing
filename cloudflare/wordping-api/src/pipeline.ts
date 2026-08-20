@@ -239,10 +239,9 @@ async function approve<T>(
   // Monthly allowance last: a request rejected by validation, entitlement or
   // the per-minute limiter must not consume a generation.
   //
-  // Only the High-Quality AI Voice generation routes are metered — voice_card
-  // and voice_sample. voice_promo is deliberately absent from
-  // VOICE_QUOTA_FEATURES, so a promotional preview never spends a unit of the
-  // Basic monthly allowance.
+  // Only word-card High-Quality AI Voice generation is metered. Voice-picker
+  // previews and promotional previews are deliberately absent from
+  // VOICE_QUOTA_FEATURES, so neither spends the Basic monthly allowance.
   const meteredForVoice = isVoiceQuotaFeature(spec.feature);
   const hashedAppUserId = meteredForVoice
     ? await privacyHash(env, 'rcuser', identity.appUserId)

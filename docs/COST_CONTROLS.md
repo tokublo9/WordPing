@@ -39,6 +39,18 @@ most directly to spend.
 
 Defaults live in `cloudflare/wordping-api/src/config.ts`.
 
+The monthly product policy is:
+
+| Plan or playback | Monthly High-Quality AI Voice usage |
+|---|---|
+| Free | Upgrade samples only; arbitrary word-card generation is blocked |
+| Basic | 200 new word-card generations per UTC month |
+| Premium | No monthly quota; 20/minute and 300/day abuse limits still apply |
+| Cached playback | Never counts |
+| Voice picker | Preview generation never counts, including a cache miss |
+
+The separate short-term abuse controls are:
+
 | Feature | Tier | Chars/request | Req/min | Req/day | Chars/day |
 |---|---|---|---|---|---|
 | `voice_card` | Basic | 300 | 10 | 100 | 15,000 |
@@ -47,7 +59,8 @@ Defaults live in `cloudflare/wordping-api/src/config.ts`.
 | `voice_custom` | Premium | 1,000 | 5 | 30 | 15,000 |
 | text actions | Premium | 500 | 20 | 300 | 50,000 |
 
-Free tier is zero everywhere: it never reaches OpenAI.
+Free tier is zero on arbitrary generation routes. Its two fixed Upgrade Plan
+samples use the separately allowlisted, tightly rate-limited promo route.
 
 IP buckets exist alongside install buckets at 6× the limit, as a backstop
 against install-id rotation. The multiplier is loose on purpose — carrier NAT

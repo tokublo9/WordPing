@@ -4,10 +4,12 @@ import { gradeCard } from '../../src/features/cards/grading';
 import {
   NOT_REALLY_HIDE_MS,
   PRETTY_GOOD_HIDE_MS,
+  cardsForVisibility,
   isCardHidden,
   visibleCards,
 } from '../../src/features/cards/visibility';
 import { mergeVisibleCardOrder, sortByRating } from '../../src/features/cards/cardSorting';
+import { SYNC_WITH_TEST_RESULTS_ENABLED } from '../../src/features/flags';
 import { migrateSchema } from '../../src/lib/sqlite/schema';
 import { readWords, writeSnapshot } from '../../src/lib/sqlite/repositories';
 import type { WordCard } from '../../src/types';
@@ -19,8 +21,8 @@ function card(id: string, extra: Partial<WordCard> = {}): WordCard {
   return { id, word: id, meaning: id, note: '', folderId: 'f1', ...extra };
 }
 
-const SYNC_ON = { now: NOW, syncTestResults: true, canDelete: true };
-const SYNC_OFF = { now: NOW, syncTestResults: false, canDelete: true };
+const SYNC_ON = { now: NOW, syncTestResults: true };
+const SYNC_OFF = { now: NOW, syncTestResults: false };
 
 /** Exactly what App.tsx's onUpdateCard does to the card in React state. */
 function applyPatch(target: WordCard, patch: Partial<WordCard>): WordCard {
@@ -29,12 +31,28 @@ function applyPatch(target: WordCard, patch: Partial<WordCard>): WordCard {
 
 // ── The grade → patch rule ───────────────────────────────────────────────────
 
+test('the app-wide flag always selects the synced grading path', () => {
+  assert.equal(SYNC_WITH_TEST_RESULTS_ENABLED, true);
+  assert.equal(gradeCard(card('w1'), 'perfect', {
+    now: NOW,
+    syncTestResults: SYNC_WITH_TEST_RESULTS_ENABLED,
+  }).action, 'delete');
+
+  const good = gradeCard(card('w2'), 'good', {
+    now: NOW,
+    syncTestResults: SYNC_WITH_TEST_RESULTS_ENABLED,
+  });
+  assert.ok(good.action === 'update');
+  assert.equal(good.patch.hiddenUntil, NOW + PRETTY_GOOD_HIDE_MS);
+});
+
 test('the four grades follow the sync table exactly', () => {
   // Perfect!    → delete
   // Pretty good → hide 72 h
   // Not really  → hide 24 h
   // Don't know  → stay visible
-  assert.equal(gradeCard(card('w1'), 'perfect', SYNC_ON).action, 'delete');
+  const perfect = gradeCard(card('w1'), 'perfect', SYNC_ON);
+  assert.equal(perfect.action, 'delete');
 
   const good = gradeCard(card('w1'), 'good', SYNC_ON);
   assert.ok(good.action === 'update');
@@ -61,11 +79,11 @@ test('Pretty good hides three times as long as Not really', () => {
   );
 });
 
-test('with the toggle off nothing is deleted and no hiddenUntil is written', () => {
+test('with the toggle off no sync-controlled visibility field is changed', () => {
   for (const kind of ['perfect', 'good', 'slightly', 'unknown'] as const) {
-    const outcome = gradeCard(card('w1'), kind, SYNC_OFF);
+    const outcome = gradeCard(card('w1', { hiddenUntil: NOW + 10_000 }), kind, SYNC_OFF);
     assert.equal(outcome.action, 'update', kind);
-    assert.ok(outcome.action === 'update' && !('hiddenUntil' in outcome.patch), kind);
+    assert.ok(!('hiddenUntil' in outcome.patch), kind);
   }
   // And the existing scoring survives untouched.
   const good = gradeCard(card('w1'), 'good', SYNC_OFF);
@@ -89,12 +107,13 @@ test('the spaced-repetition schedule is unchanged by the hide', () => {
   assert.equal(slightly.patch.testNextReview, NOW + 24 * 60 * 60 * 1000);
 });
 
-test('Perfect only deletes when sync is on and a delete path exists', () => {
-  assert.equal(gradeCard(card('w1'), 'perfect', SYNC_OFF).action, 'update');
-  assert.equal(
-    gradeCard(card('w1'), 'perfect', { ...SYNC_ON, canDelete: false }).action,
-    'update',
-  );
+test('Perfect deletes only with sync on', () => {
+  assert.equal(gradeCard(card('w1'), 'perfect', SYNC_ON).action, 'delete');
+  const retained = gradeCard(card('w1'), 'perfect', SYNC_OFF);
+  assert.equal(retained.action, 'update');
+  assert.ok(retained.action === 'update');
+  assert.equal(retained.patch.testLevel, 'perfect');
+  assert.equal(retained.patch.testMastered, true);
 });
 
 test('every grade appends one review-history entry', () => {
@@ -128,6 +147,29 @@ test('a Pretty good card leaves the visible list immediately and returns after 7
   );
 });
 
+test('an active matching result filter overrides ordinary hiding for list and Flip data', () => {
+  const goodOutcome = gradeCard(card('good'), 'good', SYNC_ON);
+  const folder = [
+    applyPatch(card('good'), goodOutcome.action === 'update' ? goodOutcome.patch : {}),
+    card('slightly', { testLevel: 'slightly', hiddenUntil: NOW + NOT_REALLY_HIDE_MS }),
+    card('unknown', { testLevel: 'unknown' }),
+    card('ungraded'),
+  ];
+
+  assert.deepEqual(cardsForVisibility(folder, {
+    now: NOW,
+    activeResultFilter: null,
+  }).map(c => c.id), ['unknown', 'ungraded']);
+  assert.deepEqual(cardsForVisibility(folder, {
+    now: NOW,
+    activeResultFilter: 'good',
+  }).map(c => c.id), ['good']);
+  assert.deepEqual(cardsForVisibility(folder, {
+    now: NOW,
+    activeResultFilter: 'slightly',
+  }).map(c => c.id), ['slightly']);
+});
+
 test('a Not really card leaves the visible list and returns after 24 h', () => {
   const outcome = gradeCard(card('w1'), 'slightly', SYNC_ON);
   assert.ok(outcome.action === 'update');
@@ -142,11 +184,22 @@ test('a Not really card leaves the visible list and returns after 24 h', () => {
 });
 
 test("a Don't know card is never hidden, even with sync on", () => {
-  const outcome = gradeCard(card('w1'), 'unknown', SYNC_ON);
+  const original = card('w1', { testLevel: 'good', hiddenUntil: NOW + PRETTY_GOOD_HIDE_MS });
+  const outcome = gradeCard(original, 'unknown', SYNC_ON);
   assert.ok(outcome.action === 'update');
-  const graded = applyPatch(card('w1'), outcome.patch);
+  const graded = applyPatch(original, outcome.patch);
   assert.deepEqual(visibleCards([graded], NOW).map(c => c.id), ['w1']);
   assert.equal(isCardHidden(graded, NOW), false);
+  assert.equal(graded.hiddenUntil, undefined);
+});
+
+test('regrading refreshes each retained hide from the latest grading time', () => {
+  const previouslyHidden = card('w1', { hiddenUntil: NOW - 1 });
+  const good = gradeCard(previouslyHidden, 'good', SYNC_ON);
+  const slightly = gradeCard(previouslyHidden, 'slightly', SYNC_ON);
+  assert.ok(good.action === 'update' && slightly.action === 'update');
+  assert.equal(good.patch.hiddenUntil, NOW + PRETTY_GOOD_HIDE_MS);
+  assert.equal(slightly.patch.hiddenUntil, NOW + NOT_REALLY_HIDE_MS);
 });
 
 test('with sync off the same grade leaves the card on screen', () => {
@@ -201,6 +254,20 @@ test('a Pretty good hide survives a write/read round trip', async () => {
   // Still hidden after the relaunch, and nothing was deleted.
   assert.equal(reloaded.length, 2);
   assert.deepEqual(visibleCards(reloaded, NOW).map(c => c.id), ['w0']);
+});
+
+test('a synced Perfect result is removed from SQLite', async () => {
+  const db = await openTestDatabase();
+  await migrateSchema(db);
+  await writeSnapshot(db, {
+    folders: [{ id: 'f1', name: 'Nouns', createdAt: 1 }],
+    cards: [card('w0'), card('w1')],
+  });
+  const outcome = gradeCard(card('w1'), 'perfect', SYNC_ON);
+  assert.equal(outcome.action, 'delete');
+  await writeSnapshot(db, { cards: [card('w0')] });
+  const restored = await readWords(db);
+  assert.deepEqual(restored.map(c => c.id), ['w0']);
 });
 
 test('clearing the test result un-hides the card in SQLite too', async () => {

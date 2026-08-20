@@ -44,6 +44,11 @@ import {
 } from './src/lib/tts';
 import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
 import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
+import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
+
+// Hide Labels is temporarily disabled, so every existing label surface stays visible.
+// The underlying useCards state is intentionally retained for a future restoration.
+const SHOW_LEVEL_LABELS = true;
 
 export default function App() {
   const {
@@ -68,7 +73,8 @@ export default function App() {
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
-    syncTestResults, setSyncTestResults,
+    syncTestResults: savedSyncTestResults,
+    setSyncTestResults: setSavedSyncTestResults,
     settingsLoaded,
     applySettings, markSettingsLoaded,
   } = useAppSettings();
@@ -82,10 +88,11 @@ export default function App() {
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
-    levelFiltersByFolder, setLevelFiltersByFolder,
-    hasLoaded, cardsLoaded, levelFiltersLoaded, loadFailed,
+    activeResultFiltersByFolder, setActiveResultFiltersByFolder,
+    hasLoaded, cardsLoaded, activeResultFiltersLoaded, loadFailed,
   } = useAppBootstrap({
-    applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools, setSyncTestResults,
+    applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools,
+    setSyncTestResults: setSavedSyncTestResults,
   });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
@@ -111,6 +118,7 @@ export default function App() {
   const [proSheetVisible, setProSheetVisible] = useState(false);
 
   useEffect(() => {
+    if (!TEXT_TO_SPEECH_ENABLED) return;
     let active = true;
     loadPrototypeSpeechHistory()
       .then(items => { if (active) setHasTextToSpeechHistory(items.length > 0); })
@@ -249,9 +257,10 @@ export default function App() {
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
     handleSortByLevel, handleRegistrationOrder,
-    levelFilter, isFilterActive, toggleLevelFilter,
-    showLevelLabels, setShowLevelLabels,
-    folderCards, filteredFolderCards,
+    activeResultFilter, toggleResultFilter,
+    // Temporarily disabled with the Hide Labels menu control:
+    // showLevelLabels, setShowLevelLabels,
+    allFolderCards, folderCards, filteredFolderCards,
     cardViewMode, setCardViewMode, currentWordId, setCurrentWordId,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,
@@ -273,8 +282,8 @@ export default function App() {
     currentFolderId,
     language,
     setMenuVisible,
-    levelFiltersByFolder,
-    setLevelFiltersByFolder,
+    activeResultFiltersByFolder,
+    setActiveResultFiltersByFolder,
     onCardRegistered: handleCardRegistered,
     onCardsDeleted: handleCardsDeleted,
   });
@@ -339,9 +348,9 @@ export default function App() {
   useAppPersistence({
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
-    showFullCard, verticalFlip, hideAiTools, syncTestResults,
-    levelFiltersByFolder,
-    hasLoaded, cardsLoaded, levelFiltersLoaded,
+    showFullCard, verticalFlip, hideAiTools, syncTestResults: savedSyncTestResults,
+    activeResultFiltersByFolder,
+    hasLoaded, cardsLoaded, activeResultFiltersLoaded,
   });
 
   useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
@@ -412,7 +421,7 @@ export default function App() {
           pal={pal}
           themeColor={activeThemeColor}
           isSubscribed={isSubscribed}
-          showLevelLabels={showLevelLabels}
+          showLevelLabels={SHOW_LEVEL_LABELS}
           folders={folders}
           cards={cards}
           selection={{
@@ -445,11 +454,11 @@ export default function App() {
           themeColor={activeThemeColor}
           isSubscribed={isSubscribed}
           isPremium={isPremium}
-          hasTextToSpeechHistory={hasTextToSpeechHistory}
+          hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
           currentFolder={currentFolder}
-          folderCards={folderCards}
+          allFolderCards={allFolderCards}
           filteredFolderCards={filteredFolderCards}
           showFullCard={showFullCard}
           verticalFlip={verticalFlip}
@@ -458,10 +467,9 @@ export default function App() {
           onToggleViewMode={handleCardViewModeToggle}
           currentWordId={currentWordId}
           onCurrentWordChange={setCurrentWordId}
-          levelFilter={levelFilter}
-          isFilterActive={isFilterActive}
-          showLevelLabels={showLevelLabels}
-          onToggleLevelFilter={toggleLevelFilter}
+          activeResultFilter={activeResultFilter}
+          showLevelLabels={SHOW_LEVEL_LABELS}
+          onToggleResultFilter={toggleResultFilter}
           flipped={flipped}
           closeOpenCard={closeOpenCard}
           onCardOpen={handleCardOpen}
@@ -489,6 +497,7 @@ export default function App() {
           actions={{
             onGoBack: goBackToFolders,
             onOpenTextToSpeech: () => {
+              if (!TEXT_TO_SPEECH_ENABLED) return;
               if (isPremium || hasTextToSpeechHistory) setTextToSpeechVisible(true);
               else setProSheetVisible(true);
             },
@@ -569,7 +578,7 @@ export default function App() {
           onTest: sendTestForCurrentFolder,
         }}
         textToSpeech={{
-          visible: textToSpeechVisible,
+          visible: TEXT_TO_SPEECH_ENABLED && textToSpeechVisible,
           onClose: () => setTextToSpeechVisible(false),
           voice: aiVoice,
           isPremium,
@@ -597,8 +606,6 @@ export default function App() {
           onToggleVerticalFlip: setVerticalFlip,
           hideAiTools,
           onToggleHideAiTools: setHideAiTools,
-          syncTestResults,
-          onToggleSyncTestResults: setSyncTestResults,
           onDataReplaced: reloadAfterImport,
         }}
         paywallModal={{
@@ -626,13 +633,11 @@ export default function App() {
         testMode={{
           visible: testModeVisible,
           cards: folderCards,
+          resetCards: allFolderCards,
           explanationLang: nativeLang,
           verticalFlip,
           onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
-          // The canonical deletion path, so folder links, notes, labels, review
-          // history, cached audio and notification rescheduling are all handled.
           onDeleteCard: deleteCard,
-          syncTestResults,
           onClose: () => setTestModeVisible(false),
         }}
         movePicker={{
@@ -667,16 +672,18 @@ export default function App() {
         }}
       />
 
+      {/* Hide Labels is temporarily disabled. Restore these AppContextMenu props
+          together with its commented menu row when the feature returns:
+          context={menuContext}
+          showLevelLabels={showLevelLabels}
+          onToggleLevelLabels={() => { setShowLevelLabels(v => !v); setMenuVisible(false); }} */}
       <AppContextMenu
         visible={menuVisible}
         anchor={menuAnchor}
-        context={menuContext}
         pal={pal}
-        showLevelLabels={showLevelLabels}
         onDismiss={() => setMenuVisible(false)}
         onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
         onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
-        onToggleLevelLabels={() => { setShowLevelLabels(v => !v); setMenuVisible(false); }}
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />
 

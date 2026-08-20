@@ -25,7 +25,11 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import type { OnboardingChoices, Palette, ThemeSkin } from '../types';
 import { FREE_THEME_COLOR, ONBOARDING_KEY, SKINS } from '../constants';
 import { useLang, type TranslationKey } from '../i18n';
-import { filterAiTextEntries, isAiTextFeatureKey } from '../features/flags';
+import {
+  filterAiTextEntries,
+  filterTextToSpeechEntries,
+  isAiTextFeatureKey,
+} from '../features/flags';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
 import { formatPrice } from '../lib/pricing';
 import { PROMO_SAMPLE_TEXT, type PromoSampleId } from '../lib/promoVoiceSamples';
@@ -188,9 +192,12 @@ const ALL_FEATURE_SECTIONS: FeatureConfig[] = [
 
 // Sections are laid out in a plain vertical stack with per-card spacing, so
 // dropping entries leaves no gap or orphaned separator.
-const FEATURE_SECTIONS: FeatureConfig[] = filterAiTextEntries(
-  ALL_FEATURE_SECTIONS,
-  feature => isAiTextFeatureKey(feature.key),
+const FEATURE_SECTIONS: FeatureConfig[] = filterTextToSpeechEntries(
+  filterAiTextEntries(
+    ALL_FEATURE_SECTIONS,
+    feature => isAiTextFeatureKey(feature.key),
+  ),
+  feature => feature.key === 'text_to_speech',
 );
 
 
@@ -867,7 +874,13 @@ function TableCell({ value, accent }: { value: CellValue; accent: string }) {
   );
 }
 
-interface TableRowData { label: string; basic: CellValue; premium: CellValue }
+interface TableRowData {
+  label: string;
+  basic: CellValue;
+  premium: CellValue;
+  aiText?: true;
+  textToSpeech?: true;
+}
 
 const PlanComparisonTable = React.memo(function PlanComparisonTable({
   t, pal, language,
@@ -884,7 +897,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
   const voiceBasic = formatVoiceMonthlyLimit('basic', language);
   const voicePremium = formatVoiceMonthlyLimit('premium', language);
 
-  const allRows: (TableRowData & { aiText?: true })[] = [
+  const allRows: TableRowData[] = [
     { label: t('cmp_themes'),           basic: 'circle', premium: 'circle' },
     {
       label: t('cmp_ai_voice_hq'),
@@ -892,7 +905,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
       premium: voicePremium ?? 'circle',
     },
     { label: t('cmp_custom_voice'),     basic: 'cross', premium: 'circle' },
-    { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle' },
+    { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle', textToSpeech: true },
     { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle', aiText: true },
     { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'circle', aiText: true },
     { label: t('cmp_ai_meaning'),       basic: 'cross', premium: 'circle', aiText: true },
@@ -904,7 +917,10 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
     },
     { label: t('cmp_data_transfer'),    basic: 'circle', premium: 'circle' },
   ];
-  const rows: TableRowData[] = filterAiTextEntries(allRows, row => row.aiText === true);
+  const rows: TableRowData[] = filterTextToSpeechEntries(
+    filterAiTextEntries(allRows, row => row.aiText === true),
+    row => row.textToSpeech === true,
+  );
 
   return (
     <View style={[tbl.container, { backgroundColor: pal.card, borderColor: pal.border }]}>

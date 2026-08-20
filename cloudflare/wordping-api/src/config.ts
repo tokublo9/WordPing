@@ -92,10 +92,8 @@ const NO_ACCESS: FeatureLimits = {
 };
 
 /**
- * There are no monthly counters: KV cannot hold a month of per-user state
- * cheaply, so the per-day budget plus the OpenAI project budget cover that
- * ceiling instead. Voice generation is the expensive path and keeps the
- * tightest limits.
+ * These short-term limits complement the separate monthly word-card allowance.
+ * Voice generation is the expensive path and keeps the tightest limits.
  */
 export const DEFAULT_LIMITS: LimitTable = {
   voice_card: {

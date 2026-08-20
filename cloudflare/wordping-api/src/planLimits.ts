@@ -14,12 +14,12 @@ import type { Feature, Tier } from './config';
 /**
  * Features covered by the monthly High-Quality AI Voice allowance.
  *
- * Only the routes that generate High-Quality AI Voice: word-card playback and
- * the voice previews in Settings. Deliberately excludes the standalone
- * Text-to-Speech screen (`voice_custom`) and the four AI text routes, which are
- * separate Premium features with their own entitlement rules.
+ * Only word-card High-Quality AI Voice generation is charged. Voice-picker
+ * previews (`voice_sample`) are deliberately free of monthly quota, whether
+ * served from cache or newly generated. Also excludes promotional previews,
+ * standalone Text-to-Speech and the four AI text routes.
  */
-export const VOICE_QUOTA_FEATURES: readonly Feature[] = ['voice_card', 'voice_sample'];
+export const VOICE_QUOTA_FEATURES: readonly Feature[] = ['voice_card'];
 
 export function isVoiceQuotaFeature(feature: Feature): boolean {
   return VOICE_QUOTA_FEATURES.includes(feature);
@@ -35,7 +35,7 @@ export function isVoiceQuotaFeature(feature: Feature): boolean {
  */
 export const VOICE_MONTHLY_LIMITS: Readonly<Record<Tier, number | null>> = {
   free: 0,
-  basic: 100,
+  basic: 200,
   premium: null,
 };
 

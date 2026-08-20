@@ -12,7 +12,7 @@ import {
 import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 import type { AIVoice } from '../lib/aiVoices';
-import type { LevelFiltersByFolder } from '../features/cards/levels';
+import type { ActiveResultFiltersByFolder } from '../features/cards/levels';
 
 export interface UseAppPersistenceParams {
   cards: WordCard[];
@@ -27,10 +27,10 @@ export interface UseAppPersistenceParams {
   verticalFlip: boolean;
   hideAiTools: boolean;
   syncTestResults: boolean;
-  levelFiltersByFolder: LevelFiltersByFolder;
+  activeResultFiltersByFolder: ActiveResultFiltersByFolder;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
-  levelFiltersLoaded: MutableRefObject<boolean>;
+  activeResultFiltersLoaded: MutableRefObject<boolean>;
 }
 
 export function useAppPersistence({
@@ -46,10 +46,10 @@ export function useAppPersistence({
   verticalFlip,
   hideAiTools,
   syncTestResults,
-  levelFiltersByFolder,
+  activeResultFiltersByFolder,
   hasLoaded,
   cardsLoaded,
-  levelFiltersLoaded,
+  activeResultFiltersLoaded,
 }: UseAppPersistenceParams): void {
   // Persist cards + settings whenever any of them change. Gated on cardsLoaded, which
   // opens as soon as stored cards reach state: a word added while the remaining
@@ -93,8 +93,8 @@ export function useAppPersistence({
   }, [syncTestResults]);
 
   useEffect(() => {
-    if (!levelFiltersLoaded.current) return;
-    AsyncStorage.setItem(WORD_LIST_FILTERS_KEY, JSON.stringify(levelFiltersByFolder))
+    if (!activeResultFiltersLoaded.current) return;
+    AsyncStorage.setItem(WORD_LIST_FILTERS_KEY, JSON.stringify(activeResultFiltersByFolder))
       .catch(e => reportSideEffectFailure('setWordListFilters', e));
-  }, [levelFiltersByFolder]);
+  }, [activeResultFiltersByFolder]);
 }

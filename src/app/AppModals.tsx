@@ -13,6 +13,7 @@ import { TextToSpeechScreen } from '../components/TextToSpeechScreen';
 import type { AIVoice } from '../lib/aiVoices';
 import { BulkImportModal } from '../components/BulkImportModal';
 import type { BulkImportDraft, BulkImportResult } from '../features/cards/bulkImport';
+import { TEXT_TO_SPEECH_ENABLED } from '../features/flags';
 
 // ── Prop types ────────────────────────────────────────────────────────────────
 
@@ -106,8 +107,6 @@ export interface AppModalsProps {
     onToggleVerticalFlip: Dispatch<SetStateAction<boolean>>;
     hideAiTools: boolean;
     onToggleHideAiTools: Dispatch<SetStateAction<boolean>>;
-    syncTestResults: boolean;
-    onToggleSyncTestResults: Dispatch<SetStateAction<boolean>>;
     onDataReplaced(): void;
   };
 
@@ -145,11 +144,11 @@ export interface AppModalsProps {
   testMode: {
     visible: boolean;
     cards: WordCard[];
+    resetCards: WordCard[];
     explanationLang: string;
     verticalFlip: boolean;
     onUpdateCard(id: string, patch: Partial<WordCard>): void;
     onDeleteCard(id: string): void;
-    syncTestResults: boolean;
     onClose(): void;
   };
 
@@ -232,16 +231,18 @@ export function AppModals({
         onTest={notifModal.onTest}
       />
 
-      <TextToSpeechScreen
-        visible={textToSpeech.visible}
-        onClose={textToSpeech.onClose}
-        pal={pal}
-        themeColor={themeColor}
-        voice={textToSpeech.voice}
-        isPremium={textToSpeech.isPremium}
-        onUpgrade={textToSpeech.onUpgrade}
-        onHistoryAvailabilityChange={textToSpeech.onHistoryAvailabilityChange}
-      />
+      {TEXT_TO_SPEECH_ENABLED && (
+        <TextToSpeechScreen
+          visible={textToSpeech.visible}
+          onClose={textToSpeech.onClose}
+          pal={pal}
+          themeColor={themeColor}
+          voice={textToSpeech.voice}
+          isPremium={textToSpeech.isPremium}
+          onUpgrade={textToSpeech.onUpgrade}
+          onHistoryAvailabilityChange={textToSpeech.onHistoryAvailabilityChange}
+        />
+      )}
 
       <SettingsModal
         visible={settingsModal.visible}
@@ -270,8 +271,6 @@ export function AppModals({
         onToggleVerticalFlip={settingsModal.onToggleVerticalFlip}
         hideAiTools={settingsModal.hideAiTools}
         onToggleHideAiTools={settingsModal.onToggleHideAiTools}
-        syncTestResults={settingsModal.syncTestResults}
-        onToggleSyncTestResults={settingsModal.onToggleSyncTestResults}
         onDataReplaced={settingsModal.onDataReplaced}
       />
 
@@ -333,9 +332,9 @@ export function AppModals({
       {testMode.visible && (
         <TestModeScreen
           cards={testMode.cards}
+          resetCards={testMode.resetCards}
           onUpdateCard={testMode.onUpdateCard}
-        onDeleteCard={testMode.onDeleteCard}
-        syncTestResults={testMode.syncTestResults}
+          onDeleteCard={testMode.onDeleteCard}
           onClose={testMode.onClose}
           pal={pal}
           themeColor={themeColor}

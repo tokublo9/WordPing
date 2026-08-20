@@ -17,6 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { Palette, WordCard } from '../types';
 import { CLEAR_HIDE } from '../features/cards/visibility';
+import { appNow } from '../lib/appClock';
+import { SYNC_WITH_TEST_RESULTS_ENABLED } from '../features/flags';
 import { gradeCard, type AnswerKind } from '../features/cards/grading';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BCP47_TO_UI_LANG, translate, useLang, type TranslationKey } from '../i18n';
@@ -459,16 +461,13 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 interface Props {
+  /** Cards eligible for the ordinary Test Mode queue. */
   cards: WordCard[];
+  /** Every existing card in the folder, including temporarily hidden cards. */
+  resetCards: WordCard[];
   onUpdateCard: (id: string, patch: Partial<WordCard>) => void;
-  /**
-   * "Sync with test results". When on, Perfect deletes the card outright and
-   * Pretty good hides it for 24 hours. Off by default; when off every grade
-   * behaves exactly as it did before.
-   */
-  syncTestResults?: boolean;
-  /** The app's canonical card deletion path. */
-  onDeleteCard?: (id: string) => void;
+  /** Canonical app deletion path used only for a synced Perfect result. */
+  onDeleteCard: (id: string) => void;
   onClose: () => void;
   pal: Palette;
   themeColor: string;
@@ -478,7 +477,7 @@ interface Props {
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, onUpdateCard, onDeleteCard, syncTestResults = false, onClose, pal, themeColor, isSubscribed, isPremium = false, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onClose, pal, themeColor, isSubscribed, isPremium = false, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
 
@@ -520,13 +519,13 @@ export function TestModeScreen({ cards, onUpdateCard, onDeleteCard, syncTestResu
   })).current;
 
   const [queue, setQueue] = useState<WordCard[]>(() => {
-    const now = Date.now();
+    const now = appNow();
     return cards.filter(c => !c.testMastered && (!c.testNextReview || c.testNextReview <= now));
   });
 
   const [idx,         setIdx]         = useState(0);
   // Cards already graded this session. `queue` is a snapshot taken at mount, so
-  // deleting a card never shifts the indices — advancing stays a simple +1 — but
+  // Updating or deleting a card never shifts this queue snapshot — advancing stays a simple +1 — but
   // a repeated tap must still be ignored.
   const gradedIdsRef = useRef<Set<string>>(new Set());
   const [flipped,    setFlipped]    = useState(false);
@@ -618,15 +617,20 @@ export function TestModeScreen({ cards, onUpdateCard, onDeleteCard, syncTestResu
         text: t('test_reset'),
         style: 'destructive',
         onPress: () => {
-          cards.forEach(c => {
+          const resetPatch: Partial<WordCard> = {
+            testMastered: false,
+            testNextReview: 0,
+            testLevel: undefined,
+            ...CLEAR_HIDE,
+          };
+          const resetQueue = resetCards.map(c => ({ ...c, ...resetPatch }));
+          resetCards.forEach(c => {
             // The hide is a consequence of a grade, so clearing the grade has to
             // clear it too — otherwise a reset card stays invisible in the word
             // list with nothing on screen explaining why.
-            onUpdateCard(c.id, {
-              testMastered: false, testNextReview: 0, testLevel: undefined, ...CLEAR_HIDE,
-            });
+            onUpdateCard(c.id, resetPatch);
           });
-          restart([...cards]);
+          restart(resetQueue);
         },
       },
     ]);
@@ -672,18 +676,18 @@ export function TestModeScreen({ cards, onUpdateCard, onDeleteCard, syncTestResu
 
   const advance = useCallback((kind: AnswerKind) => {
     if (!card) return;
-    // A second tap while the card is animating out would grade — and with sync
-    // on, delete — the same card twice.
+    // A second tap while the card is animating out would grade the same card twice.
     if (gradedIdsRef.current.has(card.id)) return;
     gradedIdsRef.current.add(card.id);
     stopVoice();
 
     const outcome = gradeCard(card, kind, {
+      // Grading writes absolute timestamps. The development visibility offset
+      // must never be persisted into reviewHistory, testNextReview or hiddenUntil.
       now: Date.now(),
-      syncTestResults,
-      canDelete: onDeleteCard !== undefined,
+      syncTestResults: SYNC_WITH_TEST_RESULTS_ENABLED,
     });
-    if (outcome.action === 'delete') onDeleteCard?.(card.id);
+    if (outcome.action === 'delete') onDeleteCard(card.id);
     else onUpdateCard(card.id, outcome.patch);
 
     Animated.timing(cardOpacity, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => {
@@ -693,7 +697,7 @@ export function TestModeScreen({ cards, onUpdateCard, onDeleteCard, syncTestResu
       setIdx(i => i + 1);
       Animated.timing(cardOpacity, { toValue: 1, duration: 160, useNativeDriver: true }).start();
     });
-  }, [card, onUpdateCard, onDeleteCard, syncTestResults, flipAnim, cardOpacity]);
+  }, [card, onUpdateCard, onDeleteCard, flipAnim, cardOpacity]);
 
   // ── Layout ────────────────────────────────────────────────────────────────
 

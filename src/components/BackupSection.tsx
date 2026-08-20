@@ -197,8 +197,6 @@ export function BackupSection({
 
   return (
     <View>
-      <Text style={[styles.description, { color: pal.sub }]}>{t('backup_desc')}</Text>
-
       {renderRow('export', 'share-outline', t('backup_export'), () => { void runExport(); })}
       {renderRow('import', 'download-outline', t('backup_import'), () => { void runImport(); })}
     </View>
@@ -206,7 +204,6 @@ export function BackupSection({
 }
 
 const styles = StyleSheet.create({
-  description: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
 });

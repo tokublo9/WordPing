@@ -1,11 +1,13 @@
 import {
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Palette } from '../types';
@@ -17,7 +19,8 @@ import { useLang } from '../i18n';
  * Deliberately a single component driven by a single piece of state in
  * SettingsModal rather than one modal per row: with only one `content` slot
  * there is nothing for a second tap to stack on top of, and only one popup can
- * ever be open. Passing `content: null` is what closes it.
+ * ever be open. Visibility is separate from the mounted content so the native
+ * fade-out cannot briefly lay out an empty, collapsed dialog.
  *
  * It reads nothing and writes nothing — it cannot change the setting it
  * describes, so closing it always leaves the toggle exactly as it was.
@@ -31,23 +34,34 @@ export interface SettingsInfoContent {
 }
 
 interface Props {
+  visible: boolean;
   content: SettingsInfoContent | null;
   onClose: () => void;
+  onDismiss: () => void;
   pal: Palette;
   themeColor: string;
 }
 
-export function SettingsInfoPopup({ content, onClose, pal, themeColor }: Props) {
+export function SettingsInfoPopup({ visible, content, onClose, onDismiss, pal, themeColor }: Props) {
   const t = useLang();
   const insets = useSafeAreaInsets();
 
+  // React Native's native onDismiss callback is iOS-only. On Android, Modal
+  // stops rendering as soon as visible becomes false, so clearing in this
+  // post-commit effect cannot collapse content during the native dismissal.
+  useEffect(() => {
+    if (Platform.OS === 'android' && !visible && content !== null) onDismiss();
+  }, [content, onDismiss, visible]);
+
   return (
     <Modal
-      visible={content !== null}
+      visible={visible}
       transparent
       animationType="fade"
       // Android hardware back and the iOS swipe/dismiss gesture both land here.
       onRequestClose={onClose}
+      onDismiss={onDismiss}
+      allowSwipeDismissal
       statusBarTranslucent
     >
       <View style={styles.backdrop}>

@@ -4,6 +4,7 @@ import {
   CLEAR_HIDE,
   NOT_REALLY_HIDE_MS,
   PRETTY_GOOD_HIDE_MS,
+  cardsForVisibility,
   hiddenUntilFor,
   isCardHidden,
   nextHideExpiry,
@@ -42,6 +43,39 @@ test('the two periods are distinct, and Pretty good is the longer one', () => {
 
 test('a card with no hiddenUntil is always visible', () => {
   assert.equal(isCardHidden(card('a'), NOW), false);
+});
+
+test('a matching colorful result filter overrides hidden state only for its category', () => {
+  const cards = [
+    { ...card('good', NOW + PRETTY_GOOD_HIDE_MS), testLevel: 'good' as const },
+    { ...card('slightly', NOW + NOT_REALLY_HIDE_MS), testLevel: 'slightly' as const },
+    { ...card('unknown'), testLevel: 'unknown' as const },
+    card('none'),
+  ];
+  assert.deepEqual(cardsForVisibility(cards, {
+    now: NOW,
+    activeResultFilter: 'good',
+  }).map(c => c.id), ['good']);
+  assert.deepEqual(cardsForVisibility(cards, {
+    now: NOW,
+    activeResultFilter: 'unknown',
+  }).map(c => c.id), ['unknown']);
+  assert.deepEqual(cardsForVisibility(cards, {
+    now: NOW,
+    activeResultFilter: 'none',
+  }).map(c => c.id), ['none']);
+});
+
+test('a retained Sync-off Perfect card is ordinary-visible but has no colorful filter', () => {
+  const perfect = { ...card('perfect'), testLevel: 'perfect' as const };
+  assert.deepEqual(cardsForVisibility([perfect], {
+    now: NOW,
+    activeResultFilter: null,
+  }).map(c => c.id), ['perfect']);
+  assert.deepEqual(cardsForVisibility([perfect], {
+    now: NOW,
+    activeResultFilter: 'good',
+  }), []);
 });
 
 test('a card is hidden until the timestamp passes, then reappears', () => {
@@ -116,7 +150,10 @@ test('nextHideExpiry ignores hides that have already run out', () => {
 });
 
 test('nextHideExpiry is null when nothing is hidden', () => {
-  assert.equal(nextHideExpiry([card('a'), card('b', NOW - 1)], NOW), null);
+  assert.equal(nextHideExpiry([
+    card('a'),
+    card('b', NOW - 1),
+  ], NOW), null);
   assert.equal(nextHideExpiry([], NOW), null);
 });
 

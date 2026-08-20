@@ -21,8 +21,29 @@ test('Add and Edit Folder share a handle-free sheet with natural header spacing'
   assert.match(modal, /onRequestClose=\{close\}/u);
   assert.match(
     modal,
-    /<TouchableOpacity onPress=\{handleSave\} hitSlop=\{\{ top: 10, bottom: 10, left: 10, right: 10 \}\}>\s*<Ionicons name="close"/u,
+    /style=\{styles\.headerCloseButton\}[\s\S]{0,120}onPress=\{close\}[\s\S]{0,240}<Ionicons name="close"/u,
   );
+});
+
+test('New Folder header close uses the guarded cancellation path and cannot submit', () => {
+  const modal = read('src/components/FolderCustomizeModal.tsx');
+  const header = modal.slice(modal.indexOf('{/* Header */}'), modal.indexOf('<ScrollView'));
+
+  assert.match(header, /onPress=\{close\}/u);
+  assert.doesNotMatch(header, /onPress=\{handleSave\}|onSaveEdit|onSelect/u);
+  assert.match(header, /accessibilityRole="button"/u);
+  assert.match(header, /accessibilityLabel=\{t\('close'\)\}/u);
+  assert.match(header, /hitSlop=\{\{ top: 8, bottom: 8, left: 8, right: 8 \}\}/u);
+  assert.match(modal, /headerCloseButton:\s*\{\s*width: 44,\s*height: 44,/u);
+
+  // Backdrop, Cancel, and system back all point at the same close function.
+  assert.match(modal, /onRequestClose=\{close\}/u);
+  assert.match(modal, /StyleSheet\.absoluteFillObject\} activeOpacity=\{1\} onPress=\{close\}/u);
+  assert.match(modal, /style=\{\[styles\.btn, \{ backgroundColor: pal\.chip \}\]\}\s*onPress=\{close\}/u);
+
+  // Repeated close requests cannot queue multiple animation callbacks.
+  assert.match(modal, /if \(closingRef\.current\) return;\s*closingRef\.current = true;/u);
+  assert.equal((modal.match(/onClose\(\);/gu) ?? []).length, 1);
 });
 
 test('the folder picker offers the original icons except heart and keeps legacy icons renderable', () => {

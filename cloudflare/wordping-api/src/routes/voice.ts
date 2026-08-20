@@ -95,8 +95,8 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
   const result = await guard(context, {
     feature: 'voice_sample',
     schema: voiceSampleSchema,
-    // Previews are identical for every caller and usually served from KV. A
-    // cache hit costs nothing upstream, so it must not consume monthly quota.
+    // Voice-picker previews never consume monthly quota. Deferring here also
+    // preserves the cache-hit invariant if quota policy changes in the future.
     deferQuota: true,
     validate: body => {
       const voice = resolveVoice(body.voice);
@@ -123,7 +123,9 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
     });
   }
 
-  // Cache miss: this request is about to reach OpenAI, so it is charged.
+  // This is a no-op while voice_sample is excluded from VOICE_QUOTA_FEATURES.
+  // Keeping it after the cache lookup ensures cached playback could never be
+  // charged if the picker policy changes in the future.
   const exhausted = await result.value.reserveQuota();
   if (exhausted) return exhausted;
 

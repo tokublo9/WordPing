@@ -5,8 +5,8 @@ Expo bundle, and so a paid API cannot be used by anyone who does not hold a
 verified RevenueCat entitlement.
 
 It stores no user data. Words, folders and review history live only on the
-device, in SQLite. Nothing here persists anything except rate-limit counters,
-short-lived entitlement results, and eight cached voice previews.
+device, in SQLite. Nothing here persists anything except rate/quota counters,
+short-lived entitlement results, and fixed cached voice previews.
 
 ## Endpoints
 
@@ -36,6 +36,14 @@ request that is not answered from a short cache.
 
 Unknown body fields are stripped, never forwarded. There is no code path that
 reads a model name, an upstream URL, or a plan flag out of a request.
+
+### High-Quality AI Voice allowance
+
+- Free: the two fixed Upgrade Plan samples only; arbitrary word-card voice is blocked.
+- Basic: 200 new word-card generations per UTC month.
+- Premium: no monthly quota; 20/minute and 300/day abuse limits apply.
+- Cached playback never counts.
+- Voice-picker previews never consume monthly quota, including a cache miss.
 
 ### Errors
 

@@ -374,16 +374,15 @@ test('successful import closes directly to the word list with no completion scre
   assert.doesNotMatch(source, /'result'|setStep\('result'\)|resultContent|resultIcon|resultLine|doneButton/u);
 });
 
-test('the closing sheet cannot repaint the preview after a successful import', () => {
+test('successful dismissal keeps stable content mounted instead of showing an empty sheet', () => {
   const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
   // Importing feeds the new words back in through `existingTexts`, which would mark
-  // every reviewed row a duplicate. The body stops rendering in the same update that
-  // closes the sheet, so that repaint has nothing to land on.
-  assert.match(source, /setImported\(true\);\s*onClose\(\)/u);
-  assert.match(
-    source,
-    /if \(imported\) \{\s*return <FullScreenSheet visible=\{visible\} pal=\{pal\} onRequestClose=\{close\} \/>;\s*\}/u,
-  );
+  // every submitted row a duplicate. A frozen snapshot prevents that repaint while
+  // retaining the full header/list/footer throughout native Modal dismissal.
+  assert.match(source, /submittedAnalysisRef\.current = analysisAtSubmission/u);
+  assert.match(source, /const renderedPreviewAnalysis = importing && submittedAnalysisRef\.current/u);
+  assert.match(source, /renderedPreviewAnalysis\.items\.map/u);
+  assert.doesNotMatch(source, /if \(imported\)|setImported|<FullScreenSheet[^>]*\/>/u);
   // `importing` stays true on the success path: clearing it would swap the footer
   // spinner for buttons while the sheet is still sliding away.
   assert.doesNotMatch(source, /finally \{\s*setImporting\(false\)/u);
@@ -396,9 +395,33 @@ test('reopening starts on the input step without a frame of the previous session
   // during render re-renders before anything reaches the screen.
   assert.match(
     source,
-    /if \(visible !== renderedVisible\) \{\s*setRenderedVisible\(visible\);\s*if \(visible\) \{[\s\S]*?setStep\('input'\)[\s\S]*?setImported\(false\)/u,
+    /if \(visible !== renderedVisible\) \{\s*setRenderedVisible\(visible\);\s*if \(visible\) \{[\s\S]*?setStep\('input'\)[\s\S]*?submittedAnalysisRef\.current = null/u,
   );
   assert.doesNotMatch(source, /useEffect\(\(\) => \{\s*if \(!visible\) return;\s*setStep\('input'\)/u);
+});
+
+test('submission and every close path handle the keyboard and in-flight state safely', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  // A close request during the write is ignored; header, system back and footer all
+  // call this same handler, so the native modal cannot disappear beneath an import.
+  assert.match(source, /const close = \(\) => \{\s*if \(importing\) return;\s*Keyboard\.dismiss\(\);\s*onClose\(\);/u);
+  assert.match(source, /onRequestClose=\{close\}/u);
+  assert.match(source, /onPress=\{close\}/u);
+  assert.match(source, /disabled=\{importing\}/u);
+
+  // Preview editing can reopen the keyboard, so submission dismisses it again.
+  assert.match(source, /const runImport = \(\) => executionGuard\.run\(async \(\) => \{\s*if \(importDisabled\) return;\s*Keyboard\.dismiss\(\);/u);
+  assert.doesNotMatch(source, /setTimeout/u);
+});
+
+test('failed imports retain the usable preview and clear only the submission snapshot', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  const errorBranch = source.slice(source.indexOf('if (importResult.error)'), source.indexOf('// Keep `importing`'));
+  assert.match(errorBranch, /submittedAnalysisRef\.current = null;/u);
+  assert.match(errorBranch, /setImportError\(true\);/u);
+  assert.match(errorBranch, /setImporting\(false\);/u);
+  assert.doesNotMatch(errorBranch, /onClose\(\)/u);
+  assert.match(source, /importError &&[\s\S]*?bulk_import_failed_generic/u);
 });
 
 test('onboarding stops rendering before its state resets to the first step', () => {

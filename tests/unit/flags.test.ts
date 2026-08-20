@@ -3,7 +3,10 @@ import test from 'node:test';
 import {
   AI_TEXT_FEATURES_ENABLED,
   AI_TEXT_FEATURE_KEYS,
+  SYNC_WITH_TEST_RESULTS_ENABLED,
+  TEXT_TO_SPEECH_ENABLED,
   filterAiTextEntries,
+  filterTextToSpeechEntries,
   isAiTextFeatureKey,
 } from '../../src/features/flags';
 
@@ -28,6 +31,14 @@ const PAYWALL_SECTIONS: Entry[] = [
 
 test('the AI text features are hidden for this release', () => {
   assert.equal(AI_TEXT_FEATURES_ENABLED, false);
+});
+
+test('standalone Text-to-Speech is hidden for this release', () => {
+  assert.equal(TEXT_TO_SPEECH_ENABLED, false);
+});
+
+test('Sync with test results is always enabled internally', () => {
+  assert.equal(SYNC_WITH_TEST_RESULTS_ENABLED, true);
 });
 
 test('the flag names exactly the four text features', () => {
@@ -81,4 +92,20 @@ test('an empty list is handled in both states', () => {
 test('production callers get the flag when no override is passed', () => {
   const visible = filterAiTextEntries(PAYWALL_SECTIONS, entry => entry.aiText === true);
   assert.equal(visible.some(entry => entry.aiText === true), AI_TEXT_FEATURES_ENABLED);
+});
+
+test('the Text-to-Speech filter hides only that feature and can restore it', () => {
+  const isTextToSpeech = (entry: Entry) => entry.key === 'text_to_speech';
+  const hidden = filterTextToSpeechEntries(PAYWALL_SECTIONS, isTextToSpeech);
+
+  assert.equal(hidden.some(isTextToSpeech), false);
+  assert.deepEqual(
+    hidden.map(entry => entry.key),
+    PAYWALL_SECTIONS.filter(entry => !isTextToSpeech(entry)).map(entry => entry.key),
+  );
+  assert.deepEqual(
+    filterTextToSpeechEntries(PAYWALL_SECTIONS, isTextToSpeech, true),
+    PAYWALL_SECTIONS,
+  );
+  assert.equal(PAYWALL_SECTIONS.length, 8, 'the source definitions stay untouched');
 });

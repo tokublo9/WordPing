@@ -1,20 +1,21 @@
 import type { WordCard } from '../../types';
+import { appNow } from '../../lib/appClock';
+import type { ActiveResultFilter } from './levels';
 
 /**
  * Temporary hiding, set by a "Pretty good" or "Not really" grade when
  * "Sync with test results" is on.
  *
  * The card is not deleted and not archived — it simply drops out of every
- * learning view until `hiddenUntil` passes, then reappears on its own. There is
- * no timer holding the state: visibility is derived from the stored timestamp
+ * ordinary learning view until `hiddenUntil` passes, then reappears on its own.
+ * There is no timer holding the state: visibility is derived from the stored timestamp
  * every time the list is built, so relaunching, backgrounding or changing
  * timezone cannot reset or extend the period. `nextHideExpiry` exists only to
  * wake an idle screen at the moment a hide runs out; it never decides anything.
  *
  * `hiddenUntil` is Unix milliseconds UTC, matching `testNextReview`.
  *
- * Deliberately NOT applied to backup export, import, migrations or repository
- * reads — a hidden card is still the user's data and must survive a transfer.
+ * Hidden cards remain normal stored vocabulary and survive backup transfers.
  */
 
 /**
@@ -22,14 +23,39 @@ import type { WordCard } from '../../types';
  *
  * The better the recall, the longer the card stays away: "Pretty good" is
  * remembered, so it waits three days; "Not really" is shaky and comes back the
- * next day. "Perfect!" is deleted instead of hidden, and "Don't know" is never
- * hidden at all — a word the user could not recall has to stay in front of them.
+ * next day. Perfect cards are deleted by the canonical app path, and "Don't
+ * know" is never hidden — a word the user could not recall stays in front.
  */
 export const PRETTY_GOOD_HIDE_MS = 72 * 60 * 60 * 1000;
 export const NOT_REALLY_HIDE_MS = 24 * 60 * 60 * 1000;
 
-export function isCardHidden(card: Pick<WordCard, 'hiddenUntil'>, now: number = Date.now()): boolean {
+export interface CardVisibilityContext {
+  now: number;
+  /** Null is the ordinary view; one matching category overrides temporary hiding. */
+  activeResultFilter: ActiveResultFilter;
+}
+
+type VisibilityCard = Pick<WordCard, 'hiddenUntil' | 'testLevel'>;
+
+export function isCardHidden(card: VisibilityCard, now: number = appNow()): boolean {
   return card.hiddenUntil !== undefined && card.hiddenUntil > now;
+}
+
+/** One visibility decision used by both Word List and Flip Mode. */
+export function shouldShowCard(card: VisibilityCard, context: CardVisibilityContext): boolean {
+  if (context.activeResultFilter !== null) {
+    return (card.testLevel ?? 'none') === context.activeResultFilter;
+  }
+  return !isCardHidden(card, context.now);
+}
+
+export function cardsForVisibility<T extends VisibilityCard>(
+  cards: readonly T[],
+  context: CardVisibilityContext,
+): readonly T[] {
+  return cards.some(card => !shouldShowCard(card, context))
+    ? cards.filter(card => shouldShowCard(card, context))
+    : cards;
 }
 
 /**
@@ -38,13 +64,11 @@ export function isCardHidden(card: Pick<WordCard, 'hiddenUntil'>, now: number = 
  * Returns the original array when nothing is hidden, so the common case adds no
  * allocation and downstream memoisation is not invalidated on every render.
  */
-export function visibleCards<T extends Pick<WordCard, 'hiddenUntil'>>(
+export function visibleCards<T extends VisibilityCard>(
   cards: readonly T[],
-  now: number = Date.now(),
+  now: number = appNow(),
 ): readonly T[] {
-  return cards.some(card => isCardHidden(card, now))
-    ? cards.filter(card => !isCardHidden(card, now))
-    : cards;
+  return cardsForVisibility(cards, { now, activeResultFilter: null });
 }
 
 /**
@@ -66,13 +90,13 @@ export function hiddenUntilFor(gradedAt: number, durationMs: number): number {
  * wake-up at this instant instead of polling.
  */
 export function nextHideExpiry(
-  cards: readonly Pick<WordCard, 'hiddenUntil'>[],
-  now: number = Date.now(),
+  cards: readonly VisibilityCard[],
+  now: number = appNow(),
 ): number | null {
   let soonest: number | null = null;
   for (const card of cards) {
-    if (!isCardHidden(card, now)) continue;
-    const until = card.hiddenUntil as number;
+    const until = card.hiddenUntil;
+    if (until === undefined || until <= now) continue;
     if (soonest === null || until < soonest) soonest = until;
   }
   return soonest;
@@ -85,4 +109,4 @@ export function nextHideExpiry(
  * consequence of a grade, so a card whose grade was wiped must come back
  * immediately rather than sit invisible with nothing explaining why.
  */
-export const CLEAR_HIDE: { hiddenUntil: undefined } = { hiddenUntil: undefined };
+export const CLEAR_HIDE: Pick<WordCard, 'hiddenUntil'> = { hiddenUntil: undefined };

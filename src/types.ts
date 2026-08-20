@@ -28,11 +28,11 @@ export interface WordCard {
   notifOff?: boolean;
   folderId?: string;
   testMastered?: boolean;
-  testNextReview?: number; // Unix ms; if set and > Date.now(), skip in test queue
+  testNextReview?: number; // Unix ms; if set and > appNow(), skip in test queue
   /**
-   * Unix ms UTC. While in the future the card is hidden from every learning
-   * view, but is never deleted and still appears in backups. Set by a
-   * "Pretty good" grade when "Sync with test results" is on.
+   * Unix ms UTC. While in the future the card is hidden from ordinary learning
+   * views, but a matching result filter can reveal it. The card is never
+   * deleted and remains in backups.
    */
   hiddenUntil?: number;
   testLevel?: TestLevel;

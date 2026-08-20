@@ -23,13 +23,13 @@ export type PlanTier = 'free' | 'basic' | 'premium';
  * still subject to entitlement verification and the Worker's short-term abuse
  * limits.
  *
- * Counted only for generations that actually reach OpenAI. Audio replayed from
- * the device cache, cached voice previews and free-plan device TTS never touch
- * the allowance because they never reach the Worker.
+ * Counted only for word-card generations that actually reach OpenAI. Audio
+ * replayed from the device cache, voice-picker previews and free-plan device
+ * TTS never touch the allowance.
  */
 export const VOICE_MONTHLY_LIMITS: Readonly<Record<PlanTier, number | null>> = {
   free: 0,
-  basic: 100,
+  basic: 200,
   premium: null,
 };
 

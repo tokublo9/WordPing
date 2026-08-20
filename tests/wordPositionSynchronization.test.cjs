@@ -55,10 +55,29 @@ test('Word List and Word Flip share one per-folder current word ID', () => {
   assert.match(wordList, /onCurrentWordChange\(cardId\)/u);
   assert.match(wordList, /currentWordId=\{resolvedCurrentWordId\}/u);
   assert.match(wordList, /currentIndex=\{resolvedCurrentWordIndex \+ 1\}/u);
-  assert.match(wordList, /showCurrentPosition=\{cardViewMode === 'flip'\}/u);
+  assert.match(wordList, /showCurrentPosition=\{cardViewMode === 'flip' && isFilterActive\}/u);
   assert.match(flip, /const initialIndex = resolveCurrentWordIndex\(cards, currentWordId\);/u);
   assert.match(flip, /onCurrentWordChangeRef\.current\(c\[target\]\.id\)/u);
   assert.match(flip, /onCurrentWordChangeRef\.current\(c\[newIdx\]\?\.id \?\? null\)/u);
+});
+
+test('every colorful filter transition publishes the destination first card to both modes', () => {
+  const useCards = read('src/features/cards/useCards.ts');
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const flip = read('src/components/FlipCardBrowser.tsx');
+
+  assert.match(useCards, /const nextFilter = toggleActiveResultFilter\(activeResultFilter, level\);/u);
+  assert.match(
+    useCards,
+    /cardsForVisibility\(allFolderCards, \{\s*now: appNow\(\),\s*activeResultFilter: nextFilter,\s*\}\)\[0\]\?\.id \?\? null;/u,
+  );
+  assert.match(useCards, /setCurrentWordId\(firstCardId\);[\s\S]*?\[currentFolderId\]: nextFilter,/u);
+
+  // The shared ID drives the already-mounted list to index 0 and Flip to the
+  // same destination without remounting either mode.
+  assert.match(wordList, /listScrollToIndexRef\.current\?\.\(resolvedCurrentWordIndex\);/u);
+  assert.match(flip, /const target = resolveCurrentWordIndex\([\s\S]*?currentWordId/u);
+  assert.match(flip, /if \(target !== idxRef\.current \|\| centeredId !== targetId\) \{\s*goTo\(target\);/u);
 });
 
 test('returning to Word List prepositions the mounted hidden list before revealing it', () => {

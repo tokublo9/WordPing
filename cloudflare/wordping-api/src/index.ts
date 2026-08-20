@@ -41,7 +41,7 @@ const ROUTES: Readonly<Record<string, RouteHandler>> = {
  * changes. Lets a deployed Worker be compared against the source in the repo,
  * which is how a stale deployment gets spotted.
  */
-export const WORKER_VERSION = '2026-08-19.voice-promo.1';
+export const WORKER_VERSION = '2026-08-20.voice-quota.5';
 
 const LOCAL_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
 

@@ -12,19 +12,20 @@ import { useLang } from '../i18n';
 export interface AppContextMenuProps {
   visible: boolean;
   anchor: { top: number; right: number };
-  context: 'cards' | 'folders';
   pal: Palette;
-  showLevelLabels: boolean;
+  // Temporarily disabled with the Hide Labels menu row:
+  // context: 'cards' | 'folders';
+  // showLevelLabels: boolean;
   onDismiss(): void;
   onSelectEntries(): void;
   onReorder(): void;
-  onToggleLevelLabels(): void;
+  // onToggleLevelLabels(): void;
   onOpenSettings(): void;
 }
 
 export function AppContextMenu({
-  visible, anchor, context, pal, showLevelLabels,
-  onDismiss, onSelectEntries, onReorder, onToggleLevelLabels, onOpenSettings,
+  visible, anchor, pal,
+  onDismiss, onSelectEntries, onReorder, onOpenSettings,
 }: AppContextMenuProps) {
   const t = useLang();
   return (
@@ -53,6 +54,8 @@ export function AppContextMenu({
           <Ionicons name="swap-vertical-outline" size={17} color={pal.text} />
           <Text style={[styles.itemText, { color: pal.text }]}>{t('reorder_cards')}</Text>
         </TouchableOpacity>
+        {/* Hide Labels is temporarily disabled. The complete row, including its
+            separator, is kept here so restoring it cannot leave layout debris.
         {context === 'cards' && (
           <>
             <View style={[styles.sep, { backgroundColor: pal.border }]} />
@@ -68,6 +71,7 @@ export function AppContextMenu({
             </TouchableOpacity>
           </>
         )}
+        */}
 
         {/* Thicker divider before settings group */}
         <View style={[styles.groupSep, { backgroundColor: pal.border }]} />

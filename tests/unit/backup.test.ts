@@ -399,6 +399,27 @@ test('a backup without hiddenUntil still imports', async () => {
   assert.equal((await readWords(target))[0]?.hiddenUntil, undefined);
 });
 
+test('a deleted Perfect card is absent from later backups', async () => {
+  const db = await freshDatabase();
+  await writeSnapshot(db, {
+    cards: [
+      { id: 'kept', word: 'pear', meaning: 'fruit', note: '' },
+      {
+        id: 'deleted', word: 'apple', meaning: 'fruit', note: 'remove',
+        testLevel: 'perfect', testMastered: true,
+        reviewHistory: [{ ts: 1, rating: 'perfect' }],
+      },
+    ],
+  });
+  // The canonical app deletion flow removes the card from its persisted snapshot.
+  await writeSnapshot(db, { cards: [{ id: 'kept', word: 'pear', meaning: 'fruit', note: '' }] });
+
+  const backup = await exportBackup(db, EXPORT_OPTIONS);
+  assert.deepEqual(backup.data.words.map(word => word.id), ['kept']);
+  assert.equal(backup.data.learningProgress.some(entry => entry.wordId === 'deleted'), false);
+  assert.equal(backup.data.reviewHistory.some(entry => entry.wordId === 'deleted'), false);
+});
+
 test('a malformed hiddenUntil is rejected by validation', async () => {
   const db = await freshDatabase();
   await writeSnapshot(db, { cards: [{ id: 'w1', word: 'a', meaning: 'b', note: '', testLevel: 'good' }] });

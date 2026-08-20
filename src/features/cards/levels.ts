@@ -1,7 +1,12 @@
-export const ALL_LEVEL_KEYS = ['perfect', 'good', 'slightly', 'unknown', 'none'] as const;
+import type { WordCard } from '../../types';
+
+/** User-facing colorful filters. Perfect is deliberately absent because synced Perfect cards are deleted. */
+export const ALL_LEVEL_KEYS = ['good', 'slightly', 'unknown', 'none'] as const;
 
 export type LevelFilterKey = typeof ALL_LEVEL_KEYS[number];
-export type LevelFiltersByFolder = Record<string, LevelFilterKey[]>;
+export type ResultFilter = LevelFilterKey;
+export type ActiveResultFilter = ResultFilter | null;
+export type ActiveResultFiltersByFolder = Record<string, ActiveResultFilter>;
 
 const LEVEL_FILTER_KEY_SET = new Set<string>(ALL_LEVEL_KEYS);
 
@@ -9,11 +14,37 @@ export function isLevelFilterKey(value: unknown): value is LevelFilterKey {
   return typeof value === 'string' && LEVEL_FILTER_KEY_SET.has(value);
 }
 
+/** Selects one category, or clears it when the selected category is tapped again. */
+export function toggleActiveResultFilter(
+  current: ActiveResultFilter,
+  tapped: ResultFilter,
+): ActiveResultFilter {
+  return current === tapped ? null : tapped;
+}
+
+/** Counts result categories before ordinary visibility is applied. */
+export function countCardsByResult(
+  cards: readonly Pick<WordCard, 'testLevel'>[],
+): Record<LevelFilterKey, number> {
+  const counts: Record<LevelFilterKey, number> = {
+    good: 0,
+    slightly: 0,
+    unknown: 0,
+    none: 0,
+  };
+  for (const card of cards) {
+    if (card.testLevel === undefined) counts.none += 1;
+    else if (isLevelFilterKey(card.testLevel)) counts[card.testLevel] += 1;
+  }
+  return counts;
+}
+
 /**
- * Validates the locally stored per-folder filters and restores their canonical order.
- * An empty array is intentional: it means all five filters are disabled.
+ * Loads the exclusive per-folder filter. Older builds stored arrays for the
+ * former multi-select UI: one selected category remains selected, while zero
+ * or multiple selected categories safely become the unfiltered `null` state.
  */
-export function parseLevelFiltersByFolder(raw: string | null): LevelFiltersByFolder {
+export function parseActiveResultFiltersByFolder(raw: string | null): ActiveResultFiltersByFolder {
   if (!raw) return {};
 
   let parsed: unknown;
@@ -24,24 +55,36 @@ export function parseLevelFiltersByFolder(raw: string | null): LevelFiltersByFol
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
 
-  const result: LevelFiltersByFolder = {};
+  const result: ActiveResultFiltersByFolder = {};
   for (const [folderId, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!folderId || !Array.isArray(value)) continue;
+    if (!folderId) continue;
+    if (value === null) {
+      result[folderId] = null;
+      continue;
+    }
+    if (isLevelFilterKey(value)) {
+      result[folderId] = value;
+      continue;
+    }
+    if (!Array.isArray(value)) continue;
     const selected = new Set(value.filter(isLevelFilterKey));
-    // Preserve an intentionally empty selection, but treat a non-empty array with no
-    // recognized values as corrupt data and fall back to the all-enabled default.
-    if (value.length > 0 && selected.size === 0) continue;
-    result[folderId] = ALL_LEVEL_KEYS.filter(level => selected.has(level));
+    if (selected.size === 1) result[folderId] = [...selected][0];
+    else if (selected.size > 1 || value.length === 0) result[folderId] = null;
   }
   return result;
 }
 
 export const LEVEL_ORDER: Record<string, number> = { perfect: 0, good: 1, slightly: 2, unknown: 3 };
 
-export const LEVEL_FILTER_OPTIONS: Array<{ level: string; icon: string | null; color: string }> = [
-  { level: 'perfect',  icon: '◎',               color: '#5EBF84' },
+export interface LevelFilterOption {
+  level: LevelFilterKey;
+  icon: string | null;
+  color: string;
+}
+
+export const LEVEL_FILTER_OPTIONS: LevelFilterOption[] = [
   { level: 'good',     icon: 'ellipse-outline',  color: '#6BA4F0' },
   { level: 'slightly', icon: 'triangle-outline', color: '#F2B445' },
   { level: 'unknown',  icon: 'close-outline',    color: '#ED7373' },
-  { level: 'none',     icon: null,               color: '#AEB6C0' },
+  { level: 'none',     icon: null,               color: '#6B7280' },
 ];
