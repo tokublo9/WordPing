@@ -22,7 +22,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_REPLACE_WITH_PRODUCTION_IOS_KEY",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_bpzGvWNNZGkSAREWSCebWmxdwtX",
         "EXPO_PUBLIC_WORDPING_API_BASE_URL": "https://wordping-api.wordping-daiki.workers.dev"
       }
     }
