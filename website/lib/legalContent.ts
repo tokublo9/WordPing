@@ -1,5 +1,5 @@
 export const LEGAL_OPERATOR = 'Daiki Tokumoto';
-export const LEGAL_EMAIL = 'tokumoto.daiki.0219@gmail.com';
+export const LEGAL_EMAIL = 'daiki.studio9@gmail.com';
 export const LEGAL_EFFECTIVE_DATE_EN = 'August 20, 2026';
 export const LEGAL_EFFECTIVE_DATE_JA = '2026年8月20日';
 

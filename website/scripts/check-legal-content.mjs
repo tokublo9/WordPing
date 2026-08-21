@@ -21,7 +21,7 @@ if (!legalSource.includes('故意または重大な過失による責任')) {
 }
 const requiredStatements = [
   'Daiki Tokumoto',
-  'tokumoto.daiki.0219@gmail.com',
+  'daiki.studio9@gmail.com',
   'laws of Japan',
   'Kumamoto District Court',
   'Consumer Contract Act of Japan',

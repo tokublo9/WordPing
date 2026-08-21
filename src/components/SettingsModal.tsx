@@ -28,7 +28,7 @@ import {
 } from '../lib/aiVoices';
 import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 
-const CONTACT_MAIL = 'mailto:tokumoto.daiki.0219@gmail.com';
+const CONTACT_MAIL = 'mailto:daiki.studio9@gmail.com';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 const SW = Dimensions.get('window').width;
