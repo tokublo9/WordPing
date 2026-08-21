@@ -12,6 +12,7 @@ import {
   type ActiveResultFiltersByFolder,
 } from './levels';
 import { createId } from '../../utils/createId';
+import { reportSideEffectFailure } from '../../utils/reportSideEffectFailure';
 import {
   mergeVisibleCardOrder,
   nextRegistrationTimestamp,
@@ -482,6 +483,9 @@ export function useCards({
         failed: batch.invalidCount,
       };
     } catch (error) {
+      // Without this the preview only ever showed the generic failure string, leaving
+      // no trace of what actually broke while preparing the batch.
+      reportSideEffectFailure('bulk import', error);
       return {
         added: 0,
         duplicatesSkipped: 0,
