@@ -28,7 +28,13 @@ test('the list data keeps its identity across unrelated renders', () => {
   );
   assert.match(
     useCards,
-    /const filteredFolderCards = useMemo\([\s\S]*?\[allFolderCards, activeResultFilter, hideEpoch\],\s*\);/u,
+    /const filteredFolderCards = useMemo\([\s\S]*?\[displayedAllFolderCards, activeResultFilter, hideEpoch\],\s*\);/u,
+  );
+  // A pending reorder deliberately changes list identity once, while unrelated
+  // renders continue to reuse either the saved or pending array.
+  assert.match(
+    useCards,
+    /const displayedAllFolderCards = reorderMode && pendingFolderCards\s*\? pendingFolderCards\s*:\s*allFolderCards;/u,
   );
   // Cards live in App state, so leaving the screen and coming back re-renders from
   // state. Nothing may key the list on anything that changes during a transition.

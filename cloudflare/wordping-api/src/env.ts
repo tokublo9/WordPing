@@ -27,6 +27,8 @@ export interface Env {
   OPENAI_SPEECH_TIMEOUT_MS?: string;
   REVENUECAT_TIMEOUT_MS?: string;
   DEV_BYPASS_ENTITLEMENTS?: string;
+  /** Local `wrangler dev` scenario. Ignored for every non-loopback request. */
+  LOCAL_AI_VOICE_TEST_SCENARIO?: string;
 }
 
 function positiveInt(raw: string | undefined, fallback: number): number {

@@ -24,3 +24,5 @@ google-service-account.json
 cloudflare/**/node_modules/
 cloudflare/**/.wrangler/
 cloudflare/**/.dev.vars
+.vercel
+.env*

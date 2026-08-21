@@ -19,6 +19,7 @@ import type { Palette, WordCard } from '../types';
 import { REVEAL_WIDTH } from '../constants';
 import { useLang } from '../i18n';
 import { type GestureDirection, lockGestureDirection } from '../lib/gestureDirection';
+import { CardResultAccessibilityLabel } from './CardResultAccessibilityLabel';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -324,6 +325,7 @@ export function SwipeableCard({
         {...(selectionMode || reorderMode ? {} : panResponder.panHandlers)}
       >
         <View style={[styles.cardInner, { backgroundColor: isFlipped && !showFullCard ? themeColor : selected ? themeColor + '20' : pal.card, flexDirection: 'row', alignItems: 'stretch' }]}>
+          <CardResultAccessibilityLabel testLevel={item.testLevel} />
           <TouchableOpacity
             style={[styles.cardFlipArea, { flex: 1 }]}
             onPress={reorderMode ? undefined : handleCardPress}

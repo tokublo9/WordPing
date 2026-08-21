@@ -42,7 +42,10 @@ test('words added while subscribed are preloaded on registration', () => {
     app,
     /const handleCardRegistered = useCallback\(\(card: WordCard\) => \{\s*preloadAIPronunciation\(\{/u,
   );
-  assert.match(app, /hasAIAccess: isSubscriptionLoaded && isSubscribed,/u);
+  assert.match(
+    app,
+    /hasAIAccess:\s*isSubscriptionLoaded\s*&& isSubscribed\s*&& entitlementSource !== 'local-development-scenario',/u,
+  );
   assert.match(app, /onCardRegistered: handleCardRegistered/u);
   // And deleted cards release their queued work.
   assert.match(app, /cancelAIPronunciationPreload/u);

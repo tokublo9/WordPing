@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { MAX_AI_INPUT_CHARS } from '../constants';
 import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
+import { isBasicMonthlyLimitScenarioActive } from '../dev/localAiVoiceScenario';
 
 /**
  * Promotional previews always use the app's default voice, matching the voice
@@ -101,6 +102,8 @@ interface AudioCacheLookupOptions {
   onNetworkRequired?: () => void;
   loadingIndicatorAvailable?: boolean;
   trackAsActiveGeneration?: boolean;
+  /** Local manual test only: traverse the real request path without deleting cached audio. */
+  bypassCache?: boolean;
   sampleVersion?: string;
   /**
    * Fetch a fixed promotional clip instead of speaking `text`.
@@ -191,7 +194,7 @@ async function fetchAndCacheAudio(
 
   // 1. Session-level memory index
   const indexed = fileUriIndex.get(key);
-  if (indexed) {
+  if (indexed && !options.bypassCache) {
     const indexedFile = new File(indexed);
     if (await validateCachedAudioFile(indexedFile)) {
       const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
@@ -211,7 +214,7 @@ async function fetchAndCacheAudio(
 
   // 2. Persistent disk cache
   const cachedFile = ttsCacheFile(key, voice);
-  if (await validateCachedAudioFile(cachedFile)) {
+  if (!options.bypassCache && await validateCachedAudioFile(cachedFile)) {
     const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
     if (__DEV__) console.log('[TTS cache] disk hit', { voice, textLength: text.length });
     restoreCachedTiming(cachedFile);
@@ -222,7 +225,7 @@ async function fetchAndCacheAudio(
     });
     return { uri: cachedFile.uri, source: 'disk', cacheLookupDurationMs };
   }
-  if (cachedFile.exists) {
+  if (!options.bypassCache && cachedFile.exists) {
     if (__DEV__) console.warn('[TTS cache warning]', {
       cacheSource: 'disk', cacheStatus: 'invalid-or-unreadable', cacheKeyVersion: 'current',
     });
@@ -232,7 +235,7 @@ async function fetchAndCacheAudio(
   // Preserve valid pre-normalization cache files instead of charging for a
   // second generation after this cache-key migration.
   const legacyFile = legacyTTSCacheFile(request.text, voice);
-  if (!request.contentVersion && await validateCachedAudioFile(legacyFile)) {
+  if (!options.bypassCache && !request.contentVersion && await validateCachedAudioFile(legacyFile)) {
     const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
     restoreCachedTiming(legacyFile);
     fileUriIndex.set(key, legacyFile.uri);
@@ -243,7 +246,7 @@ async function fetchAndCacheAudio(
     });
     return { uri: legacyFile.uri, source: 'disk', cacheLookupDurationMs };
   }
-  if (!request.contentVersion && legacyFile.exists) {
+  if (!options.bypassCache && !request.contentVersion && legacyFile.exists) {
     if (__DEV__) console.warn('[TTS cache warning]', {
       cacheSource: 'disk', cacheStatus: 'invalid-or-unreadable', cacheKeyVersion: 'legacy',
     });
@@ -746,6 +749,7 @@ async function speakWithAI(
         loadingIndicatorDisplayed = Boolean(options.onPhaseChange);
         reportPhase('generating-or-downloading');
       },
+      bypassCache: isBasicMonthlyLimitScenarioActive() && sampleVersion === undefined && promo === undefined,
       sampleVersion,
       ...(promo ? { promo } : {}),
     });

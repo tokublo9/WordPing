@@ -28,8 +28,8 @@ interface Props {
   themeColor: string;
   /** Reload cards and folders from the database after an import replaces them. */
   onDataReplaced(): void;
-  /** RevenueCat entitlement state. Basic and Premium both unlock backup. */
-  isSubscribed: boolean;
+  /** RevenueCat entitlement state. Backup is Premium-only. */
+  isPremium: boolean;
   /**
    * False until RevenueCat has answered. Treated as not-entitled: an unknown
    * plan must never open a paid feature, and a stale "yes" would be worse than
@@ -49,7 +49,7 @@ export function BackupSection({
   pal,
   themeColor,
   onDataReplaced,
-  isSubscribed,
+  isPremium,
   isSubscriptionLoaded,
 }: Props) {
   const t = useLang();
@@ -59,7 +59,7 @@ export function BackupSection({
 
   // Resolved in features/backup/backupAccess.ts so the locked UI below and the
   // guard inside every handler cannot disagree about who is entitled.
-  const unlocked = canUseBackup({ isSubscribed, isSubscriptionLoaded });
+  const unlocked = canUseBackup({ isPremium, isSubscriptionLoaded });
 
   /**
    * The single access check, called first inside every backup action.

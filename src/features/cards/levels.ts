@@ -1,4 +1,4 @@
-import type { WordCard } from '../../types';
+import type { TestLevel, WordCard } from '../../types';
 
 /** User-facing colorful filters. Perfect is deliberately absent because synced Perfect cards are deleted. */
 export const ALL_LEVEL_KEYS = ['good', 'slightly', 'unknown', 'none'] as const;
@@ -75,6 +75,14 @@ export function parseActiveResultFiltersByFolder(raw: string | null): ActiveResu
 }
 
 export const LEVEL_ORDER: Record<string, number> = { perfect: 0, good: 1, slightly: 2, unknown: 3 };
+
+/** Existing localized result names, shared by visual and non-visual card UI. */
+export const TEST_LEVEL_LABEL_KEYS = {
+  perfect: 'test_know_perfectly',
+  good: 'test_know_good',
+  slightly: 'test_know_slightly',
+  unknown: 'test_dont_know',
+} as const satisfies Record<TestLevel, string>;
 
 export interface LevelFilterOption {
   level: LevelFilterKey;

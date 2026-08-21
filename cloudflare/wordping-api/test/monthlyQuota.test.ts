@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LIMITS } from '../src/config';
+import { privacyHash } from '../src/identity';
 import { handleRequest } from '../src/index';
 import { VOICE_MONTHLY_LIMITS, monthKey, monthResetsAt } from '../src/planLimits';
 import {
@@ -30,6 +31,36 @@ function upstreams(entitlements: Record<string, string | null>) {
 
 const BASIC = { basic: FUTURE_DATE };
 const PREMIUM = { premium: FUTURE_DATE };
+const ACTIVE_BASIC = { basic: '2099-01-01T00:00:00.000Z' };
+const DEFAULT_APP_USER_ID = '$RCAnonymousID:abc123def456';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+async function monthlyUsageKey(
+  env: ReturnType<typeof makeEnv>,
+  appUserId: string,
+  now: number,
+): Promise<string> {
+  const hashedAppUserId = await privacyHash(env, 'rcuser', appUserId);
+  return `quota:${monthKey(now)}:${hashedAppUserId}`;
+}
+
+async function seedMonthlyUsage(
+  env: ReturnType<typeof makeEnv>,
+  appUserId: string,
+  now: number,
+  used: number,
+): Promise<string> {
+  const key = await monthlyUsageKey(env, appUserId, now);
+  await env.WORDPING_KV.put(key, String(used));
+  return key;
+}
+
+function openAIAudioCalls(calls: { url: string }[]): number {
+  return calls.filter(entry => entry.url.includes('/audio/speech')).length;
+}
 
 /** Drives one metered request and returns its status. */
 async function call(env: ReturnType<typeof makeEnv>, path = '/v1/voice/card', body?: unknown) {
@@ -71,18 +102,22 @@ describe('quota enforcement', () => {
     expect(calls.some(c => c.url.includes('openai.com'))).toBe(false);
   });
 
-  it('Basic gets exactly 200 requests, and the 201st is refused', async () => {
-    mockFetch(upstreams(BASIC));
-    const env = makeEnv();
-    // Raise the per-minute/day limiter so only the monthly quota binds.
-    await env.WORDPING_KV.put(
-      'config:limits',
-      JSON.stringify({ voice_card: { basic: { maxRequestsPerMinute: 100000, maxRequestsPerDay: 100000, maxCharsPerDay: 100000000 } } }),
-    );
+  it('Basic accepts requests 199 and 200, blocks 201, and resets next UTC month', async () => {
+    vi.useFakeTimers();
+    const augustNow = Date.parse('2026-08-31T23:58:00.000Z');
+    vi.setSystemTime(augustNow);
 
-    for (let i = 0; i < 200; i += 1) {
-      expect((await call(env)).status).toBe(200);
-    }
+    const { calls } = mockFetch(upstreams(ACTIVE_BASIC));
+    const env = makeEnv();
+    const augustKey = await seedMonthlyUsage(env, DEFAULT_APP_USER_ID, augustNow, 198);
+
+    expect((await call(env)).status).toBe(200);
+    expect(await env.WORDPING_KV.get(augustKey)).toBe('199');
+    expect(openAIAudioCalls(calls)).toBe(1);
+
+    expect((await call(env)).status).toBe(200);
+    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
+    expect(openAIAudioCalls(calls)).toBe(2);
 
     const blocked = await call(env);
     expect(blocked.status).toBe(429);
@@ -92,6 +127,21 @@ describe('quota enforcement', () => {
       used: 200,
       tier: 'basic',
     });
+    // A rejected request neither reaches OpenAI nor changes monthly usage.
+    expect(openAIAudioCalls(calls)).toBe(2);
+    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
+
+    // The production rule is a UTC calendar-month boundary. Advancing the
+    // injected clock creates a fresh key; no real waiting is involved.
+    const septemberNow = Date.parse('2026-09-01T00:00:01.000Z');
+    vi.setSystemTime(septemberNow);
+    const resetRequest = await call(env);
+    expect(resetRequest.status).toBe(200);
+    const septemberKey = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, septemberNow);
+    expect(septemberKey).not.toBe(augustKey);
+    expect(await env.WORDPING_KV.get(septemberKey)).toBe('1');
+    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
+    expect(openAIAudioCalls(calls)).toBe(3);
   });
 
   it('Premium has no monthly product quota', () => {

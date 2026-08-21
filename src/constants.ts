@@ -453,6 +453,7 @@ export const MAX_AI_INPUT_CHARS = 500;
 
 export const SHOW_FULL_CARD_KEY  = 'card_show_full';
 export const VERTICAL_FLIP_KEY   = 'card_vertical_flip';
+export const SHOW_RESULT_COLOR_KEY = 'card_show_result_color';
 export const HIDE_AI_TOOLS_KEY   = 'wordping_hide_ai_tools';
 export const SYNC_TEST_RESULTS_KEY = 'wordping_sync_test_results';
 

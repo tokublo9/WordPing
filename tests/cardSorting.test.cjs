@@ -20,14 +20,15 @@ const {
   getCardRating,
   mergeVisibleCardOrder,
   nextRegistrationTimestamp,
+  shuffleCards,
   sortByRating,
   sortByRegistrationOrder,
 } = loadTypeScriptModule('src/features/cards/cardSorting.ts');
 const { SUPPORTED_LANGUAGES, translate } = loadTypeScriptModule('src/i18n.ts');
 
 const REGISTRATION_LABELS = {
-  'en-US': 'Registration Order',
-  ja: '登録した順',
+  'en-US': 'Registration order',
+  ja: '登録順',
   ko: '등록 순서',
   'zh-CN': '添加顺序',
   es: 'Orden de registro',
@@ -48,17 +49,22 @@ const REGISTRATION_LABELS = {
   sv: 'Tilläggsordning',
 };
 
-test('every supported locale has a localized Registration Order label and no old reset/original meaning', () => {
+test('every supported locale has localized reorder preset labels', () => {
   assert.equal(SUPPORTED_LANGUAGES.length, Object.keys(REGISTRATION_LABELS).length);
   for (const { code } of SUPPORTED_LANGUAGES) {
     const label = translate(code, 'reorder_registration_order');
+    const randomLabel = translate(code, 'reorder_random');
     assert.equal(label, REGISTRATION_LABELS[code], code);
+    assert.notEqual(randomLabel, 'reorder_random', code);
+    assert.ok(randomLabel.trim().length > 0, code);
     assert.doesNotMatch(
       label,
       /reset|original|やり直し|元の順序|원래 순서|原始顺序|оригинал|الأصلي|मूल|orijinal|origineel|ต้นฉบับ|asli|oryginal|αρχικό/iu,
       code,
     );
   }
+  assert.equal(translate('en-US', 'reorder_random'), 'Random');
+  assert.equal(translate('ja', 'reorder_random'), 'ランダム');
 });
 
 test('Registration Order sorts earliest createdAt first and latest last without mutating input', () => {
@@ -71,6 +77,27 @@ test('Registration Order sorts earliest createdAt first and latest last without 
     'earliest', 'middle', 'latest',
   ]);
   assert.deepEqual(displayed.map(card => card.id), ['latest', 'earliest', 'middle']);
+});
+
+test('Random returns a changed permutation without mutating the pending order', () => {
+  const pending = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+  const shuffled = shuffleCards(pending, () => 0.25);
+  assert.deepEqual([...shuffled].map(card => card.id).sort(), ['a', 'b', 'c', 'd']);
+  assert.notDeepEqual(shuffled.map(card => card.id), pending.map(card => card.id));
+  assert.deepEqual(pending.map(card => card.id), ['a', 'b', 'c', 'd']);
+});
+
+test('Random stays stable until invoked again, then creates a new pending order', () => {
+  const original = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const firstPendingOrder = shuffleCards(original, () => 0.999999);
+  const rerenderedOrder = firstPendingOrder;
+  assert.deepEqual(rerenderedOrder.map(card => card.id), firstPendingOrder.map(card => card.id));
+
+  const secondPendingOrder = shuffleCards(firstPendingOrder, () => 0.999999);
+  assert.notDeepEqual(
+    secondPendingOrder.map(card => card.id),
+    firstPendingOrder.map(card => card.id),
+  );
 });
 
 test('legacy cards without timestamps use a deterministic stable fallback independent of displayed order', () => {

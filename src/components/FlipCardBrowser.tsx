@@ -22,6 +22,7 @@ import { resolveCurrentWordIndex } from '../features/cards/currentWordPosition';
 import { CardScrollFace } from './CardScrollFace';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
+import { CardResultAccessibilityLabel } from './CardResultAccessibilityLabel';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MARGIN     = (SCREEN_W - FLIP_CARD_W) / 2;
@@ -540,15 +541,20 @@ function FlipCardBrowserComponent({
           const c = resolveLatestCard(slotCards[si]);
           if (!c) return null;
           const isCurr = si === currSlot;
+          // Only static adjacent previews may be texture-cached. The current slot
+          // owns a ScrollView; rasterizing that interactive subtree can preserve
+          // its first viewport-sized layer until scrolling invalidates the cache.
+          const cacheStaticPreview = active && !isCurr;
 
           return (
             <Animated.View
               key={si}
               style={[s.cardOuter, { transform: [{ translateX: slotTranslateX[si] }] }]}
-              renderToHardwareTextureAndroid={active}
-              shouldRasterizeIOS={active}
+              renderToHardwareTextureAndroid={cacheStaticPreview}
+              shouldRasterizeIOS={cacheStaticPreview}
               {...(isCurr ? panResponder.panHandlers : undefined)}
             >
+              {isCurr && <CardResultAccessibilityLabel testLevel={c.testLevel} />}
               {isCurr ? (
                 // Pressable inside each CardScrollFace handles flip for taps.
                 // ScrollView inside CardScrollFace handles vertical scrolling.

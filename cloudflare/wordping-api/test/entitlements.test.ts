@@ -291,4 +291,28 @@ describe('entitlement enforcement', () => {
     expect(combined).not.toContain('$RCAnonymousID');
     expect(combined).not.toContain('203.0.113.9');
   });
+
+  it('does not log raw AI input or a request body when an upstream request fails', async () => {
+    const lines: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation(line => { lines.push(String(line)); });
+    vi.spyOn(console, 'warn').mockImplementation(line => { lines.push(String(line)); });
+    vi.spyOn(console, 'error').mockImplementation(line => { lines.push(String(line)); });
+
+    mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => { throw new Error('upstream connection failed'); } },
+    ]);
+    await handleRequest(
+      makeRequest('/v1/voice/card', {
+        body: { text: 'private-word-that-must-never-be-logged', voice: 'marin' },
+      }),
+      makeEnv(),
+      makeCtx(),
+    );
+
+    const combined = lines.join('\n');
+    expect(combined).not.toContain('private-word-that-must-never-be-logged');
+    expect(combined).not.toContain('"text"');
+    expect(combined).not.toContain('"body"');
+  });
 });

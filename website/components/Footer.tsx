@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 
 export default function Footer() {
   const t = useTranslations('footer');
@@ -15,13 +16,16 @@ export default function Footer() {
             <span className="font-bold" style={{ color: 'var(--text)' }}>WordPing</span>
           </div>
 
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
-              Privacy
-            </a>
-            <a href="#" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
-              Terms
-            </a>
+          <div className="flex flex-wrap items-center justify-center gap-6">
+            <Link href="/privacy" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
+              {t('privacy')}
+            </Link>
+            <Link href="/terms" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
+              {t('terms')}
+            </Link>
+            <Link href="/licenses" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
+              {t('licenses')}
+            </Link>
           </div>
 
           <div className="text-right">

@@ -33,17 +33,16 @@ export function CardScrollFace({
     <View style={s.container}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator
         scrollIndicatorInsets={{ top: 4, bottom: 4 }}
         bounces={false}
-        nestedScrollEnabled
       >
         {/*
-          Pressable fills at least the full card height so the entire card surface
-          is tappable for short content. For long content it grows beyond FLIP_CARD_H,
-          making the excess scrollable. justifyContent:'center' only has room to act
-          when content is shorter than the padded area, centering it naturally.
+          The Pressable is the sole content-size owner. Keeping flex growth off the
+          ScrollView content container lets Yoga measure every wrapped line during
+          the initial layout instead of first constraining it to the viewport and
+          correcting the native scroll size after interaction. Short content still
+          fills the card through this minimum; long content grows intrinsically.
         */}
         <Pressable style={s.pressable} onPress={onFlip}>
           {children}

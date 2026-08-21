@@ -2,15 +2,17 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeProvider';
+import { useTranslations } from 'next-intl';
 
 export default function ThemeToggle() {
   const { theme, toggle } = useTheme();
+  const t = useTranslations('nav');
 
   return (
     <motion.button
       onClick={toggle}
-      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors"
+      aria-label={theme === 'dark' ? t('lightMode') : t('darkMode')}
+      className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       style={{
         borderColor: 'var(--border)',
         background: 'var(--bg-card)',

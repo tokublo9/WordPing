@@ -103,6 +103,8 @@ export interface AppModalsProps {
     onPickAIVoice(voice: AIVoice): void;
     showFullCard: boolean;
     onToggleShowFullCard: Dispatch<SetStateAction<boolean>>;
+    showResultColor: boolean;
+    onToggleShowResultColor: Dispatch<SetStateAction<boolean>>;
     verticalFlip: boolean;
     onToggleVerticalFlip: Dispatch<SetStateAction<boolean>>;
     hideAiTools: boolean;
@@ -267,6 +269,8 @@ export function AppModals({
         onPickAIVoice={settingsModal.onPickAIVoice}
         showFullCard={settingsModal.showFullCard}
         onToggleShowFullCard={settingsModal.onToggleShowFullCard}
+        showResultColor={settingsModal.showResultColor}
+        onToggleShowResultColor={settingsModal.onToggleShowResultColor}
         verticalFlip={settingsModal.verticalFlip}
         onToggleVerticalFlip={settingsModal.onToggleVerticalFlip}
         hideAiTools={settingsModal.hideAiTools}

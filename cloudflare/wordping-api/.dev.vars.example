@@ -15,3 +15,8 @@ RATE_LIMIT_SALT="REPLACE_WITH_LONG_RANDOM_STRING"
 # Optional local override: skip RevenueCat and treat every caller as premium.
 # Only honoured by `wrangler dev`; a deployed Worker refuses to start with this on.
 DEV_BYPASS_ENTITLEMENTS="0"
+
+# Optional local-only manual UI scenario. Leave blank for normal development.
+# When active over loopback, RevenueCat and OpenAI are replaced by local mocks
+# and the current Basic monthly quota counter is seeded to 200.
+LOCAL_AI_VOICE_TEST_SCENARIO=""

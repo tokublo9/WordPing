@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 
 const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 import { useTranslations } from 'next-intl';
@@ -50,8 +51,7 @@ export default function DownloadCTA() {
                 backdropFilter: 'blur(8px)',
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icon.png" alt="WordPing" width={56} height={56} className="rounded-2xl" />
+              <Image src="/icon.png" alt="" width={56} height={56} className="rounded-2xl" />
             </div>
           </div>
 

@@ -14,6 +14,11 @@ import { log } from './log';
 import { consume } from './ratelimit';
 import { reserveMonthlyQuota } from './monthlyQuota';
 import { isVoiceQuotaFeature } from './planLimits';
+import {
+  BASIC_MONTHLY_LIMIT_SCENARIO,
+  seedLocalBasicMonthlyLimit,
+  type LocalAiVoiceTestScenario,
+} from './localDevelopment';
 import { characterCount } from './schemas';
 import type { RuntimeConfig } from './runtimeConfig';
 
@@ -73,6 +78,7 @@ export interface GuardContext {
   resolved: ResolvedEnv;
   runtime: RuntimeConfig;
   response: ResponseContext;
+  localAiVoiceTestScenario: LocalAiVoiceTestScenario | null;
 }
 
 function contentLengthExceeded(request: Request): boolean {
@@ -159,14 +165,20 @@ export async function guard<T>(
   }
 
   let tier: Tier;
-  try {
-    const entitlement = await resolveEntitlement(env, resolved, identity.appUserId, response.requestId);
-    tier = entitlement.tier;
-    log('info', 'entitlement_resolved', response.requestId, {
-      feature: spec.feature, tier, source: entitlement.source,
+  if (context.localAiVoiceTestScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
+    tier = 'basic';
+    log('info', 'local_entitlement_mocked', response.requestId, {
+      feature: spec.feature, tier,
     });
-  } catch (error) {
-    if (error instanceof EntitlementServiceError) {
+  } else {
+    try {
+      const entitlement = await resolveEntitlement(env, resolved, identity.appUserId, response.requestId);
+      tier = entitlement.tier;
+      log('info', 'entitlement_resolved', response.requestId, {
+        feature: spec.feature, tier, source: entitlement.source,
+      });
+    } catch (error) {
+      if (!(error instanceof EntitlementServiceError)) throw error;
       // Fail closed either way — granting access on a verification failure would
       // make that failure the cheapest route to free AI — but say which it is.
       // A rejected key is our misconfiguration and retrying will never fix it;
@@ -181,7 +193,6 @@ export async function guard<T>(
         { 'Retry-After': '30' },
       );
     }
-    throw error;
   }
 
   if (!tierSatisfies(tier, requiredTier)) {
@@ -248,6 +259,9 @@ async function approve<T>(
     : '';
   const reserveQuota = async (): Promise<Response | null> => {
     if (!meteredForVoice) return null;
+    if (context.localAiVoiceTestScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
+      await seedLocalBasicMonthlyLimit(env, hashedAppUserId);
+    }
     const quota = await reserveMonthlyQuota(
       env,
       { tier, hashedAppUserId },

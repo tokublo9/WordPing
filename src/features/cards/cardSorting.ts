@@ -53,6 +53,27 @@ export function sortByRegistrationOrder<T extends SortableCard>(cards: readonly 
   return [...cards].sort(compareRegistrationOrder);
 }
 
+/**
+ * Return a new random order without mutating the input. A no-op shuffle is
+ * rotated once so every explicit Random tap changes a list with 2+ cards.
+ */
+export function shuffleCards<T>(cards: readonly T[], random = Math.random): T[] {
+  const shuffled = [...cards];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const sampled = random();
+    const normalized = Number.isFinite(sampled)
+      ? Math.min(Math.max(sampled, 0), 0.9999999999999999)
+      : 0;
+    const swapIndex = Math.floor(normalized * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  if (shuffled.length > 1 && shuffled.every((card, index) => card === cards[index])) {
+    shuffled.push(shuffled.shift() as T);
+  }
+  return shuffled;
+}
+
 /** Monotonic even when two registrations occur within the same millisecond. */
 export function nextRegistrationTimestamp(cards: readonly SortableCard[], now = Date.now()): number {
   const latest = cards.reduce((maximum, card) => {

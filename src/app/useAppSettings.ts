@@ -4,6 +4,7 @@ import type { Appearance } from '../types';
 import { DEFAULT_LANGUAGE, DEFAULT_THEME } from '../constants';
 import type { Settings } from '../lib/db';
 import { DEFAULT_AI_VOICE, type AIVoice } from '../lib/aiVoices';
+import { DEFAULT_SHOW_RESULT_COLOR } from '../features/settings/resultColorPreference';
 
 export interface AppSettingsState {
   themeColor: string;
@@ -18,6 +19,8 @@ export interface AppSettingsState {
   setAIVoice: Dispatch<SetStateAction<AIVoice>>;
   showFullCard: boolean;
   setShowFullCard: Dispatch<SetStateAction<boolean>>;
+  showResultColor: boolean;
+  setShowResultColor: Dispatch<SetStateAction<boolean>>;
   verticalFlip: boolean;
   setVerticalFlip: Dispatch<SetStateAction<boolean>>;
   hideAiTools: boolean;
@@ -37,6 +40,7 @@ export function useAppSettings(): AppSettingsState {
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [aiVoice, setAIVoice] = useState<AIVoice>(DEFAULT_AI_VOICE);
   const [showFullCard, setShowFullCard] = useState(false);
+  const [showResultColor, setShowResultColor] = useState(DEFAULT_SHOW_RESULT_COLOR);
   const [verticalFlip, setVerticalFlip] = useState(false);
   const [hideAiTools, setHideAiTools]   = useState(false);
   // Dormant saved preference retained for a possible future UI restoration.
@@ -61,6 +65,7 @@ export function useAppSettings(): AppSettingsState {
     language, setLanguage,
     aiVoice, setAIVoice,
     showFullCard, setShowFullCard,
+    showResultColor, setShowResultColor,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
     syncTestResults, setSyncTestResults,

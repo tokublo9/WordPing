@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { handleRequest, WORKER_VERSION } from '../src/index';
+import { handleRequest } from '../src/index';
+import { WORKER_VERSION } from '../src/version';
 import { classifyRevenueCatStatus, sanitizeUpstreamMessage } from '../src/entitlements';
 import {
   FUTURE_DATE, makeCtx, makeEnv, makeRequest, mockFetch, revenueCatSubscriber, wavBody,

@@ -29,6 +29,7 @@ export function handleTextAction(
         action: feature,
         text: body.text,
         timeoutMs: context.resolved.textTimeoutMs,
+        localMock: context.localAiVoiceTestScenario !== null,
         ...(body.langCode !== undefined ? { langCode: body.langCode } : {}),
       },
       context.response.requestId,

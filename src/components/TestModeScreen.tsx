@@ -3,7 +3,6 @@ import {
   Alert,
   Animated,
   Dimensions,
-  Easing,
   Modal,
   PanResponder,
   ScrollView,
@@ -14,7 +13,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { Palette, WordCard } from '../types';
 import { CLEAR_HIDE } from '../features/cards/visibility';
 import { appNow } from '../lib/appClock';
@@ -39,8 +37,8 @@ const { height: SCREEN_H } = Dimensions.get('window');
 
 interface Answer {
   kind: AnswerKind;
-  labelKey: string;
-  descKey: string;
+  labelKey: TranslationKey;
+  descKey: TranslationKey;
   icon: string;
   color: string;
 }
@@ -52,252 +50,23 @@ const ANSWERS: Answer[] = [
   { kind: 'unknown',  labelKey: 'test_dont_know',      descKey: 'test_desc_unknown',  icon: 'close-outline',    color: '#ef4444' },
 ];
 
-// ── Forgetting curve illustration ────────────────────────────────────────────
+// ── Information popup ────────────────────────────────────────────────────────
 
-const CHART_H  = 130;
-const Y_AXIS_W = 38;
+const INFO_DESCRIPTION_KEYS: Record<AnswerKind, TranslationKey> = {
+  perfect: 'test_info_perfect_exp',
+  good: 'test_info_good_exp',
+  slightly: 'test_info_slightly_exp',
+  unknown: 'test_info_unknown_exp',
+};
 
-// Exponential decay: segment from tStart→tEnd in T total time units, mapped to PLOT_W pixels.
-function seg(
-  tStart: number, tEnd: number, T: number, ret0: number, k: number, plotW: number,
-): { x: number; y: number }[] {
-  const pts: { x: number; y: number }[] = [];
-  for (let t = tStart; t <= tEnd; t += 1.5) {
-    const ret = ret0 * Math.exp(-k * (t - tStart));
-    pts.push({ x: (t / T) * plotW, y: CHART_H * (1 - ret) });
-  }
-  return pts;
-}
+// Derive the presentation from the actual Test Mode answers so the popup can
+// never drift to replacement icons or duplicate result-color constants.
+const INFO_ITEMS = ANSWERS.map(answer => ({
+  ...answer,
+  expKey: INFO_DESCRIPTION_KEYS[answer.kind],
+}));
 
-function ForgettingCurve({ t }: { t: (key: TranslationKey) => string }) {
-  const [plotW, setPlotW] = useState(240);
-
-  // Time axis: T=140 units. Review points at t=22 (Day1), t=62 (Day3), t=105 (Day7).
-  const T  = 140;
-  const t1 = 22;   // Day 1
-  const t2 = 62;   // Day 3
-  const t3 = 105;  // Day 7
-
-  // ── Reviewed curve (4 segments with jumps) ───────────────────────────────
-  // Seg 0: fast initial forgetting
-  const s0End = 0.98 * Math.exp(-0.044 * t1);               // ≈ 0.42
-  // Seg 1: moderate forgetting after Day 1 review
-  const r1    = 0.82;                                        // retention after Day 1 review
-  const s1End = r1 * Math.exp(-0.013 * (t2 - t1));          // ≈ 0.49
-  // Seg 2: slow forgetting after Day 3 review
-  const r2    = 0.88;                                        // retention after Day 3 review
-  const s2End = r2 * Math.exp(-0.009 * (t3 - t2));          // ≈ 0.59
-  // Seg 3: very slow forgetting after Day 7 review
-  const r3    = 0.93;                                        // retention after Day 7 review
-
-  const pts0 = seg(0,  t1, T, 0.98, 0.044, plotW);
-  const pts1 = seg(t1, t2, T, r1,   0.013, plotW);
-  const pts2 = seg(t2, t3, T, r2,   0.009, plotW);
-  const pts3 = seg(t3, T,  T, r3,   0.006, plotW);
-  const allPts = [...pts0, ...pts1, ...pts2, ...pts3];
-
-  // ── Without-review baseline (faint) ─────────────────────────────────────
-  const noReviewPts = seg(0, T, T, 0.98, 0.022, plotW);
-
-  // ── Pixel coordinates ────────────────────────────────────────────────────
-  const x1 = (t1 / T) * plotW;
-  const x2 = (t2 / T) * plotW;
-  const x3 = (t3 / T) * plotW;
-
-  // y = CHART_H * (1 - retention); lower y = higher retention
-  const y1Before = CHART_H * (1 - s0End);
-  const y1After  = CHART_H * (1 - r1);
-  const y2Before = CHART_H * (1 - s1End);
-  const y2After  = CHART_H * (1 - r2);
-  const y3Before = CHART_H * (1 - s2End);
-  const y3After  = CHART_H * (1 - r3);
-
-  const midY = CHART_H * 0.5;  // 50% grid line
-
-  const curveColor  = '#3478E5';
-  const reviewColor = '#35B978';
-  const axisColor   = '#7183A4';
-  const gridColor   = '#D7E2F3';
-  const dotSize     = 2.8;
-  const smallFont   = { fontSize: 8, color: axisColor } as const;
-
-  return (
-    <LinearGradient
-      colors={['#F1F6FF', '#DDE9FF']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={curve.card}
-    >
-      <View style={curve.plotCard}>
-        <View style={curve.chartRow}>
-          <View style={curve.yAxis}>
-            <Text style={[smallFont, curve.yTop]}>100%</Text>
-            <Text style={[smallFont, curve.yMid]}>50%</Text>
-            <Text style={[smallFont, curve.yBottom]}>0%</Text>
-          </View>
-
-          <View
-            style={curve.plot}
-            onLayout={e => setPlotW(e.nativeEvent.layout.width)}
-          >
-            <View style={[curve.axisBottom, { backgroundColor: gridColor }]} />
-            <View style={[curve.axisLeft, { backgroundColor: gridColor }]} />
-            <View style={[curve.gridLine, { top: midY, backgroundColor: gridColor }]} />
-
-            {noReviewPts.map((p, i) => (
-              <View key={`nr${i}`} style={{
-                position: 'absolute',
-                left: p.x - dotSize / 2, top: p.y - dotSize / 2,
-                width: dotSize, height: dotSize, borderRadius: dotSize / 2,
-                backgroundColor: '#98A8BF', opacity: 0.35,
-              }} />
-            ))}
-
-            {allPts.map((p, i) => (
-              <View key={`r${i}`} style={{
-                position: 'absolute',
-                left: p.x - dotSize / 2, top: p.y - dotSize / 2,
-                width: dotSize, height: dotSize, borderRadius: dotSize / 2,
-                backgroundColor: curveColor, opacity: 0.96,
-              }} />
-            ))}
-
-            {[
-              { x: x1, yFrom: y1Before, yTo: y1After },
-              { x: x2, yFrom: y2Before, yTo: y2After },
-              { x: x3, yFrom: y3Before, yTo: y3After },
-            ].map(({ x, yFrom, yTo }, i) => (
-              <View key={`review${i}`} style={StyleSheet.absoluteFill} pointerEvents="none">
-                <View style={{
-                  position: 'absolute', left: x - 1, top: yTo,
-                  width: 2, height: yFrom - yTo,
-                  backgroundColor: reviewColor, borderRadius: 1,
-                }} />
-                <View style={[curve.reviewPoint, { left: x - 9, top: Math.max(yTo - 9, 0) }]}>
-                  <Ionicons name="arrow-up" size={10} color="#fff" />
-                </View>
-              </View>
-            ))}
-
-            {[x1, x2, x3].map((x, i) => (
-              <View key={`tick${i}`} style={[curve.tick, { left: x - 0.5 }]} />
-            ))}
-          </View>
-        </View>
-
-        <View style={curve.xAxisRow}>
-          <View style={{ width: Y_AXIS_W }} />
-          <View style={curve.xAxisLabels}>
-            <Text style={[smallFont, curve.xNow]}>{t('chart_now')}</Text>
-            <Text style={[smallFont, { position: 'absolute', left: x1 - 10 }]}>{t('chart_day_1')}</Text>
-            <Text style={[smallFont, { position: 'absolute', left: x2 - 10 }]}>{t('chart_day_3')}</Text>
-            <Text style={[smallFont, { position: 'absolute', left: x3 - 10 }]}>{t('chart_day_7')}</Text>
-            <Text style={[smallFont, curve.xTime]}>{t('chart_time')} →</Text>
-          </View>
-        </View>
-      </View>
-
-      <Text style={curve.explanation}>{t('test_info_caption')}</Text>
-
-      <View style={curve.legend}>
-        <View style={curve.legendPill}>
-          <View style={[curve.legendLine, { backgroundColor: curveColor }]} />
-          <Text style={curve.legendText}>{t('chart_after_review')}</Text>
-        </View>
-        <View style={curve.legendPill}>
-          <View style={[curve.legendLine, { backgroundColor: '#A5B1C3' }]} />
-          <Text style={curve.legendText}>{t('chart_no_review')}</Text>
-        </View>
-      </View>
-    </LinearGradient>
-  );
-}
-
-const curve = StyleSheet.create({
-  card: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#C8D8F2',
-    overflow: 'hidden',
-    padding: 16,
-    marginBottom: 14,
-  },
-  plotCard: {
-    alignSelf: 'center',
-    width: '100%',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(180,200,232,0.75)',
-    backgroundColor: 'rgba(255,255,255,0.82)',
-    paddingHorizontal: 10,
-    paddingTop: 13,
-    paddingBottom: 9,
-  },
-  chartRow: { flexDirection: 'row', overflow: 'visible' },
-  yAxis: { width: Y_AXIS_W, height: CHART_H },
-  yTop: { position: 'absolute', right: 6, top: -4 },
-  yMid: { position: 'absolute', right: 6, top: CHART_H * 0.5 - 5 },
-  yBottom: { position: 'absolute', right: 6, bottom: -3 },
-  plot: { flex: 1, height: CHART_H, overflow: 'visible' },
-  axisBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1 },
-  axisLeft: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 1 },
-  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, opacity: 0.82 },
-  reviewPoint: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#35B978',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tick: { position: 'absolute', bottom: 0, width: 1, height: 5, backgroundColor: '#8FA1BB', opacity: 0.7 },
-  xAxisRow: { flexDirection: 'row', marginTop: 5 },
-  xAxisLabels: { flex: 1, position: 'relative', height: 14 },
-  xNow: { position: 'absolute', left: 0 },
-  xTime: { position: 'absolute', right: 0 },
-  explanation: {
-    color: '#5E7395',
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: 'center',
-    marginTop: 12,
-    paddingHorizontal: 8,
-  },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 11 },
-  legendPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(180,200,232,0.8)',
-    backgroundColor: 'rgba(255,255,255,0.68)',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  legendLine: { width: 18, height: 3, borderRadius: 2 },
-  legendText: { color: '#5E7395', fontSize: 9, fontWeight: '600' },
-});
-
-// ── Info sheet ────────────────────────────────────────────────────────────────
-
-const INFO_ITEMS: {
-  icon: '◎' | null;
-  iconName: 'ellipse-outline' | 'triangle-outline' | 'close-outline' | null;
-  color: string;
-  labelKey: TranslationKey;
-  expKey: TranslationKey;
-}[] = [
-  { icon: '◎', iconName: null,               color: '#22c55e', labelKey: 'test_know_perfectly', expKey: 'test_info_perfect_exp' },
-  { icon: null, iconName: 'ellipse-outline',  color: '#3B82F6', labelKey: 'test_know_good',      expKey: 'test_info_good_exp'    },
-  { icon: null, iconName: 'triangle-outline', color: '#f59e0b', labelKey: 'test_know_slightly',  expKey: 'test_info_slightly_exp'},
-  { icon: null, iconName: 'close-outline',    color: '#ef4444', labelKey: 'test_dont_know',      expKey: 'test_info_unknown_exp' },
-];
-
-function InfoSheet({
+function InfoPopup({
   visible, onClose, pal, explanationLang,
 }: {
   visible: boolean; onClose: () => void; pal: Palette; explanationLang: string;
@@ -309,94 +78,83 @@ function InfoSheet({
     [explanationUiLang],
   );
   const insets = useSafeAreaInsets();
-  const sheetH = SCREEN_H - insets.top - 10;
-  const slideY    = useRef(new Animated.Value(900)).current;
-  const backdropO = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      slideY.setValue(900);
-      backdropO.setValue(0);
-      Animated.parallel([
-        Animated.timing(backdropO, { toValue: 1, duration: 220, useNativeDriver: false }),
-        Animated.timing(slideY,    { toValue: 0, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
-      ]).start();
-    }
-  }, [visible]);
-
-  const close = () => {
-    Animated.parallel([
-      Animated.timing(backdropO, { toValue: 0, duration: 180, useNativeDriver: false }),
-      Animated.timing(slideY,    { toValue: 900, duration: 230, useNativeDriver: false }),
-    ]).start(() => onClose());
-  };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
-      {/* Backdrop */}
-      <Animated.View
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: backdropO }]}
-        pointerEvents="box-none"
-      >
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={close} />
-      </Animated.View>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={is.backdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={t('close')}
+        />
 
-      {/* Sheet */}
-      <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-        <View style={is.sheetOuter} pointerEvents="box-none">
-          <Animated.View
-            style={[is.sheet, {
-              backgroundColor: pal.bg,
+        <View
+          style={[
+            is.dialog,
+            {
+              backgroundColor: pal.dialog,
               borderColor: pal.border,
-              height: sheetH,
-              paddingBottom: insets.bottom,
-              transform: [{ translateY: slideY }],
-            }]}
-          >
-            <TouchableOpacity activeOpacity={1} style={{ flex: 1 }}>
-              {/* Header */}
-              <View style={[is.headerRow, { backgroundColor: pal.dialog, borderBottomColor: pal.border }]}>
-                <View style={is.headerTitleRow}>
-                  <Text style={[is.title, { color: pal.text }]}>{explanationT('test_info_title')}</Text>
-                </View>
-                <TouchableOpacity
-                  style={[is.closeButton, { backgroundColor: pal.input }]}
-                  onPress={close}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="close" size={22} color={pal.sub} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                keyboardShouldPersistTaps="handled"
-                style={{ flex: 1 }}
-                contentContainerStyle={is.scrollContent}
-              >
-                {/* Forgetting curve */}
-                <ForgettingCurve t={explanationT} />
-
-                {/* Answer explanations */}
-                {INFO_ITEMS.map(item => (
-                  <View key={item.color} style={[is.infoCard, { backgroundColor: pal.card, borderColor: pal.border }]}>
-                    <View style={[is.iconBox, { backgroundColor: item.color + '18' }]}>
-                      {item.icon ? (
-                        <Text style={{ fontSize: 18, color: item.color, lineHeight: 21 }}>{item.icon}</Text>
-                      ) : (
-                        <Ionicons name={item.iconName!} size={20} color={item.color} />
-                      )}
-                    </View>
-                    <View style={is.infoCopy}>
-                      <Text style={[is.infoLabel, { color: item.color }]}>{t(item.labelKey)}</Text>
-                      <Text style={[is.infoDesc, { color: pal.sub }]}>{t(item.expKey)}</Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
+              marginTop: insets.top + 16,
+              marginBottom: insets.bottom + 16,
+              maxHeight: SCREEN_H - insets.top - insets.bottom - 32,
+            },
+          ]}
+          accessibilityViewIsModal
+        >
+          <View style={is.headerRow}>
+            <Text
+              style={[is.title, { color: pal.text }]}
+              accessibilityRole="header"
+            >
+              {explanationT('test_info_title')}
+            </Text>
+            <TouchableOpacity
+              style={[is.closeButton, { backgroundColor: pal.input }]}
+              onPress={onClose}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('close')}
+            >
+              <Ionicons name="close" size={22} color={pal.sub} />
             </TouchableOpacity>
-          </Animated.View>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            style={is.bodyScroll}
+            contentContainerStyle={is.scrollContent}
+          >
+            {INFO_ITEMS.map(item => (
+              <View
+                key={item.kind}
+                style={[is.infoCard, { backgroundColor: pal.card, borderColor: pal.border }]}
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={`${t(item.labelKey)}. ${t(item.expKey)}`}
+              >
+                <View style={[is.iconBox, { backgroundColor: item.color + '18' }]}>
+                  {item.icon === '◎'
+                    ? <Text style={{ fontSize: 19, color: item.color, lineHeight: 20 }}>◎</Text>
+                    : <Ionicons name={item.icon as any} size={18} color={item.color} />
+                  }
+                </View>
+                <View style={is.infoCopy}>
+                  <Text style={[is.infoLabel, { color: item.color }]}>{t(item.labelKey)}</Text>
+                  <Text style={[is.infoDesc, { color: pal.sub }]}>{t(item.expKey)}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -404,45 +162,51 @@ function InfoSheet({
 }
 
 const is = StyleSheet.create({
-  sheetOuter: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  dialog: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     shadowColor: '#0F2F60',
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
     elevation: 18,
   },
   headerRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingLeft: 18, paddingRight: 12, paddingTop: 14, paddingBottom: 10,
   },
-  headerTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  title: { flex: 1, fontSize: 21, lineHeight: 26, fontWeight: '800' },
+  title: { flex: 1, fontSize: 18, lineHeight: 23, fontWeight: '800', marginRight: 10 },
   closeButton: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 26 },
+  bodyScroll: { flexGrow: 0 },
+  scrollContent: { paddingHorizontal: 14, paddingTop: 2, paddingBottom: 14 },
   infoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 17,
+    borderRadius: 15,
     borderWidth: 1,
-    padding: 13,
-    marginBottom: 10,
+    padding: 11,
+    marginBottom: 8,
   },
   iconBox: {
-    width: 42, height: 42, borderRadius: 13,
+    width: 38, height: 38, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    marginRight: 12,
+    marginRight: 10,
   },
   infoCopy: { flex: 1 },
   infoLabel: { fontSize: 14, lineHeight: 18, fontWeight: '700', marginBottom: 3 },
@@ -727,6 +491,8 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
           <TouchableOpacity
             onPress={() => setInfoVisible(true)}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('test_info_title')}
           >
             <Ionicons name="information-circle-outline" size={24} color={pal.sub} />
           </TouchableOpacity>
@@ -917,7 +683,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
 
       </View>
 
-      <InfoSheet
+      <InfoPopup
         visible={infoVisible}
         onClose={() => setInfoVisible(false)}
         pal={pal}

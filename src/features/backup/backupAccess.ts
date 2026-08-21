@@ -1,7 +1,7 @@
 /**
  * Who may back up and restore.
  *
- * Backup is a paid feature: Basic and Premium unlock it, Free does not. The
+ * Backup is a Premium feature: Free and Basic stay locked. The
  * decision lives here rather than inline in the component so it can be unit
  * tested against every entitlement state, and so the UI and the action handlers
  * are provably asking the same question.
@@ -14,18 +14,18 @@
 export type Plan = 'free' | 'basic' | 'premium';
 
 /** The lowest plan that unlocks backup. */
-export const BACKUP_MIN_PLAN: Plan = 'basic';
+export const BACKUP_MIN_PLAN: Plan = 'premium';
 
 /** Where a locked tap came from, for the subscription screen's context. */
 export const BACKUP_PAYWALL_SOURCE = 'backup';
 
 export function planUnlocksBackup(plan: Plan): boolean {
-  return plan === 'basic' || plan === 'premium';
+  return plan === 'premium';
 }
 
 export interface BackupAccessInput {
-  /** `plan !== 'free'` from useSubscription. */
-  isSubscribed: boolean;
+  /** `plan === 'premium'` from useSubscription. */
+  isPremium: boolean;
   /**
    * False until RevenueCat has answered — at launch, during a restore, and
    * while an offline cached entitlement is being refreshed.
@@ -44,10 +44,10 @@ export type BackupAccess = 'allowed' | 'locked';
  * subscription must lock again the moment RevenueCat says so.
  */
 export function resolveBackupAccess({
-  isSubscribed,
+  isPremium,
   isSubscriptionLoaded,
 }: BackupAccessInput): BackupAccess {
-  return isSubscriptionLoaded && isSubscribed ? 'allowed' : 'locked';
+  return isSubscriptionLoaded && isPremium ? 'allowed' : 'locked';
 }
 
 export function canUseBackup(input: BackupAccessInput): boolean {

@@ -48,8 +48,8 @@ export interface QuotaDecision {
   resetsAt: string;
 }
 
-function counterKey(monthlyKey: string, hashedAppUserId: string): string {
-  return `quota:${monthlyKey}:${hashedAppUserId}`;
+export function monthlyQuotaCounterKey(now: number, hashedAppUserId: string): string {
+  return `quota:${monthKey(now)}:${hashedAppUserId}`;
 }
 
 async function readUsed(env: Env, key: string): Promise<number> {
@@ -97,7 +97,7 @@ export async function reserveMonthlyQuota(
   // apply; this only means no *monthly product* ceiling.
   if (limit === null) return { allowed: true, limit: null, used: 0, resetsAt };
 
-  const key = counterKey(monthKey(now), input.hashedAppUserId);
+  const key = monthlyQuotaCounterKey(now, input.hashedAppUserId);
   const used = await readUsed(env, key);
 
   if (used + 1 > limit) {
@@ -128,6 +128,6 @@ export async function readMonthlyQuota(
   const limit = VOICE_MONTHLY_LIMITS[input.tier];
   const resetsAt = monthResetsAt(now);
   if (limit === null) return { allowed: true, limit: null, used: 0, resetsAt };
-  const used = await readUsed(env, counterKey(monthKey(now), input.hashedAppUserId));
+  const used = await readUsed(env, monthlyQuotaCounterKey(now, input.hashedAppUserId));
   return { allowed: used < limit, limit, used, resetsAt };
 }

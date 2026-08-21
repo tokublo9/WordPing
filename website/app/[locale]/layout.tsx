@@ -27,6 +27,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       description: t('description'),
       siteName: 'WordPing',
     },
+    icons: {
+      icon: [{ url: '/icon.png', type: 'image/png', sizes: '1254x1254' }],
+      apple: [{ url: '/icon.png', sizes: '1254x1254' }],
+    },
   };
 }
 

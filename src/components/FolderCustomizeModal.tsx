@@ -243,9 +243,9 @@ export function FolderCustomizeModal({
             {/* Banner — same position as main folder screen */}
             {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
 
-            {/* Safe-area spacer — pal.bg matches main screen's SafeAreaView background */}
+            {/* Continue the sheet surface through the bottom safe area. */}
             {insets.bottom > 0 && (
-              <View style={{ height: insets.bottom, backgroundColor: pal.bg }} />
+              <View style={{ height: insets.bottom, backgroundColor: pal.dialog }} />
             )}
           </Animated.View>
         </View>

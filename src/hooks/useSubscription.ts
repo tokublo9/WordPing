@@ -14,6 +14,10 @@ import {
   planFromCustomerInfo,
   PACKAGE_IDS,
 } from '../lib/purchases';
+import {
+  BASIC_MONTHLY_LIMIT_SCENARIO,
+  getLocalAiVoiceTestScenario,
+} from '../dev/localAiVoiceScenario';
 
 export type Plan = 'free' | 'basic' | 'premium';
 export type RevenueCatEntitlementSource =
@@ -22,7 +26,8 @@ export type RevenueCatEntitlementSource =
   | 'after-purchase-refresh'
   | 'after-restore-refresh'
   | 'manual-refresh'
-  | 'after-logout-refresh';
+  | 'after-logout-refresh'
+  | 'local-development-scenario';
 
 // Legacy AsyncStorage keys cleared after RC initializes.
 const LEGACY_KEY      = 'wordping_pro';
@@ -110,6 +115,16 @@ export function useSubscription() {
 
     (async () => {
       try {
+        const localScenario = await getLocalAiVoiceTestScenario();
+        if (localScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
+          if (active) {
+            setPlan('basic');
+            setEntitlementSource('local-development-scenario');
+            setEntitlementRevision(revision => revision + 1);
+          }
+          return;
+        }
+
         const configured = await configureRevenueCat();
         if (!configured) throw new Error('revenuecat_not_configured');
 

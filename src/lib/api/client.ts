@@ -8,13 +8,18 @@ import {
   parseQuotaInfo,
   type MonthlyQuotaInfo,
 } from './errors';
+import {
+  BASIC_MONTHLY_LIMIT_SCENARIO,
+  getLocalAiVoiceTestScenario,
+  LOCAL_AI_VOICE_APP_USER_ID,
+} from '../../dev/localAiVoiceScenario';
 
 /**
  * The single network boundary for AI features.
  *
- * Nothing else in the app calls `fetch`. That is what makes the timeout
- * behaviour, the error classification, the identity headers and the "never log
- * user text" rule enforceable in one place rather than per call site.
+ * This is the single production AI network boundary. The only other direct
+ * fetch is the loopback-only development scenario health probe; it carries no
+ * user text and cannot target a non-local host.
  *
  * The base URL is public by design — it is the address of a proxy, not a
  * credential. No key of any kind is present in this file or anywhere else in
@@ -52,7 +57,15 @@ if (__DEV__ && !isApiConfigured()) {
 let identityRequest: Promise<{ installId: string; appUserId: string }> | null = null;
 
 async function resolveIdentity(): Promise<{ installId: string; appUserId: string }> {
-  const [installId, configured] = await Promise.all([getInstallId(), configureRevenueCat()]);
+  const [installId, localScenario] = await Promise.all([
+    getInstallId(),
+    getLocalAiVoiceTestScenario(),
+  ]);
+  if (localScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
+    return { installId, appUserId: LOCAL_AI_VOICE_APP_USER_ID };
+  }
+
+  const configured = await configureRevenueCat();
   if (!configured) {
     // Without RevenueCat there is no identity to verify an entitlement against,
     // so the request would be refused server-side anyway. Failing here keeps

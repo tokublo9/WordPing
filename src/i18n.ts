@@ -17,6 +17,10 @@ export type TranslationKey =
   | 'tut6_title' | 'tut6_desc'
   | 'tut7_title' | 'tut7_desc'
   | 'words_singular' | 'words_plural' | 'no_words_title' | 'no_words_hint'
+  | 'empty_filter_good_title' | 'empty_filter_good_description'
+  | 'empty_filter_slightly_title' | 'empty_filter_slightly_description'
+  | 'empty_filter_unknown_title' | 'empty_filter_unknown_description'
+  | 'empty_filter_none_title' | 'empty_filter_none_description'
   | 'alert_enter_word'
   | 'copy' | 'notif_on' | 'notif_off_action' | 'move' | 'move_to_folder' | 'edit' | 'delete'
   | 'ai_voice_unavailable' | 'quota_exceeded_msg'
@@ -29,7 +33,7 @@ export type TranslationKey =
   | 'theme_skins' | 'theme_skins_desc'
   | 'price_month' | 'per_month' | 'subscribe'
   | 'view_flip' | 'view_list' | 'word_test'
-  | 'select_entries' | 'reorder_cards' | 'reorder_sort_best_first' | 'reorder_sort_least_first' | 'reorder_registration_order'
+  | 'select_entries' | 'reorder_cards' | 'reorder_sort_best_first' | 'reorder_sort_least_first' | 'reorder_registration_order' | 'reorder_random'
   | 'bulk_import' | 'bulk_import_helper' | 'bulk_import_placeholder' | 'bulk_import_input_label'
   | 'bulk_import_reset'
   | 'dismiss_keyboard'
@@ -102,6 +106,7 @@ export type TranslationKey =
   | 'ob_cat_other'
   | 'card_behavior'
   | 'show_full_card' | 'show_full_card_desc'
+  | 'show_result_color_on_cards'
   | 'vertical_flip' | 'vertical_flip_desc'
   | 'default_voice' | 'ai_voice_promo_desc' | 'ai_meaning_promo_desc' | 'themes_promo_desc'
   | 'plan_promo_label' | 'plan_hero_headline' | 'plan_hero_subtitle'
@@ -159,7 +164,7 @@ export type TranslationKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
-  | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label';
+  | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OnboardingProfileKey =
   | 'ob_profile_title' | 'ob_profile_desc'
@@ -197,12 +202,17 @@ type BackupKey =
 /** Settings, announcements and AI-error copy that falls back to English. */
 type AppShellKey =
   | 'sync_test_results' | 'sync_test_results_desc'
+  | 'show_result_color_on_cards'
+  | 'empty_filter_good_title' | 'empty_filter_good_description'
+  | 'empty_filter_slightly_title' | 'empty_filter_slightly_description'
+  | 'empty_filter_unknown_title' | 'empty_filter_unknown_description'
+  | 'empty_filter_none_title' | 'empty_filter_none_description'
   | 'announcements_empty_title' | 'announcements_empty_desc'
   | 'purchases_section' | 'retry'
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
-  | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label';
+  | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OptionalTranslationKey =
   | OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey | AIErrorMessageKey | BackupKey
@@ -215,9 +225,20 @@ type Dict = Record<Exclude<TranslationKey, OptionalTranslationKey>, string>
 
 // ── English (US) ───────────────────────────────────────────────────────────────
 const enUS: Dict = {
+  // ── Empty result filters ──────────────────────────────────────────────────
+  empty_filter_good_title: 'No “Pretty good” words yet',
+  empty_filter_good_description: 'Words you rate “Pretty good” in Test Mode will appear here. They’ll be hidden from the regular Word List and Flip Mode, then shown again after 3 days.',
+  empty_filter_slightly_title: 'No “Not really” words yet',
+  empty_filter_slightly_description: 'Words you rate “Not really” in Test Mode will appear here. They’ll be hidden from the regular Word List and Flip Mode, then shown again after 1 day.',
+  empty_filter_unknown_title: 'No “Don’t know” words yet',
+  empty_filter_unknown_description: 'Words you rate “Don’t know” in Test Mode will appear here and remain available for review.',
+  empty_filter_none_title: 'No untested words',
+  empty_filter_none_description: 'New words and words reset in Test Mode will appear here until you rate them.',
+
   // ── Settings · Card Behavior ────────────────────────────────────────────────
   sync_test_results:          'Sync with test results',
   sync_test_results_desc:     'Links test results with your word list. Perfect permanently deletes the card, Pretty good returns after 3 days, Not really returns after 1 day, and Don’t know stays visible.',
+  show_result_color_on_cards: 'Show result colour on cards',
 
   // ── Announcements ───────────────────────────────────────────────────────────
   announcements_empty_title: 'No announcements yet',
@@ -233,7 +254,7 @@ const enUS: Dict = {
 
   // ── AI voice errors ─────────────────────────────────────────────────────────
   err_voice_limit_title:     'Monthly voice limit reached',
-  err_voice_limit_basic:     'You’ve used all {limit} High-Quality AI Voice generations for this month. Upgrade to Premium for unlimited access.',
+  err_voice_limit_basic:     'You’ve used all {limit} High-Quality AI Voice generations for this month. Premium has no monthly quota, but normal service limits apply.',
   err_entitlement_unverified: 'Your subscription could not be verified just now. Please check your connection and try again.',
   err_service_not_configured: 'AI features are temporarily unavailable. Please try again later.',
 
@@ -325,7 +346,8 @@ const enUS: Dict = {
   hide_level_labels:        'Hide Labels',
   reorder_sort_best_first:  'Highest First',
   reorder_sort_least_first: 'Lowest First',
-  reorder_registration_order: 'Registration Order',
+  reorder_registration_order: 'Registration order',
+  reorder_random: 'Random',
   bulk_import: 'Bulk Import',
   dismiss_keyboard: 'Dismiss Keyboard',
   bulk_import_helper: 'Add several words at once. Each line is added as one word, and a new line starts the next word.',
@@ -373,13 +395,13 @@ const enUS: Dict = {
   test_reset:            'Reset',
   test_reset_confirm:    'All progress will be cleared.',
 
-  test_info_title:       'A Test Method Based on the Forgetting Curve',
+  test_info_title:       'How test results work',
   test_info_caption:     'The forgetting curve shows how memory fades over time. Reviewing at the right time helps you remember longer.',
   test_info_section:     'REVIEW OPTIONS',
-  test_info_perfect_exp: 'Removed from review',
-  test_info_good_exp:    'Review again in 3 days',
-  test_info_slightly_exp:'Review again tomorrow',
-  test_info_unknown_exp: 'Review again soon',
+  test_info_perfect_exp: 'The word is immediately and permanently deleted.',
+  test_info_good_exp:    'The word is hidden from the regular Word List and Flip Mode, then shown again after 3 days. You can still view it using the blue filter.',
+  test_info_slightly_exp:'The word is hidden from the regular Word List and Flip Mode, then shown again after 1 day. You can still view it using the yellow filter.',
+  test_info_unknown_exp: 'The word remains available for review and can be viewed using the red filter.',
   test_info_footer:      '',
 
   chart_now:            'Now',
@@ -514,6 +536,7 @@ const enUS: Dict = {
   vertical_flip_desc:       'Flip cards vertically instead of horizontally.',
   info_button_label:        'More information',
   show_full_card_info:      'In the word list, tapping a card shows its word, meaning and note together, instead of showing only the meaning on the back of the card.',
+  show_result_color_on_cards_info: 'A coloured label based on your level of understanding will appear in the bottom-right corner of each word card.',
   vertical_flip_info:       'Changes the card-flip animation from horizontal to vertical. Applies to Flip mode and Test Mode.',
   default_voice:         'Default Voice',
   ai_voice_promo_desc:   'Listen to remarkably natural audio generated by AI. You can also choose your favorite from 13 different voices.',
@@ -645,9 +668,20 @@ const enUS: Dict = {
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
 const ja: Dict = {
+  // ── Empty result filters ──────────────────────────────────────────────────
+  empty_filter_good_title: '「まあまあ」の単語はまだありません',
+  empty_filter_good_description: 'テストモードで「まあまあ」と評価した単語がここに表示されます。通常の単語リストとフリップモードでは一時的に非表示になり、3日後に再表示されます。',
+  empty_filter_slightly_title: '「微妙...」の単語はまだありません',
+  empty_filter_slightly_description: 'テストモードで「微妙...」と評価した単語がここに表示されます。通常の単語リストとフリップモードでは一時的に非表示になり、1日後に再表示されます。',
+  empty_filter_unknown_title: '「わからない」の単語はまだありません',
+  empty_filter_unknown_description: 'テストモードで「わからない」と評価した単語がここに表示され、引き続き復習できます。',
+  empty_filter_none_title: '未テストの単語はありません',
+  empty_filter_none_description: '新しく追加した単語や、テスト結果をリセットした単語は、評価されるまでここに表示されます。',
+
   // ── Settings · Card Behavior ────────────────────────────────────────────────
   sync_test_results:          'テスト結果と連動',
   sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodは3日後、Not reallyは1日後に再表示されます。Don’t knowは表示されたままです。',
+  show_result_color_on_cards: 'カードに結果の色を表示',
 
   // ── Announcements ───────────────────────────────────────────────────────────
   announcements_empty_title: 'お知らせはまだありません',
@@ -663,7 +697,7 @@ const ja: Dict = {
 
   // ── AI voice errors ─────────────────────────────────────────────────────────
   err_voice_limit_title:     '月間音声生成上限に達しました',
-  err_voice_limit_basic:     '今月の高品質AI音声生成を{limit}回使用しました。Premiumにアップグレードすると無制限で利用できます。',
+  err_voice_limit_basic:     '今月の高品質AI音声生成を{limit}回使用しました。Premiumには月間上限はありませんが、通常のサービス利用制限が適用されます。',
   err_entitlement_unverified: 'サブスクリプションを確認できませんでした。通信状況を確認してもう一度お試しください。',
   err_service_not_configured: 'AI機能は現在ご利用いただけません。しばらくしてからお試しください。',
 
@@ -712,7 +746,7 @@ const ja: Dict = {
 
   words_singular:   '単語',
   words_plural:     '単語',
-  no_words_title:   'まだ単語がありません',
+  no_words_title:   '単語がありません',
   no_words_hint:    '＋をタップして最初の単語を追加しましょう',
   alert_enter_word: '単語を入力してください',
 
@@ -755,7 +789,8 @@ const ja: Dict = {
   hide_level_labels:        'ラベルを非表示',
   reorder_sort_best_first:  '高い順',
   reorder_sort_least_first: '低い順',
-  reorder_registration_order: '登録した順',
+  reorder_registration_order: '登録順',
+  reorder_random: 'ランダム',
   bulk_import: '一括登録',
   dismiss_keyboard: 'キーボードを閉じる',
   bulk_import_helper: 'まとめて単語を追加できます。1行が1つの単語として追加され、改行すると次の単語として認識されます。',
@@ -803,13 +838,13 @@ const ja: Dict = {
   test_reset:            'リセット',
   test_reset_confirm:    'すべての進捗がリセットされます。',
 
-  test_info_title:       '忘却曲線に則ったテスト方法',
+  test_info_title:       'テスト結果の仕組み',
   test_info_caption:     '忘却曲線は、時間とともに記憶が薄れていく様子を示します。適切なタイミングで復習すると、記憶が定着しやすくなります。',
   test_info_section:     '復習オプション',
-  test_info_perfect_exp: '復習から除外',
-  test_info_good_exp:    '3日後に復習',
-  test_info_slightly_exp:'明日復習',
-  test_info_unknown_exp: 'すぐに復習',
+  test_info_perfect_exp: '単語はすぐに完全に削除されます。',
+  test_info_good_exp:    '通常の単語リストとフリップモードでは一時的に非表示になり、3日後に再表示されます。青色のフィルターからいつでも確認できます。',
+  test_info_slightly_exp:'通常の単語リストとフリップモードでは一時的に非表示になり、1日後に再表示されます。黄色のフィルターからいつでも確認できます。',
+  test_info_unknown_exp: '単語は引き続き復習でき、赤色のフィルターから確認できます。',
   test_info_footer:      '',
 
   chart_now:            '今',
@@ -944,6 +979,7 @@ const ja: Dict = {
   vertical_flip_desc:       'カードを横方向ではなく縦方向に反転させます。',
   info_button_label:        '詳細情報',
   show_full_card_info:      '単語リストでカードをタップしたとき、裏面に意味だけを表示するのではなく、単語・意味・メモをまとめて表示します。',
+  show_result_color_on_cards_info: '単語カードの右下に理解度に応じた色のラベルが表示されます。',
   vertical_flip_info:       'カードをめくるアニメーションを横方向から縦方向に変更します。フリップモードとテストモードに適用されます。',
   default_voice: 'デフォルト',
   ai_voice_promo_desc: 'AIボイスアイコンをタップして、より自然な発音を聞いてみましょう。',
@@ -1162,6 +1198,7 @@ const ko: Dict = {
   reorder_sort_best_first:  '높은순',
   reorder_sort_least_first: '낮은순',
   reorder_registration_order: '등록 순서',
+  reorder_random: '무작위',
   bulk_import: '일괄 등록',
   dismiss_keyboard: '키보드 닫기',
   bulk_import_helper: '여러 단어를 한 번에 추가할 수 있습니다. 한 줄이 하나의 단어로 추가되고, 줄을 바꾸면 다음 단어로 인식됩니다.',
@@ -1498,6 +1535,7 @@ const zhCN: Dict = {
   reorder_sort_best_first:  '高在前',
   reorder_sort_least_first: '低在前',
   reorder_registration_order: '添加顺序',
+  reorder_random: '随机',
   bulk_import: '批量导入',
   dismiss_keyboard: '收起键盘',
   bulk_import_helper: '可以一次添加多个单词。每一行会作为一个单词添加，换行后即为下一个单词。',
@@ -1834,6 +1872,7 @@ const es: Dict = {
   reorder_sort_best_first:  'Mayor primero',
   reorder_sort_least_first: 'Menor primero',
   reorder_registration_order: 'Orden de registro',
+  reorder_random: 'Aleatorio',
   bulk_import: 'Importación masiva',
   dismiss_keyboard: 'Ocultar teclado',
   bulk_import_helper: 'Puedes añadir varias palabras a la vez. Cada línea se añade como una palabra y un salto de línea comienza la siguiente.',
@@ -2170,6 +2209,7 @@ const fr: Dict = {
   reorder_sort_best_first:  'Plus élevé',
   reorder_sort_least_first: 'Plus faible',
   reorder_registration_order: 'Ordre d’ajout',
+  reorder_random: 'Aléatoire',
   bulk_import: 'Import groupé',
   dismiss_keyboard: 'Masquer le clavier',
   bulk_import_helper: 'Vous pouvez ajouter plusieurs mots à la fois. Chaque ligne est ajoutée comme un mot et un retour à la ligne commence le mot suivant.',
@@ -2506,6 +2546,7 @@ const de: Dict = {
   reorder_sort_best_first:  'Höchste zuerst',
   reorder_sort_least_first: 'Niedrigste zuerst',
   reorder_registration_order: 'Eingabereihenfolge',
+  reorder_random: 'Zufällig',
   bulk_import: 'Massenimport',
   dismiss_keyboard: 'Tastatur schließen',
   bulk_import_helper: 'Du kannst mehrere Wörter auf einmal hinzufügen. Jede Zeile wird als ein Wort hinzugefügt, ein Zeilenumbruch beginnt das nächste Wort.',
@@ -2842,6 +2883,7 @@ const it: Dict = {
   reorder_sort_best_first:  'Migliori prima',
   reorder_sort_least_first: 'Peggiori prima',
   reorder_registration_order: 'Ordine di inserimento',
+  reorder_random: 'Casuale',
   bulk_import: 'Importazione multipla',
   dismiss_keyboard: 'Chiudi tastiera',
   bulk_import_helper: 'Puoi aggiungere più parole in una volta. Ogni riga viene aggiunta come una parola e andando a capo inizia la parola successiva.',
@@ -3178,6 +3220,7 @@ const ptBR: Dict = {
   reorder_sort_best_first:  'Maiores primeiro',
   reorder_sort_least_first: 'Menores primeiro',
   reorder_registration_order: 'Ordem de cadastro',
+  reorder_random: 'Aleatório',
   bulk_import: 'Importação em massa',
   dismiss_keyboard: 'Fechar teclado',
   bulk_import_helper: 'Você pode adicionar várias palavras de uma vez. Cada linha é adicionada como uma palavra e uma nova linha começa a próxima.',
@@ -3463,6 +3506,7 @@ const ru: Dict = {
   reorder_cards: 'Упорядочить', show_level_labels: 'Показать метки', hide_level_labels: 'Скрыть метки',
   reorder_sort_best_first: 'Лучшие сначала', reorder_sort_least_first: 'Худшие сначала',
   reorder_registration_order: 'Порядок добавления',
+  reorder_random: 'Случайно',
   bulk_import: 'Массовый импорт', dismiss_keyboard: 'Скрыть клавиатуру', bulk_import_helper: 'Можно добавить несколько слов сразу. Каждая строка добавляется как одно слово, а перенос строки начинает следующее.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Слова или предложения для импорта', bulk_import_reset: 'Сбросить',
   bulk_import_parsed_count: 'Распознано: {n}', bulk_import_preview: 'Предпросмотр', bulk_import_valid_count: 'Готово к импорту: {n}',
@@ -3659,6 +3703,7 @@ const ar: Dict = {
   reorder_cards: 'إعادة الترتيب', show_level_labels: 'عرض التسميات', hide_level_labels: 'إخفاء التسميات',
   reorder_sort_best_first: 'الأعلى أولاً', reorder_sort_least_first: 'الأدنى أولاً',
   reorder_registration_order: 'ترتيب الإضافة',
+  reorder_random: 'عشوائي',
   bulk_import: 'استيراد جماعي', dismiss_keyboard: 'إخفاء لوحة المفاتيح', bulk_import_helper: 'يمكنك إضافة عدة كلمات مرة واحدة. يُضاف كل سطر ككلمة واحدة، والانتقال إلى سطر جديد يبدأ الكلمة التالية.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'الكلمات أو الجمل المراد استيرادها', bulk_import_reset: 'إعادة ضبط',
   bulk_import_parsed_count: 'تم التحليل: {n}', bulk_import_preview: 'معاينة', bulk_import_valid_count: 'جاهز للاستيراد: {n}',
@@ -3856,6 +3901,7 @@ const hi: Dict = {
   reorder_cards: 'पुनः क्रमित करें', show_level_labels: 'लेबल दिखाएं', hide_level_labels: 'लेबल छुपाएं',
   reorder_sort_best_first: 'उच्चतम पहले', reorder_sort_least_first: 'न्यूनतम पहले',
   reorder_registration_order: 'जोड़ने का क्रम',
+  reorder_random: 'रैंडम',
   bulk_import: 'एक साथ आयात', dismiss_keyboard: 'कीबोर्ड बंद करें', bulk_import_helper: 'एक साथ कई शब्द जोड़े जा सकते हैं। हर पंक्ति एक शब्द के रूप में जुड़ती है और नई पंक्ति से अगला शब्द शुरू होता है।',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'आयात करने के लिए शब्द या वाक्य', bulk_import_reset: 'रीसेट',
   bulk_import_parsed_count: 'पढ़े गए: {n}', bulk_import_preview: 'पूर्वावलोकन', bulk_import_valid_count: 'आयात के लिए तैयार: {n}',
@@ -4053,6 +4099,7 @@ const tr: Dict = {
   reorder_cards: 'Yeniden Sırala', show_level_labels: 'Etiketleri Göster', hide_level_labels: 'Etiketleri Gizle',
   reorder_sort_best_first: 'En yüksek önce', reorder_sort_least_first: 'En düşük önce',
   reorder_registration_order: 'Eklenme sırası',
+  reorder_random: 'Rastgele',
   bulk_import: 'Toplu İçe Aktar', dismiss_keyboard: 'Klavyeyi kapat', bulk_import_helper: 'Birden fazla kelimeyi tek seferde ekleyebilirsiniz. Her satır bir kelime olarak eklenir, yeni satır sonraki kelimeyi başlatır.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'İçe aktarılacak kelime veya cümleler', bulk_import_reset: 'Sıfırla',
   bulk_import_parsed_count: 'Ayrıştırılan: {n}', bulk_import_preview: 'Önizleme', bulk_import_valid_count: 'İçe aktarmaya hazır: {n}',
@@ -4250,6 +4297,7 @@ const nl: Dict = {
   reorder_cards: 'Herordenen', show_level_labels: 'Labels tonen', hide_level_labels: 'Labels verbergen',
   reorder_sort_best_first: 'Hoogste eerst', reorder_sort_least_first: 'Laagste eerst',
   reorder_registration_order: 'Volgorde van toevoegen',
+  reorder_random: 'Willekeurig',
   bulk_import: 'Bulkimport', dismiss_keyboard: 'Toetsenbord sluiten', bulk_import_helper: 'Je kunt meerdere woorden tegelijk toevoegen. Elke regel wordt als één woord toegevoegd en een nieuwe regel begint het volgende woord.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Woorden of zinnen om te importeren', bulk_import_reset: 'Resetten',
   bulk_import_parsed_count: 'Verwerkt: {n}', bulk_import_preview: 'Voorbeeld', bulk_import_valid_count: 'Klaar voor import: {n}',
@@ -4447,6 +4495,7 @@ const vi: Dict = {
   reorder_cards: 'Sắp xếp lại', show_level_labels: 'Hiện nhãn', hide_level_labels: 'Ẩn nhãn',
   reorder_sort_best_first: 'Cao nhất trước', reorder_sort_least_first: 'Thấp nhất trước',
   reorder_registration_order: 'Thứ tự thêm',
+  reorder_random: 'Ngẫu nhiên',
   bulk_import: 'Nhập hàng loạt', dismiss_keyboard: 'Ẩn bàn phím', bulk_import_helper: 'Bạn có thể thêm nhiều từ cùng lúc. Mỗi dòng được thêm thành một từ và khi xuống dòng sẽ là từ tiếp theo.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Từ hoặc câu cần nhập', bulk_import_reset: 'Đặt lại',
   bulk_import_parsed_count: 'Đã phân tích: {n}', bulk_import_preview: 'Xem trước', bulk_import_valid_count: 'Sẵn sàng nhập: {n}',
@@ -4643,6 +4692,7 @@ const th: Dict = {
   reorder_cards: 'จัดเรียงใหม่', show_level_labels: 'แสดงป้าย', hide_level_labels: 'ซ่อนป้าย',
   reorder_sort_best_first: 'สูงสุดก่อน', reorder_sort_least_first: 'ต่ำสุดก่อน',
   reorder_registration_order: 'ลำดับที่เพิ่ม',
+  reorder_random: 'สุ่ม',
   bulk_import: 'นำเข้าหลายรายการ', dismiss_keyboard: 'ปิดแป้นพิมพ์', bulk_import_helper: 'เพิ่มหลายคำได้ในครั้งเดียว แต่ละบรรทัดจะถูกเพิ่มเป็นหนึ่งคำ และการขึ้นบรรทัดใหม่จะเป็นคำถัดไป',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'คำหรือประโยคที่จะนำเข้า', bulk_import_reset: 'รีเซ็ต',
   bulk_import_parsed_count: 'วิเคราะห์แล้ว: {n}', bulk_import_preview: 'ดูตัวอย่าง', bulk_import_valid_count: 'พร้อมนำเข้า: {n}',
@@ -4839,6 +4889,7 @@ const id: Dict = {
   reorder_cards: 'Urutkan Ulang', show_level_labels: 'Tampilkan Label', hide_level_labels: 'Sembunyikan Label',
   reorder_sort_best_first: 'Tertinggi dulu', reorder_sort_least_first: 'Terendah dulu',
   reorder_registration_order: 'Urutan penambahan',
+  reorder_random: 'Acak',
   bulk_import: 'Impor massal', dismiss_keyboard: 'Tutup keyboard', bulk_import_helper: 'Anda dapat menambahkan beberapa kata sekaligus. Setiap baris ditambahkan sebagai satu kata dan baris baru menjadi kata berikutnya.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Kata atau kalimat untuk diimpor', bulk_import_reset: 'Atur Ulang',
   bulk_import_parsed_count: 'Diproses: {n}', bulk_import_preview: 'Pratinjau', bulk_import_valid_count: 'Siap diimpor: {n}',
@@ -5035,6 +5086,7 @@ const pl: Dict = {
   reorder_cards: 'Zmień kolejność', show_level_labels: 'Pokaż etykiety', hide_level_labels: 'Ukryj etykiety',
   reorder_sort_best_first: 'Najwyższe najpierw', reorder_sort_least_first: 'Najniższe najpierw',
   reorder_registration_order: 'Kolejność dodania',
+  reorder_random: 'Losowo',
   bulk_import: 'Import zbiorczy', dismiss_keyboard: 'Ukryj klawiaturę', bulk_import_helper: 'Możesz dodać wiele słów jednocześnie. Każdy wiersz jest dodawany jako jedno słowo, a nowy wiersz rozpoczyna następne słowo.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Słowa lub zdania do importu', bulk_import_reset: 'Resetuj',
   bulk_import_parsed_count: 'Przetworzono: {n}', bulk_import_preview: 'Podgląd', bulk_import_valid_count: 'Gotowe do importu: {n}',
@@ -5231,6 +5283,7 @@ const el: Dict = {
   reorder_cards: 'Αναδιάταξη', show_level_labels: 'Εμφάνιση ετικετών', hide_level_labels: 'Απόκρυψη ετικετών',
   reorder_sort_best_first: 'Υψηλότερα πρώτα', reorder_sort_least_first: 'Χαμηλότερα πρώτα',
   reorder_registration_order: 'Σειρά προσθήκης',
+  reorder_random: 'Τυχαία',
   bulk_import: 'Μαζική εισαγωγή', dismiss_keyboard: 'Απόκρυψη πληκτρολογίου', bulk_import_helper: 'Μπορείτε να προσθέσετε πολλές λέξεις μαζί. Κάθε γραμμή προστίθεται ως μία λέξη και μια νέα γραμμή ξεκινά την επόμενη.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Λέξεις ή προτάσεις για εισαγωγή', bulk_import_reset: 'Επαναφορά',
   bulk_import_parsed_count: 'Αναλύθηκαν: {n}', bulk_import_preview: 'Προεπισκόπηση', bulk_import_valid_count: 'Έτοιμα για εισαγωγή: {n}',
@@ -5427,6 +5480,7 @@ const sv: Dict = {
   reorder_cards: 'Ordna om', show_level_labels: 'Visa etiketter', hide_level_labels: 'Dölj etiketter',
   reorder_sort_best_first: 'Högsta först', reorder_sort_least_first: 'Lägsta först',
   reorder_registration_order: 'Tilläggsordning',
+  reorder_random: 'Slumpmässigt',
   bulk_import: 'Massimport', dismiss_keyboard: 'Dölj tangentbordet', bulk_import_helper: 'Du kan lägga till flera ord samtidigt. Varje rad läggs till som ett ord och en ny rad börjar nästa ord.',
   bulk_import_placeholder: 'spontaneous\nengage\nrecession', bulk_import_input_label: 'Ord eller meningar att importera', bulk_import_reset: 'Återställ',
   bulk_import_parsed_count: 'Bearbetade: {n}', bulk_import_preview: 'Förhandsvisa', bulk_import_valid_count: 'Klara för import: {n}',

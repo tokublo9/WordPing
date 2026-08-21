@@ -2,7 +2,7 @@
  * Development-only offset used by appNow() for time-dependent visibility.
  * Expo may need to be restarted after changing this value.
  */
-export const DEV_TIME_OFFSET_MS = 8 * 24 * 60 * 60 * 1000;
+export const DEV_TIME_OFFSET_MS = 0 * 24 * 60 * 60 * 1000;
 
 // +1 hour:
 // export const DEV_TIME_OFFSET_MS = 1 * 60 * 60 * 1000;

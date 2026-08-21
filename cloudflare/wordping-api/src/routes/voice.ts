@@ -72,6 +72,7 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
       voice,
       format,
       timeoutMs: context.resolved.speechTimeoutMs,
+      localMock: context.localAiVoiceTestScenario !== null,
     },
     context.response.requestId,
   );
@@ -136,6 +137,7 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
       voice,
       format: 'wav',
       timeoutMs: context.resolved.speechTimeoutMs,
+      localMock: context.localAiVoiceTestScenario !== null,
     },
     context.response.requestId,
   );
@@ -207,6 +209,7 @@ export async function handleVoicePromo(context: GuardContext): Promise<Response>
       voice: PROMO_SAMPLE_VOICE,
       format: 'wav',
       timeoutMs: context.resolved.speechTimeoutMs,
+      localMock: context.localAiVoiceTestScenario !== null,
     },
     context.response.requestId,
   );
@@ -249,6 +252,7 @@ export async function handleVoiceCustom(context: GuardContext): Promise<Response
       voice,
       format,
       timeoutMs: context.resolved.speechTimeoutMs,
+      localMock: context.localAiVoiceTestScenario !== null,
       ...(body.instructions ? { instructions: body.instructions } : {}),
     },
     context.response.requestId,

@@ -30,7 +30,7 @@ export default function Header() {
         }}
       >
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2.5">
+        <a href="#" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label={t('home')}>
           <div className="overflow-hidden rounded-xl" style={{ width: 32, height: 32 }}>
             <Image src="/icon.png" alt="WordPing" width={32} height={32} className="object-cover" />
           </div>
@@ -39,11 +39,11 @@ export default function Header() {
 
         {/* Nav */}
         <nav className="hidden items-center gap-8 md:flex">
-          {(['features', 'howItWorks', 'premium'] as const).map(key => (
+          {(['features', 'howItWorks', 'plans'] as const).map(key => (
             <a
               key={key}
-              href={`#${key === 'howItWorks' ? 'how' : key === 'premium' ? 'premium' : 'features'}`}
-              className="text-sm transition-colors hover:text-blue-500 dark:hover:text-blue-400"
+              href={`#${key === 'howItWorks' ? 'how' : key}`}
+              className="rounded-md text-sm transition-colors hover:text-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:text-blue-400"
               style={{ color: 'var(--text-sub)' }}
             >
               {t(key)}
@@ -58,6 +58,7 @@ export default function Header() {
 
           {/* Locale select */}
           <select
+            aria-label={t('language')}
             value={currentLocale}
             onChange={onLocaleChange}
             className="cursor-pointer rounded-lg px-2.5 py-1.5 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -77,7 +78,7 @@ export default function Header() {
           {/* CTA */}
           <a
             href="#download"
-            className="hidden items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-80 sm:inline-flex"
+            className="hidden items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:inline-flex"
             style={{ background: 'linear-gradient(135deg,#3B82F6,#8B5CF6)' }}
           >
             {t('download')}

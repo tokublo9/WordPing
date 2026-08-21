@@ -1,87 +1,200 @@
 {
   "meta": {
-    "title": "WordPing — 英単語をスマートに学ぶ",
-    "description": "プッシュ通知・フラッシュカード・AIによる意味生成で、英単語の学習をもっと効率的に。"
+    "title": "WordPing — そばに置ける単語学習",
+    "description": "単語リスト・フリップモード・テストモード、端末内の通知、テーマ、高品質AI音声で語彙を学習。単語データは端末内に保存され、アカウント登録は不要です。",
+    "imageAlt": "WordPingアプリアイコン"
   },
   "nav": {
     "features": "機能",
     "howItWorks": "使い方",
-    "premium": "Basicプラン",
-    "download": "ダウンロード"
+    "plans": "プラン",
+    "download": "App Store",
+    "language": "言語を選択",
+    "home": "WordPing ホーム",
+    "lightMode": "ライトモードに切り替える",
+    "darkMode": "ダークモードに切り替える"
   },
   "hero": {
-    "badge": "iOS対応 · もうすぐリリース",
-    "titleLine1": "スマートな通知で",
-    "titleHighlight": "単語を覚える。",
-    "subtitle": "WordPingはフラッシュカードと毎日のプッシュ通知で、英単語の記憶を徹底サポートします。",
-    "cta": "App Storeでもうすぐ公開",
-    "ctaNote": "無料でダウンロード"
+    "badge": "iOS版 WordPing",
+    "titleLine1": "単語をためる。",
+    "titleHighlight": "学びを続ける。",
+    "subtitle": "単語データは端末内に保存。単語リスト・フリップモード・テストモードで学習し、結果を分かりやすく整理できます。アカウント登録は不要です。",
+    "cta": "App Store リリース情報",
+    "ctaNote": "無料ダウンロード・Basic／Premiumの任意サブスクリプション",
+    "proof": {
+      "local": "端末内に保存",
+      "noAccount": "アカウント登録不要",
+      "ios": "iPhone・iPad対応"
+    },
+    "demo": {
+      "folder": "マイ単語",
+      "counter": "12語",
+      "wordLabel": "フリップモード",
+      "flipHint": "めくって意味を確認",
+      "meaningLabel": "意味",
+      "meaning": "偶然の幸運な発見",
+      "noteLabel": "メモ",
+      "note": "文脈や例文、覚え方のヒントを単語ごとに保存できます。",
+      "testLabel": "テストモード",
+      "testPrompt": "どのくらい覚えていましたか？",
+      "perfect": "Perfect",
+      "prettyGood": "Pretty good",
+      "notReally": "Not really",
+      "dontKnow": "Don’t know",
+      "resultTitle": "Pretty good",
+      "resultDescription": "テスト結果に合わせてカードが整理され、青色のフィルターから復習できます。",
+      "blueFilter": "青色の結果フィルター"
+    }
   },
   "features": {
-    "badge": "機能",
-    "title": "学習に必要な機能がすべて揃う",
-    "subtitle": "シンプルなツール。確かな結果。",
+    "badge": "現在の機能",
+    "title": "すべての単語に、学びやすい場所を",
+    "subtitle": "語彙を端末内で管理し、その時に合う学習画面を選び、テスト結果を次の復習に活かせます。",
     "cards": {
+      "local": {
+        "title": "単語データは端末内に保存",
+        "desc": "語彙はWordPing内にローカル保存されます。アカウント登録や自動クラウドバックアップはありません。"
+      },
+      "modes": {
+        "title": "3つの学習方法",
+        "desc": "単語リスト・フリップモード・テストモードを、復習の目的に合わせて使い分けられます。"
+      },
+      "organization": {
+        "title": "役立つテスト結果",
+        "desc": "結果の色とフィルターで、Pretty good・Not really・Don’t know・未テストの単語を探せます。"
+      },
+      "management": {
+        "title": "語彙を整理",
+        "desc": "フォルダ、ラベル、並べ替え、フィルターで、多くの単語も管理しやすく保てます。"
+      },
       "reminders": {
-        "title": "スマートな単語リマインダー",
-        "desc": "フォルダごとにプッシュ通知を設定。毎日のリマインダーで学習を継続できます。"
+        "title": "端末内のリマインダー",
+        "desc": "自分に合う間隔で、端末上に単語の通知を設定できます。"
       },
-      "flashcards": {
-        "title": "フリップカード式の単語復習",
-        "desc": "カードをスワイプして意味を確認。すべての単語の記憶レベルをトラッキング。"
+      "voice": {
+        "title": "高品質AI音声",
+        "desc": "対応する単語カードのテキストを自然な音声で確認できます。新規生成には通信環境と対象プランが必要です。"
       },
-      "notes": {
-        "title": "オリジナルの意味とメモ",
-        "desc": "自分の言葉で意味や例文を追加して、単語の定着率を高めましょう。"
+      "backup": {
+        "title": "自分で管理するバックアップ",
+        "desc": "Premiumでは自分でバックアップを書き出し・復元できます。自動でアップロードされることはありません。"
       },
       "themes": {
-        "title": "美しいスキンとテーマ",
-        "desc": "11種類以上のカラーテーマや、桜・深海・ナイトシティなどのプレミアムスキンを選べます。"
+        "title": "学習空間を彩るテーマ",
+        "desc": "無料テーマから始められ、BasicとPremiumでは有料テーマを利用できます。"
       }
     }
+  },
+  "gallery": {
+    "badge": "アプリ画面",
+    "title": "WordPingの使い方を見る",
+    "subtitle": "語彙の整理・復習・テスト・編集に使う現在のiOS画面です。",
+    "dialogLabel": "スクリーンショットのプレビュー",
+    "open": "{name}のスクリーンショットを開く",
+    "close": "スクリーンショットを閉じる",
+    "previous": "前のスクリーンショット",
+    "next": "次のスクリーンショット",
+    "swipe": "スワイプして続きを見る",
+    "shots": {
+      "wordList": "単語リスト",
+      "flipMode": "フリップモード",
+      "testMode": "テストモード",
+      "editWord": "単語を編集",
+      "themes": "テーマ選択"
+    }
+  },
+  "themes": {
+    "badge": "テーマ",
+    "title": "自分らしい学習空間に",
+    "subtitle": "無料テーマはすべてのユーザーが利用できます。BasicまたはPremiumの有効なサブスクリプションで有料テーマが解放され、テーマの個別販売はありません。",
+    "shopAlt": "WordPingのテーマ選択画面",
+    "access": {
+      "title": "分かりやすいプラン特典",
+      "desc": "Freeでは無料テーマを利用でき、有料テーマはBasicとPremiumの両方に含まれます。"
+    },
+    "variety": {
+      "title": "カラーと背景デザイン",
+      "desc": "読みやすさを保ちながら、シンプルな単色や印象的な背景を選べます。"
+    },
+    "personal": {
+      "title": "いつでも変更可能",
+      "desc": "テーマは見た目だけを変更し、単語データやテスト結果には影響しません。"
+    },
+    "galleryLabel": "WordPingテーマの一例"
   },
   "how": {
     "badge": "使い方",
-    "title": "4つのステップで学習",
+    "title": "単語の追加から復習まで",
     "steps": {
-      "1": {
-        "title": "単語を追加",
-        "desc": "気になった英単語やフレーズをワンタップで保存できます。"
-      },
-      "2": {
-        "title": "意味・メモを書く",
-        "desc": "自分なりの翻訳と覚え方のメモを追加して、記憶に定着させましょう。"
-      },
-      "3": {
-        "title": "通知を受け取る",
-        "desc": "WordPingがプッシュ通知を送るので、学習を忘れません。"
-      },
-      "4": {
-        "title": "いつでも復習",
-        "desc": "フラッシュカードやテストで、自分のペースで語彙を強化できます。"
-      }
+      "1": { "title": "追加して整理", "desc": "単語、意味、文、メモを保存し、フォルダやラベルで整理します。" },
+      "2": { "title": "好きなモードで復習", "desc": "全体を見る単語リストと、1枚ずつ集中できるフリップモードを使い分けます。" },
+      "3": { "title": "テストモードで確認", "desc": "覚え具合を評価すると、残ったカードが結果別に整理されます。" },
+      "4": { "title": "必要な時にもう一度", "desc": "結果フィルターと端末内の通知で、復習したい語彙を見つけられます。" }
     }
   },
-  "premium": {
-    "badge": "WordPing Basic",
-    "title": "フル機能を解放する。",
-    "subtitle": "より多くのカラー、プレミアムスキン、充実したカスタマイズ。",
-    "colors_title": "11種類以上のテーマカラー",
-    "colors_desc": "ブルー・ティール・ピンクなど、気分に合わせてカラーを選択。",
-    "skins_title": "プレミアム壁紙スキン",
-    "skins_desc": "桜・ナイトシティ・深海・オーロラなど、美しいスキンをラインナップ。",
-    "personal_title": "完全なカスタマイズ",
-    "personal_desc": "フリップ・並べ替え・テストを、自分好みにカスタマイズ。",
-    "cta": "もうすぐ公開"
+  "plans": {
+    "badge": "プラン",
+    "title": "学び方に合うプランを選択",
+    "subtitle": "Freeでも基本の語彙学習を利用できます。Basicは有料テーマと毎月のAI音声利用枠、Premiumは月間上限なしのAI音声、バックアップ、データ移行、優先サポートを追加します。",
+    "recommended": "すべての機能",
+    "comparisonFeature": "機能",
+    "free": {
+      "name": "Free",
+      "price": "無料",
+      "description": "基本のローカル語彙学習、無料テーマ、プロモーション音声サンプルを利用できます。"
+    },
+    "basic": {
+      "name": "Basic",
+      "price": "サブスクリプション",
+      "description": "有料テーマと、UTC基準の暦月ごとに高品質AI音声を新規200回生成できます。"
+    },
+    "premium": {
+      "name": "Premium",
+      "price": "サブスクリプション",
+      "description": "AI音声の月間上限がなく、バックアップ、データ移行、優先サポートを利用できます。"
+    },
+    "features": {
+      "core": "単語リスト・フリップモード・テストモード",
+      "freeThemes": "無料テーマ",
+      "promoSamples": "プロモーション音声サンプル",
+      "paidThemes": "有料テーマを利用可能",
+      "basicVoice": "高品質AI音声：月200回",
+      "premiumVoice": "高品質AI音声を利用可能",
+      "backup": "バックアップと復元・データ移行",
+      "priority": "優先サポート"
+    },
+    "rows": {
+      "core": "基本の語彙学習",
+      "storage": "端末内のローカル保存",
+      "studyModes": "単語リスト・フリップ・テスト",
+      "paidThemes": "有料テーマ",
+      "aiVoice": "高品質AI音声",
+      "backup": "バックアップと復元",
+      "transfer": "データ移行",
+      "priority": "優先サポート"
+    },
+    "values": {
+      "included": "含まれる",
+      "notIncluded": "対象外",
+      "promoOnly": "サンプルのみ",
+      "basicVoice": "月200回",
+      "premiumVoice": "利用可能※"
+    },
+    "basicVoiceNote": "Basicでは、UTC基準の暦月ごとに高品質AI音声を新規200回まで生成できます。キャッシュ済み音声の再生とプロモーションサンプルは新規生成回数を消費しません。",
+    "premiumVoiceNote": "※Premiumには月間の製品利用枠はありません。既存のリクエスト単位、分単位、日単位、技術、安全、乱用防止の制限は引き続き適用されます。",
+    "priceNote": "現在のサブスクリプション価格と更新条件は、購入前にAppleのApp Store上で表示されます。"
   },
   "cta": {
-    "title": "WordPingはもうすぐ登場。",
-    "subtitle": "App Storeへのリリース情報をいち早くお届けします。",
-    "button": "App Storeでもうすぐ公開",
-    "note": "無料でダウンロード"
+    "title": "単語を、いつもそばに。",
+    "subtitle": "WordPingはiPhoneとiPad向けにリリース準備中です。App Storeの公開情報が利用可能になり次第、こちらに掲載します。",
+    "button": "App Storeで近日公開",
+    "note": "無料ダウンロード・任意のサブスクリプション"
   },
   "footer": {
-    "tagline": "本気で学ぶ人のために作られたアプリ。",
-    "rights": "© 2025 WordPing. All rights reserved."
+    "tagline": "そばに置ける単語学習。",
+    "rights": "© 2026 WordPing. All rights reserved.",
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約",
+    "licenses": "オープンソースライセンス"
   }
 }

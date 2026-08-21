@@ -15,25 +15,25 @@ import {
  * and mid-restore.
  */
 
-/** How useSubscription derives isSubscribed. */
-function subscribedFor(plan: Plan): boolean {
-  return plan !== 'free';
+/** How useSubscription derives isPremium. */
+function premiumFor(plan: Plan): boolean {
+  return plan === 'premium';
 }
 
 test('Free cannot use backup', () => {
-  const access = resolveBackupAccess({ isSubscribed: subscribedFor('free'), isSubscriptionLoaded: true });
+  const access = resolveBackupAccess({ isPremium: premiumFor('free'), isSubscriptionLoaded: true });
   assert.equal(access, 'locked');
   assert.equal(planUnlocksBackup('free'), false);
 });
 
-test('Basic can export and import', () => {
-  assert.equal(planUnlocksBackup('basic'), true);
-  assert.equal(canUseBackup({ isSubscribed: subscribedFor('basic'), isSubscriptionLoaded: true }), true);
+test('Basic cannot export or import', () => {
+  assert.equal(planUnlocksBackup('basic'), false);
+  assert.equal(canUseBackup({ isPremium: premiumFor('basic'), isSubscriptionLoaded: true }), false);
 });
 
 test('Premium can export and import', () => {
   assert.equal(planUnlocksBackup('premium'), true);
-  assert.equal(canUseBackup({ isSubscribed: subscribedFor('premium'), isSubscriptionLoaded: true }), true);
+  assert.equal(canUseBackup({ isPremium: premiumFor('premium'), isSubscriptionLoaded: true }), true);
 });
 
 test('backup stays locked while the entitlement is still loading', () => {
@@ -41,7 +41,7 @@ test('backup stays locked while the entitlement is still loading', () => {
   // flight. Opening a paid feature on an unknown plan is a revenue bug.
   for (const plan of ['free', 'basic', 'premium'] as const) {
     assert.equal(
-      canUseBackup({ isSubscribed: subscribedFor(plan), isSubscriptionLoaded: false }),
+      canUseBackup({ isPremium: premiumFor(plan), isSubscriptionLoaded: false }),
       false,
       `${plan} must stay locked until RevenueCat answers`,
     );
@@ -50,15 +50,15 @@ test('backup stays locked while the entitlement is still loading', () => {
 
 test('backup locks again when a subscription expires', () => {
   // useSubscription drops plan to 'free' once the entitlement lapses.
-  const active = canUseBackup({ isSubscribed: true, isSubscriptionLoaded: true });
-  const expired = canUseBackup({ isSubscribed: false, isSubscriptionLoaded: true });
+  const active = canUseBackup({ isPremium: true, isSubscriptionLoaded: true });
+  const expired = canUseBackup({ isPremium: false, isSubscriptionLoaded: true });
   assert.equal(active, true);
   assert.equal(expired, false);
 });
 
 test('a restored purchase unlocks backup once the entitlement resolves', () => {
-  const duringRestore = canUseBackup({ isSubscribed: false, isSubscriptionLoaded: false });
-  const afterRestore = canUseBackup({ isSubscribed: true, isSubscriptionLoaded: true });
+  const duringRestore = canUseBackup({ isPremium: false, isSubscriptionLoaded: false });
+  const afterRestore = canUseBackup({ isPremium: true, isSubscriptionLoaded: true });
   assert.equal(duringRestore, false);
   assert.equal(afterRestore, true);
 });
@@ -66,19 +66,19 @@ test('a restored purchase unlocks backup once the entitlement resolves', () => {
 test('entitlement failure leaves backup inaccessible', () => {
   // useSubscription catches an init failure, stays on 'free' and sets isLoaded,
   // so a RevenueCat outage must resolve to locked rather than open.
-  assert.equal(canUseBackup({ isSubscribed: false, isSubscriptionLoaded: true }), false);
+  assert.equal(canUseBackup({ isPremium: false, isSubscriptionLoaded: true }), false);
 });
 
 test('access defaults closed across every input combination', () => {
-  for (const isSubscribed of [true, false]) {
+  for (const isPremium of [true, false]) {
     for (const isSubscriptionLoaded of [true, false]) {
-      const allowed = canUseBackup({ isSubscribed, isSubscriptionLoaded });
-      assert.equal(allowed, isSubscribed && isSubscriptionLoaded);
+      const allowed = canUseBackup({ isPremium, isSubscriptionLoaded });
+      assert.equal(allowed, isPremium && isSubscriptionLoaded);
     }
   }
 });
 
 test('the minimum plan and paywall source are the documented values', () => {
-  assert.equal(BACKUP_MIN_PLAN, 'basic');
+  assert.equal(BACKUP_MIN_PLAN, 'premium');
   assert.equal(BACKUP_PAYWALL_SOURCE, 'backup');
 });

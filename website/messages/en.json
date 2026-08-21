@@ -1,75 +1,200 @@
 {
   "meta": {
-    "title": "WordPing — Learn English Smarter",
-    "description": "A smart flashcard app with daily reminders, beautiful themes, and AI-powered meanings for serious English learners."
+    "title": "WordPing — Vocabulary study that stays with you",
+    "description": "Build and review vocabulary with Word List, Flip Mode, Test Mode, local reminders, themes and High-Quality AI Voice. Your vocabulary stays on your device; no account required.",
+    "imageAlt": "WordPing app icon"
   },
   "nav": {
     "features": "Features",
-    "howItWorks": "How It Works",
-    "premium": "Basic Plan",
-    "download": "Download"
+    "howItWorks": "How it works",
+    "plans": "Plans",
+    "download": "App Store",
+    "language": "Choose language",
+    "home": "WordPing home",
+    "lightMode": "Switch to light mode",
+    "darkMode": "Switch to dark mode"
   },
   "hero": {
-    "badge": "Available on iOS · Coming Soon",
-    "titleLine1": "Learn words through",
-    "titleHighlight": "smart reminders.",
-    "subtitle": "WordPing helps you remember vocabulary through simple flashcards and daily push notifications — study anywhere, anytime.",
-    "cta": "Coming Soon on the App Store",
-    "ctaNote": "Free to download"
+    "badge": "WordPing for iOS",
+    "titleLine1": "Build vocabulary.",
+    "titleHighlight": "Keep it close.",
+    "subtitle": "Your vocabulary stays on your device. Study with Word List, Flip Mode and Test Mode, organize results clearly, and keep learning without creating an account.",
+    "cta": "App Store release information",
+    "ctaNote": "Free download · Optional Basic and Premium subscriptions",
+    "proof": {
+      "local": "Local-first",
+      "noAccount": "No account required",
+      "ios": "iPhone and iPad"
+    },
+    "demo": {
+      "folder": "My vocabulary",
+      "counter": "12 words",
+      "wordLabel": "Word Flip",
+      "flipHint": "Flip to reveal the meaning",
+      "meaningLabel": "Meaning",
+      "meaning": "A happy discovery by chance",
+      "noteLabel": "Note",
+      "note": "Save your own context, examples and memory cues with each word.",
+      "testLabel": "Test Mode",
+      "testPrompt": "How well did you remember it?",
+      "perfect": "Perfect",
+      "prettyGood": "Pretty good",
+      "notReally": "Not really",
+      "dontKnow": "Don’t know",
+      "resultTitle": "Pretty good",
+      "resultDescription": "The card is organized with its test result and can be reviewed with the blue filter.",
+      "blueFilter": "Blue result filter"
+    }
   },
   "features": {
-    "badge": "Features",
-    "title": "Everything you need to learn",
-    "subtitle": "Simple tools. Real results.",
+    "badge": "Current features",
+    "title": "A focused place for every word",
+    "subtitle": "Manage vocabulary locally, choose the study view that fits the moment, and use test results to guide what you review next.",
     "cards": {
+      "local": {
+        "title": "Stored on your device",
+        "desc": "Vocabulary is kept locally in WordPing. There is no account and no automatic cloud vocabulary backup."
+      },
+      "modes": {
+        "title": "Three ways to study",
+        "desc": "Move between Word List, Flip Mode and Test Mode as your review changes."
+      },
+      "organization": {
+        "title": "Results that stay useful",
+        "desc": "Test-result colours and filters help you find Pretty good, Not really, Don’t know and untested words."
+      },
+      "management": {
+        "title": "Organize your collection",
+        "desc": "Use folders, labels, sorting and filters to keep large vocabulary collections manageable."
+      },
       "reminders": {
-        "title": "Smart word reminders",
-        "desc": "Set custom push notifications for each folder. Daily reminders keep you on track without interrupting your day."
+        "title": "Local reminders",
+        "desc": "Schedule vocabulary reminders on your device and choose a rhythm that works for you."
       },
-      "flashcards": {
-        "title": "Flip-card vocabulary review",
-        "desc": "Swipe through cards, flip to reveal meanings, and track your memory level for every word."
+      "voice": {
+        "title": "High-Quality AI Voice",
+        "desc": "Hear supported word-card text with natural audio. New generation requires a network connection and an eligible plan."
       },
-      "notes": {
-        "title": "Custom meanings & notes",
-        "desc": "Add your own translations, context notes, and example sentences so words stick in your memory."
+      "backup": {
+        "title": "Backup under your control",
+        "desc": "Premium lets you export your own backup file and import it when you choose. Nothing is uploaded automatically."
       },
       "themes": {
-        "title": "Beautiful skins & themes",
-        "desc": "Choose from 11+ solid color themes or premium wallpaper skins like Sakura, Deep Sea, and Night City."
+        "title": "Themes for your study space",
+        "desc": "Start with free themes; Basic and Premium include the paid theme collection."
       }
     }
   },
-  "how": {
-    "badge": "How it works",
-    "title": "Learn in 4 simple steps",
-    "steps": {
-      "1": { "title": "Add a word", "desc": "Save any English word or phrase you encounter. One tap is all it takes." },
-      "2": { "title": "Write meaning & note", "desc": "Add your own translation and a personal note to make the word stick." },
-      "3": { "title": "Get reminders", "desc": "WordPing sends push notifications so you never forget to study." },
-      "4": { "title": "Review anytime", "desc": "Flip cards, take tests, and reinforce your vocabulary at your own pace." }
+  "gallery": {
+    "badge": "App preview",
+    "title": "See WordPing in action",
+    "subtitle": "Current iOS screens for organizing, reviewing, testing and editing your vocabulary.",
+    "dialogLabel": "Screenshot preview",
+    "open": "Open {name} screenshot",
+    "close": "Close screenshot",
+    "previous": "Previous screenshot",
+    "next": "Next screenshot",
+    "swipe": "Swipe to see more",
+    "shots": {
+      "wordList": "Word List",
+      "flipMode": "Flip Mode",
+      "testMode": "Test Mode",
+      "editWord": "Edit a word",
+      "themes": "Theme selection"
     }
   },
-  "premium": {
-    "badge": "WordPing Basic",
-    "title": "Unlock the full experience.",
-    "subtitle": "More colors, premium wallpaper skins, and deeper personalization.",
-    "colors_title": "11+ theme colors",
-    "colors_desc": "Match your mood with solid color themes — blue, teal, pink, and more.",
-    "skins_title": "Premium wallpaper skins",
-    "skins_desc": "Sakura, Night City, Deep Sea, Aurora, and more stunning skins.",
-    "personal_title": "Full personalization",
-    "personal_desc": "Flip, reorder, and test your vocabulary exactly the way you want.",
-    "cta": "Coming soon"
+  "themes": {
+    "badge": "Themes",
+    "title": "Make your study space feel like yours",
+    "subtitle": "WordPing includes free themes for everyone. An active Basic or Premium subscription unlocks the paid themes; themes are not sold individually.",
+    "shopAlt": "WordPing theme selection screen",
+    "access": {
+      "title": "Simple plan access",
+      "desc": "Free themes stay available on Free. Paid themes are included with both Basic and Premium."
+    },
+    "variety": {
+      "title": "Colours and illustrated backgrounds",
+      "desc": "Choose a clean solid colour or a more expressive background while keeping cards readable."
+    },
+    "personal": {
+      "title": "Change it whenever you like",
+      "desc": "Theme choices affect presentation only; your vocabulary and test results remain intact."
+    },
+    "galleryLabel": "A selection of WordPing themes"
+  },
+  "how": {
+    "badge": "How it works",
+    "title": "From a new word to focused review",
+    "steps": {
+      "1": { "title": "Add and organize", "desc": "Save a word, meaning, sentence or note, then place it in a folder and add labels." },
+      "2": { "title": "Review in your preferred mode", "desc": "Use Word List for an overview or Flip Mode for focused card-by-card study." },
+      "3": { "title": "Check recall in Test Mode", "desc": "Rate what you remember and let WordPing organize the remaining cards by result." },
+      "4": { "title": "Return at the right time", "desc": "Use result filters and local reminders to find the vocabulary you want to revisit." }
+    }
+  },
+  "plans": {
+    "badge": "Plans",
+    "title": "Choose the level that fits your study",
+    "subtitle": "Core vocabulary study is available on Free. Basic adds paid themes and a monthly AI Voice allowance. Premium adds High-Quality AI Voice without a monthly product quota, backup, data transfer and priority support.",
+    "recommended": "Most complete",
+    "comparisonFeature": "Feature",
+    "free": {
+      "name": "Free",
+      "price": "Free",
+      "description": "Core local vocabulary study with free themes and promotional voice samples."
+    },
+    "basic": {
+      "name": "Basic",
+      "price": "Subscription",
+      "description": "Paid themes and 200 new High-Quality AI Voice generations each UTC calendar month."
+    },
+    "premium": {
+      "name": "Premium",
+      "price": "Subscription",
+      "description": "The complete plan with no monthly AI Voice quota, backup, data transfer and priority support."
+    },
+    "features": {
+      "core": "Word List, Flip Mode and Test Mode",
+      "freeThemes": "Free themes",
+      "promoSamples": "Promotional voice samples",
+      "paidThemes": "Paid themes included",
+      "basicVoice": "High-Quality AI Voice: 200/month",
+      "premiumVoice": "High-Quality AI Voice included",
+      "backup": "Backup & Restore and Data Transfer",
+      "priority": "Priority Support"
+    },
+    "rows": {
+      "core": "Core vocabulary study",
+      "storage": "Local on-device storage",
+      "studyModes": "Word List, Flip Mode and Test Mode",
+      "paidThemes": "Paid themes",
+      "aiVoice": "High-Quality AI Voice",
+      "backup": "Backup & Restore",
+      "transfer": "Data Transfer",
+      "priority": "Priority Support"
+    },
+    "values": {
+      "included": "Included",
+      "notIncluded": "Not included",
+      "promoOnly": "Samples only",
+      "basicVoice": "200/month",
+      "premiumVoice": "Included*"
+    },
+    "basicVoiceNote": "Basic includes up to 200 new High-Quality AI Voice generations per UTC calendar month. Cached playback and promotional samples do not consume a new generation.",
+    "premiumVoiceNote": "*Premium has no monthly product quota. Existing per-request, per-minute, daily, technical, safety and abuse-prevention limits still apply.",
+    "priceNote": "Current subscription prices and renewal terms are shown by Apple in the App Store before purchase."
   },
   "cta": {
-    "title": "WordPing is coming soon.",
-    "subtitle": "Be the first to know when it launches on the App Store.",
-    "button": "Coming Soon on the App Store",
-    "note": "Free to download"
+    "title": "Keep your vocabulary close.",
+    "subtitle": "WordPing is being prepared for iPhone and iPad. App Store release information will appear here when available.",
+    "button": "App Store release coming soon",
+    "note": "Free download · Optional subscriptions"
   },
   "footer": {
-    "tagline": "Built for learners who mean it.",
-    "rights": "© 2025 WordPing. All rights reserved."
+    "tagline": "Vocabulary study, kept close.",
+    "rights": "© 2026 WordPing. All rights reserved.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "licenses": "Open Source Licences"
   }
 }

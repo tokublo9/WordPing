@@ -7,6 +7,7 @@ import {
   SYNC_TEST_RESULTS_KEY,
   ONBOARDING_KEY,
   SHOW_FULL_CARD_KEY,
+  SHOW_RESULT_COLOR_KEY,
   VERTICAL_FLIP_KEY,
   WORD_LIST_FILTERS_KEY,
 } from '../constants';
@@ -24,6 +25,7 @@ import {
   parseActiveResultFiltersByFolder,
   type ActiveResultFiltersByFolder,
 } from '../features/cards/levels';
+import { parseShowResultColorPreference } from '../features/settings/resultColorPreference';
 
 // Assigns folderId to cards that predate the folder feature.
 // Creates a default folder when none exist — the only side effect.
@@ -76,6 +78,7 @@ export interface UseAppBootstrapParams {
   applySettings(s: Settings): void;
   markSettingsLoaded(): void;
   setShowFullCard(v: boolean): void;
+  setShowResultColor(v: boolean): void;
   setVerticalFlip(v: boolean): void;
   setHideAiTools(v: boolean): void;
   setSyncTestResults(v: boolean): void;
@@ -113,6 +116,7 @@ export function useAppBootstrap({
   applySettings,
   markSettingsLoaded,
   setShowFullCard,
+  setShowResultColor,
   setVerticalFlip,
   setHideAiTools,
   setSyncTestResults,
@@ -203,13 +207,15 @@ export function useAppBootstrap({
 
       // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────
       let rawShowFull: string | null = null;
+      let rawShowResultColor: string | null = null;
       let rawVertFlip: string | null = null;
       let rawHideAi:  string | null = null;
       let rawSyncTest: string | null = null;
       let obRaw: string | null = null;
       try {
-        [rawShowFull, rawVertFlip, rawHideAi, rawSyncTest, obRaw] = await Promise.all([
+        [rawShowFull, rawShowResultColor, rawVertFlip, rawHideAi, rawSyncTest, obRaw] = await Promise.all([
           AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
+          AsyncStorage.getItem(SHOW_RESULT_COLOR_KEY),
           AsyncStorage.getItem(VERTICAL_FLIP_KEY),
           AsyncStorage.getItem(HIDE_AI_TOOLS_KEY),
           AsyncStorage.getItem(SYNC_TEST_RESULTS_KEY),
@@ -228,6 +234,8 @@ export function useAppBootstrap({
       if (cancelled) return;
 
       if (rawShowFull === 'true') setShowFullCard(true);
+      // Missing, malformed and unreadable legacy values are explicitly OFF.
+      setShowResultColor(parseShowResultColorPreference(rawShowResultColor));
       // Absent means off, which is the default for existing users.
       if (rawSyncTest === 'true') setSyncTestResults(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');

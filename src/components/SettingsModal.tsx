@@ -9,6 +9,7 @@ import type { Appearance, Palette } from '../types';
 import { getToggleOffTrackColor } from '../constants';
 import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import { appStyles as s } from '../styles';
+import { LEGAL_URLS } from '../config/legalUrls';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
 import { BackupSection } from './BackupSection';
 import { AI_TEXT_FEATURES_ENABLED } from '../features/flags';
@@ -27,11 +28,7 @@ import {
 } from '../lib/aiVoices';
 import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 
-// TODO: replace with real URLs before release
-const PRIVACY_URL  = 'https://wordping.app/privacy';
-const TERMS_URL    = 'https://wordping.app/terms';
 const CONTACT_MAIL = 'mailto:tokumoto.daiki.0219@gmail.com';
-const LICENSE_URL  = 'https://wordping.app/license';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 const SW = Dimensions.get('window').width;
@@ -78,6 +75,8 @@ interface Props {
   onPickAIVoice: (voice: AIVoice) => void;
   showFullCard: boolean;
   onToggleShowFullCard: (v: boolean) => void;
+  showResultColor: boolean;
+  onToggleShowResultColor: (v: boolean) => void;
   verticalFlip: boolean;
   onToggleVerticalFlip: (v: boolean) => void;
   hideAiTools: boolean;
@@ -93,6 +92,7 @@ export function SettingsModal({
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription, pal, language, onPickLanguage,
   aiVoice, onPickAIVoice,
   showFullCard, onToggleShowFullCard,
+  showResultColor, onToggleShowResultColor,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
   onDataReplaced,
@@ -295,6 +295,16 @@ export function SettingsModal({
             pal={pal}
           />
           <ToggleRow
+            icon="color-palette-outline"
+            label={t('show_result_color_on_cards')}
+            info={t('show_result_color_on_cards_info')}
+            onShowInfo={showInfoPopup}
+            value={showResultColor}
+            onToggle={onToggleShowResultColor}
+            themeColor={themeColor}
+            pal={pal}
+          />
+          <ToggleRow
             icon="swap-vertical-outline"
             label={t('vertical_flip')}
             info={t('vertical_flip_info')}
@@ -388,7 +398,7 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           onRestore={onRestore}
-          isSubscribed={isSubscribed}
+          isPremium={isPremium}
           isSubscriptionLoaded={isSubscriptionLoaded}
           onDataReplaced={onDataReplaced}
         />
@@ -583,7 +593,7 @@ function VoiceSelectionScreen({
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
   visible, onClose, pal, themeColor, onRestore,
-  isSubscribed, isSubscriptionLoaded, onDataReplaced,
+  isPremium, isSubscriptionLoaded, onDataReplaced,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -591,7 +601,7 @@ function AppInfoSheet({
   themeColor: string;
   /** The shared RevenueCat restore handler from useSubscription. */
   onRestore: () => Promise<void>;
-  isSubscribed: boolean;
+  isPremium: boolean;
   isSubscriptionLoaded: boolean;
   onDataReplaced: () => void;
 }) {
@@ -604,7 +614,7 @@ function AppInfoSheet({
   const [restoring, setRestoring] = useState(false);
   // Same entitlement rule the section itself applies, so the heading and its
   // divider can never appear above an empty body.
-  const backupVisible = canUseBackup({ isSubscribed, isSubscriptionLoaded });
+  const backupVisible = canUseBackup({ isPremium, isSubscriptionLoaded });
   const handleRestore = useCallback(async () => {
     // Guard against a second tap while a restore is already in flight.
     if (restoring) return;
@@ -675,7 +685,7 @@ function AppInfoSheet({
             : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
         </TouchableOpacity>
 
-        {/* Backup & Restore — rendered only for an active Basic or Premium
+        {/* Backup & Restore — rendered only for an active Premium
             entitlement. BackupSection returns null otherwise, so the heading and
             divider are gated on the same check to avoid an empty section. */}
         {backupVisible && (
@@ -688,7 +698,7 @@ function AppInfoSheet({
               pal={pal}
               themeColor={themeColor}
               onDataReplaced={onDataReplaced}
-              isSubscribed={isSubscribed}
+              isPremium={isPremium}
               isSubscriptionLoaded={isSubscriptionLoaded}
             />
           </>
@@ -697,13 +707,13 @@ function AppInfoSheet({
         <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
         <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
-          onPress={() => void openExternal(PRIVACY_URL)} />
+          onPress={() => void openExternal(LEGAL_URLS.privacy)} />
         <SettingRow icon="reader-outline" label={t('terms_of_service')} pal={pal}
-          onPress={() => void openExternal(TERMS_URL)} />
+          onPress={() => void openExternal(LEGAL_URLS.terms)} />
         <SettingRow icon="mail-outline" label={t('contact')} pal={pal}
           onPress={() => void openExternal(CONTACT_MAIL)} />
         <SettingRow icon="library-outline" label={t('license')} pal={pal}
-          onPress={() => void openExternal(LICENSE_URL)} />
+          onPress={() => void openExternal(LEGAL_URLS.licenses)} />
         <SettingRow icon="information-circle-outline" label={t('app_version')}
           value={APP_VERSION} pal={pal} />
       </ScrollView>

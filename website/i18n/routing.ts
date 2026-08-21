@@ -21,4 +21,7 @@ export const localeNames: Record<Locale, string> = {
 export const routing = defineRouting({
   locales,
   defaultLocale: 'en',
+  // English is served at stable public routes such as /privacy. Other
+  // languages retain explicit prefixes, for example /ja/privacy.
+  localePrefix: 'as-needed',
 });

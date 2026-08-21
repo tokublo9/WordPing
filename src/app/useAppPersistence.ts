@@ -6,6 +6,7 @@ import {
   HIDE_AI_TOOLS_KEY,
   SYNC_TEST_RESULTS_KEY,
   SHOW_FULL_CARD_KEY,
+  SHOW_RESULT_COLOR_KEY,
   VERTICAL_FLIP_KEY,
   WORD_LIST_FILTERS_KEY,
 } from '../constants';
@@ -13,6 +14,7 @@ import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 import type { AIVoice } from '../lib/aiVoices';
 import type { ActiveResultFiltersByFolder } from '../features/cards/levels';
+import { serializeShowResultColorPreference } from '../features/settings/resultColorPreference';
 
 export interface UseAppPersistenceParams {
   cards: WordCard[];
@@ -24,6 +26,7 @@ export interface UseAppPersistenceParams {
   language: string;
   aiVoice: AIVoice;
   showFullCard: boolean;
+  showResultColor: boolean;
   verticalFlip: boolean;
   hideAiTools: boolean;
   syncTestResults: boolean;
@@ -43,6 +46,7 @@ export function useAppPersistence({
   language,
   aiVoice,
   showFullCard,
+  showResultColor,
   verticalFlip,
   hideAiTools,
   syncTestResults,
@@ -73,6 +77,14 @@ export function useAppPersistence({
     AsyncStorage.setItem(SHOW_FULL_CARD_KEY, showFullCard ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setShowFullCard', e));
   }, [showFullCard]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(
+      SHOW_RESULT_COLOR_KEY,
+      serializeShowResultColorPreference(showResultColor),
+    ).catch(e => reportSideEffectFailure('setShowResultColor', e));
+  }, [showResultColor]);
 
   useEffect(() => {
     if (!hasLoaded.current) return;

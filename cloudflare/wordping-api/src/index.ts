@@ -10,9 +10,14 @@ import {
 import { log, redactError } from './log';
 import { OpenAIError } from './openai';
 import type { GuardContext } from './pipeline';
+import {
+  isLocalWorkerRequest,
+  resolveLocalAiVoiceTestScenario,
+} from './localDevelopment';
 import { loadRuntimeConfig } from './runtimeConfig';
 import { handleTextAction } from './routes/text';
 import { handleVoiceCard, handleVoiceCustom, handleVoicePromo, handleVoiceSample } from './routes/voice';
+import { WORKER_VERSION } from './version';
 
 /**
  * WordPing AI proxy.
@@ -41,10 +46,6 @@ const ROUTES: Readonly<Record<string, RouteHandler>> = {
  * changes. Lets a deployed Worker be compared against the source in the repo,
  * which is how a stale deployment gets spotted.
  */
-export const WORKER_VERSION = '2026-08-20.voice-quota.5';
-
-const LOCAL_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
-
 /** Maps an upstream OpenAI failure onto the client-facing contract. */
 function openAIErrorResponse(response: ResponseContext, error: OpenAIError): Response {
   const { failure } = error;
@@ -72,11 +73,15 @@ export async function handleRequest(
   // The dev bypass is honoured only when the Worker is actually being reached
   // over localhost. Left switched on by accident in a deployed environment it
   // would hand out free premium, so it is neutralised rather than trusted.
-  const isLocal = LOCAL_HOSTS.has(url.hostname);
+  const isLocal = isLocalWorkerRequest(request);
   if (resolvedBase.devBypassEntitlements && !isLocal) {
     log('error', 'dev_bypass_ignored_in_deployment', requestId, { hostname: url.hostname });
   }
   const resolved = { ...resolvedBase, devBypassEntitlements: resolvedBase.devBypassEntitlements && isLocal };
+  const localAiVoiceTestScenario = resolveLocalAiVoiceTestScenario(request, env);
+  if (env.LOCAL_AI_VOICE_TEST_SCENARIO && !localAiVoiceTestScenario) {
+    log('warn', 'local_ai_voice_scenario_ignored', requestId, { hostname: url.hostname });
+  }
 
   const response: ResponseContext = { requestId, origin, resolved };
 
@@ -86,6 +91,18 @@ export async function handleRequest(
     if (request.method !== 'GET') {
       return errorResponse(response, 'method_not_allowed', 405, {}, { Allow: 'GET' });
     }
+    if (localAiVoiceTestScenario) {
+      return jsonResponse(response, {
+        ok: true,
+        version: WORKER_VERSION,
+        requestId,
+        localAiVoiceTestScenario,
+        entitlement: 'mock-basic',
+        upstreamsMocked: true,
+        storage: 'isolated-local-kv',
+      });
+    }
+
     // Reports readiness, never the values themselves.
     //
     // `revenueCatKeyConfigured` only means the secret is non-empty, which is why
@@ -116,7 +133,7 @@ export async function handleRequest(
   const handler = ROUTES[url.pathname];
   if (!handler) return errorResponse(response, 'not_found', 404);
 
-  if (!env.OPENAI_API_KEY || !env.REVENUECAT_SECRET_API_KEY) {
+  if (!localAiVoiceTestScenario && (!env.OPENAI_API_KEY || !env.REVENUECAT_SECRET_API_KEY)) {
     // Which one is missing is an operator detail; the client learns only that
     // the service is not usable.
     log('error', 'missing_required_secret', requestId, {
@@ -129,7 +146,15 @@ export async function handleRequest(
   const startedAtMs = Date.now();
   try {
     const runtime = await loadRuntimeConfig(env, requestId);
-    const result = await handler({ request, env, ctx, resolved, runtime, response });
+    const result = await handler({
+      request,
+      env,
+      ctx,
+      resolved,
+      runtime,
+      response,
+      localAiVoiceTestScenario,
+    });
     log('info', 'request_complete', requestId, {
       path: url.pathname, status: result.status, durationMs: Date.now() - startedAtMs,
     });

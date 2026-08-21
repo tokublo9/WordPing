@@ -33,6 +33,10 @@ import {
 import { mergeVisibleCardOrder } from '../../features/cards/cardSorting';
 import { resolveCurrentWordIndex } from '../../features/cards/currentWordPosition';
 import { committedLayer, resolveModeLayers } from '../../features/cards/modeLayers';
+import {
+  resolveWordListEmptyState,
+  resultFilterEmptyCopyKeys,
+} from '../../features/cards/emptyState';
 import { TEXT_TO_SPEECH_ENABLED } from '../../features/flags';
 
 const SEL_BAR_H = 68;
@@ -50,11 +54,6 @@ const FILTER_BORDER_WIDTH = 1;
 // ReorderableList already reserves 100pt. This extra clearance keeps its final row
 // above the 58pt add button at the existing 48pt bottom offset.
 const FAB_LIST_EXTRA_CLEARANCE = 32;
-
-// Comprehension-level colors for the sort options, reusing the same green/red as
-// the level filter chips: green = highest understanding, red = lowest.
-const LEVEL_HIGH_COLOR = '#5EBF84';
-const LEVEL_LOW_COLOR  = LEVEL_FILTER_OPTIONS.find(o => o.level === 'unknown')?.color ?? '#ED7373';
 
 const emptyIconWrap = {
   width: 80, height: 80, borderRadius: 24,
@@ -77,9 +76,9 @@ export interface WordListSelectionProps {
 
 export interface WordListReorderProps {
   active: boolean;
-  sortDir: 'asc' | 'desc' | 'registration' | null;
-  onSortByLevel(dir: 'asc' | 'desc'): void;
+  sortDir: 'registration' | 'random' | null;
   onRegistrationOrder(): void;
+  onRandomOrder(): void;
   onReorder(reorderedCards: WordCard[]): void;
   onExit(): void;
   onCancel(): void;
@@ -128,6 +127,8 @@ export interface WordListScreenProps {
   // Level filter
   activeResultFilter: ActiveResultFilter;
   showLevelLabels: boolean;
+  /** Controls only the lower-right result decoration on word cards. */
+  showResultColor: boolean;
   onToggleResultFilter(level: string): void;
 
   // Card-open tracking
@@ -150,7 +151,7 @@ export function WordListScreen({
   currentFolder, allFolderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
   cardViewMode, onToggleViewMode, currentWordId, onCurrentWordChange,
-  activeResultFilter, showLevelLabels, onToggleResultFilter,
+  activeResultFilter, showLevelLabels, showResultColor, onToggleResultFilter,
   flipped, closeOpenCard, onCardOpen,
   selection, reorder, actions,
   menuBtnRef,
@@ -660,7 +661,7 @@ export function WordListScreen({
         selectionMode={reorderMode ? false : currentSelection.active}
         selected={currentSelection.selectedIds.has(item.id)}
         onToggleSelect={() => currentSelection.onToggle(item.id)}
-        showLevelLabel={showLevelLabels}
+        showLevelLabel={showResultColor}
         onHorizontalSwipeLockChange={handleHorizontalSwipeLockChange}
         onGestureStart={handleGestureStart}
         onVerticalGestureLock={handleVerticalGestureLock}
@@ -685,7 +686,7 @@ export function WordListScreen({
     selection.active,
     selection.selectedIds,
     showFullCard,
-    showLevelLabels,
+    showResultColor,
     themeColor,
   ]);
 
@@ -906,8 +907,48 @@ export function WordListScreen({
   ) : null;
 
   // ── Card list content ─────────────────────────────────────────────────────────
+  const emptyState = resolveWordListEmptyState({
+    allCardCount: allFolderCards.length,
+    visibleCardCount: filteredFolderCards.length,
+    activeResultFilter,
+  });
+  const activeFilterColor = LEVEL_FILTER_OPTIONS.find(
+    ({ level }) => level === activeResultFilter,
+  )?.color ?? themeColor;
+  const filterEmptyCopyKeys = resultFilterEmptyCopyKeys(activeResultFilter);
+
   let cardContent: React.ReactNode;
-  if (filteredFolderCards.length === 0) {
+  if (emptyState === 'result-filter' && filterEmptyCopyKeys !== null) {
+    const title = t(filterEmptyCopyKeys.title);
+    const description = t(filterEmptyCopyKeys.description);
+    cardContent = (
+      <View
+        style={s.empty}
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel={`${title}. ${description}`}
+        accessibilityLiveRegion="polite"
+        testID="empty-result-filter"
+      >
+        <View
+          style={[
+            emptyIconWrap,
+            filterEmptyStyles.iconWrap,
+            {
+              backgroundColor: activeFilterColor + '18',
+              borderColor: activeFilterColor + '40',
+            },
+          ]}
+        >
+          <Ionicons name="funnel-outline" size={36} color={activeFilterColor} />
+        </View>
+        <Text style={[s.emptyTitle, { color: pal.text }]}>{title}</Text>
+        <Text style={[s.emptyHint, filterEmptyStyles.description, { color: pal.sub }]}>
+          {description}
+        </Text>
+      </View>
+    );
+  } else if (emptyState === 'generic') {
     cardContent = (
       <View style={s.empty}>
         <View style={[emptyIconWrap, { backgroundColor: themeColor + '18' }]}>
@@ -933,7 +974,7 @@ export function WordListScreen({
         onDelete={handleFlipDelete}
         onMove={handleFlipMove}
         onToggleNotif={handleFlipToggleNotif}
-        showLevelLabel={showLevelLabels}
+        showLevelLabel={showResultColor}
         verticalFlip={verticalFlip}
       />
     );
@@ -950,51 +991,7 @@ export function WordListScreen({
           <View key="reorder-toolbar" style={reorderToolStyles.toolbar}>
             <TouchableOpacity
               style={[
-                reorderToolStyles.sortBtn,
-                { backgroundColor: pal.card, borderColor: pal.border },
-                reorder.sortDir === 'asc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
-              ]}
-              onPress={() => reorder.onSortByLevel('asc')}
-              activeOpacity={0.85}
-              accessibilityLabel={t('reorder_sort_best_first')}
-            >
-              <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_HIGH_COLOR }]} />
-              <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
-              <Text
-                style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'asc' ? themeColor : pal.text }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.58}
-              >
-                {t('reorder_sort_best_first')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                reorderToolStyles.sortBtn,
-                { backgroundColor: pal.card, borderColor: pal.border },
-                reorder.sortDir === 'desc' && { borderColor: themeColor, backgroundColor: themeColor + '14' },
-              ]}
-              onPress={() => reorder.onSortByLevel('desc')}
-              activeOpacity={0.85}
-              accessibilityLabel={t('reorder_sort_least_first')}
-            >
-              <View style={[reorderToolStyles.levelCircle, { backgroundColor: LEVEL_LOW_COLOR }]} />
-              <Text style={[reorderToolStyles.sortArrow, { color: pal.sub }]}>→</Text>
-              <Text
-                style={[reorderToolStyles.btnText, { color: reorder.sortDir === 'desc' ? themeColor : pal.text }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.58}
-              >
-                {t('reorder_sort_least_first')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                reorderToolStyles.registrationBtn,
+                reorderToolStyles.presetBtn,
                 { backgroundColor: pal.card, borderColor: pal.border },
                 reorder.sortDir === 'registration' && {
                   borderColor: themeColor,
@@ -1003,6 +1000,7 @@ export function WordListScreen({
               ]}
               onPress={reorder.onRegistrationOrder}
               activeOpacity={0.85}
+              accessibilityRole="button"
               accessibilityLabel={t('reorder_registration_order')}
               accessibilityState={{ selected: reorder.sortDir === 'registration' }}
             >
@@ -1013,7 +1011,7 @@ export function WordListScreen({
               />
               <Text
                 style={[
-                  reorderToolStyles.registrationText,
+                  reorderToolStyles.presetText,
                   { color: reorder.sortDir === 'registration' ? themeColor : pal.text },
                 ]}
                 numberOfLines={2}
@@ -1021,6 +1019,39 @@ export function WordListScreen({
                 minimumFontScale={0.55}
               >
                 {t('reorder_registration_order')}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                reorderToolStyles.presetBtn,
+                { backgroundColor: pal.card, borderColor: pal.border },
+                reorder.sortDir === 'random' && {
+                  borderColor: themeColor,
+                  backgroundColor: themeColor + '14',
+                },
+              ]}
+              onPress={reorder.onRandomOrder}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('reorder_random')}
+              accessibilityState={{ selected: reorder.sortDir === 'random' }}
+            >
+              <Ionicons
+                name="shuffle-outline"
+                size={15}
+                color={reorder.sortDir === 'random' ? themeColor : pal.sub}
+              />
+              <Text
+                style={[
+                  reorderToolStyles.presetText,
+                  { color: reorder.sortDir === 'random' ? themeColor : pal.text },
+                ]}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.55}
+              >
+                {t('reorder_random')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1037,7 +1068,7 @@ export function WordListScreen({
               + (selection.active ? SEL_BAR_H : 0)
               + FAB_LIST_EXTRA_CLEARANCE
           }
-          showLevelLabel={showLevelLabels}
+          showLevelLabel={showResultColor}
           renderWordCard={renderWordCard}
           scrollEnabled={reorder.active || !horizontalSwipeLocked}
           scrollAnim={listScrollAnim}
@@ -1260,6 +1291,18 @@ const filterStyles = StyleSheet.create({
   hidden: { opacity: 0 },
 });
 
+const filterEmptyStyles = StyleSheet.create({
+  iconWrap: {
+    borderWidth: 1,
+  },
+  description: {
+    maxWidth: 340,
+    paddingHorizontal: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});
+
 const reorderToolStyles = StyleSheet.create({
   toolbar: {
     position: 'absolute',
@@ -1273,59 +1316,26 @@ const reorderToolStyles = StyleSheet.create({
     gap: 4,
     paddingBottom: 10,
   },
-  registrationBtn: {
-    flex: 1,
-    minWidth: 0,
+  presetBtn: {
     minHeight: 38,
     flexDirection: 'row',
     gap: 3,
-    paddingHorizontal: 7,
+    paddingHorizontal: 12,
     paddingVertical: 5,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
     borderWidth: 1,
   },
-  registrationText: {
-    flexShrink: 1,
+  presetText: {
     textAlign: 'center',
     fontSize: 11,
     lineHeight: 13,
     fontWeight: '600',
   },
-  // Direction sort pills — colored level circle → arrow → label.
-  sortBtn: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  levelCircle: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  sortArrow: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginHorizontal: -1,
-  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  btnText: {
-    minWidth: 0,
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 });

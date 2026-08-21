@@ -30,6 +30,7 @@ import {
   filterTextToSpeechEntries,
   isAiTextFeatureKey,
 } from '../features/flags';
+import { planUnlocksBackup } from '../features/backup/backupAccess';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
 import { formatPrice } from '../lib/pricing';
 import { PROMO_SAMPLE_TEXT, type PromoSampleId } from '../lib/promoVoiceSamples';
@@ -168,6 +169,10 @@ interface FeatureConfig {
  * comparison table cannot disagree. Premium only.
  */
 const PRIORITY_SUPPORT = { basic: false, premium: true } as const;
+const DATA_TRANSFER = {
+  basic: planUnlocksBackup('basic'),
+  premium: planUnlocksBackup('premium'),
+} as const;
 
 const ALL_FEATURE_SECTIONS: FeatureConfig[] = [
   { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', noteKey: 'feat_custom_voice_note', image: PAYWALL_IMAGES.custom, icon: 'mic-outline', accent: '#0891B2', basic: false, premium: true },
@@ -187,7 +192,7 @@ const ALL_FEATURE_SECTIONS: FeatureConfig[] = [
   { key: 'translate', titleKey: 'cmp_ai_translation',   descKey: 'feat_translation_desc', noteKey: 'feat_translation_note', image: PAYWALL_IMAGES.translate, icon: 'language-outline',    accent: '#2563EB', basic: false, premium: true },
   { key: 'breakdown', titleKey: 'cmp_ai_breakdown',     descKey: 'feat_breakdown_desc',   noteKey: 'feat_breakdown_note',   image: PAYWALL_IMAGES.breakdown, icon: 'git-branch-outline',  accent: '#4F46E5', basic: false, premium: true },
   { key: 'priority',  titleKey: 'cmp_priority_support', descKey: 'feat_priority_desc',    image: PAYWALL_IMAGES.prioritySupport, icon: 'headset',         accent: '#4338CA', basic: PRIORITY_SUPPORT.basic, premium: PRIORITY_SUPPORT.premium, wideImage: true },
-  { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    image: PAYWALL_IMAGES.dataTransfer,    icon: 'swap-horizontal', accent: '#0284C7', basic: true, premium: true, wideImage: true },
+  { key: 'transfer',  titleKey: 'cmp_data_transfer',    descKey: 'feat_transfer_desc',    image: PAYWALL_IMAGES.dataTransfer,    icon: 'swap-horizontal', accent: '#0284C7', basic: DATA_TRANSFER.basic, premium: DATA_TRANSFER.premium, wideImage: true },
 ];
 
 // Sections are laid out in a plain vertical stack with per-card spacing, so
@@ -915,7 +920,11 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
       basic: PRIORITY_SUPPORT.basic ? 'circle' : 'cross',
       premium: PRIORITY_SUPPORT.premium ? 'circle' : 'cross',
     },
-    { label: t('cmp_data_transfer'),    basic: 'circle', premium: 'circle' },
+    {
+      label: t('cmp_data_transfer'),
+      basic: DATA_TRANSFER.basic ? 'circle' : 'cross',
+      premium: DATA_TRANSFER.premium ? 'circle' : 'cross',
+    },
   ];
   const rows: TableRowData[] = filterTextToSpeechEntries(
     filterAiTextEntries(allRows, row => row.aiText === true),

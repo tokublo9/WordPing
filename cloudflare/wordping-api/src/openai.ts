@@ -51,6 +51,35 @@ export interface SpeechRequest {
   /** Optional style hint. Length-capped by the schema before it reaches here. */
   instructions?: string;
   timeoutMs: number;
+  /** Never fetch externally when a loopback-only local scenario is active. */
+  localMock?: boolean;
+}
+
+function localMockWav(): Response {
+  const sampleRate = 8_000;
+  const samples = 800;
+  const bytes = new Uint8Array(44 + samples * 2);
+  const view = new DataView(bytes.buffer);
+  const ascii = (offset: number, value: string) => {
+    for (let index = 0; index < value.length; index += 1) bytes[offset + index] = value.charCodeAt(index);
+  };
+  ascii(0, 'RIFF');
+  view.setUint32(4, bytes.byteLength - 8, true);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, 'data');
+  view.setUint32(40, samples * 2, true);
+  return new Response(bytes, {
+    status: 200,
+    headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(bytes.byteLength) },
+  });
 }
 
 /**
@@ -58,6 +87,10 @@ export interface SpeechRequest {
  * straight through to the client, so the audio never lands in isolate memory.
  */
 export async function requestSpeech(request: SpeechRequest, requestId: string): Promise<Response> {
+  if (request.localMock === true) {
+    log('info', 'local_openai_speech_mocked', requestId, { format: request.format });
+    return localMockWav();
+  }
   let response: Response;
   try {
     response = await fetch(OPENAI_SPEECH_URL, {
@@ -115,11 +148,17 @@ export interface TextRequest {
   text: string;
   langCode?: string;
   timeoutMs: number;
+  /** Never fetch externally when a loopback-only local scenario is active. */
+  localMock?: boolean;
 }
 
 export async function requestText(request: TextRequest, requestId: string): Promise<string> {
   const prompt = SYSTEM_PROMPTS[request.action];
   if (!prompt) throw new OpenAIError({ kind: 'status', status: 500 });
+  if (request.localMock === true) {
+    log('info', 'local_openai_text_mocked', requestId, { action: request.action });
+    return 'Local development mock response.';
+  }
 
   let response: Response;
   try {

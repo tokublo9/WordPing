@@ -71,6 +71,7 @@ export default function App() {
     language, setLanguage,
     aiVoice, setAIVoice,
     showFullCard, setShowFullCard,
+    showResultColor, setShowResultColor,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
     syncTestResults: savedSyncTestResults,
@@ -91,7 +92,8 @@ export default function App() {
     activeResultFiltersByFolder, setActiveResultFiltersByFolder,
     hasLoaded, cardsLoaded, activeResultFiltersLoaded, loadFailed,
   } = useAppBootstrap({
-    applySettings, markSettingsLoaded, setShowFullCard, setVerticalFlip, setHideAiTools,
+    applySettings, markSettingsLoaded, setShowFullCard, setShowResultColor,
+    setVerticalFlip, setHideAiTools,
     setSyncTestResults: setSavedSyncTestResults,
   });
 
@@ -128,6 +130,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isSubscriptionLoaded) return;
+    if (entitlementSource === 'local-development-scenario') return;
     syncAIVoiceSamplePreloading({
       hasAIAccess: plan === 'basic' || plan === 'premium',
       activeEntitlement: plan === 'basic' || plan === 'premium' ? plan : undefined,
@@ -142,6 +145,10 @@ export default function App() {
   // the cache is keyed by voice. Cards added later are covered by handleCardRegistered.
   const preloadedLibraryKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    if (entitlementSource === 'local-development-scenario') {
+      preloadedLibraryKeyRef.current = null;
+      return;
+    }
     const hasAIAccess = plan === 'basic' || plan === 'premium';
     if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess) {
       // Losing access clears the key so re-subscribing sweeps again.
@@ -241,10 +248,12 @@ export default function App() {
       entryId: card.id,
       text: card.word,
       voice: aiVoice,
-      hasAIAccess: isSubscriptionLoaded && isSubscribed,
+      hasAIAccess: isSubscriptionLoaded
+        && isSubscribed
+        && entitlementSource !== 'local-development-scenario',
       hasCustomAudio: Boolean(card.audioUri),
     });
-  }, [aiVoice, isSubscribed, isSubscriptionLoaded]);
+  }, [aiVoice, entitlementSource, isSubscribed, isSubscriptionLoaded]);
 
   const handleCardsDeleted = useCallback((ids: string[]) => {
     ids.forEach(cancelAIPronunciationPreload);
@@ -256,7 +265,7 @@ export default function App() {
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
-    handleSortByLevel, handleRegistrationOrder,
+    handleRegistrationOrder, handleRandomOrder,
     activeResultFilter, toggleResultFilter,
     // Temporarily disabled with the Hide Labels menu control:
     // showLevelLabels, setShowLevelLabels,
@@ -348,7 +357,8 @@ export default function App() {
   useAppPersistence({
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
-    showFullCard, verticalFlip, hideAiTools, syncTestResults: savedSyncTestResults,
+    showFullCard, showResultColor, verticalFlip, hideAiTools,
+    syncTestResults: savedSyncTestResults,
     activeResultFiltersByFolder,
     hasLoaded, cardsLoaded, activeResultFiltersLoaded,
   });
@@ -393,7 +403,7 @@ export default function App() {
   const openFolder = (id: string) => {
     closeOpenFolder.current?.();
     exitSelectionMode();
-    exitReorderMode();
+    cancelReorderMode();
     exitFolderSelectionMode();
     exitFolderReorderMode();
     setCurrentFolderId(id);
@@ -402,7 +412,7 @@ export default function App() {
 
   const goBackToFolders = () => {
     exitSelectionMode();
-    exitReorderMode();
+    cancelReorderMode();
     setCurrentFolderId(null);
     // Reset depth gradient to ocean surface when navigating away from word list.
     scrollY.setValue(0);
@@ -469,6 +479,7 @@ export default function App() {
           onCurrentWordChange={setCurrentWordId}
           activeResultFilter={activeResultFilter}
           showLevelLabels={SHOW_LEVEL_LABELS}
+          showResultColor={showResultColor}
           onToggleResultFilter={toggleResultFilter}
           flipped={flipped}
           closeOpenCard={closeOpenCard}
@@ -486,10 +497,9 @@ export default function App() {
           reorder={{
             active: reorderMode,
             sortDir: reorderSortDir,
-            onSortByLevel: handleSortByLevel,
             onRegistrationOrder: handleRegistrationOrder,
-            // Merged against the folder's full contents, so a drag cannot drop
-            // temporarily hidden cards out of state.
+            onRandomOrder: handleRandomOrder,
+            // Dragging updates the pending full-folder order; Save commits it.
             onReorder: replaceFolderOrder,
             onExit: exitReorderMode,
             onCancel: cancelReorderMode,
@@ -602,6 +612,8 @@ export default function App() {
           onPickAIVoice: setAIVoice,
           showFullCard,
           onToggleShowFullCard: setShowFullCard,
+          showResultColor,
+          onToggleShowResultColor: setShowResultColor,
           verticalFlip,
           onToggleVerticalFlip: setVerticalFlip,
           hideAiTools,

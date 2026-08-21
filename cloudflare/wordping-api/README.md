@@ -85,8 +85,91 @@ To work on the app without a RevenueCat account, set `DEV_BYPASS_ENTITLEMENTS=1`
 in `.dev.vars`. It is honoured **only** when the request arrives over localhost;
 a deployed Worker logs `dev_bypass_ignored_in_deployment` and ignores it.
 
+### Manually view the Basic monthly-limit UI
+
+This uses one ignored machine-local file and no real credentials. In
+`cloudflare/wordping-api/.dev.vars`, set:
+
+```dotenv
+OPENAI_API_KEY="local-mock-not-used"
+REVENUECAT_SECRET_API_KEY="local-mock-not-used"
+RATE_LIMIT_SALT="wordping-local-basic-limit"
+DEV_BYPASS_ENTITLEMENTS="0"
+LOCAL_AI_VOICE_TEST_SCENARIO="basic_monthly_limit"
+```
+
+The scenario is accepted only on a loopback request. It reports a mocked Basic
+entitlement, seeds the real current-month quota key to 200, and replaces every
+OpenAI upstream with a deterministic local response. The app discovers this
+contract from `/v1/health`, uses a fixed local RevenueCat-shaped identity without
+initializing the RevenueCat SDK, disables background voice preloads, and sends a
+normal `/v1/voice/card` request when the voice button is tapped.
+
+Start the Worker with disposable local-only KV storage:
+
 ```bash
-npm test          # 57 tests: validation, allowlists, entitlements, limits
+cd /Users/tokumoto/Documents/WordPing/cloudflare/wordping-api
+nvm use 20
+npm run dev:basic-monthly-limit
+```
+
+In a second terminal, verify the safety contract:
+
+```bash
+curl -sS http://127.0.0.1:8787/v1/health
+```
+
+The JSON must contain all four values below before starting the app:
+
+```json
+{
+  "localAiVoiceTestScenario": "basic_monthly_limit",
+  "entitlement": "mock-basic",
+  "upstreamsMocked": true,
+  "storage": "isolated-local-kv"
+}
+```
+
+In the repository root, create or edit the already-gitignored `.env.local`:
+
+```dotenv
+EXPO_PUBLIC_WORDPING_API_BASE_URL=http://127.0.0.1:8787
+```
+
+Then restart Expo so it embeds the local URL:
+
+```bash
+cd /Users/tokumoto/Documents/WordPing
+npx expo start --clear --ios
+```
+
+Open the iOS development app, open any word card, and tap its AI Voice button.
+The local scenario bypasses cache reads without deleting cached files, so this
+tap reaches the Worker and receives the production-shaped response:
+
+```json
+{
+  "error": "monthly_api_limit_reached",
+  "limit": 200,
+  "used": 200,
+  "tier": "basic"
+}
+```
+
+The response status is 429. No audio generation starts. The Basic monthly-limit
+alert offers the existing Premium upgrade path; dismissing it leaves the app
+usable. As an optional second check, tap 11 times within the same UTC minute:
+the 11th request reaches the normal Basic short-term throttle and shows the
+retry-later message with no upgrade action.
+
+Stop the Worker with Ctrl-C. The launcher removes its temporary KV directory.
+For normal development, remove `LOCAL_AI_VOICE_TEST_SCENARIO` (or set it to an
+empty string), restore the usual API URL in `.env.local`, and restart the Worker
+and Expo. No production KV, RevenueCat customer, OpenAI account, SQLite database,
+or on-device audio cache is modified by the scenario.
+
+```bash
+npm test          # 124 isolated Worker tests
 npm run typecheck
 ```
 

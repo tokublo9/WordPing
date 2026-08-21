@@ -15,7 +15,7 @@ import { createId } from '../../utils/createId';
 import {
   mergeVisibleCardOrder,
   nextRegistrationTimestamp,
-  sortByRating,
+  shuffleCards,
   sortByRegistrationOrder,
 } from './cardSorting';
 import {
@@ -51,14 +51,14 @@ export interface UseCardsReturn {
   setNotifForSelected(notifOff: boolean): void;
   // Reorder
   reorderMode: boolean;
-  reorderSortDir: 'asc' | 'desc' | 'registration' | null;
+  reorderSortDir: 'registration' | 'random' | null;
   enterReorderMode(): void;
   exitReorderMode(): void;
   cancelReorderMode(): void;
-  /** Apply a new order for the current folder without discarding hidden cards. */
+  /** Update the pending order without discarding hidden cards. */
   replaceFolderOrder(orderedVisible: readonly WordCard[]): void;
-  handleSortByLevel(dir: 'asc' | 'desc'): void;
   handleRegistrationOrder(): void;
+  handleRandomOrder(): void;
   // Level filter
   activeResultFilter: ActiveResultFilter;
   toggleResultFilter(level: string): void;
@@ -128,8 +128,8 @@ export function useCards({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reorderMode, setReorderMode] = useState(false);
-  const [reorderSortDir, setReorderSortDir] = useState<'asc' | 'desc' | 'registration' | null>(null);
-  const originalFolderCards = useRef<WordCard[]>([]);
+  const [reorderSortDir, setReorderSortDir] = useState<'registration' | 'random' | null>(null);
+  const [pendingFolderCards, setPendingFolderCards] = useState<WordCard[] | null>(null);
   const [showLevelLabels, setShowLevelLabels] = useState(true);
   const closeOpenCard = useRef<(() => void) | null>(null);
   const [editingCard, setEditingCard] = useState<WordCard | null>(null);
@@ -186,13 +186,16 @@ export function useCards({
     () => currentFolderId ? cards.filter(c => c.folderId === currentFolderId) : [],
     [cards, currentFolderId],
   );
+  const displayedAllFolderCards = reorderMode && pendingFolderCards
+    ? pendingFolderCards
+    : allFolderCards;
   const folderCards = useMemo(
-    () => cardsForVisibility(allFolderCards, {
+    () => cardsForVisibility(displayedAllFolderCards, {
       now: appNow(),
       activeResultFilter: null,
     }) as WordCard[],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hideEpoch is a clock signal, not a value read here
-    [allFolderCards, hideEpoch],
+    [displayedAllFolderCards, hideEpoch],
   );
 
   // One timer for the soonest hide, re-armed whenever it fires or the cards
@@ -214,12 +217,12 @@ export function useCards({
     ? (activeResultFiltersByFolder[currentFolderId] ?? null)
     : null;
   const filteredFolderCards = useMemo(
-    () => cardsForVisibility(allFolderCards, {
+    () => cardsForVisibility(displayedAllFolderCards, {
       now: appNow(),
       activeResultFilter,
     }) as WordCard[],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- epochs wake time-dependent visibility
-    [allFolderCards, activeResultFilter, hideEpoch],
+    [displayedAllFolderCards, activeResultFilter, hideEpoch],
   );
 
   // ── Flip ─────────────────────────────────────────────────────────────────────
@@ -241,6 +244,8 @@ export function useCards({
     setSelectedIds(new Set());
     setSelectionMode(true);
     setReorderMode(false);
+    setPendingFolderCards(null);
+    setReorderSortDir(null);
     setMenuVisible(false);
     setCardViewMode('list');
   };
@@ -280,37 +285,36 @@ export function useCards({
 
   // ── Reorder ──────────────────────────────────────────────────────────────────
 
-  /**
-   * Apply a new order for the current folder.
-   *
-   * Every ordering path used to rebuild the folder as `[...ordered, ...cards in
-   * other folders]`, and `ordered` is always derived from the *visible* list.
-   * Any temporarily hidden card was therefore dropped from state by a sort, a
-   * drag or a cancel, and the next persist deleted its row — a hidden card
-   * could be destroyed by an action that has nothing to do with it. Merging
-   * against the folder's full contents keeps those cards, in their own slots.
-   */
+  // Dragging and presets only update this pending snapshot. Hidden cards retain
+  // their slots, and shared/persisted card state is untouched until Save.
   const replaceFolderOrder = useCallback((orderedVisible: readonly WordCard[]) => {
-    setCards(prev => {
-      const inFolder = prev.filter(c => c.folderId === currentFolderId);
-      return [
-        ...mergeVisibleCardOrder(inFolder, orderedVisible),
-        ...prev.filter(c => c.folderId !== currentFolderId),
-      ];
-    });
-  }, [currentFolderId, setCards]);
+    setPendingFolderCards(previous => mergeVisibleCardOrder(
+      previous ?? allFolderCards,
+      orderedVisible,
+    ));
+    setReorderSortDir(null);
+  }, [allFolderCards]);
 
+  // Save: publish the pending folder order through the existing persistence path.
   const exitReorderMode = () => {
+    if (currentFolderId && pendingFolderCards) {
+      setCards(previous => {
+        const currentFolderCards = previous.filter(card => card.folderId === currentFolderId);
+        return [
+          ...mergeVisibleCardOrder(currentFolderCards, pendingFolderCards),
+          ...previous.filter(card => card.folderId !== currentFolderId),
+        ];
+      });
+    }
     setReorderMode(false);
+    setPendingFolderCards(null);
     setReorderSortDir(null);
   };
 
-  // Cancel: discard any reordering done this session, restoring the order captured
-  // when reorder mode was entered, then exit.
+  // Cancel: discard the local snapshot. Persisted cards were never modified.
   const cancelReorderMode = () => {
-    const orig = originalFolderCards.current;
-    if (orig.length) replaceFolderOrder(orig);
     setReorderMode(false);
+    setPendingFolderCards(null);
     setReorderSortDir(null);
   };
 
@@ -320,17 +324,23 @@ export function useCards({
     setSelectedIds(new Set());
     setMenuVisible(false);
     setCardViewMode('list');
-    originalFolderCards.current = folderCards;
-  };
-
-  const handleSortByLevel = (dir: 'asc' | 'desc') => {
-    setReorderSortDir(dir);
-    replaceFolderOrder(sortByRating(folderCards, dir === 'asc' ? 'highest' : 'lowest'));
+    setPendingFolderCards(allFolderCards);
   };
 
   const handleRegistrationOrder = () => {
+    setPendingFolderCards(previous => mergeVisibleCardOrder(
+      previous ?? allFolderCards,
+      sortByRegistrationOrder(filteredFolderCards),
+    ));
     setReorderSortDir('registration');
-    replaceFolderOrder(sortByRegistrationOrder(folderCards));
+  };
+
+  const handleRandomOrder = () => {
+    setPendingFolderCards(previous => mergeVisibleCardOrder(
+      previous ?? allFolderCards,
+      shuffleCards(filteredFolderCards),
+    ));
+    setReorderSortDir('random');
   };
 
   // ── Level filter ──────────────────────────────────────────────────────────────
@@ -497,7 +507,7 @@ export function useCards({
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
-    handleSortByLevel, handleRegistrationOrder,
+    handleRegistrationOrder, handleRandomOrder,
     activeResultFilter, toggleResultFilter,
     showLevelLabels, setShowLevelLabels,
     allFolderCards, folderCards, filteredFolderCards,
