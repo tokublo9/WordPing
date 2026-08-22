@@ -64,7 +64,6 @@ export default function App() {
     subscribe,
     subscribePremium,
     restore,
-    openManageSubscriptions,
     unsubscribe,
   } = useSubscription();
 
@@ -571,9 +570,6 @@ export default function App() {
         subscribePremium={subscribePremium}
         restore={restore}
         onManageSubscription={__DEV__ ? unsubscribe : undefined}
-        // Apple's management sheet, reachable only from the explicit Cancel
-        // Subscription row in Settings. Plan changes never come through here.
-        onCancelSubscription={openManageSubscriptions}
         wordModal={{
           visible: wordModalVisible,
           onClose: () => setWordModalVisible(false),

@@ -23,25 +23,22 @@ test('switching plan goes through purchasePackage, never Apple management', () =
   assert.doesNotMatch(purchaseRoutine, /showManageSubscriptions|itms-apps|Linking/u);
 });
 
-test('Apple management is reachable from exactly one place, and it is not a plan button', () => {
-  const hook = fs.readFileSync('src/hooks/useSubscription.ts', 'utf8');
-  assert.equal(
-    (hook.match(/Purchases\.showManageSubscriptions\(\)/gu) ?? []).length,
-    1,
-    'showManageSubscriptions should be called from one wrapper only',
-  );
-  assert.match(hook, /const openManageSubscriptions = async \(\): Promise<void> =>/u);
-
-  // The paywall's plan buttons must not be able to call it.
-  const proSheet = fs.readFileSync('src/components/ProSheet.tsx', 'utf8');
-  assert.doesNotMatch(proSheet, /showManageSubscriptions|itms-apps|onCancelSubscription/u);
-});
-
-test('the Cancel Subscription row is gated on having a subscription to cancel', () => {
-  const settings = fs.readFileSync('src/components/SettingsModal.tsx', 'utf8');
-  assert.match(settings, /\{isSubscribed && onCancelSubscription && \(/u);
-  assert.match(settings, /onPress=\{\(\) => \{ void onCancelSubscription\(\); \}\}/u);
-  assert.match(settings, /cancel_subscription/u);
+test('nothing routes a subscription action out to Apple', () => {
+  // The in-app Cancel Subscription row was removed, so the app no longer opens
+  // Apple's management sheet at all. Everything subscription-related is a
+  // purchase and stays in the app; if a cancel entry point is reintroduced, it
+  // belongs in Settings and never on a plan button.
+  for (const file of [
+    'src/hooks/useSubscription.ts',
+    'src/components/ProSheet.tsx',
+    'src/components/SettingsModal.tsx',
+  ]) {
+    assert.doesNotMatch(
+      withoutComments(fs.readFileSync(file, 'utf8')),
+      /showManageSubscriptions/u,
+      `${file} should not open Apple's management sheet`,
+    );
+  }
 });
 
 /** Strips comments, so prose explaining why a URL is NOT used cannot fail a scan. */

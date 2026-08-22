@@ -32,8 +32,6 @@ export interface AppModalsProps {
   subscribePremium(): Promise<void>;
   restore(): Promise<void>;
   onManageSubscription?: () => void;   // __DEV__ only; pre-computed in App.tsx
-  /** Opens Apple's subscription management. Cancellation only — never a plan change. */
-  onCancelSubscription?: () => Promise<void>;
 
   // WordModal
   wordModal: {
@@ -179,7 +177,7 @@ export interface AppModalsProps {
 export function AppModals({
   pal, themeColor, rawThemeColor, isSubscribed, isPremium, subscriptionExpirationDate,
   isSubscriptionLoaded,
-  subscribe, subscribePremium, restore, onManageSubscription, onCancelSubscription,
+  subscribe, subscribePremium, restore, onManageSubscription,
   wordModal, bulkImport, notifModal, textToSpeech, settingsModal, paywallModal,
   proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
 }: AppModalsProps) {
@@ -267,7 +265,6 @@ export function AppModals({
         onSubscribePremium={subscribePremium}
         onRestore={restore}
         onManageSubscription={onManageSubscription}
-        onCancelSubscription={onCancelSubscription}
         pal={pal}
         language={settingsModal.language}
         onPickLanguage={settingsModal.onPickLanguage}

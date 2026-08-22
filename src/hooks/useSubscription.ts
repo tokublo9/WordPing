@@ -341,28 +341,6 @@ export function useSubscription() {
     }
   };
 
-  /**
-   * Opens Apple's subscription management sheet.
-   *
-   * The ONLY route out of the app for anything subscription-related, and it
-   * exists for cancellation alone. Changing plan never comes here: Basic and
-   * Premium both go through `purchasePackage` above, so an upgrade or downgrade
-   * stays inside the app and gets StoreKit's own purchase sheet.
-   *
-   * `showManageSubscriptions` rather than a `Linking.openURL('itms-apps://…')`:
-   * it is the SDK's supported entry point and avoids `canOpenURL` returning
-   * false for an undeclared URL scheme.
-   */
-  const openManageSubscriptions = async (): Promise<void> => {
-    if (Platform.OS !== 'ios') return;
-    try {
-      await Purchases.showManageSubscriptions();
-    } catch (e) {
-      if (RC_DIAGNOSTICS) console.error('[RC manage subscriptions error]', purchaseErrorDetails(e));
-      setError('Could not open subscription settings. Please try again.');
-    }
-  };
-
   // DEV ONLY: switch to a RevenueCat anonymous user for identity testing.
   const unsubscribe = async (): Promise<void> => {
     if (!__DEV__) return;
@@ -401,7 +379,6 @@ export function useSubscription() {
     subscribePremium,
     restore,
     refreshCustomerInfo,
-    openManageSubscriptions,
     unsubscribe,
   };
 }
