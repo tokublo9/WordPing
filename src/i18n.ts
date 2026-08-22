@@ -152,6 +152,8 @@ export type TranslationKey =
   | 'err_plan_required_speech' | 'err_plan_required_text'
   | 'err_offline' | 'err_timeout' | 'err_cancelled' | 'err_rate_limited'
   | 'err_usage_limited' | 'err_generation_failed' | 'ai_service_unavailable_msg'
+  | 'voice_limit_daily' | 'voice_limit_monthly'
+  | 'voice_limit_short_minutes' | 'voice_limit_short_hours'
   | 'backup' | 'backup_desc' | 'backup_export' | 'backup_export_done' | 'backup_export_summary'
   | 'backup_import' | 'backup_import_merge' | 'backup_import_merge_desc'
   | 'backup_import_replace' | 'backup_import_replace_desc'
@@ -164,6 +166,9 @@ export type TranslationKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
+  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
+  | 'plan_downgrade_deferred_note'
+  | 'cancel_subscription' | 'cancel_subscription_desc'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OnboardingProfileKey =
@@ -186,10 +191,20 @@ type LocalizedCatalogKey =
 
 type PlanErrorKey = 'err_plan_required_speech' | 'err_plan_required_text';
 
-/** Classifications produced by src/lib/api/errors.ts. */
+/**
+ * Classifications produced by src/lib/api/errors.ts.
+ *
+ * The `voice_limit_*` entries are the AI Voice usage notices shown in the top
+ * banner. `voice_limit_daily` takes `{time}` — the local clock time the
+ * UTC-midnight daily bucket rolls over on, so it reads "9:00" in Japan and the
+ * right hour elsewhere. `voice_limit_monthly` takes `{date}`, the Worker's real
+ * reset (the 1st of the next month), never a subscription renewal date.
+ */
 type AIErrorMessageKey =
   | 'err_offline' | 'err_timeout' | 'err_cancelled' | 'err_rate_limited'
-  | 'err_usage_limited' | 'err_generation_failed' | 'ai_service_unavailable_msg';
+  | 'err_usage_limited' | 'err_generation_failed' | 'ai_service_unavailable_msg'
+  | 'voice_limit_daily' | 'voice_limit_monthly'
+  | 'voice_limit_short_minutes' | 'voice_limit_short_hours';
 
 type BackupKey =
   | 'backup' | 'backup_desc' | 'backup_export' | 'backup_export_done' | 'backup_export_summary'
@@ -212,6 +227,9 @@ type AppShellKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
+  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
+  | 'plan_downgrade_deferred_note'
+  | 'cancel_subscription' | 'cancel_subscription_desc'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OptionalTranslationKey =
@@ -647,6 +665,26 @@ const enUS: Dict = {
   err_usage_limited:     'You have reached your usage limit for today. It resets tomorrow.',
   err_generation_failed: 'That could not be generated. Please try again.',
   ai_service_unavailable_msg: 'The AI service is temporarily unavailable. Please try again later.',
+  voice_limit_daily:
+    "You've reached the Basic plan's daily limit. New words can be played with AI Voice again after {time}. (Anything already loaded still plays.)",
+  voice_limit_monthly:
+    "You've reached the Basic plan's monthly limit. New words can be played with AI Voice again after {date}. (Anything already loaded still plays.)",
+  voice_limit_short_minutes:
+    'That was a lot of requests in a short time. New words can be played with AI Voice again in {n} minutes. (Anything already loaded still plays.)',
+  voice_limit_short_hours:
+    'That was a lot of requests in a short time. New words can be played with AI Voice again in {n} hours. (Anything already loaded still plays.)',
+  cancel_subscription:      'Cancel Subscription',
+  cancel_subscription_desc: 'Opens the App Store. Switching between plans is done here in the app.',
+  plan_downgrade_deferred_note:
+    'If you switch to Basic: your new subscription begins when your current one expires on {date}. '
+    + 'You can cancel any time from Settings > Apple Account, up to a day before each renewal date. '
+    + 'Your plan renews automatically until canceled.',
+  ai_voice_info_menu:  'About AI Voice',
+  ai_voice_info_title: 'About AI Voice',
+  // Newline-separated so the dialog renders two bullets, not one paragraph.
+  ai_voice_info_body:
+    '・Anything already played with AI Voice is cached, and plays again without using the API.\n'
+    + '・Long text may take longer the first time it is played with AI Voice.',
   backup:                'Backup & Restore',
   backup_desc:           'Export or restore your WordPing data.',
   backup_export:         'Export backup',
@@ -1088,6 +1126,25 @@ const ja: Dict = {
   err_usage_limited:     '本日の利用上限に達しました。明日リセットされます。',
   err_generation_failed: '生成できませんでした。もう一度お試しください。',
   ai_service_unavailable_msg: 'AIサービスが一時的に利用できません。しばらくしてからお試しください。',
+  voice_limit_daily:
+    'Basic planの一日の使用量の限界に達しました。{time}以降新しい単語をAI Voiceで再生できます。（すでに読み込み済みのものは引き続き再生できます。）',
+  voice_limit_monthly:
+    'Basic planの今月の使用量の限界に達しました。{date}以降新しい単語をAI Voiceで再生できます。（すでに読み込み済みのものは引き続き再生できます。）',
+  voice_limit_short_minutes:
+    '短時間に多くのリクエストがありました。{n}分後に新しい単語をAI Voiceで再生できます。（すでに読み込み済みのものは引き続き再生できます。）',
+  voice_limit_short_hours:
+    '短時間に多くのリクエストがありました。{n}時間後に新しい単語をAI Voiceで再生できます。（すでに読み込み済みのものは引き続き再生できます。）',
+  cancel_subscription:      '定期購読を解約',
+  cancel_subscription_desc: 'App Storeが開きます。プランの変更はアプリ内で行えます。',
+  plan_downgrade_deferred_note:
+    'Basic planに変更する場合：新しいプランは現在のプランの有効期限（{date}）が終了した時点で開始されます。'
+    + '設定 > Apple ID から更新日の前日までであればいつでもキャンセルできます。'
+    + 'プランはキャンセルされるまで自動的に更新されます。',
+  ai_voice_info_menu:  'AI Voiceに関して',
+  ai_voice_info_title: 'AI Voiceについて',
+  ai_voice_info_body:
+    '・一度AI Voiceで再生したものはキャッシュが残り、APIを新規使用せずに再生できます。\n'
+    + '・textが長いと、新規AI Voice再生時に時間がかかる可能性があります。',
   backup:                'バックアップと復元',
   backup_desc:           'WordPingのデータをエクスポートまたは復元できます。',
   backup_export:         'バックアップを書き出す',

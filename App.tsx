@@ -21,6 +21,8 @@ import { FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY } from './src/constants
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
+import { TopBanner } from './src/components/TopBanner';
+import { SettingsInfoPopup, type SettingsInfoContent } from './src/components/SettingsInfoPopup';
 import { AppOverlays } from './src/app/AppOverlays';
 import { useCards } from './src/features/cards/useCards';
 import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScreen';
@@ -56,11 +58,13 @@ export default function App() {
     isSubscribed,
     isPremium,
     isLoaded: isSubscriptionLoaded,
+    expirationDate: subscriptionExpirationDate,
     entitlementSource,
     entitlementRevision,
     subscribe,
     subscribePremium,
     restore,
+    openManageSubscriptions,
     unsubscribe,
   } = useSubscription();
 
@@ -181,6 +185,32 @@ export default function App() {
   const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
   const voiceBannerAnim = useRef(new Animated.Value(0)).current;
   const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── AI Voice explanation, from the three-dots menu ───────────────────────────
+  // Visibility is kept apart from the content, and the content is cleared only
+  // once the native dismissal finished, so the dialog cannot collapse to an
+  // empty box mid-fade. Same arrangement as SettingsModal's info popup.
+  const [aiVoiceInfoVisible, setAiVoiceInfoVisible] = useState(false);
+  const [aiVoiceInfoContent, setAiVoiceInfoContent] = useState<SettingsInfoContent | null>(null);
+  const aiVoiceInfoClosing = useRef(false);
+
+  const openAiVoiceInfo = useCallback(() => {
+    aiVoiceInfoClosing.current = false;
+    setAiVoiceInfoContent({ title: t('ai_voice_info_title'), body: t('ai_voice_info_body') });
+    setAiVoiceInfoVisible(true);
+    setMenuVisible(false);
+  }, [t]);
+
+  const closeAiVoiceInfo = useCallback(() => {
+    if (aiVoiceInfoClosing.current) return;
+    aiVoiceInfoClosing.current = true;
+    setAiVoiceInfoVisible(false);
+  }, []);
+
+  const dismissAiVoiceInfo = useCallback(() => {
+    setAiVoiceInfoContent(null);
+    aiVoiceInfoClosing.current = false;
+  }, []);
 
   // A backup import in "replace" mode swaps out every row, so React state and
   // the database have to be resynchronised. Navigation is reset to the folder
@@ -535,11 +565,15 @@ export default function App() {
         rawThemeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        subscriptionExpirationDate={subscriptionExpirationDate}
         isSubscriptionLoaded={isSubscriptionLoaded}
         subscribe={subscribe}
         subscribePremium={subscribePremium}
         restore={restore}
         onManageSubscription={__DEV__ ? unsubscribe : undefined}
+        // Apple's management sheet, reachable only from the explicit Cancel
+        // Subscription row in Settings. Plan changes never come through here.
+        onCancelSubscription={openManageSubscriptions}
         wordModal={{
           visible: wordModalVisible,
           onClose: () => setWordModalVisible(false),
@@ -696,7 +730,18 @@ export default function App() {
         onDismiss={() => setMenuVisible(false)}
         onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
         onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
+        onOpenAiVoiceInfo={openAiVoiceInfo}
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
+      />
+
+      {/* AI Voice explanation — the same popup every Settings info button uses */}
+      <SettingsInfoPopup
+        visible={aiVoiceInfoVisible}
+        content={aiVoiceInfoContent}
+        onClose={closeAiVoiceInfo}
+        onDismiss={dismissAiVoiceInfo}
+        pal={pal}
+        themeColor={activeThemeColor}
       />
 
       {/* Custom voice locked banner — tap or swipe up to dismiss */}
@@ -720,6 +765,9 @@ export default function App() {
           </TouchableOpacity>
         </Animated.View>
       )}
+
+      {/* AI Voice usage limits — non-blocking, replaces the old native alert */}
+      <TopBanner pal={pal} />
 
     </SafeAreaView>
     </LangContext.Provider>

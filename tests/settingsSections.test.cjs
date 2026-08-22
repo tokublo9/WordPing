@@ -869,8 +869,14 @@ test('the info copy is present in English and Japanese, and optional elsewhere',
   assert.match(i18n, /vertical_flip_info:       'カードをめくるアニメーションを横方向から縦方向に変更します/u);
 
   // Declared as optional keys, so the other locales fall back to English
-  // instead of failing to compile.
-  assert.match(i18n, /type AppShellKey =[\s\S]{0,750}\| 'show_full_card_info' \| 'show_result_color_on_cards_info' \| 'vertical_flip_info' \| 'info_button_label';/u);
+  // instead of failing to compile. Membership is what matters; the union is
+  // read out and searched rather than matched through a fixed-width window,
+  // which broke every time an unrelated key was added to it.
+  const appShellKey = /type AppShellKey =([\s\S]*?);/u.exec(i18n)?.[1];
+  assert.ok(appShellKey, 'AppShellKey union not found');
+  for (const key of ['show_full_card_info', 'show_result_color_on_cards_info', 'vertical_flip_info', 'info_button_label']) {
+    assert.ok(appShellKey.includes(`'${key}'`), `${key} must be an optional key`);
+  }
 });
 
 test('Settings dividers use one shared, tightened value', () => {
