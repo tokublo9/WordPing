@@ -46,7 +46,10 @@ test('a Premium short-term throttle uses retry-later messaging without an upgrad
   const hook = fs.readFileSync('src/hooks/useWordCardVoicePlayback.ts', 'utf8');
   const branch = /case 'rate_limited':([\s\S]*?)case 'usage_limited':/u.exec(hook)?.[1];
   assert.ok(branch, 'rate-limited presentation branch not found');
-  assert.match(branch, /Alert\.alert\(title, t\('err_rate_limited'\)\);/u);
+  // Usage limits now use the non-blocking top banner. An alert was modal for a
+  // condition the user can only wait out, and it blocked the card underneath.
+  assert.match(branch, /showTopBanner\(\{ id: 'voice-limit:rate', message: t\('err_rate_limited'\) \}\)/u);
+  assert.doesNotMatch(branch, /Alert\.alert/u);
   assert.doesNotMatch(branch, /upgradeAction|onUpgrade/u);
 });
 

@@ -4,7 +4,12 @@ import type { WordCard } from '../types';
 import { useLang } from '../i18n';
 import { speak, speakWordCard, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 import { isAIRequestError } from '../lib/api/errors';
-import { buildQuotaMessage, fillQuotaTemplate } from '../lib/api/quotaMessage';
+import {
+  buildAiVoiceLimitMessage,
+  fillTemplate,
+  resolveAiVoiceLimit,
+} from '../lib/api/voiceLimitMessage';
+import { showTopBanner } from '../lib/topBanner';
 
 export type WordCardVoiceTarget = 'word' | 'meaning';
 export type WordCardVoiceState = {
@@ -96,6 +101,17 @@ export function useWordCardVoicePlayback({
       return;
     }
 
+    // Usage limits are not errors the user can act on beyond waiting, so they get
+    // the non-blocking banner instead of a modal alert. Cached audio is untouched
+    // by any of these — the limit is enforced per network request, and
+    // fetchAndCacheAudio serves an existing file without one.
+    const limit = resolveAiVoiceLimit(error, Date.now());
+    if (limit) {
+      const { key, values } = buildAiVoiceLimitMessage(limit, language);
+      showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
+      return;
+    }
+
     switch (error.kind) {
       case 'subscription_required':
         // AI Voice needs Basic or Premium — an intentional plan boundary, not
@@ -103,17 +119,11 @@ export function useWordCardVoicePlayback({
         Alert.alert(title, t('err_plan_required_speech'), upgradeAction);
         return;
 
-      case 'monthly_limit_reached': {
-        const quota = error.quota;
-        const body = quota
-          ? fillQuotaTemplate(
-              t(buildQuotaMessage(quota, language).bodyKey),
-              buildQuotaMessage(quota, language).values,
-            )
-          : t('err_voice_limit_basic');
-        Alert.alert(t('err_voice_limit_title'), body, upgradeAction);
+      case 'monthly_limit_reached':
+        // Only reachable when the Worker omitted the quota figures, so there is no
+        // reset date to quote. The dated message is handled by the banner above.
+        Alert.alert(t('err_voice_limit_title'), t('err_voice_limit_basic'), upgradeAction);
         return;
-      }
 
       case 'entitlement_unverified':
         // Purchase status could not be confirmed. Retrying or restoring is what
@@ -131,12 +141,14 @@ export function useWordCardVoicePlayback({
         Alert.alert(title, t('err_service_not_configured'));
         return;
 
+      // Both reach here only without a Retry-After to count from. Still a usage
+      // limit, so still the banner rather than a modal alert.
       case 'rate_limited':
-        Alert.alert(title, t('err_rate_limited'));
+        showTopBanner({ id: 'voice-limit:rate', message: t('err_rate_limited') });
         return;
 
       case 'usage_limited':
-        Alert.alert(title, t('err_usage_limited'));
+        showTopBanner({ id: 'voice-limit:usage', message: t('err_usage_limited') });
         return;
 
       case 'offline':

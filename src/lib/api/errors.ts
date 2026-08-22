@@ -58,9 +58,25 @@ const LEGACY_BY_KIND: Readonly<Record<AIErrorKind, LegacyErrorCode>> = {
   not_configured: 'not_configured',
 };
 
+/**
+ * Which rate-limit bucket rejected the request.
+ *
+ * The Worker distinguishes a short burst from an exhausted daily allowance
+ * (`ratelimit.ts` plans a `minute` and a `day` bucket) and already reports it in
+ * the error body, but both arrive under the same `rate_limit_exceeded` code. The
+ * UI needs them apart to say "wait a few minutes" versus "come back tomorrow".
+ */
+export type RateLimitWindow = 'minute' | 'day';
+
+export function parseRateLimitWindow(value: unknown): RateLimitWindow | undefined {
+  return value === 'minute' || value === 'day' ? value : undefined;
+}
+
 export interface AIRequestErrorOptions {
   requestId?: string;
   retryAfterSeconds?: number;
+  /** Present on rate_limit_exceeded / usage_limit_exceeded. */
+  limitWindow?: RateLimitWindow;
   /** The raw code the Worker returned, for diagnostics. Never user-facing. */
   serverCode?: string;
   /** Monthly quota figures, present only on monthly_api_limit_reached. */
@@ -76,6 +92,7 @@ export class AIRequestError extends Error {
   readonly kind: AIErrorKind;
   readonly requestId?: string;
   readonly retryAfterSeconds?: number;
+  readonly limitWindow?: RateLimitWindow;
   readonly serverCode?: string;
   readonly quota?: MonthlyQuotaInfo;
 
@@ -85,6 +102,7 @@ export class AIRequestError extends Error {
     this.kind = kind;
     if (options.requestId !== undefined) this.requestId = options.requestId;
     if (options.retryAfterSeconds !== undefined) this.retryAfterSeconds = options.retryAfterSeconds;
+    if (options.limitWindow !== undefined) this.limitWindow = options.limitWindow;
     if (options.serverCode !== undefined) this.serverCode = options.serverCode;
     if (options.quota !== undefined) this.quota = options.quota;
   }
@@ -149,6 +167,7 @@ export interface WorkerErrorInput {
   code?: string;
   requestId?: string;
   retryAfterSeconds?: number;
+  limitWindow?: RateLimitWindow;
   quota?: MonthlyQuotaInfo;
 }
 
@@ -166,6 +185,7 @@ export function errorFromWorkerResponse(input: WorkerErrorInput): AIRequestError
   return new AIRequestError(kind, {
     ...(input.requestId !== undefined ? { requestId: input.requestId } : {}),
     ...(input.retryAfterSeconds !== undefined ? { retryAfterSeconds: input.retryAfterSeconds } : {}),
+    ...(input.limitWindow !== undefined ? { limitWindow: input.limitWindow } : {}),
     ...(input.code !== undefined ? { serverCode: input.code } : {}),
     // The UI turns this one into "shorten your text" rather than a generic
     // validation message, so it keeps its own legacy code.

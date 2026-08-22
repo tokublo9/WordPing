@@ -6,7 +6,9 @@ import {
   errorFromNetworkFailure,
   errorFromWorkerResponse,
   parseQuotaInfo,
+  parseRateLimitWindow,
   type MonthlyQuotaInfo,
+  type RateLimitWindow,
 } from './errors';
 import {
   BASIC_MONTHLY_LIMIT_SCENARIO,
@@ -135,7 +137,12 @@ interface ErrorBody {
 
 async function readErrorCode(
   response: Response,
-): Promise<{ code?: string; requestId?: string; quota?: MonthlyQuotaInfo }> {
+): Promise<{
+  code?: string;
+  requestId?: string;
+  quota?: MonthlyQuotaInfo;
+  limitWindow?: RateLimitWindow;
+}> {
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) return {};
   try {
@@ -143,10 +150,14 @@ async function readErrorCode(
     // Verified usage figures, when the Worker reports an exhausted quota. Only
     // a well-formed set is accepted; the UI never invents these numbers.
     const quota = body.error === 'monthly_api_limit_reached' ? parseQuotaInfo(body) : undefined;
+    // The Worker has always sent this alongside a 429; it was simply dropped here,
+    // which is why an exhausted daily allowance was indistinguishable from a burst.
+    const limitWindow = parseRateLimitWindow(body.window);
     return {
       ...(typeof body.error === 'string' ? { code: body.error } : {}),
       ...(typeof body.requestId === 'string' ? { requestId: body.requestId } : {}),
       ...(quota !== undefined ? { quota } : {}),
+      ...(limitWindow !== undefined ? { limitWindow } : {}),
     };
   } catch {
     return {};
@@ -199,7 +210,7 @@ async function post(
   }
 
   if (!response.ok) {
-    const { code, requestId, quota } = await readErrorCode(response);
+    const { code, requestId, quota, limitWindow } = await readErrorCode(response);
     const retryAfter = retryAfterSeconds(response);
     if (__DEV__) {
       // Codes and identifiers only — never the request body or the user's text.
@@ -215,6 +226,7 @@ async function post(
       ...(code !== undefined ? { code } : {}),
       ...(requestId !== undefined ? { requestId } : {}),
       ...(retryAfter !== undefined ? { retryAfterSeconds: retryAfter } : {}),
+      ...(limitWindow !== undefined ? { limitWindow } : {}),
       ...(quota !== undefined ? { quota } : {}),
     });
   }
