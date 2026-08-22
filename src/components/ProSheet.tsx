@@ -33,6 +33,12 @@ import {
 import { planUnlocksBackup } from '../features/backup/backupAccess';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
 import { formatPrice } from '../lib/pricing';
+import { fillTemplate } from '../lib/fillTemplate';
+import {
+  formatSubscriptionDate,
+  shouldShowDeferredSwitchNotice,
+  type PlanTier,
+} from '../lib/planSwitch';
 import { PROMO_SAMPLE_TEXT, type PromoSampleId } from '../lib/promoVoiceSamples';
 import { AIRequestError } from '../lib/api/errors';
 import { speak, speakPromoSample, stopPlayback } from '../lib/tts';
@@ -65,6 +71,18 @@ const CROSS_GRAY  = '#B6BAC2';
 
 // Paid plan tiers: Basic (polished blue) · Premium (most luxurious gold).
 const BLUE_GRAD:  readonly [string, string] = ['#60A5FA', '#3B82F6'];
+
+// Basic, when already held, drops its tier colour for the neutral gray the
+// design system already uses (the solid_gray skin's themeColor, constants.ts).
+// Flat rather than a gradient: beside a vivid two-stop button, a single muted
+// tone is what reads as inactive, and it avoids inventing a second gray that
+// exists nowhere else.
+//
+// Premium deliberately does NOT use this. Muting the top tier made the screen
+// look as though Premium were unavailable; owning it is shown by the checkmark
+// and the "Owned" line instead.
+const OWNED_GRAY  = '#6B7280';
+const OWNED_GRAD:  readonly [string, string] = [OWNED_GRAY, OWNED_GRAY];
 const BASIC_ACCENT   = '#1D4ED8';   // blue text/icons on the light-blue Basic column
 const PREMIUM_ACCENT = '#B45309';   // deep amber text/icons on the light-gold Premium column
 
@@ -992,6 +1010,10 @@ interface FixedPurchaseBarProps {
   isPremium: boolean;
   loadingPlan: 'basic' | 'premium' | null;
   bottomInset: number;
+  /** ISO-8601 expiry of the active entitlement, for the deferred-switch notice. */
+  expirationDate: string | null;
+  /** BCP-47 tag, so the renewal date is formatted in the user's own locale. */
+  language: string;
   onSubscribeBasic: () => void;
   onSubscribePremium: () => void;
   onManageSubscription?: () => void;
@@ -999,13 +1021,40 @@ interface FixedPurchaseBarProps {
 }
 
 const FixedPurchaseBar = React.memo(({
-  pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, onSubscribeBasic, onSubscribePremium, onManageSubscription, onMeasure,
+  pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, expirationDate, language,
+  onSubscribeBasic, onSubscribePremium, onManageSubscription, onMeasure,
 }: FixedPurchaseBarProps) => {
   const basicLoading   = loadingPlan === 'basic';
   const premiumLoading = loadingPlan === 'premium';
   const anyLoading     = loadingPlan !== null;
   const basicOwned     = isSubscribed && !isPremium;   // exactly the Basic plan
+  // Premium keeps its gold treatment whether or not it is held: only the icon
+  // and the price line change, to a checkmark and "Owned". Graying the top tier
+  // made the screen read as though Premium were unavailable, so the muted
+  // treatment is Basic's alone.
   const premiumOwned   = isPremium;
+
+  // The active plan is not a purchase target, so its button stops behaving like
+  // one. It stays tappable only where a manage handler actually exists, which is
+  // __DEV__ alone — App.tsx passes `__DEV__ ? unsubscribe : undefined`. In a
+  // release build there was never an action behind it, so disabling removes
+  // nothing, and keeping it live in dev preserves the unsubscribe helper used to
+  // move between plan states while testing.
+  //
+  // Deferred downgrades need no special case: `isPremium` comes from
+  // entitlements.active, which still reports premium until the switch actually
+  // takes effect, so Premium stays owned and Basic stays purchasable.
+  const canManage      = typeof onManageSubscription === 'function';
+  const basicDisabled  = anyLoading || (basicOwned && !canManage);
+  const premiumDisabled = anyLoading || (premiumOwned && !canManage);
+
+  // Only a move down the tiers defers to the next renewal, so the notice is tied
+  // to that rather than to being subscribed at all. Basic is the only lower paid
+  // plan, so today this means Premium -> Basic; deriving it from the rank keeps
+  // it right if a tier is ever added between them.
+  const currentTier: PlanTier = isPremium ? 'premium' : isSubscribed ? 'basic' : 'free';
+  const renewalDate = formatSubscriptionDate(expirationDate, language);
+  const showDeferredNote = shouldShowDeferredSwitchNotice(currentTier, 'basic', renewalDate);
 
   return (
     <View
@@ -1016,18 +1065,25 @@ const FixedPurchaseBar = React.memo(({
 
         {/* Basic — polished blue */}
         <TouchableOpacity
-          style={bar.btnWrapBlue}
+          // The wrapper carries a blue glow. Left on under the flat gray it
+          // renders as a coloured halo around a muted button, which is the
+          // "blur" behind the owned state — so the owned variant drops it.
+          style={[bar.btnWrapBlue, basicOwned && bar.btnWrapFlat]}
           onPress={basicOwned ? onManageSubscription : onSubscribeBasic}
-          disabled={anyLoading}
+          disabled={basicDisabled}
           activeOpacity={0.9}
-          accessibilityLabel={basicOwned ? 'Manage Basic subscription' : t('subscribe_price')}
-          accessibilityState={{ selected: basicOwned, disabled: anyLoading }}
+          accessibilityLabel={basicOwned ? t('theme_details_owned_badge') : t('subscribe_price')}
+          accessibilityState={{ selected: basicOwned, disabled: basicDisabled }}
         >
           <LinearGradient
-            colors={BLUE_GRAD}
+            colors={basicOwned ? OWNED_GRAD : BLUE_GRAD}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[bar.btn, anyLoading && !basicLoading && { opacity: 0.55 }]}
+            style={[
+              bar.btn,
+              basicOwned && bar.btnOwned,
+              anyLoading && !basicLoading && { opacity: 0.55 },
+            ]}
           >
             {basicLoading ? (
               <Text style={bar.btnName}>···</Text>
@@ -1049,12 +1105,14 @@ const FixedPurchaseBar = React.memo(({
         <TouchableOpacity
           style={bar.btnWrapGold}
           onPress={premiumOwned ? onManageSubscription : onSubscribePremium}
-          disabled={anyLoading}
+          disabled={premiumDisabled}
           activeOpacity={0.9}
-          accessibilityLabel={premiumOwned ? 'Manage Premium subscription' : t('cmp_premium')}
-          accessibilityState={{ selected: premiumOwned, disabled: anyLoading }}
+          accessibilityLabel={premiumOwned ? t('theme_details_owned_badge') : t('cmp_premium')}
+          accessibilityState={{ selected: premiumOwned, disabled: premiumDisabled }}
         >
           <LinearGradient
+            // Always gold: owning Premium is shown by the checkmark and the
+            // "Owned" line below, not by muting the button.
             colors={GOLD_GRAD}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -1068,6 +1126,7 @@ const FixedPurchaseBar = React.memo(({
                   <Ionicons
                     name={premiumOwned ? 'checkmark-circle' : 'diamond'}
                     size={14}
+                    // Navy throughout: the surface stays gold in both states.
                     color={HERO_DARK}
                     style={{ marginRight: premiumOwned ? 4 : 5 }}
                   />
@@ -1075,7 +1134,11 @@ const FixedPurchaseBar = React.memo(({
                     {t('cmp_premium')}
                   </Text>
                 </View>
-                <Text style={[bar.btnSub, !premiumOwned && bar.btnPrice, { color: HERO_DARK }]} numberOfLines={1} adjustsFontSizeToFit>
+                <Text
+                  style={[bar.btnSub, !premiumOwned && bar.btnPrice, { color: HERO_DARK }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   {premiumOwned ? t('theme_details_owned_badge') : `${formatPrice(600)}${t('per_month')}`}
                 </Text>
               </>
@@ -1083,6 +1146,15 @@ const FixedPurchaseBar = React.memo(({
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Downgrades are deferred by the App Store to the next renewal, so the
+          entitlement does not change on purchase. Without this the switch looks
+          like it silently failed. */}
+      {showDeferredNote && renewalDate !== null && (
+        <Text style={[bar.deferredNote, { color: pal.sub }]}>
+          {fillTemplate(t('plan_downgrade_deferred_note'), { date: renewalDate })}
+        </Text>
+      )}
 
       {/* Restore Purchases now lives in Settings → App Info → Purchases, so it
           is reachable without opening the paywall and appears exactly once. */}
@@ -1106,6 +1178,12 @@ interface Props {
   pal: Palette;
   isSubscribed?: boolean;
   isPremium?: boolean;
+  /**
+   * ISO-8601 expiry of the active entitlement, from useSubscription. Drives the
+   * deferred-start notice on a downgrade; absent for free and lifetime plans,
+   * where there is no renewal to describe.
+   */
+  expirationDate?: string | null;
   learningLang?: string;
   nativeLang?: string;
   onManageSubscription?: () => void;
@@ -1125,6 +1203,7 @@ export function ProSheet({
   pal,
   isSubscribed = false,
   isPremium = false,
+  expirationDate = null,
   learningLang,
   nativeLang = 'en-US',
   onManageSubscription,
@@ -1377,6 +1456,8 @@ export function ProSheet({
           isPremium={isPremium}
           loadingPlan={loadingPlan}
           bottomInset={insets.bottom}
+          expirationDate={expirationDate}
+          language={language}
           onSubscribeBasic={handleSubscribeBasic}
           onSubscribePremium={handleSubscribePremium}
           onManageSubscription={onManageSubscription}
@@ -1768,6 +1849,23 @@ const bar = StyleSheet.create({
   btnGold: {
     borderWidth: 1,
     borderColor: GOLD_DEEP,
+  },
+  // Slight knock-back on top of the flat gray, so the owned plan recedes behind
+  // the one the user can still act on. Basic only — Premium never grays.
+  btnOwned: { opacity: 0.9 },
+  // Cancels the wrapper's coloured glow. The halo is part of the tier colour;
+  // over the flat gray it reads as a blur ringing a disabled button.
+  btnWrapFlat: {
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  // Fine print: legible but clearly secondary to the buttons above it. Wraps
+  // freely — the sentence names a date the user needs and must never be clipped.
+  deferredNote: {
+    marginTop: 10,
+    fontSize: 11,
+    lineHeight: 16,
   },
   btnTopRow: {
     flexDirection: 'row',

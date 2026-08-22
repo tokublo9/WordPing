@@ -24,12 +24,16 @@ export interface AppModalsProps {
   rawThemeColor: string;     // themeColor — used by PaywallModal
   isSubscribed: boolean;
   isPremium: boolean;
+  /** ISO-8601 expiry of the active entitlement; drives ProSheet's downgrade note. */
+  subscriptionExpirationDate: string | null;
   /** False until RevenueCat has answered; paid features stay locked until then. */
   isSubscriptionLoaded: boolean;
   subscribe(): Promise<void>;
   subscribePremium(): Promise<void>;
   restore(): Promise<void>;
   onManageSubscription?: () => void;   // __DEV__ only; pre-computed in App.tsx
+  /** Opens Apple's subscription management. Cancellation only — never a plan change. */
+  onCancelSubscription?: () => Promise<void>;
 
   // WordModal
   wordModal: {
@@ -173,8 +177,9 @@ export interface AppModalsProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AppModals({
-  pal, themeColor, rawThemeColor, isSubscribed, isPremium, isSubscriptionLoaded,
-  subscribe, subscribePremium, restore, onManageSubscription,
+  pal, themeColor, rawThemeColor, isSubscribed, isPremium, subscriptionExpirationDate,
+  isSubscriptionLoaded,
+  subscribe, subscribePremium, restore, onManageSubscription, onCancelSubscription,
   wordModal, bulkImport, notifModal, textToSpeech, settingsModal, paywallModal,
   proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
 }: AppModalsProps) {
@@ -262,6 +267,7 @@ export function AppModals({
         onSubscribePremium={subscribePremium}
         onRestore={restore}
         onManageSubscription={onManageSubscription}
+        onCancelSubscription={onCancelSubscription}
         pal={pal}
         language={settingsModal.language}
         onPickLanguage={settingsModal.onPickLanguage}
@@ -297,6 +303,7 @@ export function AppModals({
         pal={pal}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        expirationDate={subscriptionExpirationDate}
         learningLang={proSheet.learningLang}
         nativeLang={proSheet.nativeLang}
         skinId={proSheet.skinId}
