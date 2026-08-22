@@ -45,6 +45,20 @@ export const TEXT_TO_SPEECH_ENABLED = false;
  */
 export const SYNC_WITH_TEST_RESULTS_ENABLED = true;
 
+/**
+ * RevenueCat diagnostics in a release build.
+ *
+ * The RevenueCat logging is otherwise `__DEV__`-only, which means a TestFlight
+ * build reports nothing at all when a purchase fails. While this is `true` the
+ * same diagnostics run in a production build and the native SDK logs at VERBOSE,
+ * so the real failure is visible in Console.app with the device attached.
+ *
+ * TURN THIS OFF BEFORE THE APP STORE RELEASE. It logs offering, package and
+ * product identifiers — no secrets and no user data, but it is noise that
+ * shipping users have no reason to generate.
+ */
+export const REVENUECAT_DIAGNOSTICS_ENABLED = true;
+
 /** Feature keys of the four hidden text features, as used by the paywall. */
 export const AI_TEXT_FEATURE_KEYS = ['meaning', 'example', 'translate', 'breakdown'] as const;
 

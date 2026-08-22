@@ -8,11 +8,14 @@ import Purchases, {
   PurchasesOfferings,
 } from 'react-native-purchases';
 import { resetApiIdentity } from '../lib/api/client';
+import { parseRequestDate, shouldApplyCustomerInfo } from '../lib/entitlementOrdering';
 import {
+  activeExpirationDateFromCustomerInfo,
   configureRevenueCat,
   logActiveRevenueCatEntitlements,
   planFromCustomerInfo,
   PACKAGE_IDS,
+  RC_DIAGNOSTICS,
 } from '../lib/purchases';
 import {
   BASIC_MONTHLY_LIMIT_SCENARIO,
@@ -63,12 +66,18 @@ function purchaseErrorDetails(err: unknown): {
 }
 
 function logOfferings(source: string, offerings: PurchasesOfferings): void {
-  if (!__DEV__) return;
+  if (!RC_DIAGNOSTICS) return;
   console.info('[RC diagnostic]', {
     source,
     currentOfferingIdentifier: offerings.current?.identifier ?? null,
     availablePackageIdentifiers: offerings.current?.availablePackages.map(pkg => pkg.identifier) ?? [],
+    // Every offering, not just `current`: a dashboard with offerings defined but none
+    // marked current is indistinguishable from an empty account without this.
+    allOfferingIdentifiers: Object.keys(offerings.all),
   });
+  if (!offerings.current) {
+    console.warn('[RC] No current offering. Either none is marked current in the RevenueCat dashboard, or it has no products attached.');
+  }
 }
 
 async function fetchOfferings(source: string): Promise<PurchasesOfferings> {
@@ -93,15 +102,60 @@ export function useSubscription() {
   const [offerings, setOfferings]     = useState<PurchasesOfferings | null>(null);
   const [entitlementSource, setEntitlementSource] = useState<RevenueCatEntitlementSource | null>(null);
   const [entitlementRevision, setEntitlementRevision] = useState(0);
+  // ISO-8601 expiry of the active entitlement, for the plan-switch notice. Set
+  // only alongside `plan`, so it can never describe a different snapshot than
+  // the plan currently on screen.
+  const [expirationDate, setExpirationDate] = useState<string | null>(null);
   const operationRef                  = useRef<Promise<void> | null>(null);
+  // A ref, not state: this is read and written across the await in a purchase,
+  // where a state value would still be the pre-purchase snapshot, and it must
+  // not cause a render of its own.
+  const lastAppliedRequestDateRef     = useRef<number | null>(null);
 
+  /**
+   * The single writer for `plan`, and the only place snapshot ordering is
+   * enforced. Both the post-purchase read and the customerInfoUpdateListener
+   * come through here, so a listener callback carrying a pre-upgrade snapshot
+   * can no longer land last and downgrade the plan.
+   */
   const applyVerifiedCustomerInfo = (
     source: RevenueCatEntitlementSource,
     info: CustomerInfo,
   ): void => {
+    if (!shouldApplyCustomerInfo(info.requestDate, lastAppliedRequestDateRef.current)) {
+      if (RC_DIAGNOSTICS) {
+        console.info('[RC diagnostic]', {
+          source: 'stale-snapshot-ignored',
+          from: source,
+          incomingRequestDate: info.requestDate,
+          lastAppliedRequestDate: new Date(lastAppliedRequestDateRef.current ?? 0).toISOString(),
+          wouldHaveResolvedTo: planFromCustomerInfo(info),
+        });
+      }
+      return;
+    }
+    // Only advance on a usable timestamp, so one undated snapshot cannot pin the
+    // guard to a value that rejects everything after it.
+    const applied = parseRequestDate(info.requestDate);
+    if (applied !== null) lastAppliedRequestDateRef.current = applied;
     setPlan(planFromCustomerInfo(info));
+    // Written here and nowhere else, so a snapshot rejected as stale above also
+    // leaves the expiry untouched rather than pairing a new date with an old plan.
+    setExpirationDate(activeExpirationDateFromCustomerInfo(info));
     setEntitlementSource(source);
     setEntitlementRevision(revision => revision + 1);
+  };
+
+  /**
+   * Clears the ordering guard so the next snapshot is accepted unconditionally.
+   *
+   * Required whenever the App User ID changes: a different customer's snapshots
+   * are on their own timeline, and a genuinely current one can easily carry an
+   * older `requestDate` than the previous user's last applied value. Without
+   * this, the new user's plan would be rejected as stale.
+   */
+  const resetEntitlementOrdering = (): void => {
+    lastAppliedRequestDateRef.current = null;
   };
 
   useEffect(() => {
@@ -143,7 +197,7 @@ export function useSubscription() {
         // `logOut` here would mint a new anonymous user and strand existing
         // subscribers until they found "Restore Purchases".
         const appUserId = await Purchases.getAppUserID();
-        if (__DEV__) {
+        if (RC_DIAGNOSTICS) {
           console.info('[RC diagnostic]', {
             source: 'identity',
             isAnonymous: appUserId.startsWith('$RCAnonymousID:'),
@@ -160,7 +214,10 @@ export function useSubscription() {
         // These keys are migration cleanup only and never grant subscription access.
         AsyncStorage.multiRemove([LEGACY_KEY, LEGACY_PLAN_KEY]).catch(() => {});
       } catch (e) {
-        if (__DEV__) console.warn('[useSubscription] init error:', errorMessage(e));
+        // This is where a bad key, a missing offering or an unreachable RevenueCat
+        // ends up. It was `__DEV__`-only, so in TestFlight the app silently stayed on
+        // 'free' with no trace of why.
+        console.error('[RC init error]', purchaseErrorDetails(e));
         // Network or RC failure: stay on 'free', app still usable.
       } finally {
         if (active) setIsLoaded(true);
@@ -194,9 +251,24 @@ export function useSubscription() {
         const pkg = latestOfferings.current?.availablePackages.find(
           candidate => candidate.identifier === packageIdentifier,
         );
-        if (!pkg) throw new Error(`revenuecat_package_unavailable:${packageIdentifier}`);
+        if (!pkg) {
+          // The lookup is by exact package identifier, so a dashboard using the built-in
+          // `$rc_monthly` / `$rc_annual` names never matches 'basic' / 'premium' and both
+          // plans fail identically, before StoreKit is ever reached. Print what was
+          // actually on offer so the mismatch is visible rather than inferred.
+          console.error('[RC package lookup failed]', {
+            wanted: packageIdentifier,
+            currentOfferingIdentifier: latestOfferings.current?.identifier ?? null,
+            availablePackageIdentifiers:
+              latestOfferings.current?.availablePackages.map(candidate => candidate.identifier) ?? [],
+            availableProductIdentifiers:
+              latestOfferings.current?.availablePackages.map(candidate => candidate.product.identifier) ?? [],
+            allOfferingIdentifiers: Object.keys(latestOfferings.all),
+          });
+          throw new Error(`revenuecat_package_unavailable:${packageIdentifier}`);
+        }
 
-        if (__DEV__) {
+        if (RC_DIAGNOSTICS) {
           console.info('[RC diagnostic]', {
             source: 'purchase-package',
             currentOfferingIdentifier: latestOfferings.current?.identifier ?? null,
@@ -207,11 +279,29 @@ export function useSubscription() {
         const { customerInfo } = await Purchases.purchasePackage(pkg);
         logActiveRevenueCatEntitlements('purchase-response', customerInfo);
         const refreshedInfo = await fetchFreshCustomerInfo('after-purchase-refresh');
+        if (RC_DIAGNOSTICS) {
+          // Reading the two snapshots side by side is what separates the two
+          // possible causes of an upgrade that still shows the old plan: either
+          // RevenueCat had not yet promoted the entitlement (both say basic), or
+          // it had and something later overwrote it (both say premium, yet the UI
+          // does not). `purchased` is what the user just paid for.
+          console.info('[RC diagnostic]', {
+            source: 'purchase-plan-resolution',
+            purchased: packageIdentifier,
+            fromPurchaseResponse: planFromCustomerInfo(customerInfo),
+            fromRefreshedRead: planFromCustomerInfo(refreshedInfo),
+            purchaseRequestDate: customerInfo.requestDate,
+            refreshedRequestDate: refreshedInfo.requestDate,
+          });
+        }
         applyVerifiedCustomerInfo('after-purchase-refresh', refreshedInfo);
       } catch (e) {
         const details = purchaseErrorDetails(e);
         if (isCancelled(e)) {
-          if (__DEV__) console.info('[RC diagnostic] Purchase cancelled.', details);
+          // Worth seeing in TestFlight: StoreKit reports some sandbox failures as a
+          // cancellation, so a purchase that "cancels" without the user tapping Cancel
+          // is a real signal rather than noise.
+          if (RC_DIAGNOSTICS) console.info('[RC diagnostic] Purchase cancelled.', details);
         } else {
           console.error('[RC purchase error]', details);
           setError('Purchase failed. Please try again.');
@@ -235,7 +325,7 @@ export function useSubscription() {
         const refreshedInfo = await fetchFreshCustomerInfo('after-restore-refresh');
         applyVerifiedCustomerInfo('after-restore-refresh', refreshedInfo);
       } catch (e) {
-        if (__DEV__) console.warn('[useSubscription] restore error:', errorMessage(e));
+        if (RC_DIAGNOSTICS) console.error('[RC restore error]', purchaseErrorDetails(e));
         setError('Restore failed. Please try again.');
       } finally {
         setIsRestoring(false);
@@ -247,7 +337,29 @@ export function useSubscription() {
       const info = await fetchFreshCustomerInfo('manual-refresh');
       applyVerifiedCustomerInfo('manual-refresh', info);
     } catch (e) {
-      if (__DEV__) console.warn('[useSubscription] refresh error:', errorMessage(e));
+      if (RC_DIAGNOSTICS) console.error('[RC refresh error]', purchaseErrorDetails(e));
+    }
+  };
+
+  /**
+   * Opens Apple's subscription management sheet.
+   *
+   * The ONLY route out of the app for anything subscription-related, and it
+   * exists for cancellation alone. Changing plan never comes here: Basic and
+   * Premium both go through `purchasePackage` above, so an upgrade or downgrade
+   * stays inside the app and gets StoreKit's own purchase sheet.
+   *
+   * `showManageSubscriptions` rather than a `Linking.openURL('itms-apps://…')`:
+   * it is the SDK's supported entry point and avoids `canOpenURL` returning
+   * false for an undeclared URL scheme.
+   */
+  const openManageSubscriptions = async (): Promise<void> => {
+    if (Platform.OS !== 'ios') return;
+    try {
+      await Purchases.showManageSubscriptions();
+    } catch (e) {
+      if (RC_DIAGNOSTICS) console.error('[RC manage subscriptions error]', purchaseErrorDetails(e));
+      setError('Could not open subscription settings. Please try again.');
     }
   };
 
@@ -259,6 +371,12 @@ export function useSubscription() {
       // logOut mints a new anonymous App User ID, so the cached identity the
       // API client sends must be discarded or it would keep quoting the old one.
       resetApiIdentity();
+      // The new user's snapshots are on their own timeline and can legitimately
+      // carry an older requestDate than the previous user's last applied one.
+      // Clearing the guard here is what stops them being rejected as stale.
+      // This is the only place the App User ID changes: production never calls
+      // logIn or logOut, so there is no other switch point to cover.
+      resetEntitlementOrdering();
       logActiveRevenueCatEntitlements('logout-response', anonymousInfo);
       const refreshedInfo = await fetchFreshCustomerInfo('after-logout-refresh');
       applyVerifiedCustomerInfo('after-logout-refresh', refreshedInfo);
@@ -276,12 +394,14 @@ export function useSubscription() {
     isRestoring,
     error,
     offerings,
+    expirationDate,
     entitlementSource,
     entitlementRevision,
     subscribe,
     subscribePremium,
     restore,
     refreshCustomerInfo,
+    openManageSubscriptions,
     unsubscribe,
   };
 }
