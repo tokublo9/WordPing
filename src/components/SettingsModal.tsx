@@ -27,6 +27,13 @@ import {
   type AIVoice,
 } from '../lib/aiVoices';
 import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
+import { isAIRequestError } from '../lib/api/errors';
+import {
+  buildAiVoiceLimitMessage,
+  fillTemplate,
+  resolveAiVoiceLimit,
+} from '../lib/api/voiceLimitMessage';
+import { showTopBanner } from '../lib/topBanner';
 
 const CONTACT_MAIL = 'mailto:daiki.studio9@gmail.com';
 
@@ -68,6 +75,8 @@ interface Props {
   onRestore: () => Promise<void>;
   /** DEV ONLY: forwarded to ProSheet to override the Manage Subscription button. */
   onManageSubscription?: () => void;
+  /** Opens Apple's subscription management, for cancellation only. */
+  onCancelSubscription?: () => Promise<void>;
   pal: Palette;
   language: string;
   onPickLanguage: (code: string) => void;
@@ -89,7 +98,8 @@ export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
   skinId, onPickSkin, isSubscribed, isPremium, isSubscriptionLoaded,
   onUpgrade: _onUpgrade,
-  onSubscribe, onSubscribePremium, onRestore, onManageSubscription, pal, language, onPickLanguage,
+  onSubscribe, onSubscribePremium, onRestore, onManageSubscription, onCancelSubscription,
+  pal, language, onPickLanguage,
   aiVoice, onPickAIVoice,
   showFullCard, onToggleShowFullCard,
   showResultColor, onToggleShowResultColor,
@@ -398,8 +408,10 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           onRestore={onRestore}
+          isSubscribed={isSubscribed}
           isPremium={isPremium}
           isSubscriptionLoaded={isSubscriptionLoaded}
+          onCancelSubscription={onCancelSubscription}
           onDataReplaced={onDataReplaced}
         />
 
@@ -410,6 +422,7 @@ export function SettingsModal({
           onSelect={onPickAIVoice}
           pal={pal}
           themeColor={themeColor}
+          language={language}
         />
 
         {/* Appearance-disabled hint toast — slides in below the header */}
@@ -446,7 +459,7 @@ export function SettingsModal({
 
 // ── AI voice selection screen ────────────────────────────────────────────────
 function VoiceSelectionScreen({
-  visible, onClose, selectedVoice, onSelect, pal, themeColor,
+  visible, onClose, selectedVoice, onSelect, pal, themeColor, language,
 }: {
   visible: boolean;
   onClose(): void;
@@ -454,6 +467,8 @@ function VoiceSelectionScreen({
   onSelect(voice: AIVoice): void;
   pal: Palette;
   themeColor: string;
+  /** BCP-47 tag, for the usage-limit banner's date and time formatting. */
+  language: string;
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
@@ -494,6 +509,14 @@ function VoiceSelectionScreen({
       await previewAIVoice(voice, { buttonPressedAtMs: performance.now(), onPhaseChange });
     } catch (error) {
       if (error instanceof Error && error.message === 'cancelled') return;
+      // A usage limit hit from the voice picker gets the same non-blocking banner
+      // as one hit from a card, so the two entry points do not disagree.
+      const limit = isAIRequestError(error) ? resolveAiVoiceLimit(error, Date.now()) : null;
+      if (limit) {
+        const { key, values } = buildAiVoiceLimitMessage(limit, language);
+        showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
+        return;
+      }
       const msg = error instanceof Error && error.message === 'plan_required'
         ? t('err_plan_required_speech')
         : t('quota_exceeded_msg');
@@ -593,7 +616,7 @@ function VoiceSelectionScreen({
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
   visible, onClose, pal, themeColor, onRestore,
-  isPremium, isSubscriptionLoaded, onDataReplaced,
+  isSubscribed, isPremium, isSubscriptionLoaded, onCancelSubscription, onDataReplaced,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -601,8 +624,15 @@ function AppInfoSheet({
   themeColor: string;
   /** The shared RevenueCat restore handler from useSubscription. */
   onRestore: () => Promise<void>;
+  isSubscribed: boolean;
   isPremium: boolean;
   isSubscriptionLoaded: boolean;
+  /**
+   * Opens Apple's subscription management. The only subscription action that
+   * leaves the app, and it is for cancelling alone — switching plan is a
+   * purchase and happens in the paywall.
+   */
+  onCancelSubscription?: () => Promise<void>;
   onDataReplaced: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -684,6 +714,34 @@ function AppInfoSheet({
             ? <ActivityIndicator size="small" color={themeColor} />
             : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
         </TouchableOpacity>
+
+        {/* Cancellation is the only subscription action that leaves the app.
+            Changing plan is a purchase and stays in the paywall, so this is
+            deliberately here and not on a plan button. Hidden without an active
+            subscription, where there is nothing to cancel. */}
+        {isSubscribed && onCancelSubscription && (
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => { void onCancelSubscription(); }}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={t('cancel_subscription')}
+          >
+            <Ionicons name="close-circle-outline" size={18} color={pal.sub} />
+            {/* Column wrapper, so the label must NOT use styles.rowLabel — its
+                `flex: 1` would stretch the Text to the full row height and pin
+                the title to its top edge. Same reason toggleLabel exists. */}
+            <View style={styles.rowTextColumn}>
+              <Text style={[styles.toggleLabel, { color: pal.text }]}>
+                {t('cancel_subscription')}
+              </Text>
+              <Text style={[styles.rowSubLabel, { color: pal.sub }]}>
+                {t('cancel_subscription_desc')}
+              </Text>
+            </View>
+            <Ionicons name="open-outline" size={15} color={pal.sub} />
+          </TouchableOpacity>
+        )}
 
         {/* Backup & Restore — rendered only for an active Premium
             entitlement. BackupSection returns null otherwise, so the heading and
@@ -878,6 +936,10 @@ const styles = StyleSheet.create({
   // 44pt row height and rendered the title against its top edge — the upward
   // offset. `flexShrink` keeps a long title from pushing the icon off the row.
   toggleLabel: { fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' },
+  // Two-line row: title over a muted explanation. The column takes the flex the
+  // label would otherwise carry, per the note above.
+  rowTextColumn: { flex: 1, minWidth: 0, paddingVertical: 2 },
+  rowSubLabel: { fontSize: 12, lineHeight: 16, marginTop: 2 },
 
   // Appearance-disabled toast
   hintBanner: {
