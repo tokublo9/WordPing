@@ -20,12 +20,18 @@ export interface AppContextMenuProps {
   onSelectEntries(): void;
   onReorder(): void;
   // onToggleLevelLabels(): void;
+  /**
+   * Opens the AI Voice explanation. Owned by App rather than raised here: this
+   * menu is itself a Modal, and presenting a second one from inside it would
+   * change two native modals in a single commit.
+   */
+  onOpenAiVoiceInfo(): void;
   onOpenSettings(): void;
 }
 
 export function AppContextMenu({
   visible, anchor, pal,
-  onDismiss, onSelectEntries, onReorder, onOpenSettings,
+  onDismiss, onSelectEntries, onReorder, onOpenAiVoiceInfo, onOpenSettings,
 }: AppContextMenuProps) {
   const t = useLang();
   return (
@@ -76,6 +82,16 @@ export function AppContextMenu({
         {/* Thicker divider before settings group */}
         <View style={[styles.groupSep, { backgroundColor: pal.border }]} />
 
+        <TouchableOpacity
+          style={styles.item}
+          onPress={onOpenAiVoiceInfo}
+          accessibilityRole="button"
+          accessibilityLabel={t('ai_voice_info_menu')}
+        >
+          <Ionicons name="information-circle-outline" size={17} color={pal.text} />
+          <Text style={[styles.itemText, { color: pal.text }]}>{t('ai_voice_info_menu')}</Text>
+        </TouchableOpacity>
+        <View style={[styles.sep, { backgroundColor: pal.border }]} />
         <TouchableOpacity style={styles.item} onPress={onOpenSettings}>
           <Ionicons name="settings-outline" size={17} color={pal.text} />
           <Text style={[styles.itemText, { color: pal.text }]}>{t('settings')}</Text>

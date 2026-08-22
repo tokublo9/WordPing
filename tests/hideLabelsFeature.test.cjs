@@ -14,10 +14,15 @@ test('Hide Labels UI is dormant without leaving its row separator behind', () =>
 
   assert.doesNotMatch(activeRender, /hide_level_labels|show_level_labels/u);
   assert.doesNotMatch(activeRender, /onToggleLevelLabels|showLevelLabels/u);
+  // Two live separators, both belonging to a rendered pair of rows:
+  //   1. Select Entries / Reorder
+  //   2. AI Voice info / Settings
+  // The dormant Hide Labels row must not contribute a third. Counting them is
+  // what catches a separator left stranded when its row was commented out.
   assert.equal(
     (activeRender.match(/styles\.sep/gu) ?? []).length,
-    1,
-    'only the separator between Select Entries and Reorder should remain',
+    2,
+    'only the Select-Entries/Reorder and AI-Voice-info/Settings separators should remain',
   );
   assert.match(source, /Hide Labels is temporarily disabled[\s\S]*?onToggleLevelLabels/u);
 });
