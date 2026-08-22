@@ -75,8 +75,6 @@ interface Props {
   onRestore: () => Promise<void>;
   /** DEV ONLY: forwarded to ProSheet to override the Manage Subscription button. */
   onManageSubscription?: () => void;
-  /** Opens Apple's subscription management, for cancellation only. */
-  onCancelSubscription?: () => Promise<void>;
   pal: Palette;
   language: string;
   onPickLanguage: (code: string) => void;
@@ -98,7 +96,7 @@ export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
   skinId, onPickSkin, isSubscribed, isPremium, isSubscriptionLoaded,
   onUpgrade: _onUpgrade,
-  onSubscribe, onSubscribePremium, onRestore, onManageSubscription, onCancelSubscription,
+  onSubscribe, onSubscribePremium, onRestore, onManageSubscription,
   pal, language, onPickLanguage,
   aiVoice, onPickAIVoice,
   showFullCard, onToggleShowFullCard,
@@ -408,10 +406,8 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           onRestore={onRestore}
-          isSubscribed={isSubscribed}
           isPremium={isPremium}
           isSubscriptionLoaded={isSubscriptionLoaded}
-          onCancelSubscription={onCancelSubscription}
           onDataReplaced={onDataReplaced}
         />
 
@@ -423,6 +419,7 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           language={language}
+          onShowInfo={showInfoPopup}
         />
 
         {/* Appearance-disabled hint toast — slides in below the header */}
@@ -459,7 +456,7 @@ export function SettingsModal({
 
 // ── AI voice selection screen ────────────────────────────────────────────────
 function VoiceSelectionScreen({
-  visible, onClose, selectedVoice, onSelect, pal, themeColor, language,
+  visible, onClose, selectedVoice, onSelect, pal, themeColor, language, onShowInfo,
 }: {
   visible: boolean;
   onClose(): void;
@@ -469,6 +466,12 @@ function VoiceSelectionScreen({
   themeColor: string;
   /** BCP-47 tag, for the usage-limit banner's date and time formatting. */
   language: string;
+  /**
+   * Settings' own info popup. Shared rather than duplicated so only one
+   * explanation can be open at a time, and the app keeps a single pattern for
+   * short informational dialogs.
+   */
+  onShowInfo(content: SettingsInfoContent): void;
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
@@ -477,14 +480,36 @@ function VoiceSelectionScreen({
   const [activePreviewVoice, setActivePreviewVoice] = useState<AIVoice | null>(null);
   const previewSequence = useRef(0);
 
+  /**
+   * The choice being browsed, committed only on the way out.
+   *
+   * Saving on every row tap looked free but was not: the TTS cache is keyed by
+   * voice, so App's preload effect re-generates the whole word library each time
+   * `aiVoice` changes. Comparing five voices meant five full sweeps, four of
+   * them for voices the user did not keep. Holding the choice locally means the
+   * sweep runs once, for the voice actually chosen.
+   */
+  const [draftVoice, setDraftVoice] = useState<AIVoice>(selectedVoice);
+
+  // Re-sync on open rather than in an effect: an effect would paint the previous
+  // session's highlight for a frame first. Same idiom as BulkImportModal.
+  const [renderedVisible, setRenderedVisible] = useState(visible);
+  if (visible !== renderedVisible) {
+    setRenderedVisible(visible);
+    if (visible) setDraftVoice(selectedVoice);
+  }
+
   const close = useCallback(() => {
     previewSequence.current++;
     stopPlayback();
     setPreviewingVoice(null);
     setLoadingVoice(null);
     setActivePreviewVoice(null);
+    // Leaving the screen is the confirmation. Only a real change is published,
+    // so backing out without picking anything cannot trigger a library sweep.
+    if (draftVoice !== selectedVoice) onSelect(draftVoice);
     onClose();
-  }, [onClose]);
+  }, [draftVoice, onClose, onSelect, selectedVoice]);
 
   const preview = useCallback(async (voice: AIVoice) => {
     if (activePreviewVoice === voice) {
@@ -544,7 +569,18 @@ function VoiceSelectionScreen({
           <Ionicons name="chevron-back" size={24} color={pal.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
-        <View style={styles.backBtn} />
+        {/* Takes the slot the centring spacer already occupied, so the title
+            stays centred and the header keeps its existing geometry. */}
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => onShowInfo({ title: t('voice_pick_info_title'), body: t('voice_pick_info_body') })}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('feature_ai_voice')}: ${t('info_button_label')}`}
+        >
+          <Ionicons name="information-circle-outline" size={20} color={pal.sub} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.voiceList}>
@@ -553,7 +589,9 @@ function VoiceSelectionScreen({
             <Text style={[styles.voiceCategoryTitle, { color: pal.sub }]}>{group.title}</Text>
             <View style={styles.voiceCategoryRows}>
               {group.voices.map(voice => {
-                const selected = voice === selectedVoice;
+                // The highlight follows the draft, so the screen reflects what
+                // the user is considering rather than what is saved.
+                const selected = voice === draftVoice;
                 const previewing = voice === previewingVoice;
                 const loading = voice === loadingVoice;
                 const label = getAIVoiceLabel(voice);
@@ -568,13 +606,15 @@ function VoiceSelectionScreen({
                         borderColor: selected ? themeColor : pal.border,
                       },
                     ]}
+                    // Selection only — never onSelect, and never a generation.
+                    // The choice is published once, by close().
                     onPress={() => {
                       previewSequence.current++;
                       stopPlayback();
                       setPreviewingVoice(null);
                       setLoadingVoice(null);
                       setActivePreviewVoice(null);
-                      onSelect(voice);
+                      setDraftVoice(voice);
                     }}
                     activeOpacity={0.75}
                     accessibilityRole="radio"
@@ -616,7 +656,7 @@ function VoiceSelectionScreen({
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
   visible, onClose, pal, themeColor, onRestore,
-  isSubscribed, isPremium, isSubscriptionLoaded, onCancelSubscription, onDataReplaced,
+  isPremium, isSubscriptionLoaded, onDataReplaced,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -624,15 +664,8 @@ function AppInfoSheet({
   themeColor: string;
   /** The shared RevenueCat restore handler from useSubscription. */
   onRestore: () => Promise<void>;
-  isSubscribed: boolean;
   isPremium: boolean;
   isSubscriptionLoaded: boolean;
-  /**
-   * Opens Apple's subscription management. The only subscription action that
-   * leaves the app, and it is for cancelling alone — switching plan is a
-   * purchase and happens in the paywall.
-   */
-  onCancelSubscription?: () => Promise<void>;
   onDataReplaced: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -714,34 +747,6 @@ function AppInfoSheet({
             ? <ActivityIndicator size="small" color={themeColor} />
             : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
         </TouchableOpacity>
-
-        {/* Cancellation is the only subscription action that leaves the app.
-            Changing plan is a purchase and stays in the paywall, so this is
-            deliberately here and not on a plan button. Hidden without an active
-            subscription, where there is nothing to cancel. */}
-        {isSubscribed && onCancelSubscription && (
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => { void onCancelSubscription(); }}
-            activeOpacity={0.6}
-            accessibilityRole="button"
-            accessibilityLabel={t('cancel_subscription')}
-          >
-            <Ionicons name="close-circle-outline" size={18} color={pal.sub} />
-            {/* Column wrapper, so the label must NOT use styles.rowLabel — its
-                `flex: 1` would stretch the Text to the full row height and pin
-                the title to its top edge. Same reason toggleLabel exists. */}
-            <View style={styles.rowTextColumn}>
-              <Text style={[styles.toggleLabel, { color: pal.text }]}>
-                {t('cancel_subscription')}
-              </Text>
-              <Text style={[styles.rowSubLabel, { color: pal.sub }]}>
-                {t('cancel_subscription_desc')}
-              </Text>
-            </View>
-            <Ionicons name="open-outline" size={15} color={pal.sub} />
-          </TouchableOpacity>
-        )}
 
         {/* Backup & Restore — rendered only for an active Premium
             entitlement. BackupSection returns null otherwise, so the heading and
@@ -936,10 +941,6 @@ const styles = StyleSheet.create({
   // 44pt row height and rendered the title against its top edge — the upward
   // offset. `flexShrink` keeps a long title from pushing the icon off the row.
   toggleLabel: { fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' },
-  // Two-line row: title over a muted explanation. The column takes the flex the
-  // label would otherwise carry, per the note above.
-  rowTextColumn: { flex: 1, minWidth: 0, paddingVertical: 2 },
-  rowSubLabel: { fontSize: 12, lineHeight: 16, marginTop: 2 },
 
   // Appearance-disabled toast
   hintBanner: {

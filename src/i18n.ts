@@ -168,7 +168,7 @@ export type TranslationKey =
   | 'err_entitlement_unverified' | 'err_service_not_configured'
   | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
   | 'plan_downgrade_deferred_note'
-  | 'cancel_subscription' | 'cancel_subscription_desc'
+  | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OnboardingProfileKey =
@@ -229,7 +229,7 @@ type AppShellKey =
   | 'err_entitlement_unverified' | 'err_service_not_configured'
   | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
   | 'plan_downgrade_deferred_note'
-  | 'cancel_subscription' | 'cancel_subscription_desc'
+  | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
 type OptionalTranslationKey =
@@ -673,8 +673,9 @@ const enUS: Dict = {
     'That was a lot of requests in a short time. New words can be played with AI Voice again in {n} minutes. (Anything already loaded still plays.)',
   voice_limit_short_hours:
     'That was a lot of requests in a short time. New words can be played with AI Voice again in {n} hours. (Anything already loaded still plays.)',
-  cancel_subscription:      'Cancel Subscription',
-  cancel_subscription_desc: 'Opens the App Store. Switching between plans is done here in the app.',
+  voice_pick_info_title: 'Natural AI Voice',
+  voice_pick_info_body:
+    'When you select a new voice type and tap the back button, the AI Voice for your word cards will be generated.',
   plan_downgrade_deferred_note:
     'If you switch to Basic: your new subscription begins when your current one expires on {date}. '
     + 'You can cancel any time from Settings > Apple Account, up to a day before each renewal date. '
@@ -1134,8 +1135,9 @@ const ja: Dict = {
     '短時間に多くのリクエストがありました。{n}分後に新しい単語をAI Voiceで再生できます。（すでに読み込み済みのものは引き続き再生できます。）',
   voice_limit_short_hours:
     '短時間に多くのリクエストがありました。{n}時間後に新しい単語をAI Voiceで再生できます。（すでに読み込み済みのものは引き続き再生できます。）',
-  cancel_subscription:      '定期購読を解約',
-  cancel_subscription_desc: 'App Storeが開きます。プランの変更はアプリ内で行えます。',
+  voice_pick_info_title: 'Natural AI Voice',
+  voice_pick_info_body:
+    '新しい音声タイプを選択して戻るボタンをタップすると、単語カードのAI Voiceが生成されます。',
   plan_downgrade_deferred_note:
     'Basic planに変更する場合：新しいプランは現在のプランの有効期限（{date}）が終了した時点で開始されます。'
     + '設定 > Apple ID から更新日の前日までであればいつでもキャンセルできます。'
