@@ -28,6 +28,11 @@ import {
 } from '../lib/aiVoices';
 import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 import { isAIRequestError } from '../lib/api/errors';
+import { AIConsentDialog } from './AIConsentDialog';
+import { ResultFilterTutorial } from './ResultFilterTutorial';
+import { useAIConsent } from '../hooks/useAIConsent';
+import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
+import { setAIConsent } from '../lib/aiConsent';
 import {
   buildAiVoiceLimitMessage,
   fillTemplate,
@@ -88,6 +93,13 @@ interface Props {
   onToggleVerticalFlip: (v: boolean) => void;
   hideAiTools: boolean;
   onToggleHideAiTools: (v: boolean) => void;
+  /**
+   * Whether this plan may use the AI features at all.
+   *
+   * Computed by App from the one entitlement rule (lib/aiEntitlement.ts) rather
+   * than re-derived here, and false while RevenueCat is still answering.
+   */
+  canUseAI: boolean;
   /** Re-read cards and folders after a backup import replaced them. */
   onDataReplaced: () => void;
 }
@@ -103,6 +115,7 @@ export function SettingsModal({
   showResultColor, onToggleShowResultColor,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
+  canUseAI,
   onDataReplaced,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
@@ -114,6 +127,9 @@ export function SettingsModal({
   const [announcementsVisible, setAnnouncementsVisible] = useState(false);
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
   const [voicePickerVisible, setVoicePickerVisible] = useState(false);
+  // Help → the colour-filter explanation. Its own state because it is a richer
+  // dialog than the shared text popup: it renders the actual chip legend.
+  const [resultFilterHelpVisible, setResultFilterHelpVisible] = useState(false);
   // Mounted content and native Modal visibility are deliberately separate.
   // The content stays mounted throughout the fade-out and is cleared only once
   // the native dismissal has completed.
@@ -139,6 +155,23 @@ export function SettingsModal({
   }, []);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
+
+  // ── AI data sharing ────────────────────────────────────────────────────────
+  const aiConsent = useAIConsent();
+
+  /**
+   * Turning it on always shows the disclosure first — the switch grants nothing
+   * by itself, so permission is never given without the explanation in front of
+   * the user. Turning it off is immediate and needs no confirmation: it stops
+   * future requests, deletes nothing, and is trivially reversible.
+   */
+  const handleToggleAIConsent = useCallback((next: boolean) => {
+    if (next) {
+      void ensureAIConsentForUserAction();
+      return;
+    }
+    void setAIConsent('declined');
+  }, []);
 
   useEffect(() => {
     if (visible && isSubscribed) return;
@@ -337,6 +370,58 @@ export function SettingsModal({
             />
           )}
 
+          {/* ── Help ─────────────────────────────────────────────────────── */}
+          {/* The result-filter explanation, reopenable on demand. It reuses the
+              same dialog the automatic version uses, so the wording can never
+              drift between the two ways of seeing it. Reopening from here does
+              not reset the "seen" flag — it is a reference, not a replay. */}
+          <View style={[styles.divider, { backgroundColor: pal.border }]} />
+
+          <View style={{ marginBottom: 12 }}>
+            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('help_section')}</Text>
+          </View>
+          <SettingRow icon="color-filter-outline" label={t('help_result_filters')} pal={pal}
+            onPress={() => setResultFilterHelpVisible(true)} />
+
+          {/* ── Privacy ──────────────────────────────────────────────────── */}
+          {/* The whole section, header and divider included, belongs to the one
+              setting inside it. A plan that cannot use AI has nothing to decide
+              here, so nothing is rendered rather than a heading over an empty
+              space — and `canUseAI` is false until RevenueCat has answered, so
+              the row cannot appear for a moment and then vanish.
+
+              The Privacy Policy link is deliberately not repeated here; it lives
+              in App Info, one place, reachable on every plan. */}
+          {canUseAI && (
+            <>
+              <View style={[styles.divider, { backgroundColor: pal.border }]} />
+
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('privacy_section')}</Text>
+              </View>
+              <ToggleRow
+                icon="shield-checkmark-outline"
+                label={t('ai_consent_setting')}
+                info={t('ai_consent_setting_info')}
+                onShowInfo={showInfoPopup}
+                value={aiConsent === 'granted'}
+                onToggle={handleToggleAIConsent}
+                themeColor={themeColor}
+                pal={pal}
+              />
+              {/* The switch alone says on or off; this line names who receives the
+                  data and what the current decision is, so the state is legible
+                  without opening the explanation. */}
+              <Text style={[styles.rowDescription, { color: pal.sub }]}>
+                {`${t('ai_consent_setting_desc')} (${t(
+                  aiConsent === 'granted' ? 'ai_consent_status_granted'
+                    : aiConsent === 'declined' ? 'ai_consent_status_declined'
+                    : 'ai_consent_status_unknown',
+                )})`}
+              </Text>
+            </>
+          )}
+
           {/* ── App Info ─────────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
@@ -410,6 +495,19 @@ export function SettingsModal({
           isSubscriptionLoaded={isSubscriptionLoaded}
           onDataReplaced={onDataReplaced}
         />
+
+        {/* Settings and everything it opens (the voice picker, the Upgrade
+            sheet) live inside this modal's own native controller, so the
+            consent dialog has to be presented from in here to appear above
+            them. Registered only while Settings is actually on screen. */}
+        <ResultFilterTutorial
+          visible={resultFilterHelpVisible}
+          onDismiss={() => setResultFilterHelpVisible(false)}
+          pal={pal}
+          themeColor={themeColor}
+        />
+
+        <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
 
         <VoiceSelectionScreen
           visible={voicePickerVisible}
@@ -520,6 +618,10 @@ function VoiceSelectionScreen({
       setActivePreviewVoice(null);
       return;
     }
+
+    // Previews are generated by OpenAI like any other AI voice, so the same
+    // permission applies here as on a word card.
+    if (!await ensureAIConsentForUserAction()) return;
 
     const sequence = ++previewSequence.current;
     setActivePreviewVoice(voice);
@@ -895,6 +997,15 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
+  // Sits under its own toggle row, indented past the icon column so it reads as
+  // that row's explanation rather than as a new item.
+  rowDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginLeft: CARD_BEHAVIOR_ICON_WIDTH + 8,
+    marginTop: -2,
+    marginBottom: 6,
+  },
 
   voiceScreen: { zIndex: 150 },
   voiceList: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 48, gap: 22 },

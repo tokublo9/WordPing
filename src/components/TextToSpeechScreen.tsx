@@ -32,6 +32,8 @@ import {
   type SavedPrototypeSpeech,
 } from '../lib/prototypeTextToSpeech';
 import { isTTSNetworkLoading } from '../lib/ttsPlaybackState';
+import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
+import { AIConsentDialog } from './AIConsentDialog';
 import {
   FULL_SCREEN_SHEET_HEADER,
   FULL_SCREEN_SHEET_HEADER_ACTION,
@@ -134,6 +136,9 @@ export function TextToSpeechScreen({
   const generate = useCallback(async () => {
     const input = text.trim();
     if (!isPremium || !input || generating) return;
+    // The text typed here is submitted to OpenAI for generation, so it needs
+    // the same permission as every other AI feature.
+    if (!await ensureAIConsentForUserAction()) return;
 
     requestController.current?.abort();
     stopAudio();
@@ -533,6 +538,10 @@ export function TextToSpeechScreen({
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* This screen is presented as its own modal, so it mounts its own
+            consent host while it is on top. */}
+        <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
       </View>
     </FullScreenSheet>
   );

@@ -232,6 +232,14 @@ interface Props {
   onUpdateCard: (id: string, patch: Partial<WordCard>) => void;
   /** Canonical app deletion path used only for a synced Perfect result. */
   onDeleteCard: (id: string) => void;
+  /**
+   * Called once, on the very first card graded in this session.
+   *
+   * Reported at the moment of the answer rather than when the test ends, so
+   * force-quitting immediately afterwards still leaves the result-filter state
+   * consistent with the grade that was already written to the card.
+   */
+  onFirstAnswer?: () => void;
   onClose: () => void;
   pal: Palette;
   themeColor: string;
@@ -241,7 +249,7 @@ interface Props {
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onClose, pal, themeColor, isSubscribed, isPremium = false, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onClose, pal, themeColor, isSubscribed, isPremium = false, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
   const insets = useSafeAreaInsets();
 
@@ -442,6 +450,9 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     if (!card) return;
     // A second tap while the card is animating out would grade the same card twice.
     if (gradedIdsRef.current.has(card.id)) return;
+    // Before the grade is applied, and only for the first card of the session:
+    // the notification is a flag write, and the test carries on regardless.
+    if (gradedIdsRef.current.size === 0) onFirstAnswer?.();
     gradedIdsRef.current.add(card.id);
     stopVoice();
 
@@ -461,7 +472,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
       setIdx(i => i + 1);
       Animated.timing(cardOpacity, { toValue: 1, duration: 160, useNativeDriver: true }).start();
     });
-  }, [card, onUpdateCard, onDeleteCard, flipAnim, cardOpacity]);
+  }, [card, onUpdateCard, onDeleteCard, onFirstAnswer, flipAnim, cardOpacity]);
 
   // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -597,8 +608,15 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         />
                       )}
                       showVoice={!muted}
+                      selectableText
                     >
-                      <Text style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>
+                      {/* `selectable` gives the native long-press selection and Copy
+                          menu on both platforms. A quick tap still reaches the
+                          Pressable underneath, so tap-to-flip is unchanged; the
+                          `selectableText` flag above is what stops the same hold
+                          also flipping the card away from the selection. The answer
+                          buttons are separate views a selection cannot reach. */}
+                      <Text selectable style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>
                     </CardScrollFace>
                   </Animated.View>
 
@@ -622,10 +640,15 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         />
                       )}
                       showVoice={!muted}
+                      selectableText
                     >
-                      <Text style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
+                      {/* Every user-authored field on this face is selectable, not
+                          just the meaning: the note is often where the example
+                          sentence lives. Both are covered by the one flag above —
+                          a long press on either keeps the card on this side. */}
+                      <Text selectable style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
                       {card!.note ? (
-                        <Text style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
+                        <Text selectable style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
                       ) : null}
                     </CardScrollFace>
                   </Animated.View>

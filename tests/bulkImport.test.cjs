@@ -3,13 +3,36 @@ const fs = require('node:fs');
 const test = require('node:test');
 const ts = require('typescript');
 
+const nodePath = require('node:path');
+
+const moduleCache = new Map();
+
+/**
+ * Transpiles a source module and its relative TypeScript imports.
+ *
+ * `bulkImport.ts` shares the app's duplicate rule with `duplicates.ts` rather
+ * than keeping a second copy, so the loader has to follow a relative import
+ * instead of handing it to Node's resolver, which would look beside this test.
+ * Type-only imports disappear during transpilation and are never requested.
+ */
 function loadTypeScriptModule(path) {
-  const source = fs.readFileSync(path, 'utf8');
+  const absolute = nodePath.resolve(path);
+  const cached = moduleCache.get(absolute);
+  if (cached) return cached.exports;
+
+  const source = fs.readFileSync(absolute, 'utf8');
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
+
   const module = { exports: {} };
-  new Function('exports', 'module', 'require', output)(module.exports, module, require);
+  moduleCache.set(absolute, module);
+  const localRequire = request => {
+    if (!request.startsWith('.')) return require(request);
+    const resolved = nodePath.resolve(nodePath.dirname(absolute), request);
+    return loadTypeScriptModule(resolved.endsWith('.ts') ? resolved : `${resolved}.ts`);
+  };
+  new Function('exports', 'module', 'require', output)(module.exports, module, localRequire);
   return module.exports;
 }
 
@@ -349,10 +372,12 @@ test('vertical drags over the input scroll the page instead of the input', () =>
 
 test('reset button sits directly above the input and clears it back to the default height', () => {
   const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
-  // Reset row is rendered between the helper copy and the text box, in that order.
+  // Reset row sits directly above the text box. The file-import button is
+  // allowed between the helper copy and it: choosing a file is an alternative
+  // to typing, so it belongs with the introduction rather than with the box.
   assert.match(
     source,
-    /bulk_import_helper'\)\}<\/Text>\s*<View style=\{styles\.resetRow\}>[\s\S]*?<\/View>\s*<View \{\.\.\.inputScrollPan\.panHandlers\}>\s*<TextInput/u,
+    /bulk_import_helper'\)\}<\/Text>[\s\S]*?<View style=\{styles\.resetRow\}>[\s\S]*?<\/View>\s*<View \{\.\.\.inputScrollPan\.panHandlers\}>\s*<TextInput/u,
   );
   assert.match(source, /onPress=\{resetInput\}/u);
   assert.match(source, /const resetDisabled = input\.length === 0/u);
@@ -416,12 +441,31 @@ test('submission and every close path handle the keyboard and in-flight state sa
 
 test('failed imports retain the usable preview and clear only the submission snapshot', () => {
   const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
-  const errorBranch = source.slice(source.indexOf('if (importResult.error)'), source.indexOf('// Keep `importing`'));
+  // Scoped to the typed import's own function: the file import has a separate
+  // error branch of its own, and a plain "first occurrence" slice would span
+  // both and pick up the other one's success path.
+  const runImport = source.slice(source.indexOf('const runImport = () =>'));
+  const errorBranch = runImport.slice(
+    runImport.indexOf('if (importResult.error)'),
+    runImport.indexOf('// Keep `importing`'),
+  );
   assert.match(errorBranch, /submittedAnalysisRef\.current = null;/u);
   assert.match(errorBranch, /setImportError\(true\);/u);
   assert.match(errorBranch, /setImporting\(false\);/u);
   assert.doesNotMatch(errorBranch, /onClose\(\)/u);
   assert.match(source, /importError &&[\s\S]*?bulk_import_failed_generic/u);
+
+  // The file import follows the same rule: a failure keeps the preview on
+  // screen so the user can retry, rather than closing over the error.
+  const runFileImport = source.slice(
+    source.indexOf('const runFileImport = () =>'),
+    source.indexOf('const runImport = () =>'),
+  );
+  const fileErrorBranch = runFileImport.slice(
+    runFileImport.indexOf('if (importResult.error)'),
+    runFileImport.indexOf('onClose();'),
+  );
+  assert.match(fileErrorBranch, /setImportError\(true\);\s*setImporting\(false\);\s*return;/u);
 });
 
 test('onboarding stops rendering before its state resets to the first step', () => {

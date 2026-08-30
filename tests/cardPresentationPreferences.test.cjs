@@ -10,7 +10,7 @@ test('Flip Mode measures intrinsic long content before any scroll interaction', 
   const face = read('src/components/CardScrollFace.tsx');
   const browser = read('src/components/FlipCardBrowser.tsx');
 
-  assert.match(face, /<ScrollView[\s\S]*?<Pressable style=\{s\.pressable\}/u);
+  assert.match(face, /<ScrollView[\s\S]*?<Pressable\s+style=\{s\.pressable\}/u);
   assert.match(face, /pressable:\s*\{[\s\S]*?minHeight: FLIP_CARD_H,[\s\S]*?paddingTop: FLIP_CARD_PAD_V,[\s\S]*?paddingBottom: FLIP_CARD_PAD_V,/u);
   assert.doesNotMatch(face, /contentContainerStyle=\{\{\s*flexGrow:\s*1\s*\}\}/u);
   assert.doesNotMatch(face, /onScroll=|onLayout=|onContentSizeChange=|setTimeout|useState/u);

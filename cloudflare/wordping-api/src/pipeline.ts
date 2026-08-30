@@ -1,5 +1,6 @@
 import type { ZodType } from 'zod';
 import {
+  ANONYMOUS_FEATURES,
   FEATURE_TIER,
   MAX_REQUEST_BODY_BYTES,
   type Feature,
@@ -54,7 +55,8 @@ export interface FeatureRequestSpec<T> {
 export interface ApprovedRequest<T> {
   body: T;
   tier: Tier;
-  identity: CallerIdentity;
+  /** Null on an anonymous route — see ANONYMOUS_FEATURES. */
+  identity: CallerIdentity | null;
   limits: FeatureLimits;
   characters: number;
   /**
@@ -113,8 +115,13 @@ export async function guard<T>(
     return reject('payload_too_large', 413, { maxBytes: MAX_REQUEST_BODY_BYTES });
   }
 
-  const identity = readIdentity(request);
-  if (!identity) return reject('missing_install_id', 400);
+  // An anonymous route takes no identity, and must not require one: asking the
+  // client for an install id it should not be sending would defeat the point.
+  // Any identity headers that do arrive on such a route are ignored outright
+  // rather than read, so a client cannot opt itself back into attribution.
+  const anonymous = ANONYMOUS_FEATURES.has(spec.feature);
+  const identity = anonymous ? null : readIdentity(request);
+  if (!anonymous && !identity) return reject('missing_install_id', 400);
 
   if (runtime.disabledFeatures.has(spec.feature)) {
     log('warn', 'feature_disabled', response.requestId, { feature: spec.feature });
@@ -163,6 +170,11 @@ export async function guard<T>(
   if (requiredTier === 'free') {
     return approve(context, spec, parsed.data, 'free', identity);
   }
+
+  // Past this point an entitlement is required, which means an App User ID is
+  // too. An anonymous route can never reach here — FEATURE_TIER makes the two
+  // decisions independently, so this asserts they agree rather than assuming it.
+  if (identity === null) return reject('missing_install_id', 400);
 
   let tier: Tier;
   if (context.localAiVoiceTestScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
@@ -214,7 +226,7 @@ async function approve<T>(
   spec: FeatureRequestSpec<T>,
   body: T,
   tier: Tier,
-  identity: CallerIdentity,
+  identity: CallerIdentity | null,
 ): Promise<GuardResult<T>> {
   const { request, env, runtime, response } = context;
   const reject = (code: ErrorCode, status: number, details = {}, headers = {}): GuardResult<T> => ({
@@ -229,7 +241,8 @@ async function approve<T>(
   }
 
   const [hashedInstallId, hashedIp] = await Promise.all([
-    privacyHash(env, 'install', identity.installId),
+    // Nothing to hash when the route accepted no identity.
+    identity === null ? Promise.resolve(null) : privacyHash(env, 'install', identity.installId),
     privacyHash(env, 'ip', clientIp(request)),
   ]);
 
@@ -253,9 +266,11 @@ async function approve<T>(
   // Only word-card High-Quality AI Voice generation is metered. Voice-picker
   // previews and promotional previews are deliberately absent from
   // VOICE_QUOTA_FEATURES, so neither spends the Basic monthly allowance.
-  const meteredForVoice = isVoiceQuotaFeature(spec.feature);
+  // An anonymous route is never metered, so there is no App User ID to hash —
+  // and none was received to hash in the first place.
+  const meteredForVoice = isVoiceQuotaFeature(spec.feature) && identity !== null;
   const hashedAppUserId = meteredForVoice
-    ? await privacyHash(env, 'rcuser', identity.appUserId)
+    ? await privacyHash(env, 'rcuser', identity!.appUserId)
     : '';
   const reserveQuota = async (): Promise<Response | null> => {
     if (!meteredForVoice) return null;

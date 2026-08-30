@@ -1,3 +1,4 @@
+import { useCallback, useRef } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -5,6 +6,12 @@ import {
   View,
 } from 'react-native';
 import { FLIP_CARD_H, FLIP_CARD_PAD_H, FLIP_CARD_PAD_V } from '../constants';
+import {
+  IDLE_FLIP_GESTURE,
+  reduceFlipGesture,
+  shouldFlipOnPress,
+  type FlipGesture,
+} from '../features/cards/flipGesture';
 
 interface Props {
   children: React.ReactNode;
@@ -21,6 +28,18 @@ interface Props {
    */
   voiceButton?: React.ReactNode;
   showVoice?: boolean;
+  /**
+   * This face's text can be selected and copied.
+   *
+   * Selectable text puts two gestures on the same pixels: a tap flips, a long
+   * press starts the OS selection and its Copy menu. Setting this makes the
+   * face treat a long press as a selection and not as a flip — see
+   * `features/cards/flipGesture.ts`.
+   *
+   * Off by default so a face without selectable text keeps exactly the tap
+   * behaviour it had, including on a slow press.
+   */
+  selectableText?: boolean;
 }
 
 export function CardScrollFace({
@@ -28,7 +47,32 @@ export function CardScrollFace({
   onFlip,
   voiceButton,
   showVoice = true,
+  selectableText = false,
 }: Props) {
+  // A ref, not state: the decision is read inside the very handlers that write
+  // it, and re-rendering the card face mid-gesture would be both pointless and
+  // disruptive to the selection in progress.
+  const gesture = useRef<FlipGesture>(IDLE_FLIP_GESTURE);
+
+  // Every new touch starts a fresh gesture, so a long press can never disable
+  // tap-to-flip beyond the gesture it belongs to.
+  const handlePressIn = useCallback(() => {
+    gesture.current = reduceFlipGesture(gesture.current, 'press-in');
+  }, []);
+
+  // Defining this is also what makes Pressability itself withhold `onPress` for
+  // the same gesture; the ref covers the platforms and edge cases where a press
+  // still arrives. The platform's own long-press threshold is used — there is
+  // no timing constant here to fall out of step with text selection.
+  const handleLongPress = useCallback(() => {
+    gesture.current = reduceFlipGesture(gesture.current, 'long-press');
+  }, []);
+
+  const handlePress = useCallback(() => {
+    gesture.current = reduceFlipGesture(gesture.current, 'press');
+    if (shouldFlipOnPress(gesture.current)) onFlip();
+  }, [onFlip]);
+
   return (
     <View style={s.container}>
       <ScrollView
@@ -44,7 +88,15 @@ export function CardScrollFace({
           correcting the native scroll size after interaction. Short content still
           fills the card through this minimum; long content grows intrinsically.
         */}
-        <Pressable style={s.pressable} onPress={onFlip}>
+        <Pressable
+          style={s.pressable}
+          onPress={handlePress}
+          // Wired only for a selectable face. Without these the Pressable is
+          // exactly what it was, so Flip Mode's own faces are untouched.
+          {...(selectableText
+            ? { onPressIn: handlePressIn, onLongPress: handleLongPress }
+            : null)}
+        >
           {children}
         </Pressable>
       </ScrollView>

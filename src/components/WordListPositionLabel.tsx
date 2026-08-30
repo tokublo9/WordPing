@@ -17,6 +17,16 @@ interface Props {
   currentIndex?: number;
   /** Whether to show the current position even while the list is at its first word. */
   showCurrentPosition?: boolean;
+  /**
+   * Whether the content actually spans more than one screen.
+   *
+   * Supplied by the caller from the real measurement — the list's content and
+   * viewport heights, or the number of cards in Flip Mode — never from a word
+   * count guess. When everything fits on one page there is no position to
+   * report, so the label falls back to its count summary instead of showing a
+   * "1 / 1" that can never change.
+   */
+  hasMultiplePages?: boolean;
   style?: StyleProp<TextStyle>;
 }
 
@@ -32,7 +42,8 @@ interface Props {
  */
 export const WordListPositionLabel = forwardRef<WordListPositionLabelHandle, Props>(
   function WordListPositionLabel({
-    total, topContent, currentIndex, showCurrentPosition = false, style,
+    total, topContent, currentIndex, showCurrentPosition = false,
+    hasMultiplePages = true, style,
   }, ref) {
     const [state, setState] = useState({ index: 1, atTop: true });
 
@@ -50,7 +61,10 @@ export const WordListPositionLabel = forwardRef<WordListPositionLabelHandle, Pro
     // Clamped because the list can shrink under a scrolled position (a delete, a filter)
     // before the next viewability report arrives.
     const position = Math.min(Math.max(currentIndex ?? state.index, 1), Math.max(total, 1));
-    const showPosition = (showCurrentPosition || !state.atTop) && total > 0;
+    // Single-page content keeps the count summary. The line itself never
+    // disappears, so nothing collapses and no placeholder is left behind — the
+    // same one line simply keeps saying the more useful of the two things.
+    const showPosition = hasMultiplePages && (showCurrentPosition || !state.atTop) && total > 0;
 
     return (
       <Text style={style} numberOfLines={1}>

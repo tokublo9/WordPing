@@ -82,8 +82,14 @@ async function readCounter(env: Env, key: string): Promise<number> {
 
 export interface ConsumeInput {
   feature: Feature;
-  /** Already-hashed identifiers. Raw install IDs and IPs never reach this module. */
-  hashedInstallId: string;
+  /**
+   * Already-hashed identifiers. Raw install IDs and IPs never reach this module.
+   *
+   * `hashedInstallId` is null for a route that accepts no identity at all — the
+   * fixed promo previews. Those are limited by IP alone, which is the only
+   * signal such a request carries.
+   */
+  hashedInstallId: string | null;
   hashedIp: string;
   limits: FeatureLimits;
   /** Input size of this request, in Unicode code points. */
@@ -110,7 +116,10 @@ function planBuckets(input: ConsumeInput, now: number): PlannedBucket[] {
   const dayRetry = secondsUntilNextDay(now);
 
   const scopes: readonly { scope: LimitScope; id: string; factor: number }[] = [
-    { scope: 'install', id: hashedInstallId, factor: 1 },
+    // An anonymous route has no install bucket to fill, so it is not planned.
+    ...(hashedInstallId === null
+      ? []
+      : [{ scope: 'install' as const, id: hashedInstallId, factor: 1 }]),
     { scope: 'ip', id: hashedIp, factor: IP_MULTIPLIER },
   ];
 

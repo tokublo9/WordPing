@@ -34,6 +34,7 @@ import {
   type AISpeechTimingDiagnostics,
   type PromoSpeechRequest,
 } from './openaiGateway';
+import { isAIConsentGranted } from './aiConsent';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
 import {
   DeduplicatedRequestRegistry,
@@ -348,6 +349,11 @@ export interface AIPronunciationPreloadOptions {
  */
 export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): void {
   if (!isAIPronunciationPreloadEligible(options)) return;
+  // No user action is behind a preload, so it must never raise the consent
+  // dialog — and without consent it has nothing to do. The hard guard in
+  // api/client.ts would refuse the request anyway; stopping here keeps a
+  // whole library sweep from queueing work that can only fail.
+  if (!isAIConsentGranted()) return;
 
   const request = normalizeTTSRequest(options.text, options.voice);
   if (!request.text || request.text.length > MAX_AI_INPUT_CHARS || !options.entryId) return;
@@ -435,6 +441,10 @@ export function preloadAIPronunciationLibrary(
   options: AIPronunciationLibraryPreloadOptions,
 ): void {
   if (!options.hasAIAccess || options.entries.length === 0) return;
+  // Same rule as the single-entry preload: a background sweep of the whole
+  // library is exactly the kind of unattended transmission consent exists to
+  // prevent. Each entry is checked again inside preloadAIPronunciation.
+  if (!isAIConsentGranted()) return;
 
   if (__DEV__) console.log('[TTS preload diagnostic]', {
     phase: 'library-preload-started',
@@ -488,8 +498,11 @@ let pendingVoiceSamplePreloadTrigger: AIVoiceSamplePreloadOptions | null = null;
  */
 export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions): void {
   const wasEligible = voiceSamplePreloadEligible;
-  voiceSamplePreloadEligible = options.hasAIAccess;
-  if (!options.hasAIAccess) {
+  // Consent is part of eligibility, not an extra early return: passing it
+  // through the existing flag means revoking consent cancels queued sample work
+  // exactly the way losing the entitlement does.
+  voiceSamplePreloadEligible = options.hasAIAccess && isAIConsentGranted();
+  if (!voiceSamplePreloadEligible) {
     const cancelled = voiceSamplePreloadQueue.cancelOwner(VOICE_SAMPLE_PRELOAD_OWNER);
     if (__DEV__) console.log('[AI voice sample preload]', {
       phase: 'eligibility-inactive',

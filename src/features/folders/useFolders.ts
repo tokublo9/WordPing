@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, WordCard } from '../../types';
+import { planFolderMove } from '../cards/duplicates';
 import { createId } from '../../utils/createId';
 
 export interface UseFoldersParams {
@@ -9,6 +10,8 @@ export interface UseFoldersParams {
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   setCards: Dispatch<SetStateAction<WordCard[]>>;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
+  /** Told how many words a move left behind because the target already had them. */
+  onDuplicatesSkipped?(count: number): void;
 }
 
 export interface UseFoldersReturn {
@@ -36,7 +39,9 @@ export interface UseFoldersReturn {
   moveCardsToFolder(targetFolderId: string): void;
 }
 
-export function useFolders({ folders, fallbackFolderName, setFolders, setCards, setMenuVisible }: UseFoldersParams): UseFoldersReturn {
+export function useFolders({
+  folders, fallbackFolderName, setFolders, setCards, setMenuVisible, onDuplicatesSkipped,
+}: UseFoldersParams): UseFoldersReturn {
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [folderReorderMode, setFolderReorderMode] = useState(false);
@@ -124,8 +129,23 @@ export function useFolders({ folders, fallbackFolderName, setFolders, setCards, 
 
   // Moves the pending cards to the target folder. Does NOT exit card-selection
   // mode — the call site in App.tsx composes that concern.
+  /**
+   * Moves the selected words, leaving behind any that would duplicate a word
+   * already in the target folder.
+   *
+   * The plan is computed against the same card array being updated, so the
+   * decision and the write see identical data. A blocked word is not deleted or
+   * merged — it simply stays in the folder it is in, and the user is told how
+   * many did.
+   */
   const moveCardsToFolder = (targetFolderId: string) => {
-    setCards(prev => prev.map(c => pendingMoveIds.includes(c.id) ? { ...c, folderId: targetFolderId } : c));
+    setCards(prev => {
+      const { movableIds, blockedIds } = planFolderMove(prev, pendingMoveIds, targetFolderId);
+      if (blockedIds.length > 0) onDuplicatesSkipped?.(blockedIds.length);
+      if (movableIds.length === 0) return prev;
+      const moving = new Set(movableIds);
+      return prev.map(c => moving.has(c.id) ? { ...c, folderId: targetFolderId } : c);
+    });
   };
 
   return {

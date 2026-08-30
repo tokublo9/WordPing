@@ -33,6 +33,16 @@
     "src/lib/sqlite/legacyMigration.ts",
     "src/lib/backup/**/*.ts",
     "src/lib/api/errors.ts",
+    "src/lib/aiConsent.ts",
+    "src/lib/aiEntitlement.ts",
+    "src/lib/aiConsentPrompt.ts",
+    "src/features/cards/duplicates.ts",
+    "src/features/cards/fileImport.ts",
+    "src/features/cards/bulkImport.ts",
+    "src/features/onboarding/tutorialState.ts",
+    "src/features/cards/grading.ts",
+    "src/features/cards/flipGesture.ts",
+    "src/features/cards/levels.ts",
     "tests/unit/**/*.ts"
   ]
 }

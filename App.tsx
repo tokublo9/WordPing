@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -22,7 +22,20 @@ import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
 import { TopBanner } from './src/components/TopBanner';
+import { showTopBanner } from './src/lib/topBanner';
 import { SettingsInfoPopup, type SettingsInfoContent } from './src/components/SettingsInfoPopup';
+import { AIConsentDialog } from './src/components/AIConsentDialog';
+import { invalidateAIConsent } from './src/lib/aiConsent';
+import {
+  hasEligibleAIEntitlement,
+  isVerifiedFreePlan,
+  setAIEntitlementSnapshot,
+} from './src/lib/aiEntitlement';
+import { ResultFilterTutorial } from './src/components/ResultFilterTutorial';
+import {
+  shouldShowResultFilterTutorial,
+  shouldShowResultFilters,
+} from './src/features/onboarding/tutorialState';
 import { AppOverlays } from './src/app/AppOverlays';
 import { useCards } from './src/features/cards/useCards';
 import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScreen';
@@ -79,6 +92,8 @@ export default function App() {
     hideAiTools, setHideAiTools,
     syncTestResults: savedSyncTestResults,
     setSyncTestResults: setSavedSyncTestResults,
+    resultFilterTutorialSeen, setResultFilterTutorialSeen,
+    firstTestAnswerRecorded, setFirstTestAnswerRecorded,
     settingsLoaded,
     applySettings, markSettingsLoaded,
   } = useAppSettings();
@@ -98,6 +113,8 @@ export default function App() {
     applySettings, markSettingsLoaded, setShowFullCard, setShowResultColor,
     setVerticalFlip, setHideAiTools,
     setSyncTestResults: setSavedSyncTestResults,
+    setResultFilterTutorialSeen,
+    setFirstTestAnswerRecorded,
   });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
@@ -179,6 +196,40 @@ export default function App() {
     isSubscriptionLoaded, plan, settingsLoaded,
   ]);
 
+  // ── AI entitlement ────────────────────────────────────────────────────────────
+  // One rule, published to the network guard and read by every AI surface, so
+  // no screen has to restate which plans may use AI.
+  const aiEntitlement = useMemo(
+    () => ({ plan, isSubscriptionLoaded, entitlementSource }),
+    [entitlementSource, isSubscriptionLoaded, plan],
+  );
+  const canUseAI = hasEligibleAIEntitlement(aiEntitlement);
+
+  useEffect(() => {
+    setAIEntitlementSnapshot(aiEntitlement);
+  }, [aiEntitlement]);
+
+  // A confirmed move to Free ends the period the permission was given for, so
+  // the stored answer stops being reusable: resubscribing must ask again.
+  //
+  // Gated on `isVerifiedFreePlan`, never on the plan alone. A RevenueCat outage
+  // leaves the plan at its 'free' default with no source, and revoking a paying
+  // subscriber's permission because their network was down would be the worst
+  // possible reading of that. `invalidateAIConsent` is a no-op once there is
+  // nothing stored, so this does not write on every launch.
+  useEffect(() => {
+    if (!isVerifiedFreePlan(aiEntitlement)) return;
+    void invalidateAIConsent();
+  }, [aiEntitlement]);
+
+  // ── Tutorials ─────────────────────────────────────────────────────────────────
+  // Dismissing the tutorial is the only thing that reveals the filters. Existing
+  // users were given this same flag once, during the migration in bootstrap, so
+  // there is a single rule here rather than two that could disagree.
+  const showResultFilters = shouldShowResultFilters({
+    hasSeenResultFilterTutorial: resultFilterTutorialSeen,
+  });
+
   // ── Custom voice locked banner ────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
   const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
@@ -194,11 +245,18 @@ export default function App() {
   const aiVoiceInfoClosing = useRef(false);
 
   const openAiVoiceInfo = useCallback(() => {
+    // The same entitlement check the menu row uses, applied to the route itself:
+    // hiding a control is a presentation choice, and this is what actually
+    // prevents a Free user reaching the explanation.
+    if (!isSubscriptionLoaded || !isSubscribed) {
+      setMenuVisible(false);
+      return;
+    }
     aiVoiceInfoClosing.current = false;
     setAiVoiceInfoContent({ title: t('ai_voice_info_title'), body: t('ai_voice_info_body') });
     setAiVoiceInfoVisible(true);
     setMenuVisible(false);
-  }, [t]);
+  }, [isSubscribed, isSubscriptionLoaded, t]);
 
   const closeAiVoiceInfo = useCallback(() => {
     if (aiVoiceInfoClosing.current) return;
@@ -270,7 +328,20 @@ export default function App() {
     enterFolderSelectionMode, exitFolderSelectionMode, toggleFolderSelect, selectAllFolders,
     deleteSelectedFolders, enterFolderReorderMode, exitFolderReorderMode,
     createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
-  } = useFolders({ folders, fallbackFolderName: t('default_folder_name'), setFolders, setCards, setMenuVisible });
+  } = useFolders({
+    folders,
+    fallbackFolderName: t('default_folder_name'),
+    setFolders,
+    setCards,
+    setMenuVisible,
+    // A move that hits a word the target folder already has leaves it in place.
+    // Told as a passing notice rather than an alert: nothing failed and nothing
+    // was lost, some words simply had nowhere new to go.
+    onDuplicatesSkipped: count => showTopBanner({
+      id: 'move-duplicates',
+      message: t('duplicate_move_skipped').replace('{n}', String(count)),
+    }),
+  });
 
   const handleCardRegistered = useCallback((card: WordCard) => {
     preloadAIPronunciation({
@@ -373,6 +444,30 @@ export default function App() {
   };
 
 
+  // Anything that owns the screen and must not be interrupted by a tutorial.
+  const screenBusy = showOnboarding || wordModalVisible || bulkImportVisible
+    || settingsModalVisible || notificationModalVisible
+    || menuVisible || paywallVisible || proSheetVisible
+    || selectionMode || reorderMode;
+
+  // The filter tutorial owes nothing to how Test Mode ended. It becomes due the
+  // moment a card has been answered, and shows as soon as the user is somewhere
+  // safe — which is finishing the test, quitting it, or relaunching after a
+  // force-close, all through this one condition. `settingsLoaded` is what keeps
+  // it from appearing before the stored flags have been read.
+  const showResultFilterTutorial = shouldShowResultFilterTutorial({
+    hasSeenResultFilterTutorial: resultFilterTutorialSeen,
+    hasCompletedFirstTestAnswer: firstTestAnswerRecorded,
+    isAppReady: settingsLoaded,
+    isTestModeOpen: testModeVisible,
+    isScreenBusy: screenBusy,
+  });
+
+  // The only thing that reveals the filters.
+  const dismissResultFilterTutorial = useCallback(() => {
+    setResultFilterTutorialSeen(true);
+  }, [setResultFilterTutorialSeen]);
+
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -388,6 +483,7 @@ export default function App() {
     themeColor, appearance, skinId, language, aiVoice,
     showFullCard, showResultColor, verticalFlip, hideAiTools,
     syncTestResults: savedSyncTestResults,
+    resultFilterTutorialSeen, firstTestAnswerRecorded,
     activeResultFiltersByFolder,
     hasLoaded, cardsLoaded, activeResultFiltersLoaded,
   });
@@ -507,6 +603,9 @@ export default function App() {
           currentWordId={currentWordId}
           onCurrentWordChange={setCurrentWordId}
           activeResultFilter={activeResultFilter}
+          // Hidden until the user has a reason to understand them — see
+          // shouldShowResultFilters. Existing users with results keep them.
+          showResultFilters={showResultFilters}
           showLevelLabels={SHOW_LEVEL_LABELS}
           showResultColor={showResultColor}
           onToggleResultFilter={toggleResultFilter}
@@ -606,6 +705,9 @@ export default function App() {
           existingTexts: cards
             .filter(card => card.folderId === bulkImportFolderId)
             .map(card => card.word),
+          existingCards: cards,
+          folders,
+          destinationFolderId: bulkImportFolderId,
           onImport: drafts => bulkImportCards(drafts, bulkImportFolderId ?? ''),
         }}
         notifModal={{
@@ -648,6 +750,7 @@ export default function App() {
           onToggleVerticalFlip: setVerticalFlip,
           hideAiTools,
           onToggleHideAiTools: setHideAiTools,
+          canUseAI,
           onDataReplaced: reloadAfterImport,
         }}
         paywallModal={{
@@ -680,6 +783,10 @@ export default function App() {
           verticalFlip,
           onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
           onDeleteCard: deleteCard,
+          // Recorded on the answer itself rather than at the end of the test, so
+          // it survives a force-quit straight afterwards. Setting it does not
+          // interrupt the test — it only makes the tutorial eligible for later.
+          onFirstAnswer: () => setFirstTestAnswerRecorded(true),
           onClose: () => setTestModeVisible(false),
         }}
         movePicker={{
@@ -727,8 +834,26 @@ export default function App() {
         onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
         onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
         onOpenAiVoiceInfo={openAiVoiceInfo}
+        // Basic and Premium both include AI Voice; Free gets zero generations.
+        // Gated on the entitlement having actually loaded so the row cannot
+        // appear for a moment at launch and then vanish.
+        showAiVoiceInfo={isSubscriptionLoaded && isSubscribed}
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />
+
+      {/* Result-filter tutorial — shown once, after Test Mode has closed. */}
+      <ResultFilterTutorial
+        visible={showResultFilterTutorial}
+        onDismiss={dismissResultFilterTutorial}
+        pal={pal}
+        themeColor={activeThemeColor}
+      />
+
+      {/* AI data-sharing consent — the root host, covering word-card voice and
+          anything else asked for outside a presented modal. Settings, the word
+          editor and the Text-to-Speech screen each mount their own while they
+          are on top, because a modal presents its own native controller. */}
+      <AIConsentDialog active pal={pal} themeColor={activeThemeColor} />
 
       {/* AI Voice explanation — the same popup every Settings info button uses */}
       <SettingsInfoPopup

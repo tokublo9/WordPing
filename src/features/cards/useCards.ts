@@ -11,6 +11,7 @@ import {
   type ActiveResultFilter,
   type ActiveResultFiltersByFolder,
 } from './levels';
+import { findDuplicateCard } from './duplicates';
 import { createId } from '../../utils/createId';
 import { reportSideEffectFailure } from '../../utils/reportSideEffectFailure';
 import {
@@ -412,6 +413,29 @@ export function useCards({
       Alert.alert(translate(language, 'alert_enter_word'));
       return;
     }
+
+    // One word per folder. Checked against the folder the card is in — the same
+    // term in two folders is legitimate — and the card being edited is excluded
+    // so simply re-saving it is never a collision.
+    const targetFolderId = editingCard ? editingCard.folderId : currentFolderId ?? undefined;
+    const duplicate = findDuplicateCard(cards, word, targetFolderId, editingCard?.id);
+    if (duplicate) {
+      Alert.alert(
+        translate(language, 'duplicate_word_title'),
+        translate(language, 'duplicate_word_message'),
+        [
+          { text: translate(language, 'cancel'), style: 'cancel' },
+          // Nothing new is created either way; this just takes the user to the
+          // word they already have, which is what they usually wanted.
+          {
+            text: translate(language, 'duplicate_word_open'),
+            onPress: () => { setWordModalVisible(false); openEdit(duplicate); },
+          },
+        ],
+      );
+      return;
+    }
+
     // Words are unlimited on every plan — no count check gates registration.
     if (editingCard) {
       setCards(prev => prev.map(c =>

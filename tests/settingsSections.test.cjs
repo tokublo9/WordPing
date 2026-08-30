@@ -86,7 +86,10 @@ test('"How to use WordPing" is gone, along with its dead code', () => {
   // No source file references it, and its orphaned keys are gone from i18n.
   const i18n = read('src/i18n.ts');
   assert.doesNotMatch(i18n, /'how_to_use'|how_to_use:/u);
-  assert.doesNotMatch(i18n, /'got_it'|got_it:/u);
+  // The removed modal's own `got_it` key, anchored to the start of the entry so
+  // an unrelated key that merely ends in the same word (the result-filter
+  // tutorial's `result_filter_got_it`) is not mistaken for it.
+  assert.doesNotMatch(i18n, /'got_it'|^\s*got_it:/mu);
 });
 
 // ── Announcements ────────────────────────────────────────────────────────────
@@ -496,13 +499,20 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   // Only the High-Quality AI Voice generation routes are metered.
   assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\]/u);
   assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
-  assert.match(pipeline, /const meteredForVoice = isVoiceQuotaFeature\(spec\.feature\);/u);
+  // An anonymous route has no App User ID to meter against, and is not a voice
+  // quota feature in the first place.
+  assert.match(
+    pipeline,
+    /const meteredForVoice = isVoiceQuotaFeature\(spec\.feature\) && identity !== null;/u,
+  );
   assert.match(pipeline, /if \(!meteredForVoice\) return null;/u);
 
   // Premium has no monthly product quota; the allowance is keyed to the
   // verified RevenueCat App User ID and reserved after the rate limiter.
   assert.match(limits, /premium: null/u);
-  assert.match(pipeline, /privacyHash\(env, 'rcuser', identity\.appUserId\)/u);
+  // Non-null asserted: `meteredForVoice` above already required an identity,
+  // so this line is only reached when one was received.
+  assert.match(pipeline, /privacyHash\(env, 'rcuser', identity!\.appUserId\)/u);
   assert.match(pipeline, /reserveMonthlyQuota\(/u);
   const guard = pipeline.slice(pipeline.indexOf('const requiredTier'));
   assert.match(guard, /tier = entitlement\.tier;/u);
@@ -602,18 +612,22 @@ test('the remaining toggles are accessible', () => {
 
 // ── Compact Settings switches ────────────────────────────────────────────────
 
-test('exactly the three visible Settings toggles use the compact control', () => {
+test('exactly the four visible Settings toggles use the compact control', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // One shared component, used once inside ToggleRow — not three transforms.
   assert.equal((settings.match(/<CompactSwitch/gu) ?? []).length, 1);
   assert.doesNotMatch(settings, /<Switch\b/u);
   assert.doesNotMatch(settings, /transform: \[\{ scale/u);
 
-  // ToggleRow defines the three visible Card Behavior toggles plus dormant Hide AI.
+  // ToggleRow defines the three visible Card Behavior toggles, dormant Hide AI,
+  // and the AI Data Sharing consent switch in the Privacy section below them.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
-  assert.deepEqual(rows, ['show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'hide_ai_tools']);
+  assert.deepEqual(rows, [
+    'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'hide_ai_tools',
+    'ai_consent_setting',
+  ]);
   // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
 
@@ -704,7 +718,7 @@ test('no conflicting older Sync description survives', () => {
   assert.equal((i18n.match(/sync_test_results_desc:/gu) ?? []).length, 2);
 });
 
-test('exactly three Settings rows carry an information button', () => {
+test('exactly four Settings rows carry an information button', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // The button is rendered once, inside ToggleRow, gated on `info` being given.
   // (The same icon also names the App Info and App version rows, which are
@@ -716,7 +730,11 @@ test('exactly three Settings rows carry an information button', () => {
   const withInfo = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .filter(match => match[1].includes('info={t('))
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]);
-  assert.deepEqual(withInfo, ['show_full_card', 'show_result_color_on_cards', 'vertical_flip']);
+  // AI Data Sharing carries one too: what is sent, to whom, and what turning it
+  // off does are exactly the things that need more than a switch label.
+  assert.deepEqual(withInfo, [
+    'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'ai_consent_setting',
+  ]);
 
   // No unrelated row gets one: SettingRow and the plain rows are untouched.
   const settingRow = settings.slice(settings.indexOf('function SettingRow'), settings.indexOf('// ── Toggle row'));
@@ -732,7 +750,7 @@ test('exactly four Card Behavior rows use the compact shared layout and aligned 
     .filter(match => match[1].includes('info={t('));
   assert.deepEqual(
     rows.map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]),
-    ['show_full_card', 'show_result_color_on_cards', 'vertical_flip'],
+    ['show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'ai_consent_setting'],
   );
 
   // Natural AI Voice plus the three icon-bearing toggles are the only named
@@ -744,6 +762,8 @@ test('exactly four Card Behavior rows use the compact shared layout and aligned 
     ['show_full_card', 'reader-outline'],
     ['show_result_color_on_cards', 'color-palette-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
+    // The Privacy section reuses the same row shape rather than inventing one.
+    ['ai_consent_setting', 'shield-checkmark-outline'],
   ]);
   assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\} \/>/u);
   assert.doesNotMatch(settings, /icon="eye-off-outline"/u);
@@ -916,7 +936,14 @@ test('Perfect deletes once through the canonical path only when Sync is on', () 
 
 test('a repeated tap cannot grade or delete the same card twice', () => {
   const screen = read('src/components/TestModeScreen.tsx');
-  assert.match(screen, /if \(gradedIdsRef\.current\.has\(card\.id\)\) return;\s*gradedIdsRef\.current\.add\(card\.id\);/u);
+  // The already-graded guard still returns before the id is recorded. The
+  // first-answer notification sits between them and cannot be reached twice,
+  // because it is gated on the set still being empty.
+  assert.match(
+    screen,
+    /if \(gradedIdsRef\.current\.has\(card\.id\)\) return;[\s\S]{0,300}gradedIdsRef\.current\.add\(card\.id\);/u,
+  );
+  assert.match(screen, /if \(gradedIdsRef\.current\.size === 0\) onFirstAnswer\?\.\(\);/u);
 });
 
 test('restarting the session makes every card answerable again', () => {

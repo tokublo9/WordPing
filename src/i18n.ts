@@ -169,7 +169,27 @@ export type TranslationKey =
   | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
-  | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
+  | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label'
+  // AI data-sharing consent — see AIConsentKey, which makes these optional per
+  // locale so every language falls back to the English wording.
+  | 'ai_consent_title' | 'ai_consent_body'
+  | 'ai_consent_allow' | 'ai_consent_decline'
+  | 'ai_consent_setting' | 'ai_consent_setting_desc' | 'ai_consent_setting_info'
+  | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
+  | 'ai_consent_required_msg'
+  | 'privacy_section'
+  // Tutorials, duplicate prevention and file import — see TutorialImportKey.
+  | 'help_section' | 'help_result_filters'
+  | 'result_filter_title' | 'result_filter_intro' | 'result_filter_untested'
+  | 'result_filter_perfect_note' | 'result_filter_got_it'
+  | 'duplicate_word_title' | 'duplicate_word_message' | 'duplicate_word_open'
+  | 'duplicate_move_skipped'
+  | 'import_from_file' | 'import_file_summary' | 'import_file_valid'
+  | 'import_file_duplicates' | 'import_file_invalid' | 'import_file_routed'
+  | 'import_file_ignored_columns' | 'import_file_row'
+  | 'import_file_error_empty' | 'import_file_error_invalid_json'
+  | 'import_file_error_shape' | 'import_file_error_columns' | 'import_file_error_unreadable'
+  | 'promo_preview_unavailable';
 
 type OnboardingProfileKey =
   | 'ob_profile_title' | 'ob_profile_desc'
@@ -232,9 +252,43 @@ type AppShellKey =
   | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
 
+/**
+ * AI data-sharing consent copy.
+ *
+ * English and Japanese are written out in full; every other locale falls back
+ * to English through the optional-key mechanism, so no locale can ship a
+ * missing or half-translated permission dialog.
+ */
+/**
+ * Tutorial, duplicate-word and file-import copy.
+ *
+ * Optional per locale, so English and Japanese ship complete wording and every
+ * other language falls back to English rather than showing a raw key.
+ */
+type TutorialImportKey =
+  | 'help_section' | 'help_result_filters'
+  | 'result_filter_title' | 'result_filter_intro' | 'result_filter_untested'
+  | 'result_filter_perfect_note' | 'result_filter_got_it'
+  | 'duplicate_word_title' | 'duplicate_word_message' | 'duplicate_word_open'
+  | 'duplicate_move_skipped'
+  | 'import_from_file' | 'import_file_summary' | 'import_file_valid'
+  | 'import_file_duplicates' | 'import_file_invalid' | 'import_file_routed'
+  | 'import_file_ignored_columns' | 'import_file_row'
+  | 'import_file_error_empty' | 'import_file_error_invalid_json'
+  | 'import_file_error_shape' | 'import_file_error_columns' | 'import_file_error_unreadable'
+  | 'promo_preview_unavailable';
+
+type AIConsentKey =
+  | 'ai_consent_title' | 'ai_consent_body'
+  | 'ai_consent_allow' | 'ai_consent_decline'
+  | 'ai_consent_setting' | 'ai_consent_setting_desc' | 'ai_consent_setting_info'
+  | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
+  | 'ai_consent_required_msg'
+  | 'privacy_section';
+
 type OptionalTranslationKey =
   | OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey | AIErrorMessageKey | BackupKey
-  | AppShellKey;
+  | AppShellKey | AIConsentKey | TutorialImportKey;
 
 // New onboarding/catalog copy falls back to English until a locale supplies an
 // override. All established translation keys remain required for every locale.
@@ -243,6 +297,61 @@ type Dict = Record<Exclude<TranslationKey, OptionalTranslationKey>, string>
 
 // ── English (US) ───────────────────────────────────────────────────────────────
 const enUS: Dict = {
+  // ── Tutorials ─────────────────────────────────────────────────────────────
+  help_section:          'Help',
+  help_result_filters:   'Filter by test results',
+  result_filter_title:   'Filter by Test Results',
+  result_filter_intro:
+    'Every answer you give in Test Mode sets that word’s result. The coloured buttons above your list filter it by those results — tap one to see only those words, and tap it again to clear it.',
+  result_filter_untested: 'Not tested yet',
+  result_filter_perfect_note:
+    '“Know perfectly” has no button of its own — those words count as finished and stop appearing under these filters. With “Sync with test results” on, they also leave your word list.',
+  result_filter_got_it:  'Got it',
+
+  // ── Duplicate words ───────────────────────────────────────────────────────
+  duplicate_word_title:   'Already added',
+  duplicate_word_message: 'This word already exists in this folder.',
+  duplicate_word_open:    'Edit existing',
+  duplicate_move_skipped: '{n} already in that folder and were left where they are.',
+
+  // ── Import from a file ────────────────────────────────────────────────────
+  import_from_file:       'Import CSV or JSON',
+  import_file_summary:    'From {file}',
+  import_file_valid:      '{n} to add',
+  import_file_duplicates: '{n} duplicate',
+  import_file_invalid:    '{n} skipped',
+  import_file_routed:     '{n} go to folders named in the file.',
+  import_file_ignored_columns: 'Ignored columns: {columns}',
+  import_file_row:        'Row {n}',
+  import_file_error_empty:        'That file is empty.',
+  import_file_error_invalid_json: 'That file is not valid JSON.',
+  import_file_error_shape:        'Use a list of words, or an object with a “words” list.',
+  import_file_error_columns:      'No word column found. Add a header row with front, word or term.',
+  import_file_error_unreadable:   'That file could not be read.',
+  promo_preview_unavailable:      'This preview is unavailable right now. Please try again later.',
+
+  // ── AI data-sharing consent ───────────────────────────────────────────────
+  ai_consent_title: 'Use AI Features?',
+  ai_consent_body:
+    'To generate AI-powered content, WordPing will send the word or text you submit, along with the language and voice you selected, to OpenAI through WordPing’s own server.\n\n' +
+    'That server also receives an anonymous installation ID and an anonymous subscription ID, used only to check your plan and prevent abuse. They are not sent to OpenAI.\n\n' +
+    'Your data is used only to generate the content you requested. WordPing will not send this data unless you give permission, and you can withdraw it at any time in Settings under Privacy.',
+  ai_consent_allow: 'Allow and Continue',
+  ai_consent_decline: 'Not Now',
+  ai_consent_setting: 'AI Data Sharing',
+  ai_consent_setting_desc:
+    'Allow WordPing to send submitted text to OpenAI to generate AI-powered content.',
+  ai_consent_setting_info:
+    'When this is on, the word or text you submit to an AI feature — along with the language and voice you selected — is sent to OpenAI through WordPing’s server so the content can be generated. WordPing’s server also receives an anonymous installation ID and an anonymous subscription ID to check your plan and prevent abuse; those are not sent to OpenAI.\n\n' +
+    'When this is off, WordPing sends nothing to OpenAI. AI voice and other AI features stop working, and everything else — your words, folders, notifications, tests and device voice — continues to work exactly as before. Turning it off deletes nothing.\n\n' +
+    'You will be asked again the next time you use an AI feature.',
+  ai_consent_status_granted: 'Allowed',
+  ai_consent_status_declined: 'Not allowed',
+  ai_consent_status_unknown: 'Not set',
+  ai_consent_required_msg:
+    'AI data sharing is off, so nothing was sent. Turn on AI Data Sharing in Settings under Privacy to use AI features.',
+  privacy_section: 'Privacy',
+
   // ── Empty result filters ──────────────────────────────────────────────────
   empty_filter_good_title: 'No “Pretty good” words yet',
   empty_filter_good_description: 'Words you rate “Pretty good” in Test Mode will appear here. They’ll be hidden from the regular Word List and Flip Mode, then shown again after 3 days.',
@@ -707,6 +816,61 @@ const enUS: Dict = {
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
 const ja: Dict = {
+  // ── Tutorials ─────────────────────────────────────────────────────────────
+  help_section:          'ヘルプ',
+  help_result_filters:   'テスト結果で絞り込む',
+  result_filter_title:   'テスト結果で絞り込む',
+  result_filter_intro:
+    'テストモードで回答するたびに、その単語の結果が設定されます。リスト上部の色付きボタンは、この結果で単語を絞り込むものです。タップするとその結果の単語だけが表示され、もう一度タップすると解除されます。',
+  result_filter_untested: '未テスト',
+  result_filter_perfect_note:
+    '「完璧に覚えた」には専用のボタンがありません。覚え終えた単語として扱われ、これらのボタンでは表示されなくなります。「テスト結果と連動」がオンの場合は、単語リストからも外れます。',
+  result_filter_got_it:  'わかりました',
+
+  // ── Duplicate words ───────────────────────────────────────────────────────
+  duplicate_word_title:   '登録済み',
+  duplicate_word_message: 'この単語はすでにこのフォルダに登録されています。',
+  duplicate_word_open:    '既存の単語を編集',
+  duplicate_move_skipped: '{n}件は移動先にすでにあるため、そのままにしました。',
+
+  // ── Import from a file ────────────────────────────────────────────────────
+  import_from_file:       'CSV / JSONから取り込む',
+  import_file_summary:    '{file} から',
+  import_file_valid:      '追加 {n}件',
+  import_file_duplicates: '重複 {n}件',
+  import_file_invalid:    'スキップ {n}件',
+  import_file_routed:     '{n}件はファイルで指定されたフォルダに追加されます。',
+  import_file_ignored_columns: '取り込まない列：{columns}',
+  import_file_row:        '{n}行目',
+  import_file_error_empty:        'ファイルが空です。',
+  import_file_error_invalid_json: '有効なJSONではありません。',
+  import_file_error_shape:        '単語の配列、または「words」配列を持つオブジェクトを使用してください。',
+  import_file_error_columns:      '単語の列が見つかりません。front、word、term のいずれかを含むヘッダー行を追加してください。',
+  import_file_error_unreadable:   'ファイルを読み込めませんでした。',
+  promo_preview_unavailable:      'このプレビューは現在利用できません。しばらくしてからお試しください。',
+
+  // ── AI data-sharing consent ───────────────────────────────────────────────
+  ai_consent_title: 'AI機能を使用しますか？',
+  ai_consent_body:
+    'AIコンテンツを生成するため、WordPingは、あなたが入力した単語またはテキストと、選択した言語および音声を、WordPingのサーバーを経由してOpenAIへ送信します。\n\n' +
+    'WordPingのサーバーは、ご利用プランの確認と不正利用の防止のみを目的として、匿名のインストールIDおよび匿名のサブスクリプションIDも受け取ります。これらがOpenAIへ送信されることはありません。\n\n' +
+    'これらのデータは、リクエストされたコンテンツを生成するためにのみ使用されます。許可なくデータが送信されることはありません。許可は「設定」の「プライバシー」からいつでも取り消せます。',
+  ai_consent_allow: '許可して続ける',
+  ai_consent_decline: '今は許可しない',
+  ai_consent_setting: 'AIデータ共有',
+  ai_consent_setting_desc:
+    'AIコンテンツを生成するために、入力したテキストをOpenAIへ送信することを許可します。',
+  ai_consent_setting_info:
+    'オンにすると、AI機能に入力した単語またはテキストと、選択した言語および音声が、コンテンツを生成するためにWordPingのサーバーを経由してOpenAIへ送信されます。WordPingのサーバーは、プランの確認と不正利用の防止のために匿名のインストールIDおよび匿名のサブスクリプションIDも受け取りますが、これらがOpenAIへ送信されることはありません。\n\n' +
+    'オフの間、WordPingがOpenAIへデータを送信することはありません。AI音声などのAI機能は利用できなくなりますが、単語、フォルダ、通知、テスト、端末の読み上げなど、その他の機能はこれまでどおり利用できます。オフにしてもデータが削除されることはありません。\n\n' +
+    '次にAI機能を使用するときに、あらためて確認します。',
+  ai_consent_status_granted: '許可済み',
+  ai_consent_status_declined: '許可しない',
+  ai_consent_status_unknown: '未設定',
+  ai_consent_required_msg:
+    'AIデータ共有がオフのため、データは送信されていません。AI機能を使用するには、「設定」の「プライバシー」で「AIデータ共有」をオンにしてください。',
+  privacy_section: 'プライバシー',
+
   // ── Empty result filters ──────────────────────────────────────────────────
   empty_filter_good_title: '「まあまあ」の単語はまだありません',
   empty_filter_good_description: 'テストモードで「まあまあ」と評価した単語がここに表示されます。通常の単語リストとフリップモードでは一時的に非表示になり、3日後に再表示されます。',

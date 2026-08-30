@@ -120,21 +120,44 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
       {
         heading: '2. Information processed when you use online features',
         bullets: [
-          'AI generation requests: text submitted for High-Quality AI Voice or another available server-assisted AI feature; requested language, voice, and generation settings; a random installation identifier; a pseudonymous RevenueCat App User ID; subscription tier; and request metadata such as endpoint, status, timing, input length, and request ID.',
+          'AI generation requests, and only after you have granted permission in the app (see section 3): text submitted for High-Quality AI Voice or another available server-assisted AI feature; requested language, voice, and generation settings; a random installation identifier; a pseudonymous RevenueCat App User ID; subscription tier; and request metadata such as endpoint, status, timing, input length, and request ID. The promotional clips in the Upgrade screen are the single exception and are described in section 3: they send none of this, including neither identifier.',
           'Subscription information: product identifiers, purchase and renewal status, entitlement status, and pseudonymous customer identifiers provided by Apple and RevenueCat. Complete payment-card details are not provided to WordPing.',
           'Support communications: your email address and any information you include when you contact support.',
           'Website information: IP address, browser and device information, requested pages, timestamps, and security or delivery logs ordinarily processed by the hosting provider.',
         ],
       },
       {
-        heading: '3. Backup and data transfer',
+        heading: '3. AI features and your permission',
+        paragraphs: [
+          'WordPing’s AI features are provided using OpenAI. When you use one, the request is sent from your device to the WordPing API Worker, which runs on Cloudflare, and the Worker forwards the generation request to OpenAI’s API. WordPing has no other AI provider.',
+          'WordPing asks for your permission in the app before the first such request, and sends nothing to OpenAI unless you grant it. Granting permission is a separate, explicit choice: accepting the Terms of Service, completing onboarding, or subscribing does not grant it, and an app update does not grant it for existing users. If you dismiss the request without answering, nothing is sent and you are asked again the next time you use an AI feature.',
+        ],
+        bullets: [
+          'What is sent to OpenAI: the word or text you submit to an AI feature, together with the language, voice and output format that feature uses. For High-Quality AI Voice, this is the text of the card you asked to hear. Nothing else from your vocabulary, and no identifier, is included in the request to OpenAI.',
+          'What the WordPing API Worker additionally receives: a randomly generated installation identifier stored in your device’s Keychain, and your pseudonymous RevenueCat App User ID. They are used to verify your subscription tier and to apply abuse-prevention and usage limits. They are not forwarded to OpenAI.',
+          'What the Worker does with the request: it verifies your entitlement with RevenueCat, applies rate and usage limits, and passes the generation request to OpenAI. Generated audio is streamed back to your device without being stored on the Worker. Submitted text is not written to the Worker’s application logs or to its key-value store; those logs record only non-content values such as the endpoint, status, request ID, timing, input length, selected voice and format. Cloudflare processes network-level information, including your IP address, as part of delivering and protecting the service; WordPing uses the IP address only to derive a salted hash for rate-limit counters and does not log or store it.',
+          'Voice previews in the voice picker are a subscriber feature and are covered by your permission like any other AI request, even though the sentence they speak is written by WordPing rather than by you.',
+          'The promotional clips in the Upgrade screen are the one exception, and are available without permission and without a subscription. Their request carries no text field and no voice field: the app sends only which of two fixed WordPing-authored samples to play, a language code that selects one of a fixed set of WordPing translations, and a build version used to refresh the shared cache. It carries none of your vocabulary and neither of the identifiers described above — no installation identifier and no RevenueCat App User ID — and the app does not create an installation identifier in order to play one. The clips are generated once and cached on our Worker for all users, so playing one ordinarily reaches the cache rather than OpenAI. Playing one does not grant AI data-sharing permission and does not enable any other AI feature.',
+          'On-device speech is not an AI feature in this sense: free-plan pronunciation uses your device’s built-in text-to-speech, and an audio file you attach to a card is played locally. Neither is sent anywhere, and both keep working if you do not grant permission.',
+        ],
+      },
+      {
+        heading: '4. Withdrawing your permission',
+        paragraphs: [
+          'You can withdraw permission at any time in the app under Settings → Privacy → AI Data Sharing. The setting shows the current state and can be switched off there.',
+          'Withdrawing takes effect immediately: WordPing stops sending anything for AI features from that point, including background preparation of audio for words you already have. It does not delete any of your data — your words, folders, notes, notification settings and previously generated audio already stored on your device are untouched — and it does not affect any non-AI feature. If you later use an AI feature again, WordPing asks for permission again rather than resuming silently.',
+          'Because generation is only performed while permission is granted, withdrawing it does not, by itself, cause deletion of anything OpenAI may hold under its own retention practices. Requests already completed were governed by OpenAI’s terms and privacy policy at the time they were made.',
+        ],
+      },
+      {
+        heading: '5. Backup and data transfer',
         paragraphs: [
           'Backup & Restore is a Premium feature that creates a file on the device at the user’s request. The user chooses whether and where to share or store that file. WordPing does not automatically upload or retain a server copy.',
           'A backup may contain vocabulary, meanings, notes, folders, labels, learning progress, review history, visibility timestamps, notification settings, and transferable app preferences. It excludes device-local audio files, installation identifiers, RevenueCat identifiers, credentials, and purchase entitlements. Anyone who receives a backup file may be able to read its contents, so users should store and share it carefully.',
         ],
       },
       {
-        heading: '4. How we use information',
+        heading: '6. How we use information',
         bullets: [
           'To provide vocabulary study, local reminders, backup and restore, subscription features, and requested AI-generated output.',
           'To authenticate paid entitlements, apply the Basic monthly AI Voice allowance, and restore purchases.',
@@ -144,14 +167,14 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '5. Third-party services and disclosure',
+        heading: '7. Third-party services and disclosure',
         paragraphs: [
           'WordPing uses the service providers listed below. Information is disclosed only as reasonably necessary for their stated functions, to comply with law, to protect rights and safety, or in connection with a lawful business transfer. Their own terms and privacy policies govern their processing.',
           'WordPing does not sell personal information, does not use third-party advertising SDKs, and does not use third-party analytics SDKs in the current release.',
         ],
       },
       {
-        heading: '6. Retention',
+        heading: '8. Retention',
         bullets: [
           'Device data remains until you delete it, clear relevant content, remove the app, or the operating system removes cache files.',
           'The WordPing API does not intentionally place submitted user text in application logs or the Worker KV store. It is transmitted to the relevant AI provider to fulfill the request.',
@@ -162,47 +185,47 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '7. Website storage',
+        heading: '9. Website storage',
         paragraphs: [
           'The website uses necessary local browser storage to remember light or dark theme and may use a functional locale cookie to remember language routing. The current website does not use advertising or third-party analytics cookies.',
         ],
       },
       {
-        heading: '8. Security',
+        heading: '10. Security',
         paragraphs: [
           'We use reasonable technical and organizational safeguards, including encrypted network transport, server-side secret storage, input limits, pseudonymous salted identifiers for server counters, restricted logging, and device Keychain storage for the installation identifier. No system is completely secure, and users should protect their devices and backup files.',
         ],
       },
       {
-        heading: '9. International processing',
+        heading: '11. International processing',
         paragraphs: [
           'WordPing’s providers may process information in Japan, the United States, and other countries where they operate. Those countries may have different data-protection laws. We use providers and safeguards reasonably appropriate to the services being supplied.',
         ],
       },
       {
-        heading: '10. Your choices and rights',
+        heading: '12. Your choices and rights',
         bullets: [
           'You can edit or delete vocabulary and other local content in the app and can remove local app data by deleting the app, subject to iOS behavior and any backup copies you created.',
           'You can decline notification permission or disable notifications in iOS Settings.',
-          'You can avoid submitting text to online AI features by not invoking those features.',
+          'You can decline AI data sharing when asked, and can withdraw permission at any time under Settings → Privacy → AI Data Sharing. See sections 3 and 4.',
           'You can manage or cancel subscriptions through your Apple account settings.',
           `To request access, correction, deletion, restriction, objection, or information about personal data handled by the Operator, contact ${LEGAL_EMAIL}. Applicable rights vary by jurisdiction. We may need to verify the request and may retain information where legally permitted or required.`,
         ],
       },
       {
-        heading: '11. Children',
+        heading: '13. Children',
         paragraphs: [
           `WordPing does not knowingly request a child’s name, address, or direct contact information through an account-registration system. If a parent or guardian believes a child has sent personal information to the Operator, please contact ${LEGAL_EMAIL}.`,
         ],
       },
       {
-        heading: '12. Changes to this policy',
+        heading: '14. Changes to this policy',
         paragraphs: [
           'We may update this Privacy Policy to reflect changes in WordPing, service providers, law, or operating practices. The updated policy will be posted on this page with a revised effective date. Where legally required, additional notice or consent will be provided.',
         ],
       },
       {
-        heading: '13. Contact',
+        heading: '15. Contact',
         paragraphs: [
           `Operator: ${LEGAL_OPERATOR}`,
           `Privacy and support email: ${LEGAL_EMAIL}`,
@@ -234,21 +257,44 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
       {
         heading: '2. オンライン機能利用時に取り扱う情報',
         bullets: [
-          'AI生成リクエスト：高品質AI音声または提供中のその他のサーバー経由AI機能に送信されたテキスト、指定言語・音声・生成設定、ランダムなインストール識別子、仮名化されたRevenueCat App User ID、サブスクリプション区分、エンドポイント、ステータス、処理時間、入力文字数、リクエストID等のリクエスト情報。',
+          'AI生成リクエスト（アプリ内で許可を与えた場合に限ります。第3項を参照）：高品質AI音声または提供中のその他のサーバー経由AI機能に送信されたテキスト、指定言語・音声・生成設定、ランダムなインストール識別子、仮名化されたRevenueCat App User ID、サブスクリプション区分、エンドポイント、ステータス、処理時間、入力文字数、リクエストID等のリクエスト情報。ただし、アップグレード画面のプロモーション音声のみは例外であり（第3項を参照）、上記のいずれも送信されません。前述の2種類の識別子も送信されません。',
           'サブスクリプション情報：AppleおよびRevenueCatから提供される商品識別子、購入・更新状態、利用資格、仮名化された顧客識別子。クレジットカード番号等の完全な決済情報がWordPingに提供されることはありません。',
           'サポート連絡：利用者のメールアドレス、および問い合わせ時に利用者が記載した情報。',
           'ウェブサイト情報：ホスティング事業者が通常取り扱うIPアドレス、ブラウザ・端末情報、閲覧ページ、時刻、セキュリティおよび配信ログ。',
         ],
       },
       {
-        heading: '3. バックアップおよびデータ移行',
+        heading: '3. AI機能と利用者の許可',
+        paragraphs: [
+          'WordPingのAI機能は、OpenAIを利用して提供されます。AI機能を利用すると、リクエストは端末からCloudflare上で稼働するWordPing API Workerへ送信され、Workerが生成リクエストをOpenAIのAPIへ転送します。WordPingは、これ以外のAI事業者を利用していません。',
+          'WordPingは、最初の当該リクエストの前にアプリ内で許可を求め、許可が与えられない限りOpenAIへ何も送信しません。この許可は独立した明示的な選択であり、利用規約への同意、オンボーディングの完了、サブスクリプションの購入によって与えられることはなく、アプリの更新によって既存の利用者に自動的に付与されることもありません。回答せずにダイアログを閉じた場合、データは送信されず、次にAI機能を利用する際にあらためて確認します。',
+        ],
+        bullets: [
+          'OpenAIへ送信される情報：AI機能に入力した単語またはテキストと、当該機能が使用する言語、音声および出力形式。高品質AI音声の場合は、再生を指示したカードのテキストです。これ以外の単語データや識別子が、OpenAIへのリクエストに含まれることはありません。',
+          'WordPing API Workerが追加で受け取る情報：端末のキーチェーンに保存されたランダムなインストール識別子、および仮名化されたRevenueCat App User ID。サブスクリプション区分の確認、不正利用防止および利用上限の適用に使用され、OpenAIへ転送されることはありません。',
+          'Workerにおける取扱い：RevenueCatで利用資格を確認し、レート制限および利用上限を適用したうえで、生成リクエストをOpenAIへ渡します。生成された音声はWorkerに保存されることなく端末へ送出されます。送信されたテキストは、Workerのアプリケーションログおよびキーバリューストアには記録されません。ログに記録されるのは、エンドポイント、ステータス、リクエストID、処理時間、入力文字数、選択された音声および形式等、内容を含まない値のみです。Cloudflareは、サービスの提供および保護のため、IPアドレスを含むネットワーク情報を取り扱います。WordPingは、IPアドレスをレート制限用のソルト付きハッシュの生成にのみ使用し、記録または保存しません。',
+          '音声選択画面のプレビューはサブスクリプション向けの機能であり、読み上げる文がWordPingの用意した固定テキストである場合も、他のAIリクエストと同様に利用者の許可の対象となります。',
+          'アップグレード画面のプロモーション音声のみが例外であり、サブスクリプションおよび許可なしで再生できます。そのリクエストにはテキスト欄も音声欄も存在せず、アプリが送信するのは、WordPingが用意した2種類の固定サンプルのいずれを再生するかという指定、固定の翻訳一覧から1つを選ぶための言語コード、および共通キャッシュを更新するためのビルド版数のみです。利用者の単語データは含まれず、前述の識別子（インストール識別子およびRevenueCat App User ID）も送信されません。プロモーション音声の再生のためにインストール識別子を新たに作成することもありません。これらの音声は一度生成された後、全利用者共通のものとしてWorkerにキャッシュされるため、通常はOpenAIではなくキャッシュから配信されます。再生してもAIデータ共有の許可が与えられることはなく、他のAI機能が有効になることもありません。',
+          '端末内での読み上げは、ここでいうAI機能には含まれません。無料プランの読み上げは端末内蔵の音声合成を使用し、カードに添付した音声ファイルは端末内で再生されます。いずれも外部へ送信されず、許可がない場合でもこれまでどおり利用できます。',
+        ],
+      },
+      {
+        heading: '4. 許可の取消し',
+        paragraphs: [
+          '許可は、アプリの「設定」→「プライバシー」→「AIデータ共有」からいつでも取り消せます。同設定では現在の状態を確認でき、その場でオフにできます。',
+          '取消しは直ちに反映され、以後、登録済みの単語に対する音声の事前生成を含め、AI機能のためのデータ送信は行われません。取消しによってデータが削除されることはなく、単語、フォルダ、メモ、通知設定および既に端末内に保存されている生成済み音声は保持されます。AI機能以外の機能にも影響しません。その後あらためてAI機能を利用する場合は、自動的に再開するのではなく、再度許可を求めます。',
+          '生成は許可が有効な間にのみ行われるため、許可の取消しそれ自体によって、OpenAIが自社の保存方針に基づき保持する情報が削除されるものではありません。既に完了したリクエストには、実行時点におけるOpenAIの利用規約およびプライバシーポリシーが適用されます。',
+        ],
+      },
+      {
+        heading: '5. バックアップおよびデータ移行',
         paragraphs: [
           'バックアップと復元はPremium機能であり、利用者の操作により端末上でファイルを作成します。保存先または共有先は利用者が選択します。WordPingがバックアップを自動的にアップロードしたり、サーバー上にコピーを保管したりすることはありません。',
           'バックアップには、単語、意味、メモ、フォルダ、ラベル、学習進捗、復習履歴、非表示期限、通知設定、および移行可能なアプリ設定が含まれる場合があります。端末内の音声ファイル、インストール識別子、RevenueCat識別子、認証情報および購入資格は含まれません。バックアップを受け取った者は内容を閲覧できる可能性があるため、安全な方法で保存・共有してください。',
         ],
       },
       {
-        heading: '4. 利用目的',
+        heading: '6. 利用目的',
         bullets: [
           '単語学習、ローカル通知、バックアップと復元、サブスクリプション機能、および利用者が要求したAI生成結果を提供するため。',
           '有料利用資格の確認、Basicの月間AI音声上限の適用、および購入の復元を行うため。',
@@ -258,14 +304,14 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '5. 外部サービスおよび第三者提供',
+        heading: '7. 外部サービスおよび第三者提供',
         paragraphs: [
           'WordPingは、下記の外部サービスを利用します。情報は、各サービスの機能提供に合理的に必要な範囲、法令遵守、権利・安全の保護、または適法な事業承継に必要な範囲でのみ提供されます。各事業者による取扱いには、各事業者の利用規約およびプライバシーポリシーが適用されます。',
           '現在のリリースにおいて、WordPingは個人情報を販売せず、第三者広告SDKおよび第三者分析SDKを使用していません。',
         ],
       },
       {
-        heading: '6. 保存期間',
+        heading: '8. 保存期間',
         bullets: [
           '端末内データは、利用者が削除・消去するまで、アプリを削除するまで、またはOSがキャッシュを削除するまで保存されます。',
           'WordPing APIは、利用者が送信したテキストをアプリケーションログまたはWorker KVへ意図的に保存しません。当該テキストは、リクエストを実行するために必要なAI事業者へ送信されます。',
@@ -276,47 +322,47 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '7. ウェブサイトの保存機能',
+        heading: '9. ウェブサイトの保存機能',
         paragraphs: [
           'ウェブサイトは、ライト・ダークテーマを記憶するために必要なブラウザのローカルストレージを利用し、言語ルーティングを記憶するための機能的なロケールCookieを使用する場合があります。現在のウェブサイトは、広告Cookieまたは第三者分析Cookieを使用していません。',
         ],
       },
       {
-        heading: '8. 安全管理措置',
+        heading: '10. 安全管理措置',
         paragraphs: [
           '当方は、通信の暗号化、サーバー秘密情報の分離保管、入力制限、サーバーカウンターにおけるソルト付き仮名識別子、ログ項目の制限、インストール識別子の端末キーチェーン保存等、合理的な技術上・組織上の安全管理措置を講じます。ただし、完全に安全なシステムは存在しないため、利用者も端末およびバックアップファイルを適切に管理してください。',
         ],
       },
       {
-        heading: '9. 国外での取扱い',
+        heading: '11. 国外での取扱い',
         paragraphs: [
           'WordPingの外部事業者は、日本、米国その他当該事業者が事業を行う国で情報を取り扱う場合があります。これらの国では日本と異なる個人情報保護法制が適用される場合があります。当方は、提供されるサービスに照らして合理的に適切な事業者および保護措置を利用します。',
         ],
       },
       {
-        heading: '10. 利用者の選択および権利',
+        heading: '12. 利用者の選択および権利',
         bullets: [
           'アプリ内で単語その他のローカルデータを編集・削除できます。また、利用者が作成したバックアップを除き、iOSの仕様に従ってアプリを削除することでローカルデータを削除できます。',
           '通知権限を許可しないこと、またはiOS設定で通知を無効にすることができます。',
-          'オンラインAI機能を実行しないことで、当該機能へのテキスト送信を避けることができます。',
+          'AIデータ共有の許可を求められた際に拒否することができ、「設定」→「プライバシー」→「AIデータ共有」からいつでも許可を取り消せます。第3項および第4項を参照してください。',
           'Appleアカウントの設定からサブスクリプションを管理または解約できます。',
           `運営者が取り扱う個人情報について、開示、訂正、削除、利用制限、異議申立てまたは取扱いに関する説明を希望する場合は、${LEGAL_EMAIL}までご連絡ください。適用される権利は地域により異なります。本人確認をお願いする場合があり、法令上認められる場合または必要な場合には情報を保持することがあります。`,
         ],
       },
       {
-        heading: '11. 子どもの情報',
+        heading: '13. 子どもの情報',
         paragraphs: [
           `WordPingは、アカウント登録システムを通じて子どもの氏名、住所または直接の連絡先を故意に求めるものではありません。保護者が、子どもが運営者へ個人情報を送信したと考える場合は、${LEGAL_EMAIL}までご連絡ください。`,
         ],
       },
       {
-        heading: '12. 本ポリシーの変更',
+        heading: '14. 本ポリシーの変更',
         paragraphs: [
           'WordPing、外部サービス、法令または運用方法の変更を反映するため、本ポリシーを変更する場合があります。変更後のポリシーは、改定後の施行日とともに本ページへ掲載します。法令上必要な場合は、追加の通知または同意取得を行います。',
         ],
       },
       {
-        heading: '13. お問い合わせ先',
+        heading: '15. お問い合わせ先',
         paragraphs: [
           `運営者：${LEGAL_OPERATOR}`,
           `プライバシーおよびサポート窓口：${LEGAL_EMAIL}`,

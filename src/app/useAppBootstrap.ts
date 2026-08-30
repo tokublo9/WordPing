@@ -26,6 +26,16 @@ import {
   type ActiveResultFiltersByFolder,
 } from '../features/cards/levels';
 import { parseShowResultColorPreference } from '../features/settings/resultColorPreference';
+import {
+  FIRST_TEST_ANSWER_KEY,
+  RESULT_FILTER_MIGRATION_KEY,
+  RESULT_FILTER_TUTORIAL_KEY,
+  hasExistingTestResults,
+  parseTutorialFlag,
+  resolveResultFilterMigration,
+  serializeTutorialFlag,
+} from '../features/onboarding/tutorialState';
+import { loadAIConsent } from '../lib/aiConsent';
 
 // Assigns folderId to cards that predate the folder feature.
 // Creates a default folder when none exist — the only side effect.
@@ -82,6 +92,8 @@ export interface UseAppBootstrapParams {
   setVerticalFlip(v: boolean): void;
   setHideAiTools(v: boolean): void;
   setSyncTestResults(v: boolean): void;
+  setResultFilterTutorialSeen(v: boolean): void;
+  setFirstTestAnswerRecorded(v: boolean): void;
 }
 
 export interface AppBootstrapState {
@@ -120,6 +132,8 @@ export function useAppBootstrap({
   setVerticalFlip,
   setHideAiTools,
   setSyncTestResults,
+  setResultFilterTutorialSeen,
+  setFirstTestAnswerRecorded,
 }: UseAppBootstrapParams): AppBootstrapState {
   const [cards, setCards] = useState<WordCard[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -212,14 +226,23 @@ export function useAppBootstrap({
       let rawHideAi:  string | null = null;
       let rawSyncTest: string | null = null;
       let obRaw: string | null = null;
+      let rawResultFilterTutorial: string | null = null;
+      let rawFirstTestAnswer: string | null = null;
+      let rawResultFilterMigrated: string | null = null;
       try {
-        [rawShowFull, rawShowResultColor, rawVertFlip, rawHideAi, rawSyncTest, obRaw] = await Promise.all([
+        [
+          rawShowFull, rawShowResultColor, rawVertFlip, rawHideAi, rawSyncTest, obRaw,
+          rawResultFilterTutorial, rawFirstTestAnswer, rawResultFilterMigrated,
+        ] = await Promise.all([
           AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
           AsyncStorage.getItem(SHOW_RESULT_COLOR_KEY),
           AsyncStorage.getItem(VERTICAL_FLIP_KEY),
           AsyncStorage.getItem(HIDE_AI_TOOLS_KEY),
           AsyncStorage.getItem(SYNC_TEST_RESULTS_KEY),
           AsyncStorage.getItem(ONBOARDING_KEY),
+          AsyncStorage.getItem(RESULT_FILTER_TUTORIAL_KEY),
+          AsyncStorage.getItem(FIRST_TEST_ANSWER_KEY),
+          AsyncStorage.getItem(RESULT_FILTER_MIGRATION_KEY),
         ]);
       } catch (e) {
         if (__DEV__) {
@@ -232,6 +255,41 @@ export function useAppBootstrap({
       }
 
       if (cancelled) return;
+
+      // Tutorial flags. Absent means "not seen" — an app update never counts as
+      // having seen a tutorial.
+      setFirstTestAnswerRecorded(parseTutorialFlag(rawFirstTestAnswer));
+
+      // One-time check for an install that predates the result filters. Written
+      // straight to storage rather than through the persistence effect, which is
+      // still gated shut this early — and writing it here means a crash later in
+      // startup cannot leave an experienced user with their filters hidden.
+      const storedTutorialSeen = parseTutorialFlag(rawResultFilterTutorial);
+      const migration = resolveResultFilterMigration({
+        alreadyMigrated: parseTutorialFlag(rawResultFilterMigrated),
+        hasSeenResultFilterTutorial: storedTutorialSeen,
+        hasHistoricalResults: hasExistingTestResults(migratedCards),
+      });
+      setResultFilterTutorialSeen(storedTutorialSeen || migration.shouldMarkTutorialSeen);
+      if (migration.shouldMarkMigrated) {
+        const writes: Promise<void>[] = [
+          AsyncStorage.setItem(RESULT_FILTER_MIGRATION_KEY, serializeTutorialFlag(true)),
+        ];
+        if (migration.shouldMarkTutorialSeen) {
+          writes.push(
+            AsyncStorage.setItem(RESULT_FILTER_TUTORIAL_KEY, serializeTutorialFlag(true)),
+          );
+        }
+        await Promise.all(writes).catch(e => {
+          // Not fatal: the check is idempotent and simply runs again next launch.
+          if (__DEV__) {
+            console.warn(
+              '[bootstrap] result-filter migration write failed:',
+              e instanceof Error ? e.name : 'UnknownError',
+            );
+          }
+        });
+      }
 
       if (rawShowFull === 'true') setShowFullCard(true);
       // Missing, malformed and unreadable legacy values are explicitly OFF.
@@ -296,6 +354,12 @@ export function useAppBootstrap({
         // On the happy path it was already called above (idempotent).
         if (!cancelled) markSettingsLoaded();
       });
+
+    // Warm the AI data-sharing decision so the Settings row and the preload
+    // eligibility checks see the real stored value rather than the not-yet-read
+    // default. This is a local read of one key; it never blocks anything, and
+    // `requireAIConsent` awaits the same load if a request somehow beats it.
+    void loadAIConsent();
 
     // Read permission without prompting. The actual prompt is shown in context
     // when the user enables a notification interval.

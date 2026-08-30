@@ -372,7 +372,9 @@ const VoiceRow = React.memo(({ pal, text, demoKeyDefault, demoKeyAi, playingDemo
           <Text style={[av.defaultLabel, { color: pal.sub }]} numberOfLines={1}>{defaultLabel}</Text>
         </TouchableOpacity>
 
-        {/* AI High-Quality voice — rich blue, soft glow + live waveform */}
+        {/* AI High-Quality voice — rich blue, soft glow + live waveform.
+            Shown on every plan: this is the comparison the sheet is selling, and
+            the clip it plays is fixed WordPing copy, not anything of the user's. */}
         <TouchableOpacity
           style={[av.aiBtnWrap, aiPlaying && av.aiGlow]}
           onPress={() => onPlay(demoKeyAi)}
@@ -1307,10 +1309,14 @@ export function ProSheet({
     const isAI = key.endsWith('ai');
     try {
       if (isAI) {
-        // The two promotional previews. These go to the Worker's free
-        // /v1/voice/promo route, which needs no entitlement — so a Free user
-        // hears them — and which speaks a fixed, server-chosen sentence. It
-        // never unlocks AI voice anywhere else in the app.
+        // No entitlement check and no consent prompt, and deliberately so: the
+        // promo request carries no user content and no identifier, so there is
+        // nothing to gate and nothing to ask permission for. `postPromoSpeech`
+        // is the only way to reach this route, and it cannot be handed text.
+        //
+        // Playing it grants nothing: it does not set consent, does not unlock
+        // card voice, and does not touch the entitlement. A Free user hears the
+        // comparison and nothing else changes.
         const sample = PROMO_SAMPLE_BY_DEMO[key as 'word_ai' | 'sentence_ai'];
         await speakPromoSample(sample, resolvedSampleLang, {
           onPhaseChange: phase => {
@@ -1325,10 +1331,15 @@ export function ProSheet({
       }
     } catch (error) {
       if (demoSequence.current !== sequence) return;
-      // Offline is the one failure the user can act on, so it gets its own
-      // message; everything else is the shared generation-failure copy.
+      // The preview simply did not load. Offline is the one failure the user can
+      // act on, so it keeps its own message; anything else says the preview is
+      // unavailable. Nothing here retries against a different route — a failed
+      // promo never becomes a user-content request.
       const offline = error instanceof AIRequestError && error.kind === 'offline';
-      Alert.alert(t('cmp_ai_voice_hq'), t(offline ? 'err_offline' : 'err_generation_failed'));
+      Alert.alert(
+        t('cmp_ai_voice_hq'),
+        t(offline ? 'err_offline' : isAI ? 'promo_preview_unavailable' : 'err_generation_failed'),
+      );
     } finally {
       if (demoSequence.current === sequence) {
         setPlayingDemo(null);

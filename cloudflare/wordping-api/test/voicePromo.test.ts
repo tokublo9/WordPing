@@ -172,16 +172,20 @@ describe('cost and abuse controls', () => {
     expect(env.WORDPING_KV.keysStartingWith(`quota:${monthKey(Date.now())}`)).toHaveLength(0);
   });
 
-  it('still applies the per-minute rate limit', async () => {
+  it('still applies the per-minute rate limit, by IP', async () => {
     mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
     const env = makeEnv();
 
+    // This route accepts no install id, so there is no per-device bucket to
+    // fill — the IP backstop is the whole limit. It is the configured 6/minute
+    // times IP_MULTIPLIER, and it still bites.
     let lastStatus = 200;
-    // The free tier allows 6/minute; the 7th must be refused.
-    for (let i = 0; i < 8 && lastStatus === 200; i += 1) {
-      lastStatus = (await post(env, { sample: 'spontaneous', langCode: `l${i}` })).status;
+    let sent = 0;
+    for (; sent < 60 && lastStatus === 200; sent += 1) {
+      lastStatus = (await post(env, { sample: 'spontaneous', langCode: `l${sent}` })).status;
     }
     expect(lastStatus).toBe(429);
+    expect(sent).toBeLessThanOrEqual(37);
   });
 
   it('is still refused when the kill switch disables it', async () => {
@@ -194,14 +198,32 @@ describe('cost and abuse controls', () => {
     expect((await response.json() as { error: string }).error).toBe('feature_disabled');
   });
 
-  it('still requires an install id', async () => {
+  it('needs no install id — the route accepts no identity at all', async () => {
     mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
     const response = await handleRequest(
-      makeRequest(PROMO, { body: { sample: 'spontaneous' }, installId: null }),
+      makeRequest(PROMO, { body: { sample: 'spontaneous' }, installId: null, appUserId: null }),
       makeEnv(),
       makeCtx(),
     );
-    expect(response.status).toBe(400);
+    // The client deliberately sends no identifiers for a fixed public clip, so
+    // demanding one would defeat the point of the exemption.
+    expect(response.status).toBe(200);
+  });
+
+  it('ignores identity headers if a client sends them anyway', async () => {
+    mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
+    const response = await handleRequest(
+      makeRequest(PROMO, {
+        body: { sample: 'spontaneous' },
+        installId: 'install-0123456789abcdef',
+        appUserId: '$RCAnonymousID:abcdef0123456789',
+      }),
+      makeEnv(),
+      makeCtx(),
+    );
+    // Accepted, but never read: `guard` does not call readIdentity for an
+    // anonymous feature, so no bucket is keyed on them and nothing is hashed.
+    expect(response.status).toBe(200);
   });
 });
 

@@ -27,6 +27,12 @@ export interface AppSettingsState {
   syncTestResults: boolean;
   setSyncTestResults: Dispatch<SetStateAction<boolean>>;
   setHideAiTools: Dispatch<SetStateAction<boolean>>;
+  /** One-time tutorial. False until the stored flag says otherwise. */
+  resultFilterTutorialSeen: boolean;
+  setResultFilterTutorialSeen: Dispatch<SetStateAction<boolean>>;
+  /** Set the first time a card is graded in Test Mode, and never cleared. */
+  firstTestAnswerRecorded: boolean;
+  setFirstTestAnswerRecorded: Dispatch<SetStateAction<boolean>>;
   settingsLoaded: boolean;
   // Called by useAppBootstrap after the async data load completes.
   applySettings(s: Settings): void;
@@ -46,6 +52,8 @@ export function useAppSettings(): AppSettingsState {
   // Dormant saved preference retained for a possible future UI restoration.
   // Test Mode currently uses SYNC_WITH_TEST_RESULTS_ENABLED instead.
   const [syncTestResults, setSyncTestResults] = useState(false);
+  const [resultFilterTutorialSeen, setResultFilterTutorialSeen] = useState(false);
+  const [firstTestAnswerRecorded, setFirstTestAnswerRecorded] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const applySettings = useCallback((s: Settings) => {
@@ -69,6 +77,8 @@ export function useAppSettings(): AppSettingsState {
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
     syncTestResults, setSyncTestResults,
+    resultFilterTutorialSeen, setResultFilterTutorialSeen,
+    firstTestAnswerRecorded, setFirstTestAnswerRecorded,
     settingsLoaded,
     applySettings,
     markSettingsLoaded,

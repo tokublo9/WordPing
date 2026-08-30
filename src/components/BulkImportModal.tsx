@@ -24,11 +24,17 @@ import {
 import {
   analyzeBulkImport,
   BulkImportExecutionGuard,
+  fileImportDrafts,
   parseBulkImportText,
+  planFileImport,
   type BulkImportAnalysis,
   type BulkImportDraft,
   type BulkImportResult,
+  type FileImportPlan,
 } from '../features/cards/bulkImport';
+import { pickWordImportFile } from '../features/cards/importFile';
+import type { ImportParseFailure } from '../features/cards/fileImport';
+import type { Folder, WordCard } from '../types';
 import {
   FULL_SCREEN_SHEET_HEADER,
   FULL_SCREEN_SHEET_HEADER_ACTION,
@@ -41,11 +47,24 @@ interface Props {
   pal: Palette;
   themeColor: string;
   existingTexts: readonly string[];
+  /** Every card, so a file import can check duplicates in the folder each row lands in. */
+  existingCards: readonly WordCard[];
+  /** Used to resolve a `folder` column onto a real folder. Never creates one. */
+  folders: readonly Folder[];
+  destinationFolderId: string | null;
   onClose(): void;
   onImport(drafts: readonly BulkImportDraft[]): Promise<BulkImportResult> | BulkImportResult;
 }
 
-type Step = 'input' | 'preview';
+type Step = 'input' | 'preview' | 'file-preview';
+
+const PARSE_FAILURE_KEYS: Readonly<Record<ImportParseFailure, string>> = {
+  empty_file: 'import_file_error_empty',
+  invalid_json: 'import_file_error_invalid_json',
+  unsupported_shape: 'import_file_error_shape',
+  no_columns: 'import_file_error_columns',
+  no_rows: 'import_file_error_empty',
+};
 
 const BULK_IMPORT_INPUT_INITIAL_HEIGHT = 300;
 // Normal tap threshold. Movement up to this counts as a tap on release; past it the
@@ -61,6 +80,9 @@ export function BulkImportModal({
   pal,
   themeColor,
   existingTexts,
+  existingCards,
+  folders,
+  destinationFolderId,
   onClose,
   onImport,
 }: Props) {
@@ -72,6 +94,14 @@ export function BulkImportModal({
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
+  // ── CSV / JSON import ───────────────────────────────────────────────────────
+  // Held separately from the typed flow so neither can disturb the other: the
+  // text box keeps its content while a file is being reviewed, and backing out
+  // of the file preview returns to exactly what was typed.
+  const [filePlan, setFilePlan] = useState<FileImportPlan | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [fileErrorKey, setFileErrorKey] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const executionGuard = useRef(new BulkImportExecutionGuard()).current;
   // Keep the submitted rows stable while the native full-screen Modal dismisses.
   // The import updates `existingTexts`, which would otherwise repaint every row as
@@ -133,6 +163,10 @@ export function BulkImportModal({
       setImportError(false);
       submittedAnalysisRef.current = null;
       inputFocusedRef.current = false;
+      setFilePlan(null);
+      setFileName('');
+      setFileErrorKey(null);
+      setPicking(false);
     }
   }
 
@@ -196,6 +230,73 @@ export function BulkImportModal({
     setDrafts(current => current.filter(item => item.id !== id));
   };
 
+  /**
+   * Chooses a CSV or JSON file, parses it on the device, and shows the plan.
+   *
+   * Nothing is written here. A parse failure names its reason rather than
+   * collapsing to a generic error, because "not valid JSON" and "no word
+   * column" have completely different fixes.
+   */
+  const pickFile = async () => {
+    if (picking || importing) return;
+    Keyboard.dismiss();
+    setPicking(true);
+    setFileErrorKey(null);
+    try {
+      const picked = await pickWordImportFile();
+      if (picked.status === 'cancelled') return;
+      if (picked.status === 'unreadable') {
+        setFileErrorKey('import_file_error_unreadable');
+        return;
+      }
+      if (!picked.result.ok) {
+        setFileErrorKey(PARSE_FAILURE_KEYS[picked.result.error]);
+        return;
+      }
+      setFileName(picked.fileName);
+      setFilePlan(planFileImport({
+        rows: picked.result.value.rows,
+        errors: picked.result.value.errors,
+        ignoredColumns: picked.result.value.ignoredColumns,
+        existingCards,
+        folders,
+        destinationFolderId,
+      }));
+      setStep('file-preview');
+    } catch {
+      setFileErrorKey('import_file_error_unreadable');
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  /**
+   * Commits the file plan.
+   *
+   * Only the rows the plan accepted are sent. `createBulkImportBatch` checks
+   * every one again on the way in, so a word added between the preview and this
+   * tap is still caught and counted rather than duplicated.
+   */
+  const runFileImport = () => executionGuard.run(async () => {
+    if (importing || !filePlan || filePlan.validCount === 0) return;
+    setImportError(false);
+    setImporting(true);
+    try {
+      const importResult = await onImport(fileImportDrafts(filePlan));
+      if (importResult.error) {
+        setImportError(true);
+        setImporting(false);
+        return;
+      }
+      onClose();
+    } catch {
+      // An unexpected failure leaves nothing behind: the batch is built in full
+      // before it reaches state, so a throw means no card was created.
+      setImportError(true);
+      setImporting(false);
+    }
+  });
+
   const runImport = () => executionGuard.run(async () => {
     if (importDisabled) return;
     Keyboard.dismiss();
@@ -256,7 +357,125 @@ export function BulkImportModal({
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {step === 'input' ? (
+          {step === 'file-preview' && filePlan !== null ? (
+            <View style={styles.flex}>
+              <View style={[styles.previewSummary, { borderBottomColor: pal.border }]}>
+                <Text style={[styles.previewHeading, { color: pal.text }]} numberOfLines={1}>
+                  {t('import_file_summary').replace('{file}', fileName)}
+                </Text>
+                {/* Valid, duplicate and skipped are always all three, so a zero
+                    is visible rather than the row silently disappearing. */}
+                <Text style={[styles.count, { color: pal.sub }]}>
+                  {[
+                    formatCount(t('import_file_valid'), filePlan.validCount),
+                    formatCount(t('import_file_duplicates'), filePlan.duplicateCount),
+                    formatCount(t('import_file_invalid'), filePlan.invalidCount),
+                  ].join(' · ')}
+                </Text>
+                {filePlan.routedElsewhereCount > 0 && (
+                  <Text style={[styles.count, { color: pal.sub }]}>
+                    {formatCount(t('import_file_routed'), filePlan.routedElsewhereCount)}
+                  </Text>
+                )}
+                {filePlan.ignoredColumns.length > 0 && (
+                  <Text style={[styles.count, { color: pal.sub }]}>
+                    {t('import_file_ignored_columns').replace('{columns}', filePlan.ignoredColumns.join(', '))}
+                  </Text>
+                )}
+              </View>
+
+              <ScrollView
+                style={styles.flex}
+                contentContainerStyle={styles.previewList}
+                showsVerticalScrollIndicator={false}
+              >
+                {filePlan.items.map(item => (
+                  <View
+                    key={item.id}
+                    style={[styles.previewItem, { backgroundColor: pal.card, borderColor: pal.border }]}
+                  >
+                    <Text style={[styles.itemNumber, { color: pal.sub }]}>{item.rowNumber}</Text>
+                    <View style={styles.itemBody}>
+                      <Text style={[styles.fileItemWord, { color: pal.text }]}>{item.word}</Text>
+                      {item.meaning !== '' && (
+                        <Text style={[styles.fileItemMeaning, { color: pal.sub }]} numberOfLines={2}>
+                          {item.meaning}
+                        </Text>
+                      )}
+                      <View style={styles.badgeRow}>
+                        {item.status !== 'valid' && (
+                          <Text style={styles.duplicateBadge}>
+                            {item.status === 'invalid'
+                              ? t('import_file_invalid').replace('{n} ', '')
+                              : t('bulk_import_duplicate')}
+                          </Text>
+                        )}
+                        {item.routedFolderName !== '' && (
+                          <Text style={[styles.folderBadge, { color: pal.sub, borderColor: pal.border }]}>
+                            {item.routedFolderName}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Rows the parser could not read at all, named by line so the
+                    file can actually be fixed. */}
+                {filePlan.errors.map(error => (
+                  <View
+                    key={`error-${error.rowNumber}`}
+                    style={[styles.previewItem, { backgroundColor: pal.card, borderColor: pal.border }]}
+                  >
+                    <Text style={[styles.itemNumber, { color: pal.sub }]}>{error.rowNumber}</Text>
+                    <View style={styles.itemBody}>
+                      <Text style={[styles.fileItemMeaning, { color: pal.sub }]}>
+                        {formatCount(t('import_file_row'), error.rowNumber)}
+                      </Text>
+                      <View style={styles.badgeRow}>
+                        <Text style={styles.duplicateBadge}>
+                          {t('import_file_invalid').replace('{n} ', '')}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <View style={[styles.previewFooter, { borderTopColor: pal.border, backgroundColor: pal.bg }]}>
+                {importError && (
+                  <Text style={styles.errorText}>{t('bulk_import_failed_generic')}</Text>
+                )}
+                <View style={styles.footerButtons}>
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, { backgroundColor: pal.chip }]}
+                    onPress={() => { setStep('input'); setFilePlan(null); }}
+                    disabled={importing}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('cancel')}
+                    accessibilityState={{ disabled: importing }}
+                  >
+                    <Text style={[styles.buttonText, { color: pal.text }]}>{t('cancel')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryButton,
+                      { backgroundColor: themeColor },
+                      (importing || filePlan.validCount === 0) && styles.disabled,
+                    ]}
+                    onPress={() => { void runFileImport(); }}
+                    disabled={importing || filePlan.validCount === 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('bulk_import_import')}
+                    accessibilityState={{ disabled: importing || filePlan.validCount === 0, busy: importing }}
+                  >
+                    {importing && <ActivityIndicator size="small" color="#fff" />}
+                    <Text style={styles.primaryButtonText}>{t('bulk_import_import')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ) : step === 'input' ? (
             <ScrollView
               ref={scrollRef}
               onScroll={handleScroll}
@@ -274,6 +493,29 @@ export function BulkImportModal({
               showsVerticalScrollIndicator={false}
             >
               <Text style={[styles.helper, { color: pal.sub }]}>{t('bulk_import_helper')}</Text>
+
+              {/* Import from a file. Sits above the text box because it is an
+                  alternative to typing, not an action performed on what was
+                  typed — choosing a file leaves the box untouched. */}
+              <TouchableOpacity
+                style={[styles.fileButton, { borderColor: pal.border, backgroundColor: pal.card }]}
+                onPress={() => { void pickFile(); }}
+                disabled={picking}
+                accessibilityRole="button"
+                accessibilityLabel={t('import_from_file')}
+                accessibilityState={{ disabled: picking, busy: picking }}
+              >
+                {picking
+                  ? <ActivityIndicator size="small" color={themeColor} />
+                  : <Ionicons name="document-attach-outline" size={17} color={themeColor} />}
+                <Text style={[styles.fileButtonText, { color: pal.text }]}>
+                  {t('import_from_file')}
+                </Text>
+              </TouchableOpacity>
+              {fileErrorKey !== null && (
+                <Text style={styles.errorText}>{t(fileErrorKey as never)}</Text>
+              )}
+
               <View style={styles.resetRow}>
                 <TouchableOpacity
                   style={[
@@ -579,6 +821,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, paddingTop: 5 },
+  // ── File import ─────────────────────────────────────────────────────────────
+  fileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  fileButtonText: { fontSize: 15, fontWeight: '600' },
+  // Read-only rows: a file's contents are corrected in the file, not here, and
+  // an editable field would suggest otherwise.
+  fileItemWord: { fontSize: 15, fontWeight: '600' },
+  fileItemMeaning: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+  folderBadge: {
+    overflow: 'hidden',
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    fontSize: 11,
+    fontWeight: '600',
+  },
   duplicateBadge: {
     color: '#9A6700',
     backgroundColor: '#FFF4CE',

@@ -59,6 +59,23 @@ export type Tier = 'free' | 'basic' | 'premium';
  * cache lifetime no matter how many people play it. It is still subject to the
  * kill switch, the input cap and the per-minute and per-day rate limits.
  */
+/**
+ * Routes that accept no caller identity at all.
+ *
+ * A server-side constant keyed on the route, exactly like FEATURE_TIER: there
+ * is no request field, header or body value that can reach it, so a caller
+ * cannot ask to be treated as anonymous.
+ *
+ * Only the fixed promo previews qualify, and only because the request carries
+ * nothing to attribute: no text, no voice, a two-value sample id and a language
+ * code normalised against a fixed table. With no install id these are limited
+ * by IP alone — see `planBuckets` — which is the only signal such a request has.
+ *
+ * Adding anything else here would remove the per-device limit from a route that
+ * can be pointed at user content. Do not.
+ */
+export const ANONYMOUS_FEATURES: ReadonlySet<Feature> = new Set<Feature>(['voice_promo']);
+
 export const FEATURE_TIER: Readonly<Record<Feature, Tier>> = {
   voice_card: 'basic',
   voice_sample: 'basic',

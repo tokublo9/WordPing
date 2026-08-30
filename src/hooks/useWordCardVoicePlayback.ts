@@ -4,6 +4,7 @@ import type { WordCard } from '../types';
 import { useLang } from '../i18n';
 import { speak, speakWordCard, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 import { isAIRequestError } from '../lib/api/errors';
+import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
 import {
   buildAiVoiceLimitMessage,
   fillTemplate,
@@ -141,6 +142,13 @@ export function useWordCardVoicePlayback({
         Alert.alert(title, t('err_service_not_configured'));
         return;
 
+      case 'consent_required':
+        // The prompt above normally means this never surfaces. If it does, the
+        // request was refused on the device and nothing was sent, so say that
+        // rather than blaming the service.
+        Alert.alert(title, t('ai_consent_required_msg'));
+        return;
+
       // Both reach here only without a Retry-After to count from. Still a usage
       // limit, so still the banner rather than a modal alert.
       case 'rate_limited':
@@ -186,6 +194,12 @@ export function useWordCardVoicePlayback({
       stopVoice();
       return;
     }
+
+    // Only the subscriber path reaches OpenAI. Free-plan playback is expo-speech
+    // on the device and a card's attached audio is a local file, so neither asks
+    // for anything: a non-AI feature must keep working without consent.
+    const usesAI = isSubscribed && !(target === 'word' && Boolean(item.audioUri));
+    if (usesAI && !await ensureAIConsentForUserAction()) return;
 
     const sequence = ++sequenceRef.current;
     setVoiceState({ target, phase: 'checking-cache' });

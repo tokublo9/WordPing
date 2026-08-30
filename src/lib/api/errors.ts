@@ -27,7 +27,15 @@ export type AIErrorKind =
   /** Purchase status could not be verified. Offer Retry + Restore Purchases. */
   | 'entitlement_unverified'
   /** The speech service itself is misconfigured. Not the user's problem. */
-  | 'not_configured';
+  | 'not_configured'
+  /**
+   * AI data sharing has not been permitted, so nothing was sent.
+   *
+   * Produced entirely on the device, before any request leaves it — the Worker
+   * never returns this. Reaching a screen means an AI path skipped the consent
+   * prompt, which is a bug rather than something to show an outage for.
+   */
+  | 'consent_required';
 
 /** Legacy codes the UI matches on. Also used as `Error.message`. */
 export type LegacyErrorCode =
@@ -41,7 +49,8 @@ export type LegacyErrorCode =
   | 'service_unavailable'
   | 'monthly_api_limit_reached'
   | 'entitlement_unverified'
-  | 'not_configured';
+  | 'not_configured'
+  | 'consent_required';
 
 const LEGACY_BY_KIND: Readonly<Record<AIErrorKind, LegacyErrorCode>> = {
   offline: 'service_unavailable',
@@ -56,6 +65,7 @@ const LEGACY_BY_KIND: Readonly<Record<AIErrorKind, LegacyErrorCode>> = {
   monthly_limit_reached: 'monthly_api_limit_reached',
   entitlement_unverified: 'entitlement_unverified',
   not_configured: 'not_configured',
+  consent_required: 'consent_required',
 };
 
 /**
@@ -224,6 +234,7 @@ export const MESSAGE_KEY_BY_KIND: Readonly<Record<AIErrorKind, string>> = {
   monthly_limit_reached: 'err_voice_limit_basic',
   entitlement_unverified: 'err_entitlement_unverified',
   not_configured: 'err_service_not_configured',
+  consent_required: 'ai_consent_required_msg',
 };
 
 export function isAIRequestError(value: unknown): value is AIRequestError {

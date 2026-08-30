@@ -66,6 +66,10 @@ export interface AppModalsProps {
     visible: boolean;
     onClose(): void;
     existingTexts: readonly string[];
+    /** Every card and folder: a CSV/JSON row can name a folder of its own. */
+    existingCards: readonly WordCard[];
+    folders: readonly Folder[];
+    destinationFolderId: string | null;
     onImport(drafts: readonly BulkImportDraft[]): Promise<BulkImportResult> | BulkImportResult;
   };
 
@@ -111,6 +115,8 @@ export interface AppModalsProps {
     onToggleVerticalFlip: Dispatch<SetStateAction<boolean>>;
     hideAiTools: boolean;
     onToggleHideAiTools: Dispatch<SetStateAction<boolean>>;
+    /** From the one entitlement rule; false while RevenueCat is still answering. */
+    canUseAI: boolean;
     onDataReplaced(): void;
   };
 
@@ -153,6 +159,8 @@ export interface AppModalsProps {
     verticalFlip: boolean;
     onUpdateCard(id: string, patch: Partial<WordCard>): void;
     onDeleteCard(id: string): void;
+    /** First card graded this session — drives the result-filter tutorial. */
+    onFirstAnswer(): void;
     onClose(): void;
   };
 
@@ -221,6 +229,9 @@ export function AppModals({
         pal={pal}
         themeColor={themeColor}
         existingTexts={bulkImport.existingTexts}
+        existingCards={bulkImport.existingCards}
+        folders={bulkImport.folders}
+        destinationFolderId={bulkImport.destinationFolderId}
         onImport={bulkImport.onImport}
       />
 
@@ -278,6 +289,7 @@ export function AppModals({
         onToggleVerticalFlip={settingsModal.onToggleVerticalFlip}
         hideAiTools={settingsModal.hideAiTools}
         onToggleHideAiTools={settingsModal.onToggleHideAiTools}
+        canUseAI={settingsModal.canUseAI}
         onDataReplaced={settingsModal.onDataReplaced}
       />
 
@@ -343,6 +355,7 @@ export function AppModals({
           resetCards={testMode.resetCards}
           onUpdateCard={testMode.onUpdateCard}
           onDeleteCard={testMode.onDeleteCard}
+          onFirstAnswer={testMode.onFirstAnswer}
           onClose={testMode.onClose}
           pal={pal}
           themeColor={themeColor}

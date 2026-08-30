@@ -1,6 +1,13 @@
 import { DEFAULT_AI_VOICE, isAIVoice, type AIVoice } from './aiVoices';
 import { AIRequestError } from './api/errors';
-import { postSpeech, postText, type TextEndpoint, type VoiceEndpoint } from './api/client';
+import {
+  postPromoSpeech,
+  postSpeech,
+  postText,
+  type SpeechResult,
+  type TextEndpoint,
+  type VoiceEndpoint,
+} from './api/client';
 import { analyzeWavBestEffort, type WavTrimResult } from './wavSilence';
 
 /**
@@ -122,11 +129,17 @@ export function requestAIText(
 /** Legacy action names, kept so the TTS pipeline did not need reworking. */
 export type AISpeechAction = 'speech' | 'speech_custom' | 'speech_sample' | 'speech_promo';
 
-const VOICE_ENDPOINTS: Readonly<Record<AISpeechAction, VoiceEndpoint>> = {
+/**
+ * The user-content voice routes.
+ *
+ * `speech_promo` is deliberately absent: it does not go through `postSpeech` at
+ * all, but through `postPromoSpeech`, which sends no identifiers and skips the
+ * entitlement and consent gates because it carries nothing of the user's.
+ */
+const VOICE_ENDPOINTS: Readonly<Record<Exclude<AISpeechAction, 'speech_promo'>, VoiceEndpoint>> = {
   speech: 'card',
   speech_custom: 'custom',
   speech_sample: 'sample',
-  speech_promo: 'promo',
 };
 
 /** Identifies one of the two fixed promotional clips. Never carries text. */
@@ -155,20 +168,25 @@ export async function requestAISpeech(
   const normalizedVoice = typeof voice === 'string' ? voice.trim().toLowerCase() : '';
   const validVoice: AIVoice = isAIVoice(normalizedVoice) ? normalizedVoice : DEFAULT_AI_VOICE;
 
-  // The promo body deliberately omits both `text` and `voice`: the Worker picks
-  // the sentence from the sample id and speaks it in its own fixed voice.
-  const body: Record<string, unknown> = action === 'speech_promo'
-    ? {
-        sample: promo!.sample,
-        langCode: promo!.langCode,
-        ...(sampleVersion ? { sampleVersion } : {}),
-      }
-    : action === 'speech_sample'
+  const requestStartedAtMs = performance.now();
+
+  // The promo takes its own path. Its body is built inside `postPromoSpeech`
+  // from an allowlisted sample id, so nothing assembled here can reach it — in
+  // particular neither `text` nor `voice`, which the route has no field for.
+  let result: SpeechResult;
+  if (action === 'speech_promo') {
+    result = await postPromoSpeech(
+      promo!.sample,
+      promo!.langCode,
+      sampleVersion,
+      { ...(signal ? { signal } : {}) },
+    );
+  } else {
+    const body: Record<string, unknown> = action === 'speech_sample'
       ? { voice: validVoice, ...(sampleVersion ? { sampleVersion } : {}) }
       : { text: trimmedText, voice: validVoice, format };
-
-  const requestStartedAtMs = performance.now();
-  const result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });
+    result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });
+  }
   const responseReceivedAtMs = performance.now();
 
   // Best-effort by contract: unanalysable audio is returned untouched rather

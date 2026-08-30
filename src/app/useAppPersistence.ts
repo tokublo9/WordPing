@@ -10,6 +10,11 @@ import {
   VERTICAL_FLIP_KEY,
   WORD_LIST_FILTERS_KEY,
 } from '../constants';
+import {
+  FIRST_TEST_ANSWER_KEY,
+  RESULT_FILTER_TUTORIAL_KEY,
+  serializeTutorialFlag,
+} from '../features/onboarding/tutorialState';
 import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
 import type { AIVoice } from '../lib/aiVoices';
@@ -30,6 +35,8 @@ export interface UseAppPersistenceParams {
   verticalFlip: boolean;
   hideAiTools: boolean;
   syncTestResults: boolean;
+  resultFilterTutorialSeen: boolean;
+  firstTestAnswerRecorded: boolean;
   activeResultFiltersByFolder: ActiveResultFiltersByFolder;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
@@ -50,6 +57,8 @@ export function useAppPersistence({
   verticalFlip,
   hideAiTools,
   syncTestResults,
+  resultFilterTutorialSeen,
+  firstTestAnswerRecorded,
   activeResultFiltersByFolder,
   hasLoaded,
   cardsLoaded,
@@ -103,6 +112,23 @@ export function useAppPersistence({
     AsyncStorage.setItem(SYNC_TEST_RESULTS_KEY, syncTestResults ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setSyncTestResults', e));
   }, [syncTestResults]);
+
+  // One-time tutorial flags. Each is only ever set, never cleared, so these
+  // writes are a handful per install and the `hasLoaded` guard keeps the initial
+  // false values from being written back over a stored true.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(RESULT_FILTER_TUTORIAL_KEY, serializeTutorialFlag(resultFilterTutorialSeen))
+      .catch(e => reportSideEffectFailure('setResultFilterTutorialSeen', e));
+  }, [resultFilterTutorialSeen]);
+
+  // Written as soon as the first card is graded, so force-closing the app right
+  // afterwards still leaves the filters visible on the next launch.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(FIRST_TEST_ANSWER_KEY, serializeTutorialFlag(firstTestAnswerRecorded))
+      .catch(e => reportSideEffectFailure('setFirstTestAnswerRecorded', e));
+  }, [firstTestAnswerRecorded]);
 
   useEffect(() => {
     if (!activeResultFiltersLoaded.current) return;

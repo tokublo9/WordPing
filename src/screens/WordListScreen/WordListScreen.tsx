@@ -126,6 +126,15 @@ export interface WordListScreenProps {
 
   // Level filter
   activeResultFilter: ActiveResultFilter;
+  /**
+   * Whether the result-colour chips may be shown at all.
+   *
+   * False for a user who has never answered a card in Test Mode: the colours
+   * categorise test results, and before there are any the chips would be four
+   * inert controls with nothing to explain them. The whole group is left out
+   * rather than disabled, so no empty spacing is left behind.
+   */
+  showResultFilters: boolean;
   showLevelLabels: boolean;
   /** Controls only the lower-right result decoration on word cards. */
   showResultColor: boolean;
@@ -151,7 +160,7 @@ export function WordListScreen({
   currentFolder, allFolderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
   cardViewMode, onToggleViewMode, currentWordId, onCurrentWordChange,
-  activeResultFilter, showLevelLabels, showResultColor, onToggleResultFilter,
+  activeResultFilter, showResultFilters, showLevelLabels, showResultColor, onToggleResultFilter,
   flipped, closeOpenCard, onCardOpen,
   selection, reorder, actions,
   menuBtnRef,
@@ -817,6 +826,16 @@ export function WordListScreen({
     t(allFolderCards.length === 1 ? 'words_singular' : 'words_plural')
   }`;
 
+  // Whether there is more than one page to be at a position within, measured
+  // rather than guessed. In List Mode that is the app's existing "the content
+  // is taller than the viewport" test — the same one the scrollbar uses, so the
+  // readout and the scrollbar always agree. In Flip Mode each card is a page.
+  // Both recompute from live values, so adding, deleting, importing, moving or
+  // filtering words updates this without any extra bookkeeping.
+  const hasMultiplePages = cardViewMode === 'flip'
+    ? filteredFolderCards.length > 1
+    : getScrollBarMetrics(listContentH, listViewH).show;
+
   const wordCount = (
     <View onTouchStart={() => closeOpenCard.current?.()}>
       <WordListPositionLabel
@@ -825,6 +844,7 @@ export function WordListScreen({
         topContent={wordCountSummary}
         currentIndex={resolvedCurrentWordIndex + 1}
         showCurrentPosition={cardViewMode === 'flip' && isFilterActive}
+        hasMultiplePages={hasMultiplePages}
         style={[s.wordCount, { color: pal.sub }]}
       />
     </View>
@@ -847,6 +867,16 @@ export function WordListScreen({
     >
       {showLevelLabels && (
         <>
+          {/* The chips alone are conditional. The Test Mode button beside them
+              is not a result filter and must stay reachable — it is how a new
+              user produces the results these chips will filter by.
+
+              The row is `space-between`, so with the chip group absent entirely
+              the Test button would become the only child and slide to the left
+              edge. The `false` branch keeps the same container in the same slot
+              with no children: the button holds its position exactly, while
+              there is nothing rendered to see, tap or focus. */}
+          {showResultFilters ? (
           <View style={filterStyles.chipGroup}>
             {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
               const count = levelCounts[level];
@@ -882,6 +912,14 @@ export function WordListScreen({
               );
             })}
           </View>
+          ) : (
+            <View
+              style={filterStyles.chipGroup}
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+          )}
           <TouchableOpacity
             style={s.iconBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

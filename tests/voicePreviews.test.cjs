@@ -113,9 +113,20 @@ test('a free preview cannot carry text or choose a voice', () => {
   assert.match(handler, /voice: PROMO_SAMPLE_VOICE,/u);
   assert.doesNotMatch(handler, /body\.text|body\.voice/u);
 
-  // And the client never puts text in the body either.
+  // And the client never puts text in the body either. The promo body is now
+  // built inside `postPromoSpeech`, from arguments it validates itself, so no
+  // caller-assembled object can reach the route.
+  const client = read('src/lib/api/client.ts');
+  const promoFn = client.slice(client.indexOf('export async function postPromoSpeech'));
+  assert.match(promoFn, /if \(!isPromoSampleId\(sample\)\) \{/u);
+  assert.match(
+    promoFn,
+    /\{\s*sample,\s*\.\.\.\(langCode !== undefined \? \{ langCode \} : \{\}\),\s*\.\.\.\(sampleVersion !== undefined \? \{ sampleVersion \} : \{\}\),\s*\}/u,
+  );
+  assert.doesNotMatch(promoFn, /\btext\b|\bvoice\b/u);
+
   const gateway = read('src/lib/openaiGateway.ts');
-  assert.match(gateway, /\? \{\s*sample: promo!\.sample,\s*langCode: promo!\.langCode,/u);
+  assert.match(gateway, /result = await postPromoSpeech\(\s*promo!\.sample,\s*promo!\.langCode,/u);
 });
 
 test('an unapproved sample id is rejected by the schema', () => {
@@ -191,10 +202,15 @@ test('each sample has its own loading state and starting one stops the other', (
   assert.match(handler, /const sequence = \+\+demoSequence\.current;\s*stopPlayback\(\);/u);
 });
 
-test('an offline preview says so instead of showing a generic failure', () => {
+test('an offline preview says so; any other failure says the preview is unavailable', () => {
   const sheet = read('src/components/ProSheet.tsx');
   assert.match(sheet, /error instanceof AIRequestError && error\.kind === 'offline'/u);
-  assert.match(sheet, /t\(offline \? 'err_offline' : 'err_generation_failed'\)/u);
+  // The AI branch gets its own copy: a fixed promo clip that will not load is a
+  // preview problem, not a failed generation of the user's own content.
+  assert.match(
+    sheet,
+    /t\(offline \? 'err_offline' : isAI \? 'promo_preview_unavailable' : 'err_generation_failed'\)/u,
+  );
 });
 
 test('word-card AI voice is still gated for Free users', () => {

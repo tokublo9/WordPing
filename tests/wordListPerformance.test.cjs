@@ -167,8 +167,13 @@ test('the default count shows visible over all existing cards in List and Flip',
   const label = read('src/components/WordListPositionLabel.tsx');
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
 
-  // "At top" remains an explicit signal so the existing word-count summary is preserved.
-  assert.match(label, /const showPosition = \(showCurrentPosition \|\| !state\.atTop\) && total > 0;/u);
+  // "At top" remains an explicit signal so the existing word-count summary is
+  // preserved. Content that fits on one page suppresses the position entirely —
+  // there is nothing to be at a position within.
+  assert.match(
+    label,
+    /const showPosition = hasMultiplePages && \(showCurrentPosition \|\| !state\.atTop\) && total > 0;/u,
+  );
   assert.match(label, /\{showPosition \? `\$\{position\} \/ \$\{total\}` : topContent\}/u);
   assert.match(wordList, /const atTop = offset <= LIST_TOP_EPSILON;/u);
   assert.match(wordList, /const LIST_TOP_EPSILON = \d+;/u);
@@ -187,7 +192,14 @@ test('the default count shows visible over all existing cards in List and Flip',
   // It replaces the old header Text in place, keeping that line's styling.
   assert.match(
     wordList,
-    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{cardViewMode === 'flip' && isFilterActive\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
+    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{cardViewMode === 'flip' && isFilterActive\}\s*hasMultiplePages=\{hasMultiplePages\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
+  );
+  // "More than one page" comes from the same measurement the scrollbar uses in
+  // List Mode, and from the card count in Flip Mode where each card is a page —
+  // never from a fixed number of words.
+  assert.match(
+    wordList,
+    /const hasMultiplePages = cardViewMode === 'flip'\s*\? filteredFolderCards\.length > 1\s*: getScrollBarMetrics\(listContentH, listViewH\)\.show;/u,
   );
   assert.match(
     wordList,

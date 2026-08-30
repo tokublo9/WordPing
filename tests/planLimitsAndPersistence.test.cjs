@@ -242,7 +242,9 @@ test('AI requests never start during app bootstrap', () => {
   // The API client resolves its identity lazily, on first use.
   const client = read('src/lib/api/client.ts');
   assert.match(client, /identityRequest \?\?= resolveIdentity\(\)/u);
-  assert.match(client, /const identity = await getIdentity\(\);/u);
+  // Resolved lazily, and only for a request that carries user content: a fixed
+  // promo clip must not mint an install id just to play a public sample.
+  assert.match(client, /const identity = kind === 'user-content' \? await getIdentity\(\) : null;/u);
 });
 
 test('a failed data load never opens the persistence write gate', () => {

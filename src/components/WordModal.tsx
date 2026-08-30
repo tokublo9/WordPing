@@ -35,6 +35,8 @@ import type { Palette, ReviewEntry, TestLevel, WordCard } from '../types';
 import { SUPPORTED_LANGUAGES, useLang, type TranslationKey } from '../i18n';
 import { LanguageModal } from './LanguageModal';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
+import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
+import { AIConsentDialog } from './AIConsentDialog';
 import { AI_TEXT_FEATURES_ENABLED } from '../features/flags';
 import { appStyles as s } from '../styles';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
@@ -457,6 +459,9 @@ export function WordModal({
     const trimmed = word.trim();
     if (!trimmed || isGenerating) return;
     Keyboard.dismiss();
+    // Every one of the four AI text tools submits the user's own text, so each
+    // asks permission before anything is sent.
+    if (!await ensureAIConsentForUserAction()) return;
     setIsGenerating(true);
     try {
       const result = await generateMeaning(trimmed, genLang);
@@ -479,6 +484,7 @@ export function WordModal({
     const trimmed = word.trim();
     if (!trimmed || isGeneratingExample) return;
     Keyboard.dismiss();
+    if (!await ensureAIConsentForUserAction()) return;
     setIsGeneratingExample(true);
     try {
       const result = await generateExample(trimmed, exampleLang);
@@ -501,6 +507,7 @@ export function WordModal({
     const trimmed = word.trim();
     if (!trimmed || isBreakingDown) return;
     Keyboard.dismiss();
+    if (!await ensureAIConsentForUserAction()) return;
     setIsBreakingDown(true);
     try {
       onChangeNote(await generateBreakdown(trimmed, breakdownLang));
@@ -522,6 +529,7 @@ export function WordModal({
     const trimmed = meaning.trim();
     if (!trimmed || isTranslatingMeaning) return;
     Keyboard.dismiss();
+    if (!await ensureAIConsentForUserAction()) return;
     setIsTranslatingMeaning(true);
     try {
       setMeaningTranslation(await translateText(trimmed, meaningTransLang));
@@ -544,6 +552,7 @@ export function WordModal({
     const trimmed = note.trim();
     if (!trimmed || isTranslatingNote) return;
     Keyboard.dismiss();
+    if (!await ensureAIConsentForUserAction()) return;
     setIsTranslatingNote(true);
     try {
       setNoteTranslation(await translateText(trimmed, noteTransLang));
@@ -1132,6 +1141,11 @@ export function WordModal({
           </TouchableOpacity>
         </Animated.View>
       )}
+
+      {/* AI data-sharing consent — mounted here for the same reason as the
+          pickers below: this modal owns its own native controller, so the
+          dialog has to be presented from inside it to appear above the editor. */}
+      <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
 
       {/* TTS language picker (word / meaning fields only) */}
       {(pickerFor === 'word' || pickerFor === 'meaning') && (
