@@ -17,6 +17,7 @@ import Purchases from 'react-native-purchases';
 
 import type { Palette } from '../types';
 import { getAIEntitlementSnapshot } from '../lib/aiEntitlement';
+import { ENTITLEMENT_IDS } from '../lib/purchases';
 
 /**
  * TEMPORARY — Subscription Diagnostics.
@@ -49,8 +50,21 @@ interface Props {
 
 interface Report {
   appUserId: string;
+  /**
+   * The customer RevenueCat filed this device under first.
+   *
+   * After an App Store receipt is transferred, the current App User ID can be an
+   * alias and will not be found by a dashboard search — the canonical customer
+   * is under this one. When the two differ, this is the ID to look up.
+   */
+  originalAppUserId: string;
   isAnonymous: boolean;
+  isAliased: boolean;
   activeEntitlements: string[];
+  /** Premium's own details, when it is active. Null when it is not. */
+  premium: PremiumDetails | null;
+  /** Whether Apple gave a manage-subscription link, not the link itself. */
+  hasManagementUrl: boolean;
   /** From the same snapshot the AI entitlement rule reads. */
   plan: string;
   entitlementSource: string;
@@ -76,6 +90,22 @@ interface Report {
    */
   offering: string;
   packages: string[];
+}
+
+/**
+ * The active Premium entitlement, reduced to what identifies the purchase.
+ *
+ * Product identifier, store, sandbox flag, expiry and renewal state only —
+ * never the receipt, the transaction, or the verification payload that sit
+ * alongside them on the same object.
+ */
+interface PremiumDetails {
+  productIdentifier: string;
+  /** e.g. "App Store — Sandbox". Sandbox is the usual reason for a stray customer. */
+  environment: string;
+  expirationDate: string;
+  willRenew: string;
+  periodType: string;
 }
 
 /** Describes the key without reproducing it. */
@@ -105,11 +135,11 @@ type State =
 export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor }: Props) {
   const insets = useSafeAreaInsets();
   const [state, setState] = useState<State>({ status: 'loading' });
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ status: 'loading' });
-    setCopied(false);
+    setCopied(null);
     // The published snapshot — plan, source and loaded flag — is what the rest
     // of the app actually acts on, so reading it here shows the real state
     // rather than a second opinion computed for this screen.
@@ -122,11 +152,26 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
         // Best-effort: a project with no offerings configured is itself a clue.
         Purchases.getOfferings().catch(() => null),
       ]);
+      const premiumInfo = info.entitlements.active[ENTITLEMENT_IDS.PREMIUM];
       setState({
         status: 'ready',
         report: {
           appUserId,
+          originalAppUserId: info.originalAppUserId,
           isAnonymous: appUserId.startsWith('$RCAnonymousID:'),
+          // A receipt transfer leaves the device on an alias. That is exactly
+          // the case where searching the dashboard for the current ID finds
+          // nothing, so it is called out rather than left to be spotted.
+          isAliased: info.originalAppUserId !== appUserId,
+          premium: premiumInfo === undefined ? null : {
+            productIdentifier: premiumInfo.productIdentifier,
+            environment: `${premiumInfo.store}${premiumInfo.isSandbox ? ' — Sandbox' : ' — Production'}`,
+            expirationDate: premiumInfo.expirationDate ?? 'none (non-expiring)',
+            willRenew: premiumInfo.willRenew ? 'yes' : 'no',
+            periodType: premiumInfo.periodType,
+          },
+          // Presence only. The URL itself is Apple's and adds nothing here.
+          hasManagementUrl: info.managementURL !== null,
           // Identifiers only. The entitlement objects also carry store receipts
           // and product metadata, which are deliberately not read.
           activeEntitlements: Object.keys(info.entitlements.active),
@@ -151,11 +196,10 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
     if (visible) void load();
   }, [load, visible]);
 
-  const copyAppUserId = useCallback(async () => {
-    if (state.status !== 'ready') return;
-    await Clipboard.setStringAsync(state.report.appUserId);
-    setCopied(true);
-  }, [state]);
+  const copyValue = useCallback(async (field: string, value: string) => {
+    await Clipboard.setStringAsync(value);
+    setCopied(field);
+  }, []);
 
   return (
     <Modal
@@ -213,31 +257,42 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
             {state.status === 'ready' && (
               <>
                 <Field
-                  label="RevenueCat App User ID"
+                  label="RevenueCat App User ID (current)"
                   value={state.report.appUserId}
                   monospace
                   pal={pal}
                 />
-                <TouchableOpacity
-                  style={[styles.copyButton, { borderColor: pal.border, backgroundColor: pal.card }]}
-                  onPress={() => { void copyAppUserId(); }}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Copy App User ID"
-                >
-                  <Ionicons
-                    name={copied ? 'checkmark' : 'copy-outline'}
-                    size={15}
-                    color={copied ? themeColor : pal.sub}
-                  />
-                  <Text style={[styles.copyLabel, { color: copied ? themeColor : pal.text }]}>
-                    {copied ? 'Copied' : 'Copy App User ID'}
-                  </Text>
-                </TouchableOpacity>
+                <CopyButton
+                  label="Copy current App User ID"
+                  copied={copied === 'current'}
+                  onPress={() => { void copyValue('current', state.report.appUserId); }}
+                  pal={pal}
+                  themeColor={themeColor}
+                />
+
+                <Field
+                  label="Original App User ID"
+                  value={state.report.originalAppUserId}
+                  monospace
+                  pal={pal}
+                />
+                <CopyButton
+                  label="Copy original App User ID"
+                  copied={copied === 'original'}
+                  onPress={() => { void copyValue('original', state.report.originalAppUserId); }}
+                  pal={pal}
+                  themeColor={themeColor}
+                />
 
                 <Field
                   label="Identity"
-                  value={state.report.isAnonymous ? 'Anonymous (no login)' : 'Aliased'}
+                  value={
+                    state.report.isAliased
+                      ? 'ALIASED — search the dashboard for the original ID'
+                      : state.report.isAnonymous
+                        ? 'Anonymous (no login), not aliased'
+                        : 'Not aliased'
+                  }
                   pal={pal}
                 />
                 <Field label="Resolved plan" value={state.report.plan} pal={pal} />
@@ -254,6 +309,24 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
                 <Field
                   label="Subscription loaded"
                   value={state.report.isSubscriptionLoaded ? 'yes' : 'still loading'}
+                  pal={pal}
+                />
+
+                <Text style={[styles.sectionLabel, { color: pal.sub }]}>Premium purchase</Text>
+                {state.report.premium === null ? (
+                  <Field label="Premium" value="not active" pal={pal} />
+                ) : (
+                  <>
+                    <Field label="Product identifier" value={state.report.premium.productIdentifier} monospace pal={pal} />
+                    <Field label="Environment / store" value={state.report.premium.environment} pal={pal} />
+                    <Field label="Expires" value={state.report.premium.expirationDate} pal={pal} />
+                    <Field label="Will renew" value={state.report.premium.willRenew} pal={pal} />
+                    <Field label="Period type" value={state.report.premium.periodType} pal={pal} />
+                  </>
+                )}
+                <Field
+                  label="Manage-subscription link"
+                  value={state.report.hasManagementUrl ? 'available' : 'not available'}
                   pal={pal}
                 />
 
@@ -301,6 +374,29 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
         </View>
       </View>
     </Modal>
+  );
+}
+
+function CopyButton({ label, copied, onPress, pal, themeColor }: {
+  label: string;
+  copied: boolean;
+  onPress: () => void;
+  pal: Palette;
+  themeColor: string;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.copyButton, { borderColor: pal.border, backgroundColor: pal.card }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={15} color={copied ? themeColor : pal.sub} />
+      <Text style={[styles.copyLabel, { color: copied ? themeColor : pal.text }]}>
+        {copied ? 'Copied' : label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 

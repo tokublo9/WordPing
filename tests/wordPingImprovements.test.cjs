@@ -849,11 +849,17 @@ test('Subscription Diagnostics is read-only and leaks no credential', () => {
   const code = sheet
     .replace(/\/\*[\s\S]*?\*\//gu, '')
     .replace(/^\s*\/\/.*$/gmu, '');
+  // The entitlement object carries these alongside the fields we do read.
+  // `productIdentifier` is deliberately not on this list — it is the SKU, and
+  // it is one of the values the panel exists to report.
   assert.doesNotMatch(
     code,
-    /receipt|verification|originalPurchaseDate|productIdentifier|\btoken\b/iu,
-    'no receipt or token may be shown',
+    /receipt|verification|originalPurchaseDate|latestPurchaseDate|\btoken\b|nonSubscriptionTransactions/iu,
+    'no receipt, transaction or verification payload may be shown',
   );
+  // The manage-subscription link is reported as present or absent, never as a URL.
+  assert.match(code, /hasManagementUrl: info\.managementURL !== null/u);
+  assert.doesNotMatch(code, /value=\{[^}]*managementURL/u);
 
   // The SDK key is read, but only ever to describe itself. Every value derived
   // from it is a slice or a length — the string itself is never put in state
@@ -879,6 +885,33 @@ test('Subscription Diagnostics is read-only and leaks no credential', () => {
     'the key must never be referenced outside describeKey',
   );
   assert.match(code, /\.\.\.describeKey\(process\.env\.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY \?\? ''\)/u);
+});
+
+test('Subscription Diagnostics reports the canonical customer and its purchase', () => {
+  const sheet = read('src/components/SubscriptionDiagnosticsSheet.tsx');
+
+  // A transferred receipt leaves the device on an alias, and a dashboard search
+  // for the current ID then finds nothing — so the original is shown too, with
+  // its own Copy button and an explicit ALIASED callout when they differ.
+  assert.match(sheet, /originalAppUserId: info\.originalAppUserId/u);
+  assert.match(sheet, /isAliased: info\.originalAppUserId !== appUserId/u);
+  assert.match(sheet, /ALIASED — search the dashboard for the original ID/u);
+  assert.equal((sheet.match(/<CopyButton/gu) ?? []).length, 2);
+
+  // The purchase, reduced to what identifies it.
+  for (const field of [
+    'productIdentifier: premiumInfo.productIdentifier',
+    'premiumInfo.isSandbox',
+    'expirationDate: premiumInfo.expirationDate',
+    'willRenew: premiumInfo.willRenew',
+    'periodType: premiumInfo.periodType',
+  ]) {
+    assert.ok(sheet.includes(field), `missing ${field}`);
+  }
+  // Read from the premium entitlement by its shared identifier, not a literal.
+  assert.match(sheet, /info\.entitlements\.active\[ENTITLEMENT_IDS\.PREMIUM\]/u);
+  // Absent premium is a stated result, not a crash or a blank.
+  assert.match(sheet, /premium === null \? \(\s*<Field label="Premium" value="not active"/u);
 });
 
 test('Subscription Diagnostics is hidden behind a long press and one flag', () => {
