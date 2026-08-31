@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  InteractionManager,
   PanResponder,
   StyleSheet,
   Text,
@@ -23,6 +24,7 @@ import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
 import { TopBanner } from './src/components/TopBanner';
 import { showTopBanner } from './src/lib/topBanner';
+import { reportSideEffectFailure } from './src/utils/reportSideEffectFailure';
 import { AIConsentDialog } from './src/components/AIConsentDialog';
 import { invalidateAIConsent } from './src/lib/aiConsent';
 import {
@@ -31,6 +33,15 @@ import {
   setAIEntitlementSnapshot,
 } from './src/lib/aiEntitlement';
 import { ResultFilterTutorial } from './src/components/ResultFilterTutorial';
+import { useFeatureDiscovery } from './src/hooks/useFeatureDiscovery';
+import {
+  SUBSCRIPTION_CONSENT_PROMPT_KEY,
+  parseConsentPromptShown,
+  serializeConsentPromptShown,
+  shouldPromptConsentAfterSubscription,
+} from './src/features/onboarding/subscriptionOnboarding';
+import { ensureAIConsentForUserAction } from './src/lib/aiConsentPrompt';
+import { getAIConsent, loadAIConsent } from './src/lib/aiConsent';
 import {
   shouldShowResultFilterTutorial,
   shouldShowResultFilters,
@@ -203,10 +214,23 @@ export default function App() {
     [entitlementSource, isSubscriptionLoaded, plan],
   );
   const canUseAI = hasEligibleAIEntitlement(aiEntitlement);
+  const discovery = useFeatureDiscovery({ plan, isSubscriptionLoaded });
 
   useEffect(() => {
     setAIEntitlementSnapshot(aiEntitlement);
   }, [aiEntitlement]);
+
+  // ── Consent, offered once after a verified purchase ───────────────────────
+  // Loaded from storage so it cannot repeat on the next launch; cleared on a
+  // verified downgrade below, so a later resubscription asks again.
+  const [consentPromptShown, setConsentPromptShown] = useState(true);
+  useEffect(() => {
+    AsyncStorage.getItem(SUBSCRIPTION_CONSENT_PROMPT_KEY)
+      // Defaults to "already shown" until the real value arrives, so a slow
+      // read can never flash the dialog at someone who has seen it.
+      .then(raw => setConsentPromptShown(parseConsentPromptShown(raw)))
+      .catch(() => setConsentPromptShown(true));
+  }, []);
 
   // A confirmed move to Free ends the period the permission was given for, so
   // the stored answer stops being reusable: resubscribing must ask again.
@@ -219,6 +243,11 @@ export default function App() {
   useEffect(() => {
     if (!isVerifiedFreePlan(aiEntitlement)) return;
     void invalidateAIConsent();
+    // The offer belongs to the subscription period that just ended. Clearing it
+    // is what lets the next verified subscription ask again.
+    setConsentPromptShown(false);
+    AsyncStorage.setItem(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown(false))
+      .catch(e => reportSideEffectFailure('clearSubscriptionConsentPrompt', e));
   }, [aiEntitlement]);
 
   // ── Tutorials ─────────────────────────────────────────────────────────────────
@@ -415,6 +444,38 @@ export default function App() {
     || settingsModalVisible || notificationModalVisible
     || menuVisible || paywallVisible || proSheetVisible
     || selectionMode || reorderMode;
+
+  // Offered once, after a verified purchase, and only once the Upgrade sheet
+  // has gone. `InteractionManager` waits for the sheet's dismissal animation to
+  // finish rather than guessing at a duration, so the dialog cannot appear
+  // underneath it or during the transition.
+  useEffect(() => {
+    if (!shouldPromptConsentAfterSubscription({
+      plan,
+      isSubscriptionLoaded,
+      entitlementSource,
+      consent: getAIConsent(),
+      alreadyPrompted: consentPromptShown,
+      isUpgradeSheetClosed: !proSheetVisible && !settingsModalVisible,
+      isScreenBusy: screenBusy,
+    })) return;
+
+    let cancelled = false;
+    const handle = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      // Recorded before the dialog opens: whatever the user answers, and even
+      // if they dismiss it, the one-time offer has been made.
+      setConsentPromptShown(true);
+      AsyncStorage.setItem(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown(true))
+        .catch(e => reportSideEffectFailure('setSubscriptionConsentPrompt', e));
+      // The same prompt every AI surface uses. It sends nothing by itself.
+      void loadAIConsent().then(() => ensureAIConsentForUserAction());
+    });
+    return () => { cancelled = true; handle.cancel(); };
+  }, [
+    consentPromptShown, entitlementSource, isSubscriptionLoaded, plan,
+    proSheetVisible, screenBusy, settingsModalVisible,
+  ]);
 
   // The filter tutorial owes nothing to how Test Mode ended. It becomes due the
   // moment a card has been answered, and shows as soon as the user is somewhere
@@ -717,6 +778,7 @@ export default function App() {
           hideAiTools,
           onToggleHideAiTools: setHideAiTools,
           canUseAI,
+          discovery,
           onDataReplaced: reloadAfterImport,
         }}
         paywallModal={{

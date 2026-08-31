@@ -144,7 +144,7 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
       {
         heading: '4. Withdrawing your permission',
         paragraphs: [
-          'You can withdraw permission at any time in the app under Settings → Privacy → AI Data Sharing. The setting shows the current state and can be switched off there.',
+          'You can withdraw permission at any time in the app under Settings → Help → About AI Voice. That screen shows the current state and, while permission is granted, offers "Withdraw AI Data Sharing Permission".',
           'Withdrawing takes effect immediately: WordPing stops sending anything for AI features from that point, including background preparation of audio for words you already have. It does not delete any of your data — your words, folders, notes, notification settings and previously generated audio already stored on your device are untouched — and it does not affect any non-AI feature. If you later use an AI feature again, WordPing asks for permission again rather than resuming silently.',
           'Because generation is only performed while permission is granted, withdrawing it does not, by itself, cause deletion of anything OpenAI may hold under its own retention practices. Requests already completed were governed by OpenAI’s terms and privacy policy at the time they were made.',
         ],
@@ -207,7 +207,7 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         bullets: [
           'You can edit or delete vocabulary and other local content in the app and can remove local app data by deleting the app, subject to iOS behavior and any backup copies you created.',
           'You can decline notification permission or disable notifications in iOS Settings.',
-          'You can decline AI data sharing when asked, and can withdraw permission at any time under Settings → Privacy → AI Data Sharing. See sections 3 and 4.',
+          'You can decline AI data sharing when asked, and can withdraw permission at any time under Settings → Help → About AI Voice. See sections 3 and 4.',
           'You can manage or cancel subscriptions through your Apple account settings.',
           `To request access, correction, deletion, restriction, objection, or information about personal data handled by the Operator, contact ${LEGAL_EMAIL}. Applicable rights vary by jurisdiction. We may need to verify the request and may retain information where legally permitted or required.`,
         ],
@@ -281,7 +281,7 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
       {
         heading: '4. 許可の取消し',
         paragraphs: [
-          '許可は、アプリの「設定」→「プライバシー」→「AIデータ共有」からいつでも取り消せます。同設定では現在の状態を確認でき、その場でオフにできます。',
+          '許可は、アプリの「設定」→「ヘルプ」→「AI Voiceについて」からいつでも取り消せます。同画面では現在の状態を確認でき、許可済みの場合は「AIデータ共有の許可を取り消す」を選択できます。',
           '取消しは直ちに反映され、以後、登録済みの単語に対する音声の事前生成を含め、AI機能のためのデータ送信は行われません。取消しによってデータが削除されることはなく、単語、フォルダ、メモ、通知設定および既に端末内に保存されている生成済み音声は保持されます。AI機能以外の機能にも影響しません。その後あらためてAI機能を利用する場合は、自動的に再開するのではなく、再度許可を求めます。',
           '生成は許可が有効な間にのみ行われるため、許可の取消しそれ自体によって、OpenAIが自社の保存方針に基づき保持する情報が削除されるものではありません。既に完了したリクエストには、実行時点におけるOpenAIの利用規約およびプライバシーポリシーが適用されます。',
         ],
@@ -344,7 +344,7 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         bullets: [
           'アプリ内で単語その他のローカルデータを編集・削除できます。また、利用者が作成したバックアップを除き、iOSの仕様に従ってアプリを削除することでローカルデータを削除できます。',
           '通知権限を許可しないこと、またはiOS設定で通知を無効にすることができます。',
-          'AIデータ共有の許可を求められた際に拒否することができ、「設定」→「プライバシー」→「AIデータ共有」からいつでも許可を取り消せます。第3項および第4項を参照してください。',
+          'AIデータ共有の許可を求められた際に拒否することができ、「設定」→「ヘルプ」→「AI Voiceについて」からいつでも許可を取り消せます。第3項および第4項を参照してください。',
           'Appleアカウントの設定からサブスクリプションを管理または解約できます。',
           `運営者が取り扱う個人情報について、開示、訂正、削除、利用制限、異議申立てまたは取扱いに関する説明を希望する場合は、${LEGAL_EMAIL}までご連絡ください。適用される権利は地域により異なります。本人確認をお願いする場合があり、法令上認められる場合または必要な場合には情報を保持することがあります。`,
         ],

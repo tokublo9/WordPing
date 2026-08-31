@@ -612,21 +612,21 @@ test('the remaining toggles are accessible', () => {
 
 // ── Compact Settings switches ────────────────────────────────────────────────
 
-test('exactly the four visible Settings toggles use the compact control', () => {
+test('exactly the three visible Settings toggles use the compact control', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // One shared component, used once inside ToggleRow — not three transforms.
   assert.equal((settings.match(/<CompactSwitch/gu) ?? []).length, 1);
   assert.doesNotMatch(settings, /<Switch\b/u);
   assert.doesNotMatch(settings, /transform: \[\{ scale/u);
 
-  // ToggleRow defines the three visible Card Behavior toggles, dormant Hide AI,
-  // and the AI Data Sharing consent switch in the Privacy section below them.
+  // ToggleRow defines the three visible Card Behavior toggles plus dormant
+  // Hide AI. The AI Data Sharing switch was removed; permission is now
+  // withdrawn from the About AI Voice explanation instead.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
   assert.deepEqual(rows, [
     'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'hide_ai_tools',
-    'ai_consent_setting',
   ]);
   // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
@@ -718,7 +718,7 @@ test('no conflicting older Sync description survives', () => {
   assert.equal((i18n.match(/sync_test_results_desc:/gu) ?? []).length, 2);
 });
 
-test('exactly four Settings rows carry an information button', () => {
+test('exactly three Settings rows carry an information button', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // The button is rendered once, inside ToggleRow, gated on `info` being given.
   // (The same icon also names the App Info and App version rows, which are
@@ -730,11 +730,7 @@ test('exactly four Settings rows carry an information button', () => {
   const withInfo = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .filter(match => match[1].includes('info={t('))
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]);
-  // AI Data Sharing carries one too: what is sent, to whom, and what turning it
-  // off does are exactly the things that need more than a switch label.
-  assert.deepEqual(withInfo, [
-    'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'ai_consent_setting',
-  ]);
+  assert.deepEqual(withInfo, ['show_full_card', 'show_result_color_on_cards', 'vertical_flip']);
 
   // No unrelated row gets one: SettingRow and the plain rows are untouched.
   const settingRow = settings.slice(settings.indexOf('function SettingRow'), settings.indexOf('// ── Toggle row'));
@@ -744,13 +740,13 @@ test('exactly four Settings rows carry an information button', () => {
   assert.doesNotMatch(settings, /label=\{t\('hide_ai_tools'\)\}[\s\S]{0,200}info=\{/u);
 });
 
-test('exactly four Card Behavior rows use the compact shared layout and aligned icon column', () => {
+test('exactly three Card Behavior rows use the compact shared layout and aligned icon column', () => {
   const settings = read('src/components/SettingsModal.tsx');
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .filter(match => match[1].includes('info={t('));
   assert.deepEqual(
     rows.map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]),
-    ['show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'ai_consent_setting'],
+    ['show_full_card', 'show_result_color_on_cards', 'vertical_flip'],
   );
 
   // Natural AI Voice plus the three icon-bearing toggles are the only named
@@ -762,8 +758,6 @@ test('exactly four Card Behavior rows use the compact shared layout and aligned 
     ['show_full_card', 'reader-outline'],
     ['show_result_color_on_cards', 'color-palette-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
-    // The Privacy section reuses the same row shape rather than inventing one.
-    ['ai_consent_setting', 'shield-checkmark-outline'],
   ]);
   assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\} \/>/u);
   assert.doesNotMatch(settings, /icon="eye-off-outline"/u);

@@ -163,24 +163,23 @@ test('dismissing the dialog is wired to the no-consent path, not to Allow', () =
   assert.doesNotMatch(dialog, /useState\(true\)/u);
 });
 
-test('Settings exposes the decision, a way to revoke it, and the policy', () => {
+test('permission can still be withdrawn, from About AI Voice', () => {
   const settings = read('src/components/SettingsModal.tsx');
+  const dialog = read('src/components/AboutAIVoiceDialog.tsx');
 
-  assert.match(settings, /t\('privacy_section'\)/u);
-  assert.match(settings, /label=\{t\('ai_consent_setting'\)\}/u);
-  assert.match(settings, /value=\{aiConsent === 'granted'\}/u);
-  // Turning it on shows the disclosure; the switch alone never grants.
-  assert.match(
-    settings,
-    /if \(next\) \{\s*void ensureAIConsentForUserAction\(\);\s*return;\s*\}\s*void setAIConsent\('declined'\);/u,
-  );
-  // All three states are legible, including "not set".
-  assert.match(settings, /ai_consent_status_granted/u);
-  assert.match(settings, /ai_consent_status_declined/u);
-  assert.match(settings, /ai_consent_status_unknown/u);
-  // The policy is reachable from Settings → App Info. It used to be repeated in
-  // the Privacy section as well; one canonical link replaced the pair, and App
-  // Info is open to every plan while this section is not.
+  // The standalone Settings row was removed; the withdrawal moved into the
+  // About AI Voice explanation, which is where the feature is described.
+  assert.doesNotMatch(settings, /ai_consent_setting_desc|handleToggleAIConsent/u);
+  assert.match(settings, /<AboutAIVoiceDialog/u);
+
+  // Offered only while permission is granted, so it never lies about the state.
+  assert.match(dialog, /const consent = useAIConsent\(\);/u);
+  assert.match(dialog, /consent === 'granted' \? \(/u);
+  assert.match(dialog, /void setAIConsent\('declined'\)/u);
+  // Withdrawing is the only thing it writes — it can never grant.
+  assert.doesNotMatch(dialog, /setAIConsent\('granted'\)|ensureAIConsentForUserAction/u);
+
+  // The policy is still reachable from Settings → App Info, unchanged.
   const appInfo = settings.slice(settings.indexOf('// ── App Info sheet'));
   assert.match(appInfo, /label=\{t\('privacy_policy'\)\}/u);
   assert.match(appInfo, /openExternal\(LEGAL_URLS\.privacy\)/u);
@@ -190,9 +189,11 @@ test('the consent copy names the provider and ships in English and Japanese', ()
   const i18n = read('src/i18n.ts');
   const keys = [
     'ai_consent_title', 'ai_consent_body', 'ai_consent_allow', 'ai_consent_decline',
-    'ai_consent_setting', 'ai_consent_setting_desc', 'ai_consent_setting_info',
+    'ai_consent_setting',
     'ai_consent_status_granted', 'ai_consent_status_declined', 'ai_consent_status_unknown',
-    'ai_consent_required_msg', 'privacy_section',
+    'ai_consent_required_msg',
+    // The withdrawal that replaced the removed Settings row.
+    'ai_consent_withdraw', 'ai_consent_withdraw_confirm',
   ];
   for (const key of keys) {
     const occurrences = i18n.match(new RegExp(`^\\s{2}${key}:`, 'gmu')) ?? [];

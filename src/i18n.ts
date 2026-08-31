@@ -166,7 +166,8 @@ export type TranslationKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
-  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body' | 'ai_voice_info_desc'
+  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
+  | 'ai_consent_withdraw' | 'ai_consent_withdraw_confirm' | 'new_feature_badge'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label'
@@ -174,10 +175,9 @@ export type TranslationKey =
   // locale so every language falls back to the English wording.
   | 'ai_consent_title' | 'ai_consent_body'
   | 'ai_consent_allow' | 'ai_consent_decline'
-  | 'ai_consent_setting' | 'ai_consent_setting_desc' | 'ai_consent_setting_info'
+  | 'ai_consent_setting'
   | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
   | 'ai_consent_required_msg'
-  | 'privacy_section'
   // Tutorials, duplicate prevention and file import — see TutorialImportKey.
   | 'help_section' | 'help_result_filters'
   | 'result_filter_title' | 'result_filter_intro' | 'result_filter_untested'
@@ -247,7 +247,8 @@ type AppShellKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
-  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body' | 'ai_voice_info_desc'
+  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
+  | 'ai_consent_withdraw' | 'ai_consent_withdraw_confirm' | 'new_feature_badge'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
@@ -281,10 +282,9 @@ type TutorialImportKey =
 type AIConsentKey =
   | 'ai_consent_title' | 'ai_consent_body'
   | 'ai_consent_allow' | 'ai_consent_decline'
-  | 'ai_consent_setting' | 'ai_consent_setting_desc' | 'ai_consent_setting_info'
+  | 'ai_consent_setting'
   | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
-  | 'ai_consent_required_msg'
-  | 'privacy_section';
+  | 'ai_consent_required_msg';
 
 type OptionalTranslationKey =
   | OnboardingProfileKey | LocalizedCatalogKey | PlanErrorKey | AIErrorMessageKey | BackupKey
@@ -335,22 +335,19 @@ const enUS: Dict = {
   ai_consent_body:
     'To generate AI-powered content, WordPing will send the word or text you submit, along with the language and voice you selected, to OpenAI through WordPing’s own server.\n\n' +
     'That server also receives an anonymous installation ID and an anonymous subscription ID, used only to check your plan and prevent abuse. They are not sent to OpenAI.\n\n' +
-    'Your data is used only to generate the content you requested. WordPing will not send this data unless you give permission, and you can withdraw it at any time in Settings under Privacy.',
+    'Your data is used only to generate the content you requested. WordPing will not send this data unless you give permission, and you can withdraw it at any time in Settings → Help → About AI Voice.',
   ai_consent_allow: 'Allow and Continue',
   ai_consent_decline: 'Not Now',
   ai_consent_setting: 'AI Data Sharing',
-  ai_consent_setting_desc:
-    'Allow WordPing to send submitted text to OpenAI to generate AI-powered content.',
-  ai_consent_setting_info:
-    'When this is on, the word or text you submit to an AI feature — along with the language and voice you selected — is sent to OpenAI through WordPing’s server so the content can be generated. WordPing’s server also receives an anonymous installation ID and an anonymous subscription ID to check your plan and prevent abuse; those are not sent to OpenAI.\n\n' +
-    'When this is off, WordPing sends nothing to OpenAI. AI voice and other AI features stop working, and everything else — your words, folders, notifications, tests and device voice — continues to work exactly as before. Turning it off deletes nothing.\n\n' +
-    'You will be asked again the next time you use an AI feature.',
   ai_consent_status_granted: 'Allowed',
   ai_consent_status_declined: 'Not allowed',
   ai_consent_status_unknown: 'Not set',
   ai_consent_required_msg:
-    'AI data sharing is off, so nothing was sent. Turn on AI Data Sharing in Settings under Privacy to use AI features.',
-  privacy_section: 'Privacy',
+    'AI data sharing is off, so nothing was sent. You can allow it again the next time you use an AI feature.',
+  ai_consent_withdraw: 'Withdraw AI Data Sharing Permission',
+  ai_consent_withdraw_confirm:
+    'WordPing will stop sending anything to the online AI voice service. Your words, notes and saved audio are kept, and your subscription is unaffected. You will be asked again the next time you use an AI feature.',
+  new_feature_badge: 'New feature',
 
   // ── Empty result filters ──────────────────────────────────────────────────
   empty_filter_good_title: 'No “Pretty good” words yet',
@@ -791,8 +788,6 @@ const enUS: Dict = {
     + 'Your plan renews automatically until canceled.',
   ai_voice_info_menu:  'About AI Voice',
   ai_voice_info_title: 'About AI Voice',
-  ai_voice_info_desc:
-    'Learn how AI Voice works and when WordPing uses the online AI voice service.',
   // Newline-separated so the dialog renders two bullets, not one paragraph.
   // Plain language throughout: "the online AI voice service" is what the user
   // experiences, and naming a monthly limit is accurate because replayed audio
@@ -859,22 +854,19 @@ const ja: Dict = {
   ai_consent_body:
     'AIコンテンツを生成するため、WordPingは、あなたが入力した単語またはテキストと、選択した言語および音声を、WordPingのサーバーを経由してOpenAIへ送信します。\n\n' +
     'WordPingのサーバーは、ご利用プランの確認と不正利用の防止のみを目的として、匿名のインストールIDおよび匿名のサブスクリプションIDも受け取ります。これらがOpenAIへ送信されることはありません。\n\n' +
-    'これらのデータは、リクエストされたコンテンツを生成するためにのみ使用されます。許可なくデータが送信されることはありません。許可は「設定」の「プライバシー」からいつでも取り消せます。',
+    'これらのデータは、リクエストされたコンテンツを生成するためにのみ使用されます。許可なくデータが送信されることはありません。許可は「設定」→「ヘルプ」→「AI Voiceについて」からいつでも取り消せます。',
   ai_consent_allow: '許可して続ける',
   ai_consent_decline: '今は許可しない',
   ai_consent_setting: 'AIデータ共有',
-  ai_consent_setting_desc:
-    'AIコンテンツを生成するために、入力したテキストをOpenAIへ送信することを許可します。',
-  ai_consent_setting_info:
-    'オンにすると、AI機能に入力した単語またはテキストと、選択した言語および音声が、コンテンツを生成するためにWordPingのサーバーを経由してOpenAIへ送信されます。WordPingのサーバーは、プランの確認と不正利用の防止のために匿名のインストールIDおよび匿名のサブスクリプションIDも受け取りますが、これらがOpenAIへ送信されることはありません。\n\n' +
-    'オフの間、WordPingがOpenAIへデータを送信することはありません。AI音声などのAI機能は利用できなくなりますが、単語、フォルダ、通知、テスト、端末の読み上げなど、その他の機能はこれまでどおり利用できます。オフにしてもデータが削除されることはありません。\n\n' +
-    '次にAI機能を使用するときに、あらためて確認します。',
   ai_consent_status_granted: '許可済み',
   ai_consent_status_declined: '許可しない',
   ai_consent_status_unknown: '未設定',
   ai_consent_required_msg:
-    'AIデータ共有がオフのため、データは送信されていません。AI機能を使用するには、「設定」の「プライバシー」で「AIデータ共有」をオンにしてください。',
-  privacy_section: 'プライバシー',
+    'AIデータ共有がオフのため、データは送信されていません。次にAI機能を使用する際に、あらためて許可できます。',
+  ai_consent_withdraw: 'AIデータ共有の許可を取り消す',
+  ai_consent_withdraw_confirm:
+    'オンラインのAI音声サービスへのデータ送信を停止します。単語、メモ、保存済みの音声は保持され、サブスクリプションにも影響しません。次にAI機能を使用する際に、あらためて確認します。',
+  new_feature_badge: '新機能',
 
   // ── Empty result filters ──────────────────────────────────────────────────
   empty_filter_good_title: '「まあまあ」の単語はまだありません',
@@ -1313,8 +1305,6 @@ const ja: Dict = {
     + 'プランはキャンセルされるまで自動的に更新されます。',
   ai_voice_info_menu:  'AI Voiceについて',
   ai_voice_info_title: 'AI Voiceについて',
-  ai_voice_info_desc:
-    'AI音声の仕組みと、WordPingがオンラインのAI音声サービスを使用するタイミングを確認できます。',
   ai_voice_info_body:
     '・一度AI Voiceで再生した音声は端末内に保存されます。再生し直す際にオンラインのAI音声サービスへ接続することはなく、毎月のAI音声の利用回数も消費しません。\n'
     + '・文章が長い場合、初回の再生では、WordPingがオンラインのAI音声サービスへ接続して音声を作成するため、時間がかかることがあります。',

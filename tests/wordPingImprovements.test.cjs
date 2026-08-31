@@ -132,7 +132,7 @@ test('1-3, 5. About AI Voice sits second in Help, only for an eligible plan', ()
   const settings = read('src/components/SettingsModal.tsx');
   const help = settings.slice(
     settings.indexOf("t('help_section')"),
-    settings.indexOf('{/* ── Privacy'),
+    settings.indexOf('{/* ── App Info'),
   );
 
   // The section's rows, in the order they render: the result filters first,
@@ -143,10 +143,9 @@ test('1-3, 5. About AI Voice sits second in Help, only for an eligible plan', ()
 
   // Basic and Premium see it; Free does not, and neither does anyone while the
   // subscription is still loading — `canUseAI` is false until RevenueCat answers.
-  // Row and description are one conditional block, so nothing empty is left.
   assert.match(
     help,
-    /\{canUseAI && \(\s*<>\s*<SettingRow icon="mic-outline" label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?ai_voice_info_desc[\s\S]*?<\/>\s*\)\}/u,
+    /\{canUseAI && \(\s*<SettingRow icon="mic-outline" label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?\)\}/u,
   );
   // The rule is not restated here.
   assert.doesNotMatch(settings, /planCanUseAI|VOICE_MONTHLY_LIMITS/u);
@@ -169,12 +168,10 @@ test('6-8. the old location is gone and there is exactly one entry point', () =>
 
 test('9. opening About AI Voice makes no request and asks no permission', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  const row = settings.slice(
-    settings.indexOf("label={t('ai_voice_info_menu')}"),
-    settings.indexOf("{t('ai_voice_info_desc')}"),
-  );
-  // It shows the shared text popup and does nothing else.
-  assert.match(row, /onPress=\{\(\) => showInfoPopup\(\{\s*title: t\('ai_voice_info_title'\),\s*body: t\('ai_voice_info_body'\),\s*\}\)\}/u);
+  const rowStart = settings.indexOf("label={t('ai_voice_info_menu')}");
+  const row = settings.slice(rowStart, settings.indexOf('/>', rowStart));
+  // It dismisses its own marker and opens the explanation. Nothing else.
+  assert.match(row, /setAboutAIVoiceVisible\(true\);/u);
   assert.doesNotMatch(row, /speak|preview|ensureAIConsent|requestAI|setAIConsent/u);
 });
 
@@ -183,15 +180,15 @@ test('10-11. the copy avoids "API" without touching internal identifiers', () =>
 
   // Every user-facing string in this group, English and Japanese.
   const values = [...i18n.matchAll(/^\s+(ai_voice_info_\w+):([\s\S]*?)(?=\n\s+[a-z_]+:)/gmu)];
-  assert.ok(values.length >= 8, 'both locales, four keys each');
+  assert.ok(values.length >= 6, 'both locales, three keys each');
   for (const [, key, body] of values) {
     assert.doesNotMatch(body, /\bAPI\b/u, `${key} must not say API`);
   }
 
   // The replacement wording is the one the implementation actually matches:
   // requests go to an online service, and replays come from the device.
-  assert.match(i18n, /ai_voice_info_desc:[\s\S]{0,200}online AI voice service/u);
-  assert.match(i18n, /ai_voice_info_desc:[\s\S]{0,200}オンラインのAI音声サービス/u);
+  assert.match(i18n, /ai_voice_info_body:[\s\S]{0,400}online AI voice service/u);
+  assert.match(i18n, /ai_voice_info_body:[\s\S]{0,600}オンラインのAI音声サービス/u);
   assert.match(i18n, /ai_voice_info_body:[\s\S]{0,400}monthly AI voice limit/u);
 
   // Internal names, comments and network code are untouched: the term is only
@@ -257,20 +254,6 @@ test('consent is published and invalidated from one place', () => {
   // Clearing is a no-op once there is nothing stored, so startup does not churn.
   const consent = read('src/lib/aiConsent.ts');
   assert.match(consent, /if \(cached === 'unknown'\) return;\s*await setAIConsent\('unknown'\);/u);
-});
-
-test('1–3. AI Data Sharing is shown only to a plan that can use AI', () => {
-  const settings = read('src/components/SettingsModal.tsx');
-
-  // The heading, divider and row are one conditional block, so an ineligible
-  // plan leaves no empty section behind.
-  assert.match(
-    settings,
-    /\{canUseAI && \(\s*<>\s*<View style=\{\[styles\.divider[\s\S]*?privacy_section[\s\S]*?ai_consent_setting[\s\S]*?<\/>\s*\)\}/u,
-  );
-  // Decided by App from the one rule, not re-derived here.
-  assert.doesNotMatch(settings, /planCanUseAI|VOICE_MONTHLY_LIMITS/u);
-  assert.match(read('App.tsx'), /canUseAI,\s*onDataReplaced: reloadAfterImport,/u);
 });
 
 test('18. free on-device speech needs no entitlement and no consent', () => {
@@ -428,14 +411,9 @@ test('15 & 17. the duplicate Privacy Policy row is gone from Settings', () => {
   assert.doesNotMatch(mainScreen, /privacy_policy/u);
   assert.doesNotMatch(settings, /openPrivacyPolicy/u);
 
-  // The Privacy section that held it contains only the AI setting now, and the
-  // whole block is conditional, so nothing empty can remain.
-  const privacySection = settings.slice(
-    settings.indexOf("{canUseAI && ("),
-    settings.indexOf('{/* ── App Info'),
-  );
-  assert.match(privacySection, /ai_consent_setting/u);
-  assert.doesNotMatch(privacySection, /privacy_policy|LEGAL_URLS/u);
+  // The Privacy section that once held the duplicate is gone entirely, so
+  // there is no header, divider or spacing left where it used to be.
+  assert.doesNotMatch(settings, /privacy_section/u);
 });
 
 test('16. the Privacy Policy is still reachable from App Info', () => {
@@ -999,4 +977,149 @@ test('the sandbox profile targets Apple Sandbox without disturbing the others', 
   // No secret of any kind is carried in a build profile.
   const envJson = JSON.stringify(eas.build);
   assert.doesNotMatch(envJson, /sk_|SECRET|OPENAI|RATE_LIMIT_SALT|REVENUECAT_SECRET/u);
+});
+
+// ── Subscription onboarding, permission withdrawal and "!" markers ───────────
+
+test('1-6. the consent offer is wired to a verified purchase and a closed sheet', () => {
+  const app = read('App.tsx');
+
+  assert.match(app, /shouldPromptConsentAfterSubscription\(\{/u);
+  assert.match(app, /entitlementSource,/u);
+  assert.match(app, /consent: getAIConsent\(\),/u);
+  assert.match(app, /alreadyPrompted: consentPromptShown,/u);
+  assert.match(app, /isUpgradeSheetClosed: !proSheetVisible && !settingsModalVisible,/u);
+
+  // Waits for the sheet's dismissal animation rather than guessing a duration.
+  assert.match(app, /InteractionManager\.runAfterInteractions\(\(\) => \{/u);
+  assert.doesNotMatch(app, /setTimeout\([^)]*shouldPromptConsentAfterSubscription/u);
+
+  // Recorded before the dialog opens, so a dismissal still counts as offered.
+  assert.match(app, /setConsentPromptShown\(true\);[\s\S]{0,300}ensureAIConsentForUserAction\(\)/u);
+  // Persisted, and cleared on a verified downgrade so a resubscription re-asks.
+  assert.match(app, /AsyncStorage\.setItem\(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown\(true\)\)/u);
+  assert.match(
+    app,
+    /if \(!isVerifiedFreePlan\(aiEntitlement\)\) return;[\s\S]{0,400}serializeConsentPromptShown\(false\)/u,
+  );
+  // Defaults to "shown" until storage answers, so it cannot flash.
+  assert.match(app, /useState\(true\);[\s\S]{0,200}SUBSCRIPTION_CONSENT_PROMPT_KEY/u);
+});
+
+test('10. the standalone AI Data Sharing row is gone from Settings', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  // The row, its status line, its section and the code that existed only for it.
+  assert.doesNotMatch(settings, /ai_consent_setting_desc|ai_consent_setting_info|handleToggleAIConsent/u);
+  assert.doesNotMatch(settings, /privacy_section|rowDescription/u);
+  assert.doesNotMatch(settings, /useAIConsent/u, 'the row was the only consumer here');
+  // The keys went with it.
+  const i18n = read('src/i18n.ts');
+  assert.doesNotMatch(i18n, /ai_consent_setting_desc|ai_consent_setting_info|privacy_section/u);
+
+  // The guard and the stored state are untouched.
+  assert.match(read('src/lib/api/client.ts'), /await requireAIConsent\(\)/u);
+  assert.match(read('src/lib/aiConsent.ts'), /export async function requireAIConsent/u);
+});
+
+test('11-12. permission is withdrawn from About AI Voice, and takes effect at once', () => {
+  const dialog = read('src/components/AboutAIVoiceDialog.tsx');
+
+  // Offered only while it is actually granted; otherwise a plain status.
+  assert.match(dialog, /consent === 'granted' \? \(/u);
+  assert.match(dialog, /accessibilityLabel=\{t\('ai_consent_withdraw'\)\}/u);
+  assert.match(dialog, /'ai_consent_status_declined' : 'ai_consent_status_unknown'/u);
+
+  // Confirmed, then written straight to the shared consent state — which is
+  // what the network guard reads, so the next request is blocked immediately.
+  assert.match(dialog, /Alert\.alert\(\s*t\('ai_consent_withdraw'\),/u);
+  assert.match(dialog, /onPress: \(\) => \{ void setAIConsent\('declined'\); \}/u);
+
+  // It destroys nothing and cannot touch the subscription.
+  assert.doesNotMatch(dialog, /setCards|deleteCard|Paths\.|\.delete\(|purchase|restore/u);
+
+  const i18n = read('src/i18n.ts');
+  assert.match(i18n, /ai_consent_withdraw: 'Withdraw AI Data Sharing Permission'/u);
+  assert.match(i18n, /ai_consent_withdraw: 'AIデータ共有の許可を取り消す'/u);
+});
+
+test('13. the Privacy Policy names the new withdrawal path', () => {
+  const legal = read('website/lib/legalContent.ts');
+  assert.match(legal, /Settings → Help → About AI Voice/u);
+  assert.match(legal, /「設定」→「ヘルプ」→「AI Voiceについて」/u);
+  // The removed row is no longer described as the way to withdraw.
+  assert.doesNotMatch(legal, /Privacy → AI Data Sharing|「プライバシー」→「AIデータ共有」/u);
+  // And the in-app consent dialog agrees with it.
+  assert.match(read('src/i18n.ts'), /ai_consent_body:[\s\S]{0,900}Settings → Help → About AI Voice/u);
+});
+
+test('14. the About AI Voice row has no description', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const help = settings.slice(
+    settings.indexOf("t('help_section')"),
+    settings.indexOf('{/* ── App Info'),
+  );
+  assert.match(help, /label=\{t\('ai_voice_info_menu'\)\}/u);
+  assert.doesNotMatch(help, /ai_voice_info_desc|rowDescription/u);
+  assert.doesNotMatch(read('src/i18n.ts'), /ai_voice_info_desc/u);
+  // The popup body and the withdrawal action are kept.
+  assert.match(read('src/components/AboutAIVoiceDialog.tsx'), /t\('ai_voice_info_body'\)/u);
+});
+
+test('7. the markers are attached to the requested controls and nothing else', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const word = read('src/components/WordModal.tsx');
+
+  // Natural AI Voice, About AI Voice, Theme Shop — each dismissing only itself.
+  assert.match(settings, /discovery\.dismiss\(FEATURE_MARKERS\.naturalAIVoice\);\s*setVoicePickerVisible\(true\);/u);
+  assert.match(settings, /discovery\.dismiss\(FEATURE_MARKERS\.aboutAIVoice\);\s*setAboutAIVoiceVisible\(true\);/u);
+  assert.match(settings, /discovery\.dismiss\(FEATURE_MARKERS\.themeShop\); setShopVisible\(true\);/u);
+  // The Premium custom-audio control in the word editor.
+  assert.match(word, /discovery\.dismiss\(FEATURE_MARKERS\.customAudio\);\s*handleAudioButton\(\);/u);
+
+  // Not on the promo previews, the Privacy Policy, plan labels or a section header.
+  assert.doesNotMatch(read('src/components/ProSheet.tsx'), /NewFeatureBadge|FEATURE_MARKERS/u);
+  // The App Info sheet itself, not the shared SettingRow defined after it.
+  const appInfo = settings.slice(
+    settings.indexOf('// ── App Info sheet'),
+    settings.indexOf('// ── Settings row'),
+  );
+  assert.doesNotMatch(appInfo, /NewFeatureBadge|badge=/u);
+  assert.doesNotMatch(settings, /sectionLabel[\s\S]{0,120}NewFeatureBadge/u);
+});
+
+test('24. the marker is not colour alone and never blocks its control', () => {
+  const badge = read('src/components/NewFeatureBadge.tsx');
+  // A glyph, not a coloured dot, plus its own spoken label.
+  assert.match(badge, /<Text style=\{styles\.glyph\}[^>]*>!<\/Text>/u);
+  assert.match(badge, /accessibilityLabel=\{label\}/u);
+  assert.match(read('src/i18n.ts'), /new_feature_badge: 'New feature'/u);
+  assert.match(read('src/i18n.ts'), /new_feature_badge: '新機能'/u);
+  // Inert: it cannot take a tap meant for the row it sits in.
+  assert.match(badge, /pointerEvents="none"/u);
+  assert.doesNotMatch(badge, /onPress|TouchableOpacity|position: 'absolute'/u);
+});
+
+test('8 & 26. markers are independent of consent and grant nothing', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  // Opening About AI Voice dismisses its marker and opens a dialog — it does
+  // not grant consent, and the dialog only ever withdraws.
+  assert.doesNotMatch(settings, /dismiss\(FEATURE_MARKERS\.aboutAIVoice\)[\s\S]{0,200}setAIConsent\('granted'\)/u);
+  assert.doesNotMatch(read('src/components/AboutAIVoiceDialog.tsx'), /'granted'\)/u);
+
+  // Dismissing a marker only ever writes to the discovery set.
+  const discovery = read('src/hooks/useFeatureDiscovery.ts');
+  assert.match(discovery, /AsyncStorage\.setItem\(FEATURE_DISCOVERY_KEY/u);
+  assert.doesNotMatch(discovery, /setAIConsent|requireAI|Purchases/u);
+
+  // And the marker module cannot reach the network or the consent store.
+  const markers = read('src/features/onboarding/featureDiscovery.ts');
+  assert.doesNotMatch(markers, /fetch\(|aiConsent|requireAIEntitlement/u);
+  // Its plan rule comes from the shared entitlement config.
+  assert.match(markers, /import \{ planCanUseAI \} from '\.\.\/\.\.\/lib\/aiEntitlement';/u);
+});
+
+test('25. the free promotional preview still needs no consent', () => {
+  const sheet = read('src/components/ProSheet.tsx');
+  assert.doesNotMatch(sheet, /ensureAIConsentForUserAction/u);
+  assert.match(read('src/lib/api/client.ts'), /export async function postPromoSpeech/u);
 });

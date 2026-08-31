@@ -31,9 +31,13 @@ import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts'
 import { isAIRequestError } from '../lib/api/errors';
 import { AIConsentDialog } from './AIConsentDialog';
 import { ResultFilterTutorial } from './ResultFilterTutorial';
-import { useAIConsent } from '../hooks/useAIConsent';
+import { AboutAIVoiceDialog } from './AboutAIVoiceDialog';
+// Still used by the voice picker's own previews, which are ordinary
+// user-content AI requests and stay gated exactly as before.
 import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
-import { setAIConsent } from '../lib/aiConsent';
+import { NewFeatureBadge } from './NewFeatureBadge';
+import { FEATURE_MARKERS } from '../features/onboarding/featureDiscovery';
+import type { FeatureDiscovery } from '../hooks/useFeatureDiscovery';
 import {
   buildAiVoiceLimitMessage,
   fillTemplate,
@@ -101,6 +105,8 @@ interface Props {
    * than re-derived here, and false while RevenueCat is still answering.
    */
   canUseAI: boolean;
+  /** Per-feature "!" markers for a newly unlocked plan. */
+  discovery: FeatureDiscovery;
   /** Re-read cards and folders after a backup import replaced them. */
   onDataReplaced: () => void;
 }
@@ -117,6 +123,7 @@ export function SettingsModal({
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
   canUseAI,
+  discovery,
   onDataReplaced,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
@@ -131,6 +138,7 @@ export function SettingsModal({
   // Help → the colour-filter explanation. Its own state because it is a richer
   // dialog than the shared text popup: it renders the actual chip legend.
   const [resultFilterHelpVisible, setResultFilterHelpVisible] = useState(false);
+  const [aboutAIVoiceVisible, setAboutAIVoiceVisible] = useState(false);
   // Mounted content and native Modal visibility are deliberately separate.
   // The content stays mounted throughout the fade-out and is cleared only once
   // the native dismissal has completed.
@@ -156,23 +164,6 @@ export function SettingsModal({
   }, []);
 
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
-
-  // ── AI data sharing ────────────────────────────────────────────────────────
-  const aiConsent = useAIConsent();
-
-  /**
-   * Turning it on always shows the disclosure first — the switch grants nothing
-   * by itself, so permission is never given without the explanation in front of
-   * the user. Turning it off is immediate and needs no confirmation: it stops
-   * future requests, deletes nothing, and is trivially reversible.
-   */
-  const handleToggleAIConsent = useCallback((next: boolean) => {
-    if (next) {
-      void ensureAIConsentForUserAction();
-      return;
-    }
-    void setAIConsent('declined');
-  }, []);
 
   useEffect(() => {
     if (visible && isSubscribed) return;
@@ -282,9 +273,21 @@ export function SettingsModal({
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.removeAdsRow} onPress={() => setShopVisible(true)} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.removeAdsRow}
+            onPress={() => { discovery.dismiss(FEATURE_MARKERS.themeShop); setShopVisible(true); }}
+            activeOpacity={0.7}
+          >
             <Ionicons name="pricetag-outline" size={18} color={pal.sub} />
             <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('kisekae_shop')}</Text>
+            {/* The row itself is on every plan — the premium skins inside are
+                what a subscription unlocks — so the marker is plan-gated even
+                though the row is not. */}
+            <NewFeatureBadge
+              visible={discovery.isNew(FEATURE_MARKERS.themeShop)}
+              themeColor={themeColor}
+              label={t('new_feature_badge')}
+            />
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
@@ -311,7 +314,10 @@ export function SettingsModal({
           {isSubscribed && (
             <TouchableOpacity
               style={styles.cardBehaviorRow}
-              onPress={() => setVoicePickerVisible(true)}
+              onPress={() => {
+                discovery.dismiss(FEATURE_MARKERS.naturalAIVoice);
+                setVoicePickerVisible(true);
+              }}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
@@ -319,6 +325,11 @@ export function SettingsModal({
               <CardBehaviorIcon name="mic-outline" color={pal.sub} />
               <View style={styles.titleAndInfo}>
                 <Text style={[styles.toggleLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
+                <NewFeatureBadge
+                  visible={discovery.isNew(FEATURE_MARKERS.naturalAIVoice)}
+                  themeColor={themeColor}
+                  label={t('new_feature_badge')}
+                />
               </View>
               <View style={styles.voiceRowControl}>
                 <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
@@ -386,60 +397,18 @@ export function SettingsModal({
           {/* About AI Voice — second in Help, and only for a plan that has AI
               Voice. `canUseAI` comes from the one entitlement rule and is false
               until RevenueCat has answered, so the row cannot appear for a
-              moment and then vanish. Row and description are one block, so
-              nothing empty is left behind when it is hidden. Purely
-              informational: it opens the shared explanation popup and makes no
-              request of any kind. */}
+              moment and then vanish.
+
+              Opening it dismisses its own marker and nothing else, and grants
+              no permission — it is where permission is *withdrawn*, not given. */}
           {canUseAI && (
-            <>
-              <SettingRow icon="mic-outline" label={t('ai_voice_info_menu')} pal={pal}
-                onPress={() => showInfoPopup({
-                  title: t('ai_voice_info_title'),
-                  body: t('ai_voice_info_body'),
-                })} />
-              <Text style={[styles.rowDescription, { color: pal.sub }]}>
-                {t('ai_voice_info_desc')}
-              </Text>
-            </>
-          )}
-
-          {/* ── Privacy ──────────────────────────────────────────────────── */}
-          {/* The whole section, header and divider included, belongs to the one
-              setting inside it. A plan that cannot use AI has nothing to decide
-              here, so nothing is rendered rather than a heading over an empty
-              space — and `canUseAI` is false until RevenueCat has answered, so
-              the row cannot appear for a moment and then vanish.
-
-              The Privacy Policy link is deliberately not repeated here; it lives
-              in App Info, one place, reachable on every plan. */}
-          {canUseAI && (
-            <>
-              <View style={[styles.divider, { backgroundColor: pal.border }]} />
-
-              <View style={{ marginBottom: 12 }}>
-                <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('privacy_section')}</Text>
-              </View>
-              <ToggleRow
-                icon="shield-checkmark-outline"
-                label={t('ai_consent_setting')}
-                info={t('ai_consent_setting_info')}
-                onShowInfo={showInfoPopup}
-                value={aiConsent === 'granted'}
-                onToggle={handleToggleAIConsent}
-                themeColor={themeColor}
-                pal={pal}
-              />
-              {/* The switch alone says on or off; this line names who receives the
-                  data and what the current decision is, so the state is legible
-                  without opening the explanation. */}
-              <Text style={[styles.rowDescription, { color: pal.sub }]}>
-                {`${t('ai_consent_setting_desc')} (${t(
-                  aiConsent === 'granted' ? 'ai_consent_status_granted'
-                    : aiConsent === 'declined' ? 'ai_consent_status_declined'
-                    : 'ai_consent_status_unknown',
-                )})`}
-              </Text>
-            </>
+            <SettingRow icon="mic-outline" label={t('ai_voice_info_menu')} pal={pal}
+              badge={discovery.isNew(FEATURE_MARKERS.aboutAIVoice)}
+              themeColor={themeColor}
+              onPress={() => {
+                discovery.dismiss(FEATURE_MARKERS.aboutAIVoice);
+                setAboutAIVoiceVisible(true);
+              }} />
           )}
 
           {/* ── App Info ─────────────────────────────────────────────────── */}
@@ -520,6 +489,13 @@ export function SettingsModal({
             sheet) live inside this modal's own native controller, so the
             consent dialog has to be presented from in here to appear above
             them. Registered only while Settings is actually on screen. */}
+        <AboutAIVoiceDialog
+          visible={aboutAIVoiceVisible}
+          onClose={() => setAboutAIVoiceVisible(false)}
+          pal={pal}
+          themeColor={themeColor}
+        />
+
         <ResultFilterTutorial
           visible={resultFilterHelpVisible}
           onDismiss={() => setResultFilterHelpVisible(false)}
@@ -925,13 +901,17 @@ function AppInfoSheet({
 }
 
 // ── Settings row ───────────────────────────────────────────────────────────────
-function SettingRow({ icon, label, value, onPress, onLongPress, pal }: {
+function SettingRow({ icon, label, value, onPress, onLongPress, badge, themeColor, pal }: {
   icon: IoniconName; label: string; value?: string;
   onPress?: () => void;
   /** TEMPORARY: only the app version row uses this, for Subscription Diagnostics. */
   onLongPress?: () => void;
+  /** Draws the "New feature" marker beside the label. */
+  badge?: boolean;
+  themeColor?: string;
   pal: Palette;
 }) {
+  const t = useLang();
   return (
     <TouchableOpacity style={styles.row} onPress={onPress}
       onLongPress={onLongPress} delayLongPress={800}
@@ -939,6 +919,11 @@ function SettingRow({ icon, label, value, onPress, onLongPress, pal }: {
       activeOpacity={onPress ? 0.6 : 1}>
       <Ionicons name={icon} size={18} color={pal.sub} />
       <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
+      <NewFeatureBadge
+        visible={badge === true}
+        themeColor={themeColor ?? pal.text}
+        label={t('new_feature_badge')}
+      />
       {value
         ? <Text style={[styles.rowValue, { color: pal.sub }]}>{value}</Text>
         : <Ionicons name="chevron-forward" size={15} color={pal.sub} />
@@ -1041,15 +1026,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
-  // Sits under its own toggle row, indented past the icon column so it reads as
-  // that row's explanation rather than as a new item.
-  rowDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginLeft: CARD_BEHAVIOR_ICON_WIDTH + 8,
-    marginTop: -2,
-    marginBottom: 6,
-  },
 
   voiceScreen: { zIndex: 150 },
   voiceList: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 48, gap: 22 },

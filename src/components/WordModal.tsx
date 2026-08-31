@@ -37,6 +37,9 @@ import { LanguageModal } from './LanguageModal';
 import { generateBreakdown, generateExample, generateMeaning, translateText } from '../lib/generateMeaning';
 import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
 import { AIConsentDialog } from './AIConsentDialog';
+import { NewFeatureBadge } from './NewFeatureBadge';
+import { FEATURE_MARKERS } from '../features/onboarding/featureDiscovery';
+import type { FeatureDiscovery } from '../hooks/useFeatureDiscovery';
 import { AI_TEXT_FEATURES_ENABLED } from '../features/flags';
 import { appStyles as s } from '../styles';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
@@ -103,6 +106,8 @@ interface Props {
   isSubscribed: boolean;
   /** Premium plan — gates the AI text tools (meaning, example, breakdown, translate). */
   isPremium?: boolean;
+  /** Per-feature "!" markers. The custom-audio control is the only one here. */
+  discovery: FeatureDiscovery;
   wordLang: string | undefined;
   onChangeWordLang: (lang: string | undefined) => void;
   meaningLang: string | undefined;
@@ -123,7 +128,7 @@ export function WordModal({
   visible, onClose, onBulkImport, editingCard,
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
-  isSubscribed, isPremium = false, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
+  isSubscribed, isPremium = false, discovery, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
   audioUri, onChangeAudioUri,
   audioSpeed, onChangeAudioSpeed,
   audioVolume, onChangeAudioVolume,
@@ -647,6 +652,14 @@ export function WordModal({
                   </Text>
                   {isPremium ? (
                     <View style={styles.audioBtnGroup}>
+                      {/* Premium-only control, so the marker is too. One id for
+                          the Add and the Edit sheet: it is the same control on
+                          the same field, so finding it in one is finding it. */}
+                      <NewFeatureBadge
+                        visible={discovery.isNew(FEATURE_MARKERS.customAudio)}
+                        themeColor={themeColor}
+                        label={t('new_feature_badge')}
+                      />
                       {audioUri && (
                         <TouchableOpacity
                           onPress={handleClearAudio}
@@ -658,7 +671,10 @@ export function WordModal({
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
-                        onPress={handleAudioButton}
+                        onPress={() => {
+                          discovery.dismiss(FEATURE_MARKERS.customAudio);
+                          handleAudioButton();
+                        }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         style={[
                           styles.audioBtn,

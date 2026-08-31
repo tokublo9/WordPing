@@ -13,6 +13,7 @@ import { TextToSpeechScreen } from '../components/TextToSpeechScreen';
 import type { AIVoice } from '../lib/aiVoices';
 import { BulkImportModal } from '../components/BulkImportModal';
 import type { BulkImportDraft, BulkImportResult } from '../features/cards/bulkImport';
+import type { FeatureDiscovery } from '../hooks/useFeatureDiscovery';
 import { TEXT_TO_SPEECH_ENABLED } from '../features/flags';
 
 // ── Prop types ────────────────────────────────────────────────────────────────
@@ -117,6 +118,8 @@ export interface AppModalsProps {
     onToggleHideAiTools: Dispatch<SetStateAction<boolean>>;
     /** From the one entitlement rule; false while RevenueCat is still answering. */
     canUseAI: boolean;
+    /** Per-feature "!" markers for a newly unlocked plan. */
+    discovery: FeatureDiscovery;
     onDataReplaced(): void;
   };
 
@@ -218,6 +221,7 @@ export function AppModals({
         audioVolume={wordModal.audioVolume}
         onChangeAudioVolume={wordModal.onChangeAudioVolume}
         hideAiTools={wordModal.hideAiTools}
+        discovery={settingsModal.discovery}
         reviewHistory={wordModal.reviewHistory}
         testClearPending={wordModal.testClearPending}
         onResetAll={wordModal.onResetAll}
@@ -290,6 +294,7 @@ export function AppModals({
         hideAiTools={settingsModal.hideAiTools}
         onToggleHideAiTools={settingsModal.onToggleHideAiTools}
         canUseAI={settingsModal.canUseAI}
+        discovery={settingsModal.discovery}
         onDataReplaced={settingsModal.onDataReplaced}
       />
 
