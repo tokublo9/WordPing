@@ -950,3 +950,53 @@ test('Subscription Diagnostics can be removed by deleting three things', () => {
   // It owns no translation keys, so removal leaves no orphans behind.
   assert.doesNotMatch(read('src/i18n.ts'), /diagnostics/iu);
 });
+
+// ── TEMPORARY: the Apple Sandbox build profile ───────────────────────────────
+// Delete alongside Subscription Diagnostics once sandbox testing is finished.
+
+test('the sandbox profile targets Apple Sandbox without disturbing the others', () => {
+  const eas = JSON.parse(read('eas.json'));
+  const { development, preview, sandbox, production } = eas.build;
+  const RC = 'EXPO_PUBLIC_REVENUECAT_IOS_API_KEY';
+
+  // A device build you can side-load, running the dev client.
+  assert.equal(sandbox.developmentClient, true);
+  assert.equal(sandbox.distribution, 'internal');
+  // Sandbox StoreKit does not exist on the simulator.
+  assert.equal(sandbox.ios.simulator, false);
+
+  // Real Apple Sandbox means the Apple App Store key, and specifically the same
+  // RevenueCat app production uses — otherwise the purchase lands in a
+  // different project and proves nothing. Compared, never printed.
+  assert.equal(sandbox.env[RC], production.env[RC]);
+  assert.ok(sandbox.env[RC].startsWith('appl_'), 'must be an App Store key');
+  assert.ok(!sandbox.env[RC].startsWith('test_'), 'must not be the Test Store key');
+
+  // Marked in the build itself, so a tester can tell on-device.
+  assert.equal(sandbox.env.EXPO_PUBLIC_BUILD_PROFILE, 'sandbox-apple-iap-testing-only');
+  assert.match(
+    read('src/components/SubscriptionDiagnosticsSheet.tsx'),
+    /buildProfile: process\.env\.EXPO_PUBLIC_BUILD_PROFILE/u,
+  );
+
+  // The other three are untouched: dev and preview keep the Test Store key,
+  // production keeps store distribution and its auto-increment.
+  assert.ok(development.env[RC].startsWith('test_'));
+  assert.ok(preview.env[RC].startsWith('test_'));
+  assert.equal(development.developmentClient, true);
+  assert.equal(preview.distribution, 'internal');
+  assert.equal(production.autoIncrement, true);
+  assert.equal(production.distribution, undefined, 'production stays store distribution');
+  assert.equal(production.env.EXPO_PUBLIC_BUILD_PROFILE, undefined);
+
+  // Every profile points at the same Worker: sandbox testing must not send the
+  // device to a different backend or a different RevenueCat project.
+  const url = 'EXPO_PUBLIC_WORDPING_API_BASE_URL';
+  for (const profile of [development, preview, sandbox, production]) {
+    assert.equal(profile.env[url], production.env[url]);
+  }
+
+  // No secret of any kind is carried in a build profile.
+  const envJson = JSON.stringify(eas.build);
+  assert.doesNotMatch(envJson, /sk_|SECRET|OPENAI|RATE_LIMIT_SALT|REVENUECAT_SECRET/u);
+});

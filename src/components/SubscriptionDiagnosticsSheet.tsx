@@ -84,6 +84,14 @@ interface Report {
   keyLength: number;
   bundleId: string;
   /**
+   * Which EAS profile produced this build, from EXPO_PUBLIC_BUILD_PROFILE.
+   *
+   * Only the `sandbox` profile sets it, so "not set" means production, preview
+   * or development. Worth confirming before trusting a purchase result: a
+   * sandbox purchase and an App Store purchase look identical here otherwise.
+   */
+  buildProfile: string;
+  /**
    * The offering the key's project actually served. If these identifiers are
    * not the ones configured in the project you expected, the key is pointing
    * somewhere else — independent confirmation that does not rely on the key.
@@ -180,6 +188,7 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
           isSubscriptionLoaded: snapshot.isSubscriptionLoaded,
           ...describeKey(process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? ''),
           bundleId: Constants.expoConfig?.ios?.bundleIdentifier ?? 'unknown',
+          buildProfile: process.env.EXPO_PUBLIC_BUILD_PROFILE ?? 'not set (production / preview / development)',
           offering: offerings?.current?.identifier ?? 'none',
           packages: offerings?.current?.availablePackages.map(p => p.identifier) ?? [],
         },
@@ -341,6 +350,7 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
                   pal={pal}
                 />
                 <Field label="Bundle identifier" value={state.report.bundleId} monospace pal={pal} />
+                <Field label="Build profile" value={state.report.buildProfile} pal={pal} />
                 <Field label="Current offering" value={state.report.offering} pal={pal} />
                 <Field
                   label="Packages"
