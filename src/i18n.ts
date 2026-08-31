@@ -166,7 +166,7 @@ export type TranslationKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
-  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
+  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body' | 'ai_voice_info_desc'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label'
@@ -247,7 +247,7 @@ type AppShellKey =
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
-  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body'
+  | 'ai_voice_info_menu' | 'ai_voice_info_title' | 'ai_voice_info_body' | 'ai_voice_info_desc'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
   | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
@@ -791,10 +791,15 @@ const enUS: Dict = {
     + 'Your plan renews automatically until canceled.',
   ai_voice_info_menu:  'About AI Voice',
   ai_voice_info_title: 'About AI Voice',
+  ai_voice_info_desc:
+    'Learn how AI Voice works and when WordPing uses the online AI voice service.',
   // Newline-separated so the dialog renders two bullets, not one paragraph.
+  // Plain language throughout: "the online AI voice service" is what the user
+  // experiences, and naming a monthly limit is accurate because replayed audio
+  // never reaches it (see VOICE_MONTHLY_LIMITS in lib/planLimits.ts).
   ai_voice_info_body:
-    '・Anything already played with AI Voice is cached, and plays again without using the API.\n'
-    + '・Long text may take longer the first time it is played with AI Voice.',
+    '・Anything already played with AI Voice is saved on your device. Playing it again does not connect to the online AI voice service and does not count towards your monthly AI voice limit.\n'
+    + '・Long text may take longer the first time it is played with AI Voice, because WordPing connects to the online AI voice service to create the audio.',
   backup:                'Backup & Restore',
   backup_desc:           'Export or restore your WordPing data.',
   backup_export:         'Export backup',
@@ -1306,11 +1311,13 @@ const ja: Dict = {
     'Basic planに変更する場合：新しいプランは現在のプランの有効期限（{date}）が終了した時点で開始されます。'
     + '設定 > Apple ID から更新日の前日までであればいつでもキャンセルできます。'
     + 'プランはキャンセルされるまで自動的に更新されます。',
-  ai_voice_info_menu:  'AI Voiceに関して',
+  ai_voice_info_menu:  'AI Voiceについて',
   ai_voice_info_title: 'AI Voiceについて',
+  ai_voice_info_desc:
+    'AI音声の仕組みと、WordPingがオンラインのAI音声サービスを使用するタイミングを確認できます。',
   ai_voice_info_body:
-    '・一度AI Voiceで再生したものはキャッシュが残り、APIを新規使用せずに再生できます。\n'
-    + '・textが長いと、新規AI Voice再生時に時間がかかる可能性があります。',
+    '・一度AI Voiceで再生した音声は端末内に保存されます。再生し直す際にオンラインのAI音声サービスへ接続することはなく、毎月のAI音声の利用回数も消費しません。\n'
+    + '・文章が長い場合、初回の再生では、WordPingがオンラインのAI音声サービスへ接続して音声を作成するため、時間がかかることがあります。',
   backup:                'バックアップと復元',
   backup_desc:           'WordPingのデータをエクスポートまたは復元できます。',
   backup_export:         'バックアップを書き出す',

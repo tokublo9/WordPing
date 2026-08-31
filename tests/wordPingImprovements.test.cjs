@@ -128,21 +128,77 @@ test('the parser stays free of react-native so both formats are testable', () =>
 
 // ── 3. About AI Voice on Free ────────────────────────────────────────────────
 
-test('About AI Voice is hidden on Free, along with its divider', () => {
-  const menu = read('src/app/AppContextMenu.tsx');
-  // The row and the separator that follows it are inside one conditional, so a
-  // hidden row cannot leave a stray divider above Settings.
-  assert.match(
-    menu,
-    /\{showAiVoiceInfo && \(\s*<>\s*<TouchableOpacity[\s\S]*?ai_voice_info_menu[\s\S]*?<View style=\{\[styles\.sep[\s\S]*?<\/>\s*\)\}/u,
+test('1-3, 5. About AI Voice sits second in Help, only for an eligible plan', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const help = settings.slice(
+    settings.indexOf("t('help_section')"),
+    settings.indexOf('{/* ── Privacy'),
   );
 
-  // Basic and Premium are the tiers that include AI Voice; the entitlement must
-  // have loaded first, so the row cannot flash and then disappear.
+  // The section's rows, in the order they render: the result filters first,
+  // About AI Voice immediately below, and nothing else in between.
+  const rowLabels = [...help.matchAll(/<SettingRow[\s\S]*?label=\{t\('(\w+)'\)\}/gu)]
+    .map(match => match[1]);
+  assert.deepEqual(rowLabels, ['help_result_filters', 'ai_voice_info_menu']);
+
+  // Basic and Premium see it; Free does not, and neither does anyone while the
+  // subscription is still loading — `canUseAI` is false until RevenueCat answers.
+  // Row and description are one conditional block, so nothing empty is left.
+  assert.match(
+    help,
+    /\{canUseAI && \(\s*<>\s*<SettingRow icon="mic-outline" label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?ai_voice_info_desc[\s\S]*?<\/>\s*\)\}/u,
+  );
+  // The rule is not restated here.
+  assert.doesNotMatch(settings, /planCanUseAI|VOICE_MONTHLY_LIMITS/u);
+});
+
+test('6-8. the old location is gone and there is exactly one entry point', () => {
+  // Removed from the three-dots menu, along with the props that fed it.
+  const menu = read('src/app/AppContextMenu.tsx');
+  assert.doesNotMatch(menu, /ai_voice_info|onOpenAiVoiceInfo|showAiVoiceInfo/u);
+
+  // And from App, which no longer owns the popup or a route into it — so a Free
+  // user has no other in-app path to open it.
   const app = read('App.tsx');
-  assert.match(app, /showAiVoiceInfo=\{isSubscriptionLoaded && isSubscribed\}/u);
-  // The route enforces it too — hiding a control is not access control.
-  assert.match(app, /if \(!isSubscriptionLoaded \|\| !isSubscribed\) \{\s*setMenuVisible\(false\);\s*return;/u);
+  assert.doesNotMatch(app, /aiVoiceInfo|openAiVoiceInfo|showAiVoiceInfo|SettingsInfoPopup/u);
+
+  // Exactly one place renders the row.
+  const settings = read('src/components/SettingsModal.tsx');
+  assert.equal((settings.match(/t\('ai_voice_info_menu'\)/gu) ?? []).length, 1);
+});
+
+test('9. opening About AI Voice makes no request and asks no permission', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const row = settings.slice(
+    settings.indexOf("label={t('ai_voice_info_menu')}"),
+    settings.indexOf("{t('ai_voice_info_desc')}"),
+  );
+  // It shows the shared text popup and does nothing else.
+  assert.match(row, /onPress=\{\(\) => showInfoPopup\(\{\s*title: t\('ai_voice_info_title'\),\s*body: t\('ai_voice_info_body'\),\s*\}\)\}/u);
+  assert.doesNotMatch(row, /speak|preview|ensureAIConsent|requestAI|setAIConsent/u);
+});
+
+test('10-11. the copy avoids "API" without touching internal identifiers', () => {
+  const i18n = read('src/i18n.ts');
+
+  // Every user-facing string in this group, English and Japanese.
+  const values = [...i18n.matchAll(/^\s+(ai_voice_info_\w+):([\s\S]*?)(?=\n\s+[a-z_]+:)/gmu)];
+  assert.ok(values.length >= 8, 'both locales, four keys each');
+  for (const [, key, body] of values) {
+    assert.doesNotMatch(body, /\bAPI\b/u, `${key} must not say API`);
+  }
+
+  // The replacement wording is the one the implementation actually matches:
+  // requests go to an online service, and replays come from the device.
+  assert.match(i18n, /ai_voice_info_desc:[\s\S]{0,200}online AI voice service/u);
+  assert.match(i18n, /ai_voice_info_desc:[\s\S]{0,200}オンラインのAI音声サービス/u);
+  assert.match(i18n, /ai_voice_info_body:[\s\S]{0,400}monthly AI voice limit/u);
+
+  // Internal names, comments and network code are untouched: the term is only
+  // wrong in front of a user.
+  assert.match(read('src/lib/api/client.ts'), /isApiConfigured|EXPO_PUBLIC_WORDPING_API_BASE_URL/u);
+  assert.match(read('src/lib/api/errors.ts'), /AIRequestError/u);
+  assert.match(read('src/lib/aiEntitlement.ts'), /VOICE_MONTHLY_LIMITS/u);
 });
 
 test('hiding the explanation does not hide upgrade messaging', () => {

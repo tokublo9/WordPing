@@ -21,29 +21,16 @@ export interface AppContextMenuProps {
   onReorder(): void;
   // onToggleLevelLabels(): void;
   /**
-   * Opens the AI Voice explanation. Owned by App rather than raised here: this
-   * menu is itself a Modal, and presenting a second one from inside it would
-   * change two native modals in a single commit.
+   * About AI Voice used to live here. It moved to Settings → Help, where it
+   * sits below the result-filter explanation and is shown only to a plan that
+   * has AI Voice. There is deliberately no second entry point.
    */
-  onOpenAiVoiceInfo(): void;
-  /**
-   * Whether the AI Voice explanation belongs in this menu at all.
-   *
-   * High-Quality AI Voice is a Basic and Premium feature (VOICE_MONTHLY_LIMITS
-   * gives Free zero generations), so on Free there is nothing for the
-   * explanation to describe. The row and its separator are left out together —
-   * a hidden row must not leave a divider behind it.
-   *
-   * This hides an explanation, not an offer: the Upgrade Plan sheet and every
-   * other upgrade prompt are untouched.
-   */
-  showAiVoiceInfo: boolean;
   onOpenSettings(): void;
 }
 
 export function AppContextMenu({
   visible, anchor, pal,
-  onDismiss, onSelectEntries, onReorder, onOpenAiVoiceInfo, showAiVoiceInfo, onOpenSettings,
+  onDismiss, onSelectEntries, onReorder, onOpenSettings,
 }: AppContextMenuProps) {
   const t = useLang();
   return (
@@ -94,22 +81,6 @@ export function AppContextMenu({
         {/* Thicker divider before settings group */}
         <View style={[styles.groupSep, { backgroundColor: pal.border }]} />
 
-        {showAiVoiceInfo && (
-          <>
-            <TouchableOpacity
-              style={styles.item}
-              onPress={onOpenAiVoiceInfo}
-              accessibilityRole="button"
-              accessibilityLabel={t('ai_voice_info_menu')}
-            >
-              <Ionicons name="information-circle-outline" size={17} color={pal.text} />
-              <Text style={[styles.itemText, { color: pal.text }]}>{t('ai_voice_info_menu')}</Text>
-            </TouchableOpacity>
-            {/* Belongs to the row above, so it disappears with it and Settings
-                sits directly under the group divider on Free. */}
-            <View style={[styles.sep, { backgroundColor: pal.border }]} />
-          </>
-        )}
         <TouchableOpacity style={styles.item} onPress={onOpenSettings}>
           <Ionicons name="settings-outline" size={17} color={pal.text} />
           <Text style={[styles.itemText, { color: pal.text }]}>{t('settings')}</Text>

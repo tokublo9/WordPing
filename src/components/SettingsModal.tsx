@@ -383,6 +383,25 @@ export function SettingsModal({
           </View>
           <SettingRow icon="color-filter-outline" label={t('help_result_filters')} pal={pal}
             onPress={() => setResultFilterHelpVisible(true)} />
+          {/* About AI Voice — second in Help, and only for a plan that has AI
+              Voice. `canUseAI` comes from the one entitlement rule and is false
+              until RevenueCat has answered, so the row cannot appear for a
+              moment and then vanish. Row and description are one block, so
+              nothing empty is left behind when it is hidden. Purely
+              informational: it opens the shared explanation popup and makes no
+              request of any kind. */}
+          {canUseAI && (
+            <>
+              <SettingRow icon="mic-outline" label={t('ai_voice_info_menu')} pal={pal}
+                onPress={() => showInfoPopup({
+                  title: t('ai_voice_info_title'),
+                  body: t('ai_voice_info_body'),
+                })} />
+              <Text style={[styles.rowDescription, { color: pal.sub }]}>
+                {t('ai_voice_info_desc')}
+              </Text>
+            </>
+          )}
 
           {/* ── Privacy ──────────────────────────────────────────────────── */}
           {/* The whole section, header and divider included, belongs to the one

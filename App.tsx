@@ -23,7 +23,6 @@ import { useSubscription } from './src/hooks/useSubscription';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
 import { TopBanner } from './src/components/TopBanner';
 import { showTopBanner } from './src/lib/topBanner';
-import { SettingsInfoPopup, type SettingsInfoContent } from './src/components/SettingsInfoPopup';
 import { AIConsentDialog } from './src/components/AIConsentDialog';
 import { invalidateAIConsent } from './src/lib/aiConsent';
 import {
@@ -235,39 +234,6 @@ export default function App() {
   const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
   const voiceBannerAnim = useRef(new Animated.Value(0)).current;
   const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── AI Voice explanation, from the three-dots menu ───────────────────────────
-  // Visibility is kept apart from the content, and the content is cleared only
-  // once the native dismissal finished, so the dialog cannot collapse to an
-  // empty box mid-fade. Same arrangement as SettingsModal's info popup.
-  const [aiVoiceInfoVisible, setAiVoiceInfoVisible] = useState(false);
-  const [aiVoiceInfoContent, setAiVoiceInfoContent] = useState<SettingsInfoContent | null>(null);
-  const aiVoiceInfoClosing = useRef(false);
-
-  const openAiVoiceInfo = useCallback(() => {
-    // The same entitlement check the menu row uses, applied to the route itself:
-    // hiding a control is a presentation choice, and this is what actually
-    // prevents a Free user reaching the explanation.
-    if (!isSubscriptionLoaded || !isSubscribed) {
-      setMenuVisible(false);
-      return;
-    }
-    aiVoiceInfoClosing.current = false;
-    setAiVoiceInfoContent({ title: t('ai_voice_info_title'), body: t('ai_voice_info_body') });
-    setAiVoiceInfoVisible(true);
-    setMenuVisible(false);
-  }, [isSubscribed, isSubscriptionLoaded, t]);
-
-  const closeAiVoiceInfo = useCallback(() => {
-    if (aiVoiceInfoClosing.current) return;
-    aiVoiceInfoClosing.current = true;
-    setAiVoiceInfoVisible(false);
-  }, []);
-
-  const dismissAiVoiceInfo = useCallback(() => {
-    setAiVoiceInfoContent(null);
-    aiVoiceInfoClosing.current = false;
-  }, []);
 
   // A backup import in "replace" mode swaps out every row, so React state and
   // the database have to be resynchronised. Navigation is reset to the folder
@@ -833,11 +799,6 @@ export default function App() {
         onDismiss={() => setMenuVisible(false)}
         onSelectEntries={menuContext === 'folders' ? enterFolderSelectionMode : enterSelectionMode}
         onReorder={menuContext === 'folders' ? enterFolderReorderMode : enterReorderMode}
-        onOpenAiVoiceInfo={openAiVoiceInfo}
-        // Basic and Premium both include AI Voice; Free gets zero generations.
-        // Gated on the entitlement having actually loaded so the row cannot
-        // appear for a moment at launch and then vanish.
-        showAiVoiceInfo={isSubscriptionLoaded && isSubscribed}
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />
 
@@ -854,16 +815,6 @@ export default function App() {
           editor and the Text-to-Speech screen each mount their own while they
           are on top, because a modal presents its own native controller. */}
       <AIConsentDialog active pal={pal} themeColor={activeThemeColor} />
-
-      {/* AI Voice explanation — the same popup every Settings info button uses */}
-      <SettingsInfoPopup
-        visible={aiVoiceInfoVisible}
-        content={aiVoiceInfoContent}
-        onClose={closeAiVoiceInfo}
-        onDismiss={dismissAiVoiceInfo}
-        pal={pal}
-        themeColor={activeThemeColor}
-      />
 
       {/* Custom voice locked banner — tap or swipe up to dismiss */}
       {voiceBannerShowing && (
