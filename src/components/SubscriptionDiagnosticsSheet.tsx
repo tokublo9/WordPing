@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import Purchases from 'react-native-purchases';
 
 import type { Palette } from '../types';
@@ -54,6 +55,46 @@ interface Report {
   plan: string;
   entitlementSource: string;
   isSubscriptionLoaded: boolean;
+  /**
+   * Which RevenueCat app this build talks to.
+   *
+   * A public SDK key is app-specific: one key belongs to exactly one iOS app in
+   * exactly one RevenueCat project. So when a customer cannot be found in the
+   * project you expected, the question is always "which key shipped?" — and
+   * these three values answer it without reproducing the key. Match the last
+   * four against Project → Apps → your iOS app → API keys.
+   */
+  keyType: string;
+  keyPrefix: string;
+  keyLastFour: string;
+  keyLength: number;
+  bundleId: string;
+  /**
+   * The offering the key's project actually served. If these identifiers are
+   * not the ones configured in the project you expected, the key is pointing
+   * somewhere else — independent confirmation that does not rely on the key.
+   */
+  offering: string;
+  packages: string[];
+}
+
+/** Describes the key without reproducing it. */
+function describeKey(apiKey: string): Pick<Report, 'keyType' | 'keyPrefix' | 'keyLastFour' | 'keyLength'> {
+  const keyType = apiKey === ''
+    ? 'NOT SET'
+    : apiKey.startsWith('appl_')
+      ? 'Apple App Store (appl_)'
+      : apiKey.startsWith('test_')
+        ? 'RevenueCat Test Store (test_)'
+        : 'unrecognised prefix';
+  return {
+    keyType,
+    // Enough to identify the key in the dashboard, never enough to use it — and
+    // an `appl_` SDK key is public in every copy of the app regardless.
+    keyPrefix: apiKey === '' ? '—' : `${apiKey.slice(0, 9)}…`,
+    keyLastFour: apiKey === '' ? '—' : apiKey.slice(-4),
+    keyLength: apiKey.length,
+  };
 }
 
 type State =
@@ -75,9 +116,11 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
     const snapshot = getAIEntitlementSnapshot();
     try {
       if (Platform.OS !== 'ios') throw new Error('RevenueCat runs on iOS only');
-      const [appUserId, info] = await Promise.all([
+      const [appUserId, info, offerings] = await Promise.all([
         Purchases.getAppUserID(),
         Purchases.getCustomerInfo(),
+        // Best-effort: a project with no offerings configured is itself a clue.
+        Purchases.getOfferings().catch(() => null),
       ]);
       setState({
         status: 'ready',
@@ -90,6 +133,10 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
           plan: snapshot.plan,
           entitlementSource: snapshot.entitlementSource ?? 'not resolved',
           isSubscriptionLoaded: snapshot.isSubscriptionLoaded,
+          ...describeKey(process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? ''),
+          bundleId: Constants.expoConfig?.ios?.bundleIdentifier ?? 'unknown',
+          offering: offerings?.current?.identifier ?? 'none',
+          packages: offerings?.current?.availablePackages.map(p => p.identifier) ?? [],
         },
       });
     } catch (error) {
@@ -209,6 +256,24 @@ export function SubscriptionDiagnosticsSheet({ visible, onClose, pal, themeColor
                   value={state.report.isSubscriptionLoaded ? 'yes' : 'still loading'}
                   pal={pal}
                 />
+
+                <Text style={[styles.sectionLabel, { color: pal.sub }]}>
+                  Which RevenueCat app this build talks to
+                </Text>
+                <Field label="SDK key type" value={state.report.keyType} pal={pal} />
+                <Field
+                  label="SDK key"
+                  value={`${state.report.keyPrefix}${state.report.keyLastFour}  (${state.report.keyLength} chars)`}
+                  monospace
+                  pal={pal}
+                />
+                <Field label="Bundle identifier" value={state.report.bundleId} monospace pal={pal} />
+                <Field label="Current offering" value={state.report.offering} pal={pal} />
+                <Field
+                  label="Packages"
+                  value={state.report.packages.length > 0 ? state.report.packages.join(', ') : 'none'}
+                  pal={pal}
+                />
               </>
             )}
           </ScrollView>
@@ -279,6 +344,14 @@ const styles = StyleSheet.create({
   bodyScroll: { flexGrow: 0 },
   bodyContent: { paddingBottom: 4 },
   centered: { paddingVertical: 24, alignItems: 'center' },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 8,
+    marginBottom: 8,
+  },
   field: { marginBottom: 12 },
   fieldLabel: { fontSize: 12, fontWeight: '600', marginBottom: 3 },
   value: { fontSize: 14, lineHeight: 20 },

@@ -851,9 +851,34 @@ test('Subscription Diagnostics is read-only and leaks no credential', () => {
     .replace(/^\s*\/\/.*$/gmu, '');
   assert.doesNotMatch(
     code,
-    /apiKey|API_KEY|receipt|verification|originalPurchaseDate|productIdentifier|\btoken\b/iu,
-    'no key, receipt or token may be shown',
+    /receipt|verification|originalPurchaseDate|productIdentifier|\btoken\b/iu,
+    'no receipt or token may be shown',
   );
+
+  // The SDK key is read, but only ever to describe itself. Every value derived
+  // from it is a slice or a length — the string itself is never put in state
+  // and never rendered, so the panel cannot leak a usable key.
+  const describe = code.slice(code.indexOf('function describeKey'), code.indexOf('type State ='));
+  assert.match(describe, /apiKey\.slice\(0, 9\)/u);
+  assert.match(describe, /apiKey\.slice\(-4\)/u);
+  assert.match(describe, /keyLength: apiKey\.length/u);
+  // Every value it returns is derived. Strip the three permitted forms — a
+  // slice, a length, and the emptiness test — and no mention of the key should
+  // remain, so none of them can be the key itself.
+  const returned = describe.slice(describe.indexOf('return {'));
+  const derivedOnly = returned
+    .replace(/apiKey\.slice\([^)]*\)/gu, '')
+    .replace(/apiKey\.length/gu, '')
+    .replace(/apiKey === ''/gu, '');
+  assert.doesNotMatch(derivedOnly, /\bapiKey\b/u, 'the raw key must never be returned');
+  // Every mention of the key in the whole file is inside describeKey. The call
+  // site passes the env var straight in, so nothing else ever holds it.
+  assert.equal(
+    (code.match(/\bapiKey\b/gu) ?? []).length,
+    (describe.match(/\bapiKey\b/gu) ?? []).length,
+    'the key must never be referenced outside describeKey',
+  );
+  assert.match(code, /\.\.\.describeKey\(process\.env\.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY \?\? ''\)/u);
 });
 
 test('Subscription Diagnostics is hidden behind a long press and one flag', () => {
