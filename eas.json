@@ -20,13 +20,12 @@
       }
     },
     "sandbox": {
-      "developmentClient": true,
       "distribution": "internal",
       "ios": {
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_BUILD_PROFILE": "sandbox-apple-iap-testing-only",
+        "EXPO_PUBLIC_BUILD_PROFILE": "sandbox",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_bpzGvWNNZGkSAREWSCebWmxdwtX",
         "EXPO_PUBLIC_WORDPING_API_BASE_URL": "https://wordping-api.wordping-daiki.workers.dev"
       }

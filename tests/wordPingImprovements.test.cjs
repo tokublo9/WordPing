@@ -937,8 +937,12 @@ test('the sandbox profile targets Apple Sandbox without disturbing the others', 
   const { development, preview, sandbox, production } = eas.build;
   const RC = 'EXPO_PUBLIC_REVENUECAT_IOS_API_KEY';
 
-  // A device build you can side-load, running the dev client.
-  assert.equal(sandbox.developmentClient, true);
+  // A standalone device build you can side-load. Deliberately NOT a dev
+  // client: without one the JS is embedded at build time, so the key below is
+  // the key the app actually runs with. A dev client would fetch its bundle
+  // from Metro, which re-inlines EXPO_PUBLIC_* from the local .env — the
+  // Test Store key — and silently defeat the point of this profile.
+  assert.equal(sandbox.developmentClient, undefined);
   assert.equal(sandbox.distribution, 'internal');
   // Sandbox StoreKit does not exist on the simulator.
   assert.equal(sandbox.ios.simulator, false);
@@ -951,7 +955,7 @@ test('the sandbox profile targets Apple Sandbox without disturbing the others', 
   assert.ok(!sandbox.env[RC].startsWith('test_'), 'must not be the Test Store key');
 
   // Marked in the build itself, so a tester can tell on-device.
-  assert.equal(sandbox.env.EXPO_PUBLIC_BUILD_PROFILE, 'sandbox-apple-iap-testing-only');
+  assert.equal(sandbox.env.EXPO_PUBLIC_BUILD_PROFILE, 'sandbox');
   assert.match(
     read('src/components/SubscriptionDiagnosticsSheet.tsx'),
     /buildProfile: process\.env\.EXPO_PUBLIC_BUILD_PROFILE/u,
