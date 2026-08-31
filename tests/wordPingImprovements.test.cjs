@@ -763,3 +763,76 @@ test('every new string ships in English and Japanese', () => {
   assert.match(i18n, /result_filter_got_it:  'Got it'/u);
   assert.match(i18n, /result_filter_got_it:  'わかりました'/u);
 });
+
+// ── TEMPORARY: Subscription Diagnostics ──────────────────────────────────────
+// Delete this block together with the feature. See SUBSCRIPTION_DIAGNOSTICS_ENABLED.
+
+test('Subscription Diagnostics is read-only and leaks no credential', () => {
+  const sheet = read('src/components/SubscriptionDiagnosticsSheet.tsx');
+
+  // It reads two RevenueCat getters and calls nothing that could change a plan.
+  assert.match(sheet, /Purchases\.getAppUserID\(\)/u);
+  assert.match(sheet, /Purchases\.getCustomerInfo\(\)/u);
+  for (const mutator of [
+    'purchasePackage', 'purchaseProduct', 'restorePurchases', 'syncPurchases',
+    'logIn', 'logOut', 'setAttributes', 'configure',
+  ]) {
+    assert.doesNotMatch(
+      sheet,
+      new RegExp(`Purchases\\.${mutator}\\b`, 'u'),
+      `diagnostics must not call ${mutator}`,
+    );
+  }
+  // It cannot reach the app's own subscription actions either.
+  assert.doesNotMatch(sheet, /useSubscription|subscribePremium|setPlan|unsubscribe/u);
+
+  // Entitlement identifiers only — never the objects that carry receipts.
+  assert.match(sheet, /Object\.keys\(info\.entitlements\.active\)/u);
+  // Checked against the code alone: the comments deliberately name these terms
+  // to say they are excluded, and must not fail the very rule they document.
+  const code = sheet
+    .replace(/\/\*[\s\S]*?\*\//gu, '')
+    .replace(/^\s*\/\/.*$/gmu, '');
+  assert.doesNotMatch(
+    code,
+    /apiKey|API_KEY|receipt|verification|originalPurchaseDate|productIdentifier|\btoken\b/iu,
+    'no key, receipt or token may be shown',
+  );
+});
+
+test('Subscription Diagnostics is hidden behind a long press and one flag', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+
+  // No visible affordance: the version row is not tappable, only holdable.
+  assert.match(
+    settings,
+    /label=\{t\('app_version'\)\}\s*value=\{APP_VERSION\} pal=\{pal\}\s*\{\.\.\.\(SUBSCRIPTION_DIAGNOSTICS_ENABLED\s*\? \{ onLongPress: \(\) => setDiagnosticsVisible\(true\) \}\s*: null\)\}/u,
+  );
+  assert.match(settings, /delayLongPress=\{800\}/u);
+  assert.match(settings, /\{SUBSCRIPTION_DIAGNOSTICS_ENABLED && \(\s*<SubscriptionDiagnosticsSheet/u);
+
+  // Labelled exactly as required.
+  assert.match(read('src/components/SubscriptionDiagnosticsSheet.tsx'), /Subscription Diagnostics/u);
+});
+
+test('Subscription Diagnostics can be removed by deleting three things', () => {
+  const flags = read('src/features/flags.ts');
+  assert.match(flags, /export const SUBSCRIPTION_DIAGNOSTICS_ENABLED = true;/u);
+  assert.match(flags, /REMOVE BEFORE THE APP STORE SUBMISSION/u);
+
+  // Referenced only by the flag, its own component, SettingsModal and this test —
+  // so a stale reference cannot survive the deletion.
+  const referencing = [
+    'App.tsx', 'src/app/AppModals.tsx', 'src/hooks/useSubscription.ts',
+    'src/lib/purchases.ts', 'src/i18n.ts',
+  ];
+  for (const path of referencing) {
+    assert.doesNotMatch(
+      read(path),
+      /SUBSCRIPTION_DIAGNOSTICS_ENABLED|SubscriptionDiagnostics/u,
+      `${path} must not reference the temporary diagnostics`,
+    );
+  }
+  // It owns no translation keys, so removal leaves no orphans behind.
+  assert.doesNotMatch(read('src/i18n.ts'), /diagnostics/iu);
+});
