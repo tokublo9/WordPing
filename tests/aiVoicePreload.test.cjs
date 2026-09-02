@@ -10,9 +10,11 @@ test('an active entitlement sweeps every existing word into the cache', () => {
   const app = read('App.tsx');
   const tts = read('src/lib/tts.ts');
 
-  // The sweep runs for basic and premium, once the subscription and the stored voice are
-  // both known — preloading before the voice loads would cache the wrong voice.
-  assert.match(app, /const hasAIAccess = plan === 'basic' \|\| plan === 'premium';/u);
+  // The sweep runs for whichever plans actually have AI Voice — Premium today —
+  // once the subscription and the stored voice are both known; preloading before
+  // the voice loads would cache the wrong voice. Read from `planCanUseAI` rather
+  // than a tier list, so a plan change moves the sweep with it.
+  assert.match(app, /const hasAIAccess = planCanUseAI\(plan\);/u);
   assert.match(app, /if \(!isSubscriptionLoaded \|\| !settingsLoaded \|\| !hasAIAccess\)/u);
   assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: cards\.map\(/u);
   assert.match(app, /text: card\.word,/u);
@@ -42,9 +44,11 @@ test('words added while subscribed are preloaded on registration', () => {
     app,
     /const handleCardRegistered = useCallback\(\(card: WordCard\) => \{\s*preloadAIPronunciation\(\{/u,
   );
+  // `canUseAIVoice` already carries "loaded and eligible", so a Basic user — who
+  // has no AI Voice — queues nothing.
   assert.match(
     app,
-    /hasAIAccess:\s*isSubscriptionLoaded\s*&& isSubscribed\s*&& entitlementSource !== 'local-development-scenario',/u,
+    /hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',/u,
   );
   assert.match(app, /onCardRegistered: handleCardRegistered/u);
   // And deleted cards release their queued work.
@@ -74,7 +78,12 @@ test('Test mode drives its voice icon through the shared playback hook', () => {
     assert.match(source, /<WordCardVoiceButton/u);
     assert.match(source, /themeColor=\{themeColor\}\s*inactiveColor=\{pal\.sub\}/u);
   }
-  assert.match(testMode, /const \{ voiceState, playWord, playMeaning, stopVoice \} = useWordCardVoicePlayback\(\{\s*item: card,\s*isSubscribed,\s*isPremium,\s*onCustomVoiceLocked: showVoiceLockedBanner,/u);
+  // The hook takes the two voice capabilities, never a plan name: AI Voice is
+  // Premium and Custom Voice is any paid plan, so one `isSubscribed` cannot
+  // stand for both.
+  assert.match(testMode, /const \{ voiceState, playWord, playMeaning, stopVoice, wordVoiceSource \} = useWordCardVoicePlayback\(\{\s*item: card,\s*canUseAIVoice,\s*canUseCustomVoice,\s*onCustomVoiceLocked,/u);
+  // The lock banner is the app's one banner, not a second copy drawn over a sheet.
+  assert.doesNotMatch(testMode, /showVoiceLockedBanner|voiceBannerPan|s\.voiceBanner/u);
   // Phase is read per target, so the word and meaning icons show their own state.
   assert.match(testMode, /phase=\{voiceState\?\.target === 'word' \? voiceState\.phase : undefined\}/u);
   assert.match(testMode, /phase=\{voiceState\?\.target === 'meaning' \? voiceState\.phase : undefined\}/u);

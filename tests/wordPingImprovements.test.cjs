@@ -60,13 +60,48 @@ test('a long press on selectable text copies without flipping the card', () => {
   assert.doesNotMatch(read('src/features/cards/flipGesture.ts'), /setTimeout|Date\.now\(\)|ms\b/u);
 });
 
-test('Flip Mode keeps its original tap behaviour', () => {
+test('both faces of a Flip Mode card copy exactly what is on screen', () => {
   const browser = read('src/components/FlipCardBrowser.tsx');
-  // Its faces are not selectable, so they do not opt in and their Pressable is
-  // wired exactly as before — a long hold there still flips on release.
-  assert.doesNotMatch(browser, /selectableText|selectable/u);
+
+  // The same interaction and the same feedback as Test Mode: the platform's own
+  // long-press selection and Copy menu, through the same `selectableText` face.
+  // Front is the word; back is the meaning and the note, which is where an example
+  // sentence usually lives.
+  assert.match(browser, /<Text selectable=\{isCurr\} style=\{\[s\.wordText/u);
+  assert.match(browser, /<Text selectable style=\{\[s\.meaningText/u);
+  assert.match(browser, /<Text selectable style=\{\[s\.noteText/u);
+
+  // Only the centred card is readable, so only it is selectable — an adjacent
+  // preview being dragged past must not start a selection.
+  assert.match(browser, /selectableText=\{isCurr\}/u);
+  assert.match(browser, /^\s+selectableText$/mu);
+
+  // Tap-to-flip is untouched: the Pressable that owns it still wraps the text, and
+  // the flip decision is still the pure reducer's.
   const face = read('src/components/CardScrollFace.tsx');
+  assert.match(face, /<Pressable\s+style=\{s\.pressable\}\s+onPress=\{handlePress\}/u);
   assert.match(face, /selectableText = false,/u);
+});
+
+test('selecting text in Flip Mode cannot swipe the card away from the Copy menu', () => {
+  const browser = read('src/components/FlipCardBrowser.tsx');
+  const face = read('src/components/CardScrollFace.tsx');
+
+  // The face reports the selection from the same two events the flip decision uses,
+  // so the two can never disagree about what the gesture was.
+  assert.match(face, /gesture\.current = reduceFlipGesture\(gesture\.current, 'press-in'\);\s*onSelectionGesture\?\.\(false\);/u);
+  assert.match(face, /gesture\.current = reduceFlipGesture\(gesture\.current, 'long-press'\);\s*onSelectionGesture\?\.\(true\);/u);
+
+  // Flip Mode withholds only the horizontal navigation gesture, and only while the
+  // selection owns the finger. Vertical scrolling and tap-to-flip are untouched.
+  assert.match(browser, /onSelectionGesture=\{handleSelectionGesture\}/u);
+  assert.match(
+    browser,
+    /onMoveShouldSetPanResponder:\s*\(_, \{ dx, dy \}\) =>[\s\S]*?!selectingTextRef\.current &&[\s\S]*?Math\.abs\(dx\) > 8/u,
+  );
+  // `press-in` clears it, so navigation is never left disabled after a copy — and a
+  // card change clears it too, because that selection is gone with the card.
+  assert.match(browser, /selectingTextRef\.current = false;/u);
 });
 
 test('a long press cannot reach a Test Mode answer button', () => {
@@ -235,11 +270,11 @@ test('an unknown RevenueCat state is never treated as a cancellation', () => {
   // A verified downgrade needs a real snapshot behind it, not just plan === free.
   assert.match(
     rule,
-    /export function isVerifiedFreePlan[\s\S]*?state\.isSubscriptionLoaded\s*&& state\.entitlementSource !== null\s*&& !planCanUseAI\(state\.plan\)/u,
+    /export function isVerifiedAIIneligiblePlan[\s\S]*?state\.isSubscriptionLoaded\s*&& state\.entitlementSource !== null\s*&& !planCanUseAI\(state\.plan\)/u,
   );
 
   const app = read('App.tsx');
-  assert.match(app, /if \(!isVerifiedFreePlan\(aiEntitlement\)\) return;\s*void invalidateAIConsent\(\);/u);
+  assert.match(app, /if \(!isVerifiedAIIneligiblePlan\(aiEntitlement\)\) return;\s*void invalidateAIConsent\(\);/u);
   // Never gated on the plan alone.
   assert.doesNotMatch(app, /plan === 'free'[\s\S]{0,120}invalidateAIConsent/u);
 });
@@ -256,18 +291,20 @@ test('consent is published and invalidated from one place', () => {
   assert.match(consent, /if \(cached === 'unknown'\) return;\s*await setAIConsent\('unknown'\);/u);
 });
 
-test('18. free on-device speech needs no entitlement and no consent', () => {
+test('18. on-device speech needs no entitlement and no consent', () => {
   const playback = read('src/hooks/useWordCardVoicePlayback.ts');
-  // Only the subscriber path asks; device speech and attached audio do not.
+  // Only the AI Voice path asks; device speech and attached audio do not. The
+  // flag is the capability, so Basic — which has no AI Voice — is on the device
+  // engine with Free and is never prompted.
   assert.match(
     playback,
-    /const usesAI = isSubscribed && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
+    /const usesAI = canUseAIVoice && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
   );
   assert.match(playback, /if \(usesAI && !await ensureAIConsentForUserAction\(\)\) return;/u);
 
   // The device engine is reached without touching the network layer at all.
   const tts = read('src/lib/tts.ts');
-  assert.match(tts, /if \(isPro\) return speakWithAI\(text, activeAIVoice, options\);\s*return speakFree\(/u);
+  assert.match(tts, /if \(canUseAIVoice\) return speakWithAI\(text, activeAIVoice, options\);\s*return speakFree\(/u);
   // speakFree drives expo-speech directly — no client, no gateway, no guard.
   const speakFree = tts.slice(tts.indexOf('function speakFree('), tts.indexOf('// ── OpenAI TTS'));
   assert.match(speakFree, /speechLib\(\)\.speak\(/u);
@@ -280,7 +317,10 @@ test('1 & 14. the fixed promo preview is available on every plan', () => {
   // sells, and its audience is precisely the users who cannot subscribe yet.
   assert.match(sheet, /onPress=\{\(\) => onPlay\(demoKeyDefault\)\}/u);
   assert.match(sheet, /onPress=\{\(\) => onPlay\(demoKeyAi\)\}/u);
-  assert.doesNotMatch(sheet, /canUseAI|planCanUseAI/u, 'no entitlement gate on the preview');
+  // `planCanUseAI` appears in the sheet, but only to label which plan the
+  // feature belongs to — never around the preview controls themselves.
+  const card = sheet.slice(sheet.indexOf('const AIVoiceCard'), sheet.indexOf('const PlanLabels'));
+  assert.doesNotMatch(card, /canUseAI &&|canUseAI \?/u, 'no entitlement gate on the preview');
 });
 
 test('3 & 4. playing the promo neither prompts for nor changes consent', () => {
@@ -531,7 +571,7 @@ test('the first answer is recorded without interrupting the test', () => {
   assert.doesNotMatch(screen, /ResultFilterTutorial/u, 'the popup must not open inside the test');
 
   const app = read('App.tsx');
-  assert.match(app, /onFirstAnswer: \(\) => setFirstTestAnswerRecorded\(true\)/u);
+  assert.match(app, /onFirstAnswer=\{\(\) => setFirstTestAnswerRecorded\(true\)\}/u);
   // Written straight away, so a force-close right after the answer keeps the
   // tutorial pending rather than losing it.
   assert.match(
@@ -549,7 +589,7 @@ test('the popup is driven by live screen state, not by how the test ended', () =
   assert.match(app, /isTestModeOpen: testModeVisible,/u);
   assert.match(app, /isScreenBusy: screenBusy,/u);
   assert.doesNotMatch(app, /testModeClosed/u, 'no separate exit flag may survive');
-  assert.match(app, /onClose: \(\) => setTestModeVisible\(false\)/u);
+  assert.match(app, /onClose=\{\(\) => setTestModeVisible\(false\)\}/u);
 });
 
 test('only dismissing the tutorial reveals the filters', () => {
@@ -713,8 +753,8 @@ test('the colour chips are hidden before the first test answer', () => {
   // Test Mode's own button is outside that condition — it is how a new user
   // produces the results these chips will filter by.
   const bar = wordList.slice(wordList.indexOf('const filterBar ='), wordList.indexOf('// ── Card list content'));
-  assert.match(bar, /onPress=\{actions\.onOpenTestMode\}/u);
-  const testButtonAt = bar.indexOf('actions.onOpenTestMode');
+  assert.match(bar, /onPress=\{handleOpenTestMode\}/u);
+  const testButtonAt = bar.indexOf('handleOpenTestMode');
   const chipGuardAt = bar.indexOf('{showResultFilters ? (');
   assert.ok(chipGuardAt > -1 && testButtonAt > chipGuardAt);
   // Exactly one gate on the chips, and none on the button below it.
@@ -1004,7 +1044,7 @@ test('1-6. the consent offer is wired to a verified purchase and a closed sheet'
   assert.match(app, /AsyncStorage\.setItem\(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown\(true\)\)/u);
   assert.match(
     app,
-    /if \(!isVerifiedFreePlan\(aiEntitlement\)\) return;[\s\S]{0,400}serializeConsentPromptShown\(false\)/u,
+    /if \(!isVerifiedAIIneligiblePlan\(aiEntitlement\)\) return;[\s\S]{0,400}serializeConsentPromptShown\(false\)/u,
   );
   // Defaults to "shown" until storage answers, so it cannot flash.
   assert.match(app, /useState\(true\);[\s\S]{0,200}SUBSCRIPTION_CONSENT_PROMPT_KEY/u);

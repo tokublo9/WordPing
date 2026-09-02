@@ -71,12 +71,12 @@ test('English and Japanese contain all four grading descriptions exactly', () =>
     "test_info_perfect_exp: 'The word is immediately and permanently deleted.'",
     "test_info_good_exp:    'The word is hidden from the regular Word List and Flip Mode, then shown again after 3 days. You can still view it using the blue filter.'",
     "test_info_slightly_exp:'The word is hidden from the regular Word List and Flip Mode, then shown again after 1 day. You can still view it using the yellow filter.'",
-    "test_info_unknown_exp: 'The word remains available for review and can be viewed using the red filter.'",
+    "test_info_unknown_exp: 'The word is hidden from the regular Word List and Flip Mode, then shown again after 1 hour. You can still view it using the red filter.'",
     "test_info_title:       'テスト結果の仕組み'",
     "test_info_perfect_exp: '単語はすぐに完全に削除されます。'",
     "test_info_good_exp:    '通常の単語リストとフリップモードでは一時的に非表示になり、3日後に再表示されます。青色のフィルターからいつでも確認できます。'",
     "test_info_slightly_exp:'通常の単語リストとフリップモードでは一時的に非表示になり、1日後に再表示されます。黄色のフィルターからいつでも確認できます。'",
-    "test_info_unknown_exp: '単語は引き続き復習でき、赤色のフィルターから確認できます。'",
+    "test_info_unknown_exp: '通常の単語リストとフリップモードでは一時的に非表示になり、1時間後に再表示されます。赤色のフィルターからいつでも確認できます。'",
   ];
 
   for (const copy of expected) assert.ok(i18n.includes(copy), `Missing localized copy: ${copy}`);
@@ -90,8 +90,10 @@ test('grading durations, deletion path, and Reset implementation remain authorit
   assert.match(visibility, /PRETTY_GOOD_HIDE_MS = 72 \* 60 \* 60 \* 1000/u);
   assert.match(visibility, /NOT_REALLY_HIDE_MS = 24 \* 60 \* 60 \* 1000/u);
   assert.match(grading, /if \(syncTestResults\) return \{ action: 'delete' \}/u);
+  assert.match(visibility, /DONT_KNOW_HIDE_MS = 60 \* 60 \* 1000/u);
   assert.match(grading, /good:\s+PRETTY_GOOD_HIDE_MS/u);
   assert.match(grading, /slightly:\s+NOT_REALLY_HIDE_MS/u);
+  assert.match(grading, /unknown:\s+DONT_KNOW_HIDE_MS/u);
   assert.match(screen, /const outcome = gradeCard\(card, kind,/u);
   assert.match(screen, /if \(outcome\.action === 'delete'\) onDeleteCard\(card\.id\)/u);
   assert.match(screen, /testMastered: false,[\s\S]{0,100}testNextReview: 0,[\s\S]{0,100}testLevel: undefined,[\s\S]{0,100}\.\.\.CLEAR_HIDE/u);

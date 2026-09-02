@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_LIMITS } from '../src/config';
+import { DEFAULT_LIMITS, FEATURE_TIER } from '../src/config';
 import { privacyHash } from '../src/identity';
 import { handleRequest } from '../src/index';
+import { reserveMonthlyQuota } from '../src/monthlyQuota';
 import { VOICE_MONTHLY_LIMITS, monthKey, monthResetsAt } from '../src/planLimits';
 import {
   chatCompletion,
@@ -17,8 +18,17 @@ import {
 
 /**
  * Monthly High-Quality AI Voice allowance, enforced after RevenueCat
- * verification. Basic is metered; Premium has no monthly product quota; a
- * client-supplied plan or usage figure is never read.
+ * verification.
+ *
+ * NO TIER IS METERED TODAY. AI Voice is Premium (FEATURE_TIER), and Premium is
+ * sold as included, so its limit is null. Free and Basic sit at 0 and are
+ * refused at the entitlement gate long before the counter is consulted. The
+ * machinery below is therefore dormant rather than deleted: it is what a future
+ * metered plan would switch back on, and the tests here pin the two things that
+ * still have to hold — that nothing opens a counter, and that a zero limit
+ * refuses without spending anything.
+ *
+ * A client-supplied plan or usage figure is still never read.
  */
 
 function upstreams(entitlements: Record<string, string | null>) {
@@ -31,7 +41,6 @@ function upstreams(entitlements: Record<string, string | null>) {
 
 const BASIC = { basic: FUTURE_DATE };
 const PREMIUM = { premium: FUTURE_DATE };
-const ACTIVE_BASIC = { basic: '2099-01-01T00:00:00.000Z' };
 const DEFAULT_APP_USER_ID = '$RCAnonymousID:abc123def456';
 
 afterEach(() => {
@@ -47,21 +56,6 @@ async function monthlyUsageKey(
   return `quota:${monthKey(now)}:${hashedAppUserId}`;
 }
 
-async function seedMonthlyUsage(
-  env: ReturnType<typeof makeEnv>,
-  appUserId: string,
-  now: number,
-  used: number,
-): Promise<string> {
-  const key = await monthlyUsageKey(env, appUserId, now);
-  await env.WORDPING_KV.put(key, String(used));
-  return key;
-}
-
-function openAIAudioCalls(calls: { url: string }[]): number {
-  return calls.filter(entry => entry.url.includes('/audio/speech')).length;
-}
-
 /** Drives one metered request and returns its status. */
 async function call(env: ReturnType<typeof makeEnv>, path = '/v1/voice/card', body?: unknown) {
   const response = await handleRequest(
@@ -73,8 +67,11 @@ async function call(env: ReturnType<typeof makeEnv>, path = '/v1/voice/card', bo
 }
 
 describe('monthly limits are centrally defined', () => {
-  it('meters Basic and leaves Premium without a monthly product quota', () => {
-    expect(VOICE_MONTHLY_LIMITS).toEqual({ free: 0, basic: 200, premium: null });
+  it('gives no tier a monthly product quota', () => {
+    // 0 = the tier does not have AI Voice. null = it has it, uncapped.
+    expect(VOICE_MONTHLY_LIMITS).toEqual({ free: 0, basic: 0, premium: null });
+    expect(FEATURE_TIER.voice_card).toBe('premium');
+    expect(FEATURE_TIER.voice_sample).toBe('premium');
   });
 
   it('keeps Premium at the requested 20/minute and 300/day abuse limits', () => {
@@ -102,46 +99,27 @@ describe('quota enforcement', () => {
     expect(calls.some(c => c.url.includes('openai.com'))).toBe(false);
   });
 
-  it('Basic accepts requests 199 and 200, blocks 201, and resets next UTC month', async () => {
-    vi.useFakeTimers();
-    const augustNow = Date.parse('2026-08-31T23:58:00.000Z');
-    vi.setSystemTime(augustNow);
-
-    const { calls } = mockFetch(upstreams(ACTIVE_BASIC));
+  it('the only entitled tier is unmetered, so a granted request opens no counter', async () => {
+    // The replacement for the old 199/200/201 walk. That sequence needed a
+    // metered tier that could also reach the route, and no tier is both today.
+    mockFetch(upstreams(PREMIUM));
     const env = makeEnv();
-    const augustKey = await seedMonthlyUsage(env, DEFAULT_APP_USER_ID, augustNow, 198);
-
     expect((await call(env)).status).toBe(200);
-    expect(await env.WORDPING_KV.get(augustKey)).toBe('199');
-    expect(openAIAudioCalls(calls)).toBe(1);
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
+  });
 
-    expect((await call(env)).status).toBe(200);
-    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
-    expect(openAIAudioCalls(calls)).toBe(2);
-
-    const blocked = await call(env);
-    expect(blocked.status).toBe(429);
-    await expect(blocked.json()).resolves.toMatchObject({
-      error: 'monthly_api_limit_reached',
-      limit: 200,
-      used: 200,
-      tier: 'basic',
-    });
-    // A rejected request neither reaches OpenAI nor changes monthly usage.
-    expect(openAIAudioCalls(calls)).toBe(2);
-    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
-
-    // The production rule is a UTC calendar-month boundary. Advancing the
-    // injected clock creates a fresh key; no real waiting is involved.
-    const septemberNow = Date.parse('2026-09-01T00:00:01.000Z');
-    vi.setSystemTime(septemberNow);
-    const resetRequest = await call(env);
-    expect(resetRequest.status).toBe(200);
-    const septemberKey = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, septemberNow);
-    expect(septemberKey).not.toBe(augustKey);
-    expect(await env.WORDPING_KV.get(septemberKey)).toBe('1');
-    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
-    expect(openAIAudioCalls(calls)).toBe(3);
+  it('a zero-limit tier is refused without spending or writing anything', async () => {
+    // Driven directly, because the entitlement gate stops these tiers before the
+    // reservation is reached. This is the branch a future metered plan revives.
+    const env = makeEnv();
+    for (const tier of ['free', 'basic'] as const) {
+      const decision = await reserveMonthlyQuota(env, { tier, hashedAppUserId: 'hashed' }, 'req');
+      expect(decision.allowed, `${tier} has no allowance to spend`).toBe(false);
+      expect(decision.limit).toBe(0);
+      expect(decision.used).toBe(0);
+      expect(Date.parse(decision.resetsAt)).toBeGreaterThan(Date.now());
+    }
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
   });
 
   it('Premium has no monthly product quota', () => {
@@ -183,44 +161,41 @@ describe('quota enforcement', () => {
     await expect(limited.json()).resolves.toMatchObject({ error: 'rate_limit_exceeded' });
   });
 
-  it('the exhaustion payload carries limit, used and resetsAt', async () => {
-    mockFetch(upstreams(BASIC));
+  it('an exhausted reservation reports limit, used and resetsAt and leaks nothing', async () => {
+    // Over HTTP this payload is currently unreachable — no tier is both entitled
+    // and metered — so the refusal shape is pinned at the reservation itself.
     const env = makeEnv();
-    // Pre-fill the counter to the limit.
-    const key = `quota:${monthKey(Date.now())}:`;
-    await env.WORDPING_KV.put('config:limits', JSON.stringify({ voice_card: { basic: { maxRequestsPerMinute: 100000 } } }));
-    await call(env); // creates the counter under its hashed key
-    const counterKey = env.WORDPING_KV.keysStartingWith(key)[0]!;
-    await env.WORDPING_KV.put(counterKey, '200');
+    const key = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, Date.now());
+    await env.WORDPING_KV.put(key, '200');
+    const hashedAppUserId = await privacyHash(env, 'rcuser', DEFAULT_APP_USER_ID);
 
-    const blocked = await call(env);
-    const body = (await blocked.json()) as Record<string, unknown>;
-    expect(body.error).toBe('monthly_api_limit_reached');
-    expect(body.limit).toBe(200);
-    expect(body.used).toBe(200);
-    expect(typeof body.resetsAt).toBe('string');
-    expect(Date.parse(body.resetsAt as string)).toBeGreaterThan(Date.now());
-    // No secrets or upstream payloads leak.
-    expect(JSON.stringify(body)).not.toContain('sk-test');
-    expect(JSON.stringify(body)).not.toContain('revenuecat');
+    const decision = await reserveMonthlyQuota(env, { tier: 'basic', hashedAppUserId }, 'req');
+    expect(decision.allowed).toBe(false);
+    expect(decision.limit).toBe(0);
+    expect(typeof decision.resetsAt).toBe('string');
+    expect(Date.parse(decision.resetsAt)).toBeGreaterThan(Date.now());
+    // The refusal carries counters and a date, never a secret or an upstream body.
+    expect(JSON.stringify(decision)).not.toContain('sk-test');
+    expect(JSON.stringify(decision)).not.toContain('revenuecat');
+    // ...and it spends nothing: the seeded counter is untouched.
+    expect(await env.WORDPING_KV.get(key)).toBe('200');
   });
 
   it('the quota resets at the next monthly boundary', async () => {
-    mockFetch(upstreams(BASIC));
+    // Pure key arithmetic, which is what the reset actually is: a new UTC month
+    // means a different counter key, so the allowance is whole again.
     const env = makeEnv();
-    await env.WORDPING_KV.put('config:limits', JSON.stringify({ voice_card: { basic: { maxRequestsPerMinute: 100000 } } }));
-    await call(env);
-
-    const augustKey = env.WORDPING_KV.keysStartingWith('quota:')[0]!;
+    const augustNow = Date.parse('2026-08-19T10:00:00.000Z');
+    const augustKey = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, augustNow);
     await env.WORDPING_KV.put(augustKey, '200');
-    expect((await call(env)).status).toBe(429);
 
-    // A new month uses a new key, so the allowance is whole again.
-    const currentMonth = monthKey(Date.now());
-    expect(augustKey).toContain(currentMonth);
-    const nextMonthKey = augustKey.replace(currentMonth, monthKey(Date.parse(monthResetsAt(Date.now()))));
-    expect(nextMonthKey).not.toBe(augustKey);
-    expect(await env.WORDPING_KV.get(nextMonthKey)).toBeNull();
+    const septemberNow = Date.parse(monthResetsAt(augustNow));
+    const septemberKey = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, septemberNow);
+    expect(augustKey).toContain('2026-08');
+    expect(septemberKey).toContain('2026-09');
+    expect(septemberKey).not.toBe(augustKey);
+    expect(await env.WORDPING_KV.get(septemberKey)).toBeNull();
+    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
   });
 });
 
@@ -283,23 +258,21 @@ describe('what is not counted', () => {
     expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
   });
 
-  it('a rate-limited request is not counted', async () => {
-    mockFetch(upstreams(BASIC));
+  it('a rate-limited request is refused by the short-term limiter, not the counter', async () => {
+    mockFetch(upstreams(PREMIUM));
     const env = makeEnv();
-    // voice_card basic allows 10/min; the 11th is rate limited.
-    for (let i = 0; i < 10; i += 1) await call(env);
-    const usedBefore = Number(await env.WORDPING_KV.get(env.WORDPING_KV.keysStartingWith('quota:')[0]!));
+    // voice_card premium allows 20/min; the 21st is rate limited. With no tier
+    // metered, the per-minute and per-day limits are the live protection.
+    for (let i = 0; i < 20; i += 1) expect((await call(env)).status).toBe(200);
 
     const limited = await call(env);
     expect(limited.status).toBe(429);
     await expect(limited.json()).resolves.toMatchObject({ error: 'rate_limit_exceeded' });
-
-    const usedAfter = Number(await env.WORDPING_KV.get(env.WORDPING_KV.keysStartingWith('quota:')[0]!));
-    expect(usedAfter).toBe(usedBefore);
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
   });
 
   it('voice-picker previews never count, and cached replay avoids OpenAI', async () => {
-    const { calls } = mockFetch(upstreams(BASIC));
+    const { calls } = mockFetch(upstreams(PREMIUM));
     const env = makeEnv();
 
     const first = makeCtx();
@@ -318,41 +291,35 @@ describe('what is not counted', () => {
     expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
   });
 
-  it('an upstream OpenAI failure is counted, so a failing retry cannot loop for free', async () => {
-    mockFetch([
-      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(BASIC) },
+  it('an upstream OpenAI failure is reported without a stack trace or a retry', async () => {
+    // This used to assert the failure still spent a monthly unit, so a
+    // deliberately-failing request could not loop for free. With no tier
+    // metered there is no unit to spend: the per-minute and per-day limits in
+    // ratelimit.ts are what bound the loop now, and the Worker never retries.
+    const { calls } = mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(PREMIUM) },
       { match: '/audio/speech', respond: () => new Response('{}', { status: 500 }) },
     ]);
     const env = makeEnv();
     const response = await call(env);
     expect(response.status).toBe(502);
-    const quotaKey = env.WORDPING_KV.keysStartingWith('quota:')[0]!;
-    expect(Number(await env.WORDPING_KV.get(quotaKey))).toBe(1);
+    // One upstream attempt, never a retry — a timeout is indistinguishable from
+    // a slow success and a retry risks billing twice.
+    expect(calls.filter(c => c.url.includes('/audio/speech'))).toHaveLength(1);
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
   });
 });
 
 describe('concurrency', () => {
-  it('simultaneous requests cannot materially exceed the limit', async () => {
-    mockFetch(upstreams(BASIC));
+  it('a burst of granted requests still opens no counter', async () => {
+    // The old test bounded the overshoot of a read-modify-write counter under a
+    // burst. Without a metered tier there is no counter to overshoot; what must
+    // still hold is that a burst neither creates one nor escapes the limiter.
+    mockFetch(upstreams(PREMIUM));
     const env = makeEnv();
-    await env.WORDPING_KV.put('config:limits', JSON.stringify({ voice_card: { basic: { maxRequestsPerMinute: 100000, maxRequestsPerDay: 100000, maxCharsPerDay: 100000000 } } }));
-
-    // Sit one below the limit, then fire a burst at it.
-    await call(env);
-    const quotaKey = env.WORDPING_KV.keysStartingWith('quota:')[0]!;
-    await env.WORDPING_KV.put(quotaKey, '199');
-
     const results = await Promise.all(Array.from({ length: 12 }, () => call(env)));
-    const succeeded = results.filter(r => r.status === 200).length;
-
-    // Read-modify-write on KV means a burst can lose updates, so this is
-    // bounded rather than exact — the per-minute limiter is what keeps the
-    // burst small in production. What must hold is that the overshoot stays
-    // small and the quota still closes.
-    expect(succeeded).toBeGreaterThanOrEqual(1);
-    expect(succeeded).toBeLessThanOrEqual(12);
-    const after = await call(env);
-    expect(after.status).toBe(429);
+    expect(results.every(r => r.status === 200 || r.status === 429)).toBe(true);
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
   });
 });
 

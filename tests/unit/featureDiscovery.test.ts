@@ -19,10 +19,15 @@ import type { PlanTier } from '../../src/lib/planLimits';
  */
 
 const ALL = Object.values(FEATURE_MARKERS);
+/** What any paid plan unlocks: the Theme Shop and the custom-audio control. */
 const BASIC_SET = [
+  FEATURE_MARKERS.themeShop,
+  FEATURE_MARKERS.customAudio,
+];
+/** What only Premium unlocks: the two AI Voice surfaces. */
+const PREMIUM_ONLY = [
   FEATURE_MARKERS.naturalAIVoice,
   FEATURE_MARKERS.aboutAIVoice,
-  FEATURE_MARKERS.themeShop,
 ];
 
 function visible(plan: PlanTier, seen: string[] = [], isSubscriptionLoaded = true): FeatureMarkerId[] {
@@ -39,35 +44,40 @@ test('21. nothing is marked while the subscription state is unknown', () => {
   assert.deepEqual(visible('premium', [], false), []);
 });
 
-test('15. Basic receives exactly the three requested markers', () => {
+test('15. Basic receives the Theme Shop and the custom-audio control', () => {
   assert.deepEqual(visible('basic').sort(), [...BASIC_SET].sort());
-  // Custom audio is Premium-only and must not be offered to Basic.
-  assert.equal(visible('basic').includes(FEATURE_MARKERS.customAudio), false);
+  // The two AI Voice surfaces are Premium and must not be offered to Basic.
+  for (const marker of PREMIUM_ONLY) {
+    assert.equal(visible('basic').includes(marker), false, `${marker} is Premium`);
+  }
 });
 
-test('16. Premium receives those three plus the custom-audio control', () => {
+test('16. Premium receives those plus both AI Voice surfaces', () => {
   assert.deepEqual(visible('premium').sort(), [...ALL].sort());
 });
 
-test('the plan requirement comes from the entitlement rule, not a tier list', () => {
+test('the plan requirement comes from each feature rule, not a tier list', () => {
   for (const marker of BASIC_SET) {
     assert.equal(planUnlocksFeature(marker, 'free'), false);
     assert.equal(planUnlocksFeature(marker, 'basic'), true);
     assert.equal(planUnlocksFeature(marker, 'premium'), true);
   }
-  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'basic'), false);
-  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'premium'), true);
+  for (const marker of PREMIUM_ONLY) {
+    assert.equal(planUnlocksFeature(marker, 'free'), false);
+    assert.equal(planUnlocksFeature(marker, 'basic'), false, `${marker} follows AI Voice`);
+    assert.equal(planUnlocksFeature(marker, 'premium'), true);
+  }
 });
 
 test('18. each marker dismisses independently', () => {
-  const afterThemeShop = visible('basic', [FEATURE_MARKERS.themeShop]);
+  const afterThemeShop = visible('premium', [FEATURE_MARKERS.themeShop]);
   assert.deepEqual(
     afterThemeShop.sort(),
-    [FEATURE_MARKERS.naturalAIVoice, FEATURE_MARKERS.aboutAIVoice].sort(),
+    [...PREMIUM_ONLY, FEATURE_MARKERS.customAudio].sort(),
     'opening one feature must not clear the others',
   );
-  assert.deepEqual(visible('basic', [FEATURE_MARKERS.aboutAIVoice]).length, 2);
-  assert.deepEqual(visible('basic', BASIC_SET), []);
+  assert.deepEqual(visible('premium', [FEATURE_MARKERS.aboutAIVoice]).length, 3);
+  assert.deepEqual(visible('premium', ALL), []);
 });
 
 test('19. custom audio is one marker, so Add and Edit share its dismissal', () => {
@@ -78,14 +88,17 @@ test('19. custom audio is one marker, so Add and Edit share its dismissal', () =
     ALL.length,
     'ids are unique, and there is exactly one for the custom-audio control',
   );
-  assert.deepEqual(visible('premium', [FEATURE_MARKERS.customAudio]).sort(), [...BASIC_SET].sort());
+  assert.deepEqual(
+    visible('basic', [FEATURE_MARKERS.customAudio]),
+    [FEATURE_MARKERS.themeShop],
+  );
 });
 
 test('17. a Basic user upgrading to Premium keeps what they already found', () => {
-  // They dismissed all three Basic markers while on Basic.
+  // They dismissed both Basic markers while on Basic.
   const afterUpgrade = visible('premium', BASIC_SET);
-  assert.deepEqual(afterUpgrade, [FEATURE_MARKERS.customAudio],
-    'only the newly unlocked control is marked');
+  assert.deepEqual(afterUpgrade.sort(), [...PREMIUM_ONLY].sort(),
+    'only the newly unlocked AI Voice surfaces are marked');
 });
 
 test('22. a downgrade hides inaccessible markers without erasing history', () => {
@@ -96,8 +109,9 @@ test('22. a downgrade hides inaccessible markers without erasing history', () =>
 });
 
 test('23. resubscribing does not restore a dismissed marker', () => {
-  const seen = [FEATURE_MARKERS.naturalAIVoice, FEATURE_MARKERS.themeShop];
-  assert.deepEqual(visible('basic', seen), [FEATURE_MARKERS.aboutAIVoice]);
+  const seen = [FEATURE_MARKERS.customAudio, FEATURE_MARKERS.themeShop];
+  assert.deepEqual(visible('basic', seen), []);
+  assert.deepEqual(visible('premium', seen).sort(), [...PREMIUM_ONLY].sort());
 });
 
 test('the ids are versioned, so a future feature can be marked again', () => {

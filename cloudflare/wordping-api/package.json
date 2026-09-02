@@ -6,7 +6,7 @@
   "description": "WordPing AI proxy. Keeps the OpenAI key server-side and verifies RevenueCat entitlements before any billable upstream call.",
   "scripts": {
     "dev": "wrangler dev",
-    "dev:basic-monthly-limit": "sh scripts/dev-basic-monthly-limit.sh",
+    "dev:local-ai-voice": "sh scripts/dev-local-ai-voice.sh",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

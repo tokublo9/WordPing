@@ -2,6 +2,7 @@ import { ActivityIndicator, type StyleProp, TouchableOpacity, type ViewStyle } f
 import { Ionicons } from '@expo/vector-icons';
 import type { TTSPlaybackPhase } from '../lib/tts';
 import { isTTSNetworkLoading } from '../lib/ttsPlaybackState';
+import type { CardVoiceSource } from '../features/voice/cardVoiceSource';
 
 interface Props {
   phase?: Exclude<TTSPlaybackPhase, 'idle'>;
@@ -12,6 +13,18 @@ interface Props {
   locked?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /**
+   * What this button will play, from `resolveCardVoiceSource`.
+   *
+   * The icon is deliberately the same either way: a word with its own recording
+   * shows the ordinary voice glyph, so the card reads identically whether the
+   * audio is generated or attached. This only changes what assistive tech
+   * announces, which is the one place the distinction is otherwise invisible.
+   *
+   * Defaults to `tts` — every button that has not been told otherwise,
+   * including every meaning-side button, which never has a file attached.
+   */
+  source?: CardVoiceSource;
 }
 
 /** Identical voice-button visuals and accessibility for list and Flip cards. */
@@ -24,6 +37,7 @@ export function WordCardVoiceButton({
   locked = false,
   disabled = false,
   style,
+  source = 'tts',
 }: Props) {
   const loading = isTTSNetworkLoading(phase);
   const playing = phase === 'playing';
@@ -37,7 +51,9 @@ export function WordCardVoiceButton({
       disabled={disabled || locked}
       style={style}
       accessibilityRole="button"
-      accessibilityLabel={loading ? 'Loading audio' : 'Play pronunciation'}
+      accessibilityLabel={loading
+        ? 'Loading audio'
+        : source === 'custom' ? 'Play custom audio' : 'Play pronunciation'}
       accessibilityState={{ disabled: disabled || locked, busy: loading }}
     >
       {locked ? (

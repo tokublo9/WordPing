@@ -5,10 +5,14 @@ import { VOICE_MONTHLY_LIMITS, type PlanTier } from './planLimits';
  * Who may use the AI features, in one place.
  *
  * Eligibility is derived from the existing entitlement configuration rather
- * than restated: `VOICE_MONTHLY_LIMITS` already says Free gets zero AI voice
- * generations, Basic gets an allowance and Premium is included outright. A plan
- * added or repriced there changes this rule automatically, and there is no
- * second list of tier names to fall out of step.
+ * than restated: `VOICE_MONTHLY_LIMITS` already says Free and Basic get zero AI
+ * voice generations and Premium is included outright. A plan added or repriced
+ * there changes this rule automatically, and there is no second list of tier
+ * names to fall out of step.
+ *
+ * This is the AI rule alone. Basic is a paying plan that simply buys something
+ * else — Custom Voice for Words, which is a local audio file and reaches no
+ * network. See features/voice/customVoiceAccess.ts.
  *
  * This is a client-side gate, not an authorisation: the Worker still verifies
  * every entitlement against RevenueCat. What it buys is that an ineligible
@@ -53,14 +57,19 @@ export function hasEligibleAIEntitlement(state: AIEntitlementState): boolean {
 }
 
 /**
- * A confirmed Free plan — not merely an unknown one.
+ * A plan confirmed to have no AI access — not merely an unknown one.
  *
  * The distinction matters because this is what invalidates a stored consent. A
  * RevenueCat outage leaves the plan at its 'free' default with no source, and
- * treating that as a cancellation would revoke a paying subscriber's permission
+ * treating that as a cancellation would revoke a subscriber's permission
  * because their network was down.
+ *
+ * Named for AI eligibility rather than for the Free plan because the two stopped
+ * being the same thing when AI Voice became Premium: a verified Basic plan is
+ * now also confirmed to have no AI access, and its stored consent belongs to a
+ * period that has ended just as surely as a cancelled one does.
  */
-export function isVerifiedFreePlan(state: AIEntitlementState): boolean {
+export function isVerifiedAIIneligiblePlan(state: AIEntitlementState): boolean {
   return state.isSubscriptionLoaded
     && state.entitlementSource !== null
     && !planCanUseAI(state.plan);

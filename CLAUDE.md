@@ -184,8 +184,8 @@ A stateless AI proxy. It stores no user data. See its README for routes and oper
 
 | Route | Requires |
 |---|---|
-| `POST /v1/voice/card` | Basic |
-| `POST /v1/voice/sample` | Basic |
+| `POST /v1/voice/card` | Premium |
+| `POST /v1/voice/sample` | Premium |
 | `POST /v1/voice/promo` | Nothing — the only free route. Two fixed promo clips, no client text |
 | `POST /v1/voice/custom` | Premium |
 | `POST /v1/meaning`, `/v1/breakdown`, `/v1/translate`, `/v1/examples` | Premium |
@@ -268,13 +268,50 @@ This must run **after both** `settingsLoaded` and `isSubscriptionLoaded` are tru
 
 The app's plan state is for **UI only**. Access to a billable AI feature is decided by the Worker, which verifies the entitlement against RevenueCat server-side.
 
-| Limit | Free | Basic |
+| Limit | Free | Basic | Premium |
+|---|---|---|---|
+| Words | Unlimited | Unlimited | Unlimited |
+| Folders | Unlimited | Unlimited | Unlimited |
+| TTS plays | 10 (`FREE_VOICE_LIMIT`) | Unlimited | Unlimited |
+| Theme colors | Blue only | All | All |
+| Skins | `solid_blue` only | All | All |
+| Custom Voice for Words | ✗ | ✓ | ✓ |
+| High-Quality AI Voice | ✗ | ✗ | ✓ |
+| Hide Word | ✗ | ✓ | ✗ |
+
+**Each paid feature has exactly one rule, and none is derived from another.**
+
+| Feature | Rule | Module |
 |---|---|---|
-| Words | Unlimited | Unlimited |
-| Folders | Unlimited | Unlimited |
-| TTS plays | 10 (`FREE_VOICE_LIMIT`) | Unlimited |
-| Theme colors | Blue only | All |
-| Skins | `solid_blue` only | All |
+| High-Quality AI Voice | Premium | `planCanUseAI` — `lib/aiEntitlement.ts`, from `VOICE_MONTHLY_LIMITS` |
+| Custom Voice for Words | Any paid plan | `planUnlocksCustomVoice` — `features/voice/customVoiceAccess.ts` |
+| Hide Word | **Basic only** | `planUnlocksHideWord` — `features/cards/hideWordAccess.ts` |
+| Backup / Restore | Premium | `planUnlocksBackup` — `features/backup/backupAccess.ts` |
+
+**Hide Word is not a ladder — Premium does not have it.** That is deliberate, so
+it can never be expressed as "any paid plan" or folded into Custom Voice's flag;
+the two overlap today only because Basic has both. Never gate a feature on
+`isSubscribed`, `isPremium` or a `plan === '…'` written in a component: resolve
+the rule in its module and pass `canUseAIVoice` / `canUseCustomVoice` /
+`canHideWord` down as booleans.
+
+Without AI Voice the card's voice button falls back to device TTS, exactly as on
+Free — it never goes dead and never raises a paywall. Without Hide Word a card
+shows its word again; the stored per-word flag is kept, so returning to Basic
+restores it.
+
+**Hide Word applies on every surface that draws the word** — Flip Mode, Test Mode
+and the Word List (row, expanded row and long-press preview). Nothing is rendered
+in its place: no word and no stand-in label, so there is nothing in the
+accessibility tree, nothing selectable and nothing to copy. The list's Copy
+action is withheld rather than left dead, and a hidden row keeps an empty line so
+it stays the height of a visible one. The row keeps its tap, long-press and every
+action, so a hidden word can still be opened and edited.
+
+The Add/Edit sheet is the exception: there the word is **dimmed, not hidden**
+(`HIDDEN_WORD_TEXT_ALPHA` on the text colour alone — never `opacity`, which would
+take the border, background and caret with it). It is the only place the word can
+be corrected, so it stays legible and editable.
 
 **Words and folders are never gated.** No count check may block registration, and no
 Pro/paywall popup may be raised from adding a word or creating a folder on any plan.
@@ -308,6 +345,7 @@ interface WordCard {
   meaning: string;
   note: string;
   notifOff?: boolean;
+  hideWord?: boolean;       // hide the word text on the Flip and Test faces
   folderId?: string;
   wordLang?: string;        // BCP-47 for TTS
   meaningLang?: string;

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handleRequest } from '../src/index';
-import {
-  BASIC_MONTHLY_LIMIT_SCENARIO,
-  localScenarioQuotaKey,
-} from '../src/localDevelopment';
+import { LOCAL_AI_VOICE_SCENARIO } from '../src/localDevelopment';
 import {
   makeCtx,
   makeEnv,
@@ -13,17 +10,15 @@ import {
   settle,
 } from './helpers';
 
-const LOCAL_APP_USER_ID = '$RCAnonymousID:abc123def456';
-
 function scenarioEnv() {
   return makeEnv({
     OPENAI_API_KEY: '',
     REVENUECAT_SECRET_API_KEY: '',
-    LOCAL_AI_VOICE_TEST_SCENARIO: BASIC_MONTHLY_LIMIT_SCENARIO,
+    LOCAL_AI_VOICE_TEST_SCENARIO: LOCAL_AI_VOICE_SCENARIO,
   });
 }
 
-describe('local Basic monthly-limit scenario', () => {
+describe('local AI-voice scenario', () => {
   it('reports its complete safety contract without contacting an upstream', async () => {
     const { calls } = mockFetch([]);
     const response = await handleRequest(
@@ -35,36 +30,37 @@ describe('local Basic monthly-limit scenario', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      localAiVoiceTestScenario: 'basic_monthly_limit',
-      entitlement: 'mock-basic',
+      localAiVoiceTestScenario: 'local_ai_voice',
+      entitlement: 'mock-premium',
       upstreamsMocked: true,
       storage: 'isolated-local-kv',
     });
     expect(calls).toHaveLength(0);
   });
 
-  it('seeds 200 and returns the real monthly-limit response without RevenueCat or OpenAI', async () => {
+  it('serves word-card voice from the mocked Premium entitlement, with no upstream', async () => {
+    // The scenario mocks Premium because that is the tier AI Voice belongs to.
+    // It used to mock Basic and assert the 200-generation exhaustion response;
+    // no tier is metered now, so there is no exhaustion response to reach and
+    // the harness's job is to drive the granted path offline instead.
     const { calls } = mockFetch([]);
     const env = scenarioEnv();
+    const ctx = makeCtx();
     const response = await handleRequest(
       makeRequest('/v1/voice/card', {
         host: 'localhost',
-        body: { text: 'manual local limit test', voice: 'marin' },
+        body: { text: 'manual local voice test', voice: 'marin' },
       }),
       env,
-      makeCtx(),
+      ctx,
     );
 
-    expect(response.status).toBe(429);
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'monthly_api_limit_reached',
-      limit: 200,
-      used: 200,
-      tier: 'basic',
-    });
-    const quotaKey = await localScenarioQuotaKey(env, LOCAL_APP_USER_ID);
-    expect(await env.WORDPING_KV.get(quotaKey)).toBe('200');
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toEqual([quotaKey]);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('audio/wav');
+    await response.arrayBuffer();
+    await settle(ctx);
+    // Nothing metered, and nothing sent: no RevenueCat lookup and no OpenAI call.
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
     expect(calls).toHaveLength(0);
   });
 
@@ -96,7 +92,7 @@ describe('local Basic monthly-limit scenario', () => {
       makeRequest('/v1/voice/card', {
         body: { text: 'must not receive local access', voice: 'marin' },
       }),
-      makeEnv({ LOCAL_AI_VOICE_TEST_SCENARIO: BASIC_MONTHLY_LIMIT_SCENARIO }),
+      makeEnv({ LOCAL_AI_VOICE_TEST_SCENARIO: LOCAL_AI_VOICE_SCENARIO }),
       makeCtx(),
     );
 

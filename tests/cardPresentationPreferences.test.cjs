@@ -15,10 +15,10 @@ test('Flip Mode measures intrinsic long content before any scroll interaction', 
   assert.doesNotMatch(face, /contentContainerStyle=\{\{\s*flexGrow:\s*1\s*\}\}/u);
   assert.doesNotMatch(face, /onScroll=|onLayout=|onContentSizeChange=|setTimeout|useState/u);
   assert.doesNotMatch(face, /nestedScrollEnabled/u);
-  assert.match(browser, /const cacheStaticPreview = active && !isCurr;/u);
-  assert.match(browser, /renderToHardwareTextureAndroid=\{cacheStaticPreview\}/u);
-  assert.match(browser, /shouldRasterizeIOS=\{cacheStaticPreview\}/u);
-  assert.doesNotMatch(browser, /renderToHardwareTextureAndroid=\{active\}|shouldRasterizeIOS=\{active\}/u);
+  // Every slot now renders the same face, so every slot owns a ScrollView — and
+  // rasterizing an interactive subtree can hold its first viewport-sized layer until
+  // scrolling invalidates the cache. Nothing in Flip Mode may be texture-cached.
+  assert.doesNotMatch(browser, /renderToHardwareTextureAndroid|shouldRasterizeIOS|cacheStaticPreview/u);
 
   // Word, meaning and note remain unrestricted text nodes, including the adjacent
   // front preview. Existing explicit line limits elsewhere are outside Flip Mode.

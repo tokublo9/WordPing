@@ -75,9 +75,44 @@ describe('entitlement enforcement', () => {
     expect(calls.some(call => call.url.includes('openai.com'))).toBe(false);
   });
 
-  it('allows a basic user the word-card voice endpoint', async () => {
-    mockFetch([
+  it('denies a basic user the word-card voice endpoint', async () => {
+    // High-Quality AI Voice is Premium. Basic's voice feature is Custom Voice for
+    // Words — the user's own audio file, which never reaches this Worker.
+    const { calls } = mockFetch([
       { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    const response = await handleRequest(
+      makeRequest('/v1/voice/card', { body: { text: 'hello', voice: 'marin' } }),
+      makeEnv(),
+      makeCtx(),
+    );
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'subscription_required',
+      requiredTier: 'premium',
+    });
+    expect(calls.some(call => call.url.includes('openai.com'))).toBe(false);
+  });
+
+  it('denies a basic user the voice-picker preview', async () => {
+    // The picker previews the voice AI Voice would use, so it moves with it.
+    const { calls } = mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    const response = await handleRequest(
+      makeRequest('/v1/voice/sample', { body: { voice: 'marin' } }),
+      makeEnv(),
+      makeCtx(),
+    );
+    expect(response.status).toBe(403);
+    expect(calls.some(call => call.url.includes('openai.com'))).toBe(false);
+  });
+
+  it('allows a premium user the word-card voice endpoint', async () => {
+    mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
     const response = await handleRequest(

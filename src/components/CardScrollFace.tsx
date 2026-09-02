@@ -40,6 +40,18 @@ interface Props {
    * behaviour it had, including on a slow press.
    */
   selectableText?: boolean;
+  /**
+   * Reports when this face's gesture became a text selection (`true`) and when
+   * the next ordinary touch begins (`false`).
+   *
+   * A screen that also owns a drag gesture over the same pixels — Flip Mode's
+   * horizontal card swipe — needs this to stand aside while the finger is
+   * selecting, or it pulls the card out from under the Copy menu. Reported from
+   * the same two events the flip decision uses, so the two can never disagree.
+   * Only called on a `selectableText` face, because only there can a selection
+   * start.
+   */
+  onSelectionGesture?: (selecting: boolean) => void;
 }
 
 export function CardScrollFace({
@@ -48,6 +60,7 @@ export function CardScrollFace({
   voiceButton,
   showVoice = true,
   selectableText = false,
+  onSelectionGesture,
 }: Props) {
   // A ref, not state: the decision is read inside the very handlers that write
   // it, and re-rendering the card face mid-gesture would be both pointless and
@@ -58,7 +71,8 @@ export function CardScrollFace({
   // tap-to-flip beyond the gesture it belongs to.
   const handlePressIn = useCallback(() => {
     gesture.current = reduceFlipGesture(gesture.current, 'press-in');
-  }, []);
+    onSelectionGesture?.(false);
+  }, [onSelectionGesture]);
 
   // Defining this is also what makes Pressability itself withhold `onPress` for
   // the same gesture; the ref covers the platforms and edge cases where a press
@@ -66,7 +80,8 @@ export function CardScrollFace({
   // no timing constant here to fall out of step with text selection.
   const handleLongPress = useCallback(() => {
     gesture.current = reduceFlipGesture(gesture.current, 'long-press');
-  }, []);
+    onSelectionGesture?.(true);
+  }, [onSelectionGesture]);
 
   const handlePress = useCallback(() => {
     gesture.current = reduceFlipGesture(gesture.current, 'press');

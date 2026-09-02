@@ -4,7 +4,7 @@ import {
   UNKNOWN_AI_ENTITLEMENT,
   hasEligibleAIEntitlement,
   isAIEntitlementEligible,
-  isVerifiedFreePlan,
+  isVerifiedAIIneligiblePlan,
   planCanUseAI,
   requireAIEntitlement,
   resetAIEntitlementForTests,
@@ -83,21 +83,23 @@ beforeEach(() => {
 // ── The rule comes from the existing entitlement configuration ───────────────
 
 test('eligibility is derived from the configured AI allowance, not a tier list', () => {
-  // Free's zero allowance is what makes it ineligible; anything else qualifies.
+  // A zero allowance is what makes a plan ineligible. Basic sits there with Free:
+  // it is a paying plan that buys Custom Voice for Words, not AI.
   assert.equal(VOICE_MONTHLY_LIMITS.free, 0);
+  assert.equal(VOICE_MONTHLY_LIMITS.basic, 0);
   assert.equal(planCanUseAI('free'), false);
-  assert.equal(planCanUseAI('basic'), true);
+  assert.equal(planCanUseAI('basic'), false);
   assert.equal(planCanUseAI('premium'), true, 'null means included, not zero');
 });
 
 test('2. nothing is eligible while the subscription state is still loading', () => {
   assert.equal(hasEligibleAIEntitlement(LOADING), false);
-  assert.equal(hasEligibleAIEntitlement({ ...BASIC, isSubscriptionLoaded: false }), false);
+  assert.equal(hasEligibleAIEntitlement({ ...PREMIUM, isSubscriptionLoaded: false }), false);
 });
 
-test('1 & 3. Free is ineligible; Basic and Premium are eligible', () => {
+test('1 & 3. only Premium is eligible; Free and Basic are not', () => {
   assert.equal(hasEligibleAIEntitlement(VERIFIED_FREE), false);
-  assert.equal(hasEligibleAIEntitlement(BASIC), true);
+  assert.equal(hasEligibleAIEntitlement(BASIC), false, 'Basic pays for Custom Voice, not AI');
   assert.equal(hasEligibleAIEntitlement(PREMIUM), true);
 });
 
@@ -148,7 +150,7 @@ test('6. becoming eligible does not grant or request consent by itself', async (
   registerAIConsentPromptHost({ open: () => { opened += 1; }, close: () => {} });
 
   // Subscribing only changes the entitlement. Nothing about it touches consent.
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   await flush();
 
   assert.equal(opened, 0, 'no dialog on the subscription-success screen');
@@ -158,7 +160,7 @@ test('6. becoming eligible does not grant or request consent by itself', async (
 
 test('7 & 9. the first AI action asks, and Allow runs exactly one request', async () => {
   configureAIConsentStorage(new FakeStore(null));
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   const transport = createTransport();
   let opened = 0;
   registerAIConsentPromptHost({ open: () => { opened += 1; }, close: () => {} });
@@ -178,7 +180,7 @@ test('7 & 9. the first AI action asks, and Allow runs exactly one request', asyn
 
 test('8. Not Now and dismissal both send nothing', async () => {
   configureAIConsentStorage(new FakeStore(null));
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   const transport = createTransport();
   registerAIConsentPromptHost({ open: () => {}, close: () => {} });
 
@@ -203,7 +205,7 @@ test('8. Not Now and dismissal both send nothing', async () => {
 
 test('10. revoking permission blocks the next request immediately', async () => {
   configureAIConsentStorage(new FakeStore('granted'));
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   const transport = createTransport();
 
   await transport.send('before');
@@ -217,13 +219,13 @@ test('10. revoking permission blocks the next request immediately', async () => 
 test('11. a verified move to Free stops AI and invalidates the permission', async () => {
   const store = new FakeStore('granted');
   configureAIConsentStorage(store);
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   const transport = createTransport();
   await transport.send('while subscribed');
 
   // The plan is verified as Free, so the period the permission belonged to is over.
   setAIEntitlementSnapshot(VERIFIED_FREE);
-  assert.equal(isVerifiedFreePlan(VERIFIED_FREE), true);
+  assert.equal(isVerifiedAIIneligiblePlan(VERIFIED_FREE), true);
   await invalidateAIConsent();
 
   assert.equal(getAIConsent(), 'unknown');
@@ -235,11 +237,12 @@ test('12. a loading or unreachable state never invalidates consent', async () =>
   configureAIConsentStorage(new FakeStore('granted'));
 
   // Neither of these is a confirmed cancellation, so neither may revoke.
-  assert.equal(isVerifiedFreePlan(LOADING), false, 'still loading');
-  assert.equal(isVerifiedFreePlan(UNVERIFIED_FREE), false, 'RevenueCat unreachable');
-  // A verified paid plan is obviously not a downgrade either.
-  assert.equal(isVerifiedFreePlan(BASIC), false);
-  assert.equal(isVerifiedFreePlan(PREMIUM), false);
+  assert.equal(isVerifiedAIIneligiblePlan(LOADING), false, 'still loading');
+  assert.equal(isVerifiedAIIneligiblePlan(UNVERIFIED_FREE), false, 'RevenueCat unreachable');
+  // Premium is obviously not a loss of AI access. A verified Basic now is: it
+  // is a paying plan with no AI, so its stored permission is cleared too.
+  assert.equal(isVerifiedAIIneligiblePlan(PREMIUM), false);
+  assert.equal(isVerifiedAIIneligiblePlan(BASIC), true, 'Basic has no AI to consent to');
 
   // The stored permission survives an outage untouched.
   setAIEntitlementSnapshot(UNVERIFIED_FREE);
@@ -251,13 +254,13 @@ test('13 & 14. resubscribing requires fresh permission', async () => {
   configureAIConsentStorage(store);
 
   // Subscribed, then verified Free: the old answer is cleared.
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   setAIEntitlementSnapshot(VERIFIED_FREE);
   await invalidateAIConsent();
   assert.equal(getAIConsent(), 'unknown');
 
   // Resubscribing restores eligibility but not the permission.
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   const transport = createTransport();
   await assert.rejects(transport.send('after resubscribe'), 'the old consent is not reused');
 
@@ -293,9 +296,9 @@ test('invalidation is idempotent, so it cannot churn writes on every launch', as
 
 test('an existing subscriber keeps a stored permission through the update', async () => {
   configureAIConsentStorage(new FakeStore('granted'));
-  setAIEntitlementSnapshot(BASIC);
+  setAIEntitlementSnapshot(PREMIUM);
   // No verified downgrade happened, so nothing clears it.
-  assert.equal(isVerifiedFreePlan(BASIC), false);
+  assert.equal(isVerifiedAIIneligiblePlan(PREMIUM), false);
   await createTransport().send('still allowed');
   assert.equal(getAIConsent(), 'granted');
 });
@@ -305,7 +308,7 @@ test('an absent, declined or corrupted value is never upgraded to granted', asyn
     resetAIConsentForTests();
     resetAIEntitlementForTests();
     configureAIConsentStorage(new FakeStore(stored));
-    setAIEntitlementSnapshot(BASIC);
+    setAIEntitlementSnapshot(PREMIUM);
     await assert.rejects(createTransport().send('x'), `${String(stored)} must not grant`);
   }
 });

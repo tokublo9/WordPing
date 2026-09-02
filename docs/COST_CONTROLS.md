@@ -44,18 +44,24 @@ The monthly product policy is:
 | Plan or playback | Monthly High-Quality AI Voice usage |
 |---|---|
 | Free | Upgrade samples only; arbitrary word-card generation is blocked |
-| Basic | 200 new word-card generations per UTC month |
+| Basic | None. AI Voice is Premium; Basic buys Custom Voice for Words, which is a local audio file and reaches no route here |
 | Premium | No monthly quota; 20/minute and 300/day abuse limits still apply |
 | Cached playback | Never counts |
 | Voice picker | Preview generation never counts, including a cache miss |
+
+**No tier is metered today.** AI Voice is Premium and Premium is sold as
+included, so `VOICE_MONTHLY_LIMITS` is `{ free: 0, basic: 0, premium: null }` and
+the monthly counter in `monthlyQuota.ts` is never written. The machinery is kept
+for a plan that may want a metered allowance again; until then the per-minute and
+per-day limits below, the kill switches and the OpenAI project budget are the
+live controls.
 
 The separate short-term abuse controls are:
 
 | Feature | Tier | Chars/request | Req/min | Req/day | Chars/day |
 |---|---|---|---|---|---|
-| `voice_card` | Basic | 300 | 10 | 100 | 15,000 |
 | `voice_card` | Premium | 500 | 20 | 300 | 50,000 |
-| `voice_sample` | Basic/Premium | 120 | 8 | 40 | 4,000 |
+| `voice_sample` | Premium | 120 | 8 | 40 | 4,000 |
 | `voice_custom` | Premium | 1,000 | 5 | 30 | 15,000 |
 | text actions | Premium | 500 | 20 | 300 | 50,000 |
 

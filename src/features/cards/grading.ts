@@ -1,5 +1,10 @@
 import type { ReviewEntry, WordCard } from '../../types';
-import { NOT_REALLY_HIDE_MS, PRETTY_GOOD_HIDE_MS, hiddenUntilFor } from './visibility';
+import {
+  DONT_KNOW_HIDE_MS,
+  NOT_REALLY_HIDE_MS,
+  PRETTY_GOOD_HIDE_MS,
+  hiddenUntilFor,
+} from './visibility';
 
 /**
  * What a Test Mode answer does to a card.
@@ -15,27 +20,28 @@ export type GradeOutcome =
   | { action: 'delete' }
   | { action: 'update'; patch: Partial<WordCard> };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 /** How long each grade postpones the card's next appearance in Test Mode. */
 const NEXT_REVIEW_DELAY_MS: Record<AnswerKind, number | null> = {
   perfect:  null,          // mastered — removed from the queue entirely
   good:     3 * DAY_MS,
   slightly: DAY_MS,
-  unknown:  null,          // stays in the queue
+  unknown:  HOUR_MS,       // back within the session, once it is not still on screen
 };
 
 /**
  * How long each grade hides the card from the learning views, with "Sync with
  * test results" on. `null` means the grade never hides.
  *
- * Perfect is handled as a delete before this mapping; unknown remains visible.
+ * Perfect is handled as a delete before this mapping.
  */
 const HIDE_MS: Record<AnswerKind, number | null> = {
   perfect:  null,
   good:     PRETTY_GOOD_HIDE_MS,
   slightly: NOT_REALLY_HIDE_MS,
-  unknown:  null,
+  unknown:  DONT_KNOW_HIDE_MS,
 };
 
 /**
@@ -56,7 +62,7 @@ export interface GradeOptions {
   now: number;
   /**
    * "Sync with test results". On: Perfect deletes, Pretty good hides for 72 h,
-   * Not really hides for 24 h, Don't know is visible. Off: no sync-controlled
+   * Not really hides for 24 h, Don't know hides for 1 h. Off: no sync-controlled
    * visibility state is changed.
    */
   syncTestResults: boolean;
@@ -103,6 +109,13 @@ export function gradeCard(
 
   return {
     action: 'update',
-    patch: { testLevel: 'unknown', reviewHistory, ...hidePatch(kind, now, syncTestResults) },
+    patch: {
+      testNextReview: now + (NEXT_REVIEW_DELAY_MS.unknown as number),
+      testLevel: 'unknown',
+      reviewHistory,
+      // One hour — long enough that the word is being recalled again rather
+      // than simply read off the screen it was just answered on.
+      ...hidePatch(kind, now, syncTestResults),
+    },
   };
 }

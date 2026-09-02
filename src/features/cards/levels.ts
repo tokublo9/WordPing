@@ -14,11 +14,34 @@ export function isLevelFilterKey(value: unknown): value is LevelFilterKey {
   return typeof value === 'string' && LEVEL_FILTER_KEY_SET.has(value);
 }
 
+/**
+ * The categories that can actually be selected as a filter.
+ *
+ * Gray is deliberately absent. It stays in `ALL_LEVEL_KEYS`, which is what
+ * keeps it counted and drawn beside the others, but it selects nothing: it
+ * reports how many words are still untested and that is all it does. Being
+ * outside this list is what makes it inert, so no caller can filter by it even
+ * if one tried.
+ */
+export const SELECTABLE_RESULT_FILTERS = ['good', 'slightly', 'unknown'] as const;
+
+export type SelectableResultFilter = typeof SELECTABLE_RESULT_FILTERS[number];
+
+const SELECTABLE_RESULT_FILTER_SET = new Set<string>(SELECTABLE_RESULT_FILTERS);
+
+export function isSelectableResultFilter(value: unknown): value is SelectableResultFilter {
+  return typeof value === 'string' && SELECTABLE_RESULT_FILTER_SET.has(value);
+}
+
 /** Selects one category, or clears it when the selected category is tapped again. */
 export function toggleActiveResultFilter(
   current: ActiveResultFilter,
   tapped: ResultFilter,
 ): ActiveResultFilter {
+  // A category that cannot be selected cannot change the selection either. The
+  // gray chip is not a button in the UI, and the rule is repeated here so the
+  // state cannot be reached by any other route.
+  if (!isSelectableResultFilter(tapped)) return current;
   return current === tapped ? null : tapped;
 }
 
@@ -43,6 +66,11 @@ export function countCardsByResult(
  * Loads the exclusive per-folder filter. Older builds stored arrays for the
  * former multi-select UI: one selected category remains selected, while zero
  * or multiple selected categories safely become the unfiltered `null` state.
+ *
+ * A gray selection written by an older build comes back as no filter at all.
+ * Gray no longer filters and its chip is no longer a button, so restoring it
+ * would leave the list narrowed to untested words with nothing on screen able
+ * to clear it.
  */
 export function parseActiveResultFiltersByFolder(raw: string | null): ActiveResultFiltersByFolder {
   if (!raw) return {};
@@ -62,14 +90,27 @@ export function parseActiveResultFiltersByFolder(raw: string | null): ActiveResu
       result[folderId] = null;
       continue;
     }
-    if (isLevelFilterKey(value)) {
+    if (isSelectableResultFilter(value)) {
       result[folderId] = value;
       continue;
     }
+    if (isLevelFilterKey(value)) {
+      // Gray, stored while it was still a filter.
+      result[folderId] = null;
+      continue;
+    }
     if (!Array.isArray(value)) continue;
+    // Ambiguity is still judged over every category, gray included: an array
+    // that selected two things cannot be narrowed to one just because one of
+    // them no longer filters. Only the surviving single choice is then checked
+    // for whether it is still selectable.
     const selected = new Set(value.filter(isLevelFilterKey));
-    if (selected.size === 1) result[folderId] = [...selected][0];
-    else if (selected.size > 1 || value.length === 0) result[folderId] = null;
+    if (selected.size === 1) {
+      const only = [...selected][0];
+      result[folderId] = isSelectableResultFilter(only) ? only : null;
+    } else if (selected.size > 1 || value.length === 0) {
+      result[folderId] = null;
+    }
   }
   return result;
 }

@@ -29,9 +29,12 @@ import { AIConsentDialog } from './src/components/AIConsentDialog';
 import { invalidateAIConsent } from './src/lib/aiConsent';
 import {
   hasEligibleAIEntitlement,
-  isVerifiedFreePlan,
+  isVerifiedAIIneligiblePlan,
+  planCanUseAI,
   setAIEntitlementSnapshot,
 } from './src/lib/aiEntitlement';
+import { canUseCustomVoice as planAllowsCustomVoice } from './src/features/voice/customVoiceAccess';
+import { canUseHideWord as planAllowsHideWord } from './src/features/cards/hideWordAccess';
 import { ResultFilterTutorial } from './src/components/ResultFilterTutorial';
 import { useFeatureDiscovery } from './src/hooks/useFeatureDiscovery';
 import {
@@ -54,6 +57,7 @@ import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
+import { TestModeScreen } from './src/components/TestModeScreen';
 import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
 import { useThemeController } from './src/features/themes/useThemeController';
@@ -162,8 +166,8 @@ export default function App() {
     if (!isSubscriptionLoaded) return;
     if (entitlementSource === 'local-development-scenario') return;
     syncAIVoiceSamplePreloading({
-      hasAIAccess: plan === 'basic' || plan === 'premium',
-      activeEntitlement: plan === 'basic' || plan === 'premium' ? plan : undefined,
+      hasAIAccess: planCanUseAI(plan),
+      activeEntitlement: plan === 'premium' ? plan : undefined,
       triggerReason: entitlementSource ?? 'subscription-state-loaded',
     });
   }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
@@ -179,7 +183,7 @@ export default function App() {
       preloadedLibraryKeyRef.current = null;
       return;
     }
-    const hasAIAccess = plan === 'basic' || plan === 'premium';
+    const hasAIAccess = planCanUseAI(plan);
     if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess) {
       // Losing access clears the key so re-subscribing sweeps again.
       if (!hasAIAccess) preloadedLibraryKeyRef.current = null;
@@ -214,6 +218,14 @@ export default function App() {
     [entitlementSource, isSubscriptionLoaded, plan],
   );
   const canUseAI = hasEligibleAIEntitlement(aiEntitlement);
+  // The two voice features, resolved once and passed down as capabilities rather
+  // than as a plan name. They are deliberately different plans: High-Quality AI
+  // Voice is Premium, Custom Voice for Words is any paid plan. Passing
+  // `isSubscribed` to a voice surface is what used to conflate them.
+  const canUseAIVoice = canUseAI;
+  const canUseCustomVoice = planAllowsCustomVoice({ isSubscribed, isSubscriptionLoaded });
+  // Basic only, and not a ladder — so it takes the tier, not `isSubscribed`.
+  const canHideWord = planAllowsHideWord({ plan, isSubscriptionLoaded });
   const discovery = useFeatureDiscovery({ plan, isSubscriptionLoaded });
 
   useEffect(() => {
@@ -235,13 +247,13 @@ export default function App() {
   // A confirmed move to Free ends the period the permission was given for, so
   // the stored answer stops being reusable: resubscribing must ask again.
   //
-  // Gated on `isVerifiedFreePlan`, never on the plan alone. A RevenueCat outage
+  // Gated on `isVerifiedAIIneligiblePlan`, never on the plan alone. A RevenueCat outage
   // leaves the plan at its 'free' default with no source, and revoking a paying
   // subscriber's permission because their network was down would be the worst
   // possible reading of that. `invalidateAIConsent` is a no-op once there is
   // nothing stored, so this does not write on every launch.
   useEffect(() => {
-    if (!isVerifiedFreePlan(aiEntitlement)) return;
+    if (!isVerifiedAIIneligiblePlan(aiEntitlement)) return;
     void invalidateAIConsent();
     // The offer belongs to the subscription period that just ended. Clearing it
     // is what lets the next verified subscription ask again.
@@ -316,6 +328,11 @@ export default function App() {
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const folderMenuBtnRef = useRef<View>(null);
   const closeOpenFolder = useRef<(() => void) | null>(null);
+  // WordList owns the scroll-position handoff that must happen before List
+  // becomes Flip. Settings invokes that same path when the list is mounted;
+  // outside a folder there is no position to prepare, so it may update the
+  // shared mode state directly.
+  const wordListViewModeChangeRef = useRef<((mode: 'list' | 'flip') => void) | null>(null);
   const [menuContext, setMenuContext] = useState<'cards' | 'folders'>('cards');
   const {
     folderSelectionMode, selectedFolderIds, folderReorderMode,
@@ -343,12 +360,10 @@ export default function App() {
       entryId: card.id,
       text: card.word,
       voice: aiVoice,
-      hasAIAccess: isSubscriptionLoaded
-        && isSubscribed
-        && entitlementSource !== 'local-development-scenario',
+      hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',
       hasCustomAudio: Boolean(card.audioUri),
     });
-  }, [aiVoice, entitlementSource, isSubscribed, isSubscriptionLoaded]);
+  }, [aiVoice, canUseAIVoice, entitlementSource]);
 
   const handleCardsDeleted = useCallback((ids: string[]) => {
     ids.forEach(cancelAIPronunciationPreload);
@@ -374,6 +389,7 @@ export default function App() {
     note, setNote,
     wordFieldLang, setWordFieldLang,
     meaningFieldLang, setMeaningFieldLang,
+    wordHideWord, setWordHideWord,
     wordAudioUri, setWordAudioUri,
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
@@ -548,8 +564,13 @@ export default function App() {
     if (closeOpenFolder.current !== close) closeOpenFolder.current?.();
     closeOpenFolder.current = close;
   }, []);
-  const handleCardViewModeToggle = useCallback(() => {
-    setCardViewMode(mode => mode === 'list' ? 'flip' : 'list');
+  const handleCardViewModeChange = useCallback((mode: 'list' | 'flip') => {
+    const changeFromWordList = wordListViewModeChangeRef.current;
+    if (changeFromWordList) {
+      changeFromWordList(mode);
+      return;
+    }
+    setCardViewMode(mode);
   }, [setCardViewMode]);
 
   const openFolder = (id: string) => {
@@ -558,6 +579,9 @@ export default function App() {
     cancelReorderMode();
     exitFolderSelectionMode();
     exitFolderReorderMode();
+    // Test Mode belongs to the folder it was started in, and its queue is that
+    // folder's words. Leaving the folder ends it rather than carrying it over.
+    setTestModeVisible(false);
     setCurrentFolderId(id);
     scrollY.setValue(0);
   };
@@ -565,10 +589,37 @@ export default function App() {
   const goBackToFolders = () => {
     exitSelectionMode();
     cancelReorderMode();
+    setTestModeVisible(false);
     setCurrentFolderId(null);
     // Reset depth gradient to ocean surface when navigating away from word list.
     scrollY.setValue(0);
   };
+
+  // Test Mode is a card-area mode of the word-list screen, like List and Flip —
+  // never a sheet. Mounted only while it is running, so entering takes a fresh
+  // queue; kept mounted for the whole session, so no re-render, filter change or
+  // card update can restart it.
+  const testModeContent = testModeVisible ? (
+    <TestModeScreen
+      cards={folderCards}
+      resetCards={allFolderCards}
+      onUpdateCard={(id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))}
+      onDeleteCard={deleteCard}
+      // Recorded on the answer itself rather than at the end of the test, so
+      // it survives a force-quit straight afterwards. Setting it does not
+      // interrupt the test — it only makes the tutorial eligible for later.
+      onFirstAnswer={() => setFirstTestAnswerRecorded(true)}
+      onClose={() => setTestModeVisible(false)}
+      pal={pal}
+      themeColor={activeThemeColor}
+      canUseAIVoice={canUseAIVoice}
+      canUseCustomVoice={canUseCustomVoice}
+      canHideWord={canHideWord}
+      onCustomVoiceLocked={showVoiceLockBanner}
+      explanationLang={nativeLang}
+      verticalFlip={verticalFlip}
+    />
+  ) : null;
 
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -616,6 +667,9 @@ export default function App() {
           themeColor={activeThemeColor}
           isSubscribed={isSubscribed}
           isPremium={isPremium}
+          canUseAIVoice={canUseAIVoice}
+          canUseCustomVoice={canUseCustomVoice}
+          canHideWord={canHideWord}
           hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
@@ -626,7 +680,8 @@ export default function App() {
           verticalFlip={verticalFlip}
           notificationsEnabled={notificationsEnabled}
           cardViewMode={cardViewMode}
-          onToggleViewMode={handleCardViewModeToggle}
+          onChangeViewMode={setCardViewMode}
+          viewModeChangeRef={wordListViewModeChangeRef}
           currentWordId={currentWordId}
           onCurrentWordChange={setCurrentWordId}
           activeResultFilter={activeResultFilter}
@@ -668,7 +723,9 @@ export default function App() {
             },
             onOpenNotifications: () => setNotificationModalVisible(true),
             onOpenMenu: openMenu,
-            onOpenTestMode: () => setTestModeVisible(true),
+            // One control, both directions: the Test button switches the card
+            // area into Test Mode and back out again, in place.
+            onOpenTestMode: () => setTestModeVisible(open => !open),
             onFlip: toggleFlip,
             onEdit: openEdit,
             onDelete: deleteCard,
@@ -678,6 +735,7 @@ export default function App() {
             onCustomVoiceLocked: showVoiceLockBanner,
             onOpenAdd: openAdd,
           }}
+          testMode={{ active: testModeVisible, content: testModeContent }}
           menuBtnRef={menuBtnRef}
         />
       )}
@@ -690,6 +748,8 @@ export default function App() {
         rawThemeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        canUseCustomVoice={canUseCustomVoice}
+        canHideWord={canHideWord}
         subscriptionExpirationDate={subscriptionExpirationDate}
         isSubscriptionLoaded={isSubscriptionLoaded}
         subscribe={subscribe}
@@ -715,6 +775,8 @@ export default function App() {
           onChangeWordLang: setWordFieldLang,
           meaningLang: meaningFieldLang,
           onChangeMeaningLang: setMeaningFieldLang,
+          hideWord: wordHideWord,
+          onChangeHideWord: setWordHideWord,
           audioUri: wordAudioUri,
           onChangeAudioUri: setWordAudioUri,
           audioSpeed: wordAudioSpeed,
@@ -769,6 +831,8 @@ export default function App() {
           onPickLanguage: pickLanguage,
           aiVoice,
           onPickAIVoice: setAIVoice,
+          cardViewMode,
+          onChangeCardViewMode: handleCardViewModeChange,
           showFullCard,
           onToggleShowFullCard: setShowFullCard,
           showResultColor,
@@ -802,20 +866,6 @@ export default function App() {
           folder: editingFolder,
           onClose: () => setEditingFolder(null),
           onSave: (name, icon) => { if (editingFolder) renameFolder(editingFolder.id, name, icon); },
-        }}
-        testMode={{
-          visible: testModeVisible,
-          cards: folderCards,
-          resetCards: allFolderCards,
-          explanationLang: nativeLang,
-          verticalFlip,
-          onUpdateCard: (id, patch) => setCards(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c)),
-          onDeleteCard: deleteCard,
-          // Recorded on the answer itself rather than at the end of the test, so
-          // it survives a force-quit straight afterwards. Setting it does not
-          // interrupt the test — it only makes the tutorial eligible for later.
-          onFirstAnswer: () => setFirstTestAnswerRecorded(true),
-          onClose: () => setTestModeVisible(false),
         }}
         movePicker={{
           visible: movePickerVisible,

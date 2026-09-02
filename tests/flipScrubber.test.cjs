@@ -100,8 +100,17 @@ test('press and hold shows a tick per card and dragging updates the card live', 
   // One tick per card, positioned by the same geometry the thumb uses.
   assert.match(source, /Array\.from\(\{ length: n \}, \(_, i\) => \(/u);
   assert.match(source, /left: HIT_PAD \+ xForIndex\(i, n\) - TICK_W \/ 2/u);
-  // The thumb follows the finger continuously while the card commits per tick.
-  assert.match(source, /scrubThumbX\.setValue\(x\);[\s\S]*?const target = indexForX\(x, n\);/u);
+  // The thumb follows the finger continuously while the card commits per tick, and it
+  // does so by writing the one value that already drives the circle — not by swapping
+  // a second animated node in for the duration of the drag.
+  assert.match(source, /setThumbX\(x\);[\s\S]*?const target = indexForX\(x, n\);/u);
+  assert.match(
+    source,
+    /const setThumbX = useCallback\(\(x: number\) => \{\s*thumbXRef\.current = x;\s*thumbX\.setValue\(x\);/u,
+  );
+  // A drag can never carry the thumb past the last card's tick — on a one-card list
+  // that tick is 0, so the circle cannot leave its only position.
+  assert.match(source, /const maxX = xForIndex\(n - 1, n\);\s*const x = Math\.max\(0, Math\.min\(maxX, dragStartXRef\.current \+ dx\)\);/u);
   assert.match(source, /if \(target !== scrubIdxRef\.current\) \{[\s\S]*?scrubIdxRef\.current = target;[\s\S]*?goToRef\.current\(target, false\);/u);
   // Ticks are built per card count, so a drag never rebuilds them.
   assert.match(source, /const ticks = useMemo\([\s\S]*?\[cards\.length, pal\.sub\]\)/u);
@@ -163,8 +172,28 @@ test('the index sync does not fight the finger mid-drag', () => {
   // onto that card's tick while the finger is still moving.
   assert.match(
     source,
-    /useEffect\(\(\) => \{[\s\S]*?if \(scrubbingRef\.current\) return;\s*const x = xForIndex\(idx, cards\.length\);/u,
+    /useEffect\(\(\) => \{[\s\S]*?if \(scrubbingRef\.current\) return;\s*setThumbX\(xForIndex\(idx, cards\.length\)\);/u,
   );
+  // `goTo` commits a card on every tick the drag crosses, so it has to stand aside too.
+  assert.match(source, /if \(!scrubbingRef\.current\) setThumbX\(xForIndex\(target, c\.length\)\);/u);
   // Release settles on the tick whose card is showing, so thumb and card never disagree.
-  assert.match(source, /const target = scrubIdxRef\.current;[\s\S]*?const snapX = xForIndex\(target, n\);/u);
+  assert.match(
+    source,
+    /const target = scrubIdxRef\.current;[\s\S]*?setThumbX\(xForIndex\(target, n\)\);/u,
+  );
+  // A cancelled gesture returns the thumb to the card that is actually on screen.
+  assert.match(
+    source,
+    /onPanResponderTerminate: \(\) => \{[\s\S]*?setThumbX\(xForIndex\(idxRef\.current, cardsLenRef\.current\)\);/u,
+  );
+});
+
+test('card navigation moves the circle through the same value a drag writes', () => {
+  const source = read('src/components/FlipCardBrowser.tsx');
+  // A settled swipe, a track tap and a scrubber release all end in setThumbX, so the
+  // circle can never disagree with the card or with the `n / total` counter.
+  assert.match(source, /setThumbX\(xForIndex\(newIdx, c\.length\)\);/u);
+  // ...and during a swipe the circle tracks the finger through the shared graph rather
+  // than waiting for the animation to land.
+  assert.match(source, /Animated\.add\(thumbX, Animated\.multiply\(swipeX, -step \/ SCREEN_W\)\)/u);
 });

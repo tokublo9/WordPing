@@ -5,7 +5,7 @@ const test = require('node:test');
 
 const read = relative => fs.readFileSync(relative, 'utf8');
 
-test('the app can adopt the local Basic scenario without initializing RevenueCat', () => {
+test('the app can adopt the local AI-voice scenario without initializing RevenueCat', () => {
   const scenario = read('src/dev/localAiVoiceScenario.ts');
   const subscription = read('src/hooks/useSubscription.ts');
   const client = read('src/lib/api/client.ts');
@@ -18,7 +18,9 @@ test('the app can adopt the local Basic scenario without initializing RevenueCat
   const subscriptionScenario = subscription.indexOf('getLocalAiVoiceTestScenario()');
   const subscriptionRevenueCat = subscription.indexOf('configureRevenueCat()', subscriptionScenario);
   assert.ok(subscriptionScenario >= 0 && subscriptionRevenueCat > subscriptionScenario);
-  assert.match(subscription, /setPlan\('basic'\)/u);
+  // Premium, matching the tier the local Worker mocks: AI Voice is Premium, so a
+  // mocked Basic would leave the app on device TTS and never reach the harness.
+  assert.match(subscription, /setPlan\('premium'\)/u);
   assert.match(subscription, /setEntitlementSource\('local-development-scenario'\)/u);
 
   const clientScenario = client.indexOf('getLocalAiVoiceTestScenario()');
@@ -31,7 +33,7 @@ test('manual playback bypasses reads without deleting audio and background prelo
   const tts = read('src/lib/tts.ts');
   const app = read('App.tsx');
 
-  assert.match(tts, /bypassCache: isBasicMonthlyLimitScenarioActive\(\)/u);
+  assert.match(tts, /bypassCache: isLocalAiVoiceScenarioActive\(\)/u);
   assert.match(tts, /if \(indexed && !options\.bypassCache\)/u);
   assert.match(tts, /if \(!options\.bypassCache && await validateCachedAudioFile\(cachedFile\)\)/u);
   assert.doesNotMatch(tts, /bypassCache[\s\S]{0,180}(delete|invalidateCachedAudioFile)/u);
@@ -52,13 +54,13 @@ test('the scenario is Worker-local configuration and creates no UI test control'
   assert.match(workerEnv, /LOCAL_AI_VOICE_TEST_SCENARIO\?: string/u);
   assert.doesNotMatch(workerEnv, /EXPO_PUBLIC_LOCAL_AI_VOICE_TEST_SCENARIO/u);
   assert.match(workerLocal, /if \(!isLocalWorkerRequest\(request\)\) return null;/u);
-  assert.doesNotMatch(components, /LOCAL_AI_VOICE_TEST_SCENARIO|basic_monthly_limit/u);
+  assert.doesNotMatch(components, /LOCAL_AI_VOICE_TEST_SCENARIO|local_ai_voice/u);
   assert.match(gitignore, /cloudflare\/\*\*\/\.dev\.vars/u);
   assert.match(gitignore, /\.env\.\*/u);
 });
 
 test('the launcher forces local bindings and disposable KV storage', () => {
-  const script = read('cloudflare/wordping-api/scripts/dev-basic-monthly-limit.sh');
+  const script = read('cloudflare/wordping-api/scripts/dev-local-ai-voice.sh');
   assert.match(script, /mktemp -d/u);
   assert.match(script, /--local/u);
   assert.match(script, /--ip 127\.0\.0\.1/u);

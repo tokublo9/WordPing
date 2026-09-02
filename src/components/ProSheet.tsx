@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   Animated,
@@ -32,6 +31,9 @@ import {
 } from '../features/flags';
 import { planUnlocksBackup } from '../features/backup/backupAccess';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
+import { planUnlocksCustomVoice } from '../features/voice/customVoiceAccess';
+import { planCanUseAI } from '../lib/aiEntitlement';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 import { formatPrice } from '../lib/pricing';
 import { fillTemplate } from '../lib/fillTemplate';
 import {
@@ -187,13 +189,23 @@ interface FeatureConfig {
  * comparison table cannot disagree. Premium only.
  */
 const PRIORITY_SUPPORT = { basic: false, premium: true } as const;
+/**
+ * The two voice features, each read from its own access rule so the table can
+ * never promise a plan something the app then locks. They are sold to different
+ * plans: Custom Voice for Words comes with any subscription, High-Quality AI
+ * Voice is Premium.
+ */
+const CUSTOM_VOICE = {
+  basic: planUnlocksCustomVoice('basic'),
+  premium: planUnlocksCustomVoice('premium'),
+} as const;
 const DATA_TRANSFER = {
   basic: planUnlocksBackup('basic'),
   premium: planUnlocksBackup('premium'),
 } as const;
 
 const ALL_FEATURE_SECTIONS: FeatureConfig[] = [
-  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', noteKey: 'feat_custom_voice_note', image: PAYWALL_IMAGES.custom, icon: 'mic-outline', accent: '#0891B2', basic: false, premium: true },
+  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', noteKey: 'feat_custom_voice_note', image: PAYWALL_IMAGES.custom, icon: 'mic-outline', accent: '#0891B2', basic: CUSTOM_VOICE.basic, premium: CUSTOM_VOICE.premium },
   {
     key: 'text_to_speech',
     titleKey: 'feat_text_to_speech_title',
@@ -425,9 +437,12 @@ const AIVoiceCard = React.memo(({ pal, demo, playingDemo, loadingDemo, onPlay, t
           <VoiceRow pal={pal} text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
         </View>
 
-        <PlanLabels basic premium t={t} />
+        {/* Read from the same rule the feature is gated on rather than hardcoded,
+            so the badge cannot keep claiming a plan the app has stopped serving.
+            High-Quality AI Voice is Premium. */}
+        <PlanLabels basic={planCanUseAI('basic')} premium={planCanUseAI('premium')} t={t} />
 
-        {/* Description moved below the Basic/Premium label */}
+        {/* Description moved below the plan label */}
         <Text style={[av.subtitle, { color: pal.sub }]}>{t('ai_voice_promo_desc')}</Text>
 
       </View>
@@ -587,17 +602,6 @@ const LOOP_TILES: GalleryTile[] = N_TILES > 1
   : CAROUSEL_TILES;
 
 // ── Accessibility / lifecycle hooks ───────────────────────────────────────────
-
-function useReduceMotion(): boolean {
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then(v => { if (alive) setReduce(v); });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
-    return () => { alive = false; sub.remove(); };
-  }, []);
-  return reduce;
-}
 
 function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
@@ -914,22 +918,29 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
   // definitions — and Basic/Premium availability — so re-enabling the flag
   // restores the table exactly. Row separators are drawn from the *filtered*
   // length below, so no dangling divider or broken striping is left behind.
-  // High-Quality AI Voice is a metered allowance on Basic and included on
-  // Premium, so Basic shows a count and Premium keeps the standard included
-  // symbol. Values come from lib/planLimits.ts — the same constants the Worker
-  // enforces — so the promise and the enforcement cannot drift. A null limit
-  // means "included", which renders as the shared circle.
-  const voiceBasic = formatVoiceMonthlyLimit('basic', language);
-  const voicePremium = formatVoiceMonthlyLimit('premium', language);
+  // The two voice rows come from the same rules the app enforces, so the promise
+  // and the enforcement cannot drift. A tier that has the feature shows either
+  // its monthly count or the shared "included" circle; a tier that does not
+  // shows the cross — `formatVoiceMonthlyLimit` returns null for both the
+  // included and the excluded case, which is why `planCanUseAI` decides which of
+  // the two a null means.
+  const voiceCell = (tier: 'basic' | 'premium'): CellValue => {
+    if (!planCanUseAI(tier)) return 'cross';
+    return formatVoiceMonthlyLimit(tier, language) ?? 'circle';
+  };
 
   const allRows: TableRowData[] = [
     { label: t('cmp_themes'),           basic: 'circle', premium: 'circle' },
     {
       label: t('cmp_ai_voice_hq'),
-      basic: voiceBasic ?? 'circle',
-      premium: voicePremium ?? 'circle',
+      basic: voiceCell('basic'),
+      premium: voiceCell('premium'),
     },
-    { label: t('cmp_custom_voice'),     basic: 'cross', premium: 'circle' },
+    {
+      label: t('cmp_custom_voice'),
+      basic: CUSTOM_VOICE.basic ? 'circle' : 'cross',
+      premium: CUSTOM_VOICE.premium ? 'circle' : 'cross',
+    },
     { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle', textToSpeech: true },
     { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle', aiText: true },
     { label: t('cmp_ai_breakdown'),     basic: 'cross', premium: 'circle', aiText: true },

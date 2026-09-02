@@ -39,6 +39,25 @@ export const AI_TEXT_FEATURES_ENABLED = false;
 export const TEXT_TO_SPEECH_ENABLED = false;
 
 /**
+ * Word Flip — the horizontal card browser that replaces the list.
+ *
+ * TEMPORARILY DISABLED. Nothing is removed: `FlipCardBrowser`, the mode layer
+ * that hosts it, `resolveModeLayers`, the per-folder current-word position and
+ * every test for them are all intact. While this is `false` two things happen,
+ * and nothing else needs to know:
+ *
+ *   - useCards       `setCardViewMode` cannot leave 'list', so the Flip layer
+ *                    is never the target and never becomes visible
+ *   - SettingsModal  the "Word Flip" toggle is not rendered, because a switch
+ *                    that cannot change anything is worse than no switch
+ *
+ * The mode is not persisted — it is plain state that starts at 'list' — so
+ * there is no stored 'flip' for anyone to be stranded in, and flipping this
+ * back to `true` restores the feature with no migration.
+ */
+export const FLIP_MODE_ENABLED = false;
+
+/**
  * Links every Test Mode grade to card visibility. The former Settings toggle
  * is intentionally dormant; keep the grading option itself so configurability
  * can be restored later without rebuilding the grading rules.

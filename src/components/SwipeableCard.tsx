@@ -20,6 +20,8 @@ import { REVEAL_WIDTH } from '../constants';
 import { useLang } from '../i18n';
 import { type GestureDirection, lockGestureDirection } from '../lib/gestureDirection';
 import { CardResultAccessibilityLabel } from './CardResultAccessibilityLabel';
+import { HiddenWordIcon } from './HiddenWordIcon';
+import { isWordTextHidden } from '../features/cards/hideWordAccess';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -38,7 +40,8 @@ interface Props {
   themeColor: string;
   pal: Palette;
   voiceLocked: boolean;
-  isSubscribed: boolean;
+  /** The plan includes High-Quality AI Voice — Premium only. */
+  canUseAIVoice: boolean;
   onFlip: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -59,24 +62,30 @@ interface Props {
   /** Suppresses the card long-press/tap after the overlapping fast-scroll zone activates. */
   isFastScrollGesture?: () => boolean;
   showFullCard?: boolean;
-  isPremium?: boolean;
+  /** The plan includes Custom Voice for Words — Basic and Premium. */
+  canUseCustomVoice?: boolean;
+  /** The plan includes Hide Word — Basic only. */
+  canHideWord?: boolean;
   onCustomVoiceLocked?: () => void;
   reorderMode?: boolean;
   reorderHandle?: React.ReactNode;
 }
 
 export function SwipeableCard({
-  item, isFlipped, themeColor, pal, voiceLocked, isSubscribed,
+  item, isFlipped, themeColor, pal, voiceLocked, canUseAIVoice,
   onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
   showLevelLabel = true, onHorizontalSwipeLockChange,
   onGestureStart, onVerticalGestureLock, isVerticalGestureLocked,
   isFastScrollGesture,
   showFullCard = false,
-  isPremium = false, onCustomVoiceLocked,
+  canUseCustomVoice = false, canHideWord = false, onCustomVoiceLocked,
   reorderMode = false, reorderHandle,
 }: Props) {
   const t = useLang();
+  // Both the per-word flag and the capability, so a plan without Hide Word shows
+  // the word again rather than inheriting a row it cannot reveal.
+  const wordHidden = isWordTextHidden(item, canHideWord);
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef(false);
   const startX = useRef(0);
@@ -223,8 +232,14 @@ export function SwipeableCard({
     liftScale.setValue(1);
   };
 
+  // What Copy would put on the clipboard, or null when there is nothing the user
+  // can see to copy. A hidden word is not offered: the whole point is that it has
+  // not been revealed yet, and the clipboard is as much an exposure as the screen.
+  const copyableText = isFlipped ? item.meaning : (wordHidden ? null : item.word);
+
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(isFlipped ? item.meaning : item.word);
+    if (copyableText === null) return;
+    await Clipboard.setStringAsync(copyableText);
     dismissLifted();
   };
 
@@ -254,11 +269,11 @@ export function SwipeableCard({
     : 0;
 
   // ── Voice ────────────────────────────────────────────────────────────────────
-  const { voiceState, playWord: speakWord, playMeaning: speakMeaning } =
+  const { voiceState, playWord: speakWord, playMeaning: speakMeaning, wordVoiceSource } =
     useWordCardVoicePlayback({
       item,
-      isSubscribed,
-      isPremium,
+      canUseAIVoice,
+      canUseCustomVoice,
       onCustomVoiceLocked,
     });
 
@@ -350,7 +365,9 @@ export function SwipeableCard({
 
             {showFullCard && isFlipped ? (
               <>
-                <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+                {wordHidden
+                  ? <HiddenWordIcon color={pal.text} variant="row" />
+                  : <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>}
                 <View style={[styles.expandDivider, { backgroundColor: pal.border }]} />
                 <View style={styles.expandMeaningRow}>
                   <Text style={[styles.expandMeaningText, { color: pal.text }]}>{item.meaning}</Text>
@@ -377,6 +394,12 @@ export function SwipeableCard({
                   </Text>
                 )}
               </>
+            ) : wordHidden ? (
+              // The eye-off mark and no word, so there is no word to read aloud,
+              // select or copy. It carries the line height the word would have
+              // had, so the list does not become a ladder of different-sized rows
+              // and every row stays as easy to hit.
+              <HiddenWordIcon color={pal.text} variant="row" />
             ) : (
               <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
             )}
@@ -392,6 +415,9 @@ export function SwipeableCard({
                   phase={voiceState?.target === (isFlipped && !showFullCard ? 'meaning' : 'word')
                     ? voiceState.phase
                     : undefined}
+                  // Dual-target: the meaning side never has a file, so only the
+                  // word side can show the custom glyph.
+                  source={isFlipped && !showFullCard ? 'tts' : wordVoiceSource}
                   themeColor={themeColor}
                   inactiveColor={pal.sub}
                   onDarkBackground={isFlipped && !showFullCard}
@@ -453,6 +479,10 @@ export function SwipeableCard({
                     </Text>
                   )}
                 </>
+              ) : wordHidden ? (
+                // The long-press preview is a copy of the row, so it shows the
+                // mark too — lifting a card must not reveal the word.
+                <HiddenWordIcon color={pal.text} variant="row" />
               ) : (
                 <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
               )}
@@ -465,11 +495,15 @@ export function SwipeableCard({
                 { backgroundColor: pal.dialog, left: lifted.pageX, top: actionsTop, width: lifted.width },
               ]}
             >
-              <TouchableOpacity style={styles.actionRow} onPress={handleCopy}>
-                <Ionicons name="copy-outline" size={18} color={pal.text} />
-                <Text style={[styles.actionLabel, { color: pal.text }]}>{t('copy')}</Text>
-              </TouchableOpacity>
-              <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />
+              {copyableText !== null && (
+                <>
+                  <TouchableOpacity style={styles.actionRow} onPress={handleCopy}>
+                    <Ionicons name="copy-outline" size={18} color={pal.text} />
+                    <Text style={[styles.actionLabel, { color: pal.text }]}>{t('copy')}</Text>
+                  </TouchableOpacity>
+                  <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />
+                </>
+              )}
               <TouchableOpacity style={styles.actionRow} onPress={handleNotifToggle}>
                 <Ionicons
                   name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'}

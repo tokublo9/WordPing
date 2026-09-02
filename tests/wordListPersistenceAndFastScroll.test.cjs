@@ -35,6 +35,11 @@ test('exclusive filters load new values and safely migrate legacy multi-select a
     alpha: ['none', 'perfect', 'perfect', 'unknown'],
     empty: [],
     corrupt: ['future-level'],
+    // Gray was a filter in earlier builds. It is a count now, and its chip is
+    // no longer a button — so a stored gray selection has to come back as no
+    // filter at all rather than as a state nothing on screen could clear.
+    gray: 'none',
+    legacyGray: ['none'],
   }));
   assert.deepEqual(restored, {
     current: 'good',
@@ -42,6 +47,8 @@ test('exclusive filters load new values and safely migrate legacy multi-select a
     legacySingle: 'slightly',
     alpha: null,
     empty: null,
+    gray: null,
+    legacyGray: null,
   });
   assert.deepEqual(levels.parseActiveResultFiltersByFolder('{broken'), {});
 });
@@ -69,7 +76,7 @@ test('regrading a retained card moves it between exactly one latest-result count
   });
 });
 
-test('the shared filter row has four accessible buttons with no Perfect gap', () => {
+test('the shared filter row has three accessible buttons with no Perfect gap', () => {
   const levels = read('src/features/cards/levels.ts');
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
   const testMode = read('src/components/TestModeScreen.tsx');
@@ -80,11 +87,70 @@ test('the shared filter row has four accessible buttons with no Perfect gap', ()
   assert.doesNotMatch(wordList, /filterStyles\.separator|filterStyles\.divider/u);
   assert.match(wordList, /accessibilityRole="button"/u);
   assert.match(wordList, /accessibilityLabel=\{`\$\{accessibilityLabel\}, \$\{count\}`\}/u);
-  assert.match(wordList, /accessibilityState=\{\{ selected: on \}\}/u);
+  // The selected state is still announced; during a test the same chip also
+  // announces that it is inert rather than going quietly unresponsive.
+  assert.match(wordList, /accessibilityState=\{\{ selected: on, disabled: testMode\.active \}\}/u);
   assert.match(wordList, /const on = activeResultFilter === level;/u);
+
+  // Only the three colours are buttons. Gray reports a count and does nothing,
+  // so it is not pressable and is not announced as a control.
+  assert.match(wordList, /const selectable = isSelectableResultFilter\(level\);/u);
+  assert.match(wordList, /\{selectable \? \(\s*<TouchableOpacity/u);
+  assert.match(
+    wordList,
+    /\) : \(\s*\/\*[\s\S]*?\*\/\s*<View\s*style=\{\[[\s\S]*?\]\}\s*accessible\s*accessibilityRole="text"\s*accessibilityLabel=\{`\$\{accessibilityLabel\}, \$\{count\}`\}/u,
+  );
+  // The one onPress among the chips belongs to the selectable branch. Bounded
+  // by the Test button, which is the next control after the chip group.
+  const chipsAt = wordList.indexOf('{LEVEL_FILTER_OPTIONS.map(');
+  const chips = wordList.slice(
+    chipsAt,
+    wordList.indexOf('onPress={handleOpenTestMode}', chipsAt),
+  );
+  assert.ok(chips.length > 0);
+  assert.equal((chips.match(/onPress=/gu) ?? []).length, 1);
 
   // Only the user-facing filter is gone; the Perfect grading answer remains.
   assert.match(testMode, /\{ kind: 'perfect',[^\n]*labelKey: 'test_know_perfectly'/u);
+});
+
+test('the gray chip is a rule under its number, not a pill', () => {
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+
+  // Squared off, then stripped of every border but the bottom one — so what is
+  // left is an underline. Derived from the ordinary chip rather than rebuilt,
+  // so the two cannot drift apart.
+  assert.match(
+    wordList,
+    /grayChip: \{\s*borderRadius: 0,\s*borderTopWidth: 0,\s*borderLeftWidth: 0,\s*borderRightWidth: 0,\s*borderBottomWidth: FILTER_BORDER_WIDTH,/u,
+  );
+  assert.match(
+    wordList,
+    /style=\{\[\s*filterStyles\.chip,\s*filterStyles\.grayChip,\s*\{ borderColor: pal\.border \},\s*\]\}/u,
+  );
+  // The removed top border is given back as padding, so the rule still lands on
+  // the bottom edge of the pills beside it.
+  assert.match(wordList, /paddingTop: CHIP_PADDING_V \+ FILTER_BORDER_WIDTH,/u);
+  assert.match(wordList, /paddingVertical: CHIP_PADDING_V,/u);
+  // Only gray is squared: the coloured chips keep their pill.
+  assert.match(wordList, /chip: \{[\s\S]*?borderRadius: 20,/u);
+  assert.equal((wordList.match(/filterStyles\.grayChip/gu) ?? []).length, 1);
+
+  // It still carries the count, and still has no icon of its own.
+  assert.match(wordList, /<Text style=\{\[filterStyles\.chipCount, \{ color: contentColor \}\]\}>\s*\{count\}/u);
+  assert.match(
+    wordList,
+    /\{icon != null\s*\? <Ionicons name=\{icon as any\} size=\{13\} color=\{contentColor\} \/>\s*: null\s*\}/u,
+  );
+  const levels = loadTypeScriptModule('src/features/cards/levels.ts');
+  assert.equal(levels.LEVEL_FILTER_OPTIONS.find(o => o.level === 'none').icon, null);
+
+  // The tutorial legend is untouched — it depicts the colours, not the chrome.
+  const tutorial = read('src/components/ResultFilterTutorial.tsx');
+  assert.match(
+    tutorial,
+    /\{icon !== null && <Ionicons name=\{icon as never\} size=\{14\} color=\{color\} \/>\}/u,
+  );
 });
 
 test('the gray filter uses the same transparent structure and border width as every color', () => {
@@ -106,12 +172,21 @@ test('the gray filter uses the same transparent structure and border width as ev
   assert.match(wordList, /const contentColor = on \? color : '#9CA3AF';/u);
   assert.doesNotMatch(wordList, /selectedBorderWidth|selectedBackgroundColor|backgroundColor: '#FFFFFF'/u);
   assert.match(wordList, /accessibilityRole="button"/u);
-  assert.match(wordList, /accessibilityState=\{\{ selected: on \}\}/u);
+  assert.match(wordList, /accessibilityState=\{\{ selected: on, disabled: testMode\.active \}\}/u);
+  // Gray builds on the same chip — same border colour, same transparent
+  // background — and overrides only the edges it drops. It has no selected
+  // state to express, so it never reads `on`.
+  assert.match(
+    wordList,
+    /style=\{\[\s*filterStyles\.chip,\s*filterStyles\.grayChip,\s*\{ borderColor: pal\.border \},\s*\]\}/u,
+  );
+  assert.doesNotMatch(wordList, /grayChip: \{[\s\S]*?backgroundColor/u);
 });
 
 test('tapping filters is exclusive and tapping the active filter clears it', () => {
   const levels = loadTypeScriptModule('src/features/cards/levels.ts');
-  const colors = ['good', 'slightly', 'unknown', 'none'];
+  const colors = ['good', 'slightly', 'unknown'];
+  assert.deepEqual(levels.SELECTABLE_RESULT_FILTERS, colors);
   for (const color of colors) {
     assert.equal(levels.toggleActiveResultFilter(null, color), color);
     assert.equal(levels.toggleActiveResultFilter(color, color), null);
@@ -123,6 +198,17 @@ test('tapping filters is exclusive and tapping the active filter clears it', () 
       }
     }
   }
+
+  // Gray selects nothing, from any state: it cannot be turned on, and it cannot
+  // turn off or replace a selection that is already there.
+  assert.equal(levels.toggleActiveResultFilter(null, 'none'), null);
+  for (const current of colors) {
+    assert.equal(levels.toggleActiveResultFilter(current, 'none'), current);
+  }
+  assert.equal(levels.toggleActiveResultFilter('none', 'none'), 'none');
+  assert.equal(levels.isSelectableResultFilter('none'), false);
+  // Still a counted category, or the chip would have nothing to report.
+  assert.equal(levels.isLevelFilterKey('none'), true);
 
   const useCards = read('src/features/cards/useCards.ts');
   assert.match(

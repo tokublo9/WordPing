@@ -255,17 +255,17 @@ test('12. the other three grades store the same level with sync on or off', () =
 });
 
 test('12. only the hide differs between the two configurations', () => {
-  // Pretty good and Not really hide the card while sync is on, and change no
-  // visibility state at all while it is off.
-  for (const kind of ['good', 'slightly'] as const) {
+  // Every grade that keeps the card hides it while sync is on, and changes no
+  // visibility state at all while it is off. Don't know is in this set now: it
+  // hides for an hour rather than staying on screen.
+  for (const kind of ['good', 'slightly', 'unknown'] as const) {
     const on = gradeCard(card(), kind, { now: 1_000, syncTestResults: true });
     const off = gradeCard(card(), kind, { now: 1_000, syncTestResults: false });
     assert.equal(on.action === 'update' && typeof on.patch.hiddenUntil, 'number');
     assert.equal(off.action === 'update' && 'hiddenUntil' in off.patch, false);
   }
-  // Don't know never hides, and clears any hide it inherited.
   const unknown = gradeCard(card(), 'unknown', { now: 1_000, syncTestResults: true });
-  assert.equal(unknown.action === 'update' && unknown.patch.hiddenUntil, undefined);
+  assert.equal(unknown.action === 'update' && unknown.patch.hiddenUntil, 1_000 + 60 * 60 * 1000);
 });
 
 test('12. an untested card is the grey chip in both configurations', () => {

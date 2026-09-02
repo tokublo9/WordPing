@@ -18,7 +18,7 @@ import {
   RC_DIAGNOSTICS,
 } from '../lib/purchases';
 import {
-  BASIC_MONTHLY_LIMIT_SCENARIO,
+  LOCAL_AI_VOICE_SCENARIO,
   getLocalAiVoiceTestScenario,
 } from '../dev/localAiVoiceScenario';
 
@@ -170,9 +170,12 @@ export function useSubscription() {
     (async () => {
       try {
         const localScenario = await getLocalAiVoiceTestScenario();
-        if (localScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
+        if (localScenario === LOCAL_AI_VOICE_SCENARIO) {
           if (active) {
-            setPlan('basic');
+            // Premium, matching the tier the local Worker mocks: High-Quality
+            // AI Voice is Premium, so a mocked Basic would leave the app on
+            // device TTS and never reach the harness.
+            setPlan('premium');
             setEntitlementSource('local-development-scenario');
             setEntitlementRevision(revision => revision + 1);
           }

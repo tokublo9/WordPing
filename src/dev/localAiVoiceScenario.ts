@@ -1,7 +1,7 @@
-export const BASIC_MONTHLY_LIMIT_SCENARIO = 'basic_monthly_limit' as const;
-export type LocalAiVoiceTestScenario = typeof BASIC_MONTHLY_LIMIT_SCENARIO;
+export const LOCAL_AI_VOICE_SCENARIO = 'local_ai_voice' as const;
+export type LocalAiVoiceTestScenario = typeof LOCAL_AI_VOICE_SCENARIO;
 
-export const LOCAL_AI_VOICE_APP_USER_ID = '$RCAnonymousID:wordping-local-basic-limit';
+export const LOCAL_AI_VOICE_APP_USER_ID = '$RCAnonymousID:wordping-local-ai-voice';
 
 const LOCAL_HOSTS: ReadonlySet<string> = new Set([
   'localhost',
@@ -31,11 +31,11 @@ async function probeLocalWorker(baseUrl: string): Promise<LocalAiVoiceTestScenar
     const response = await fetch(`${baseUrl}/v1/health`, { signal: controller.signal });
     if (!response.ok) return null;
     const body = (await response.json()) as Record<string, unknown>;
-    const safeLocalWorker = body.localAiVoiceTestScenario === BASIC_MONTHLY_LIMIT_SCENARIO
-      && body.entitlement === 'mock-basic'
+    const safeLocalWorker = body.localAiVoiceTestScenario === LOCAL_AI_VOICE_SCENARIO
+      && body.entitlement === 'mock-premium'
       && body.upstreamsMocked === true
       && body.storage === 'isolated-local-kv';
-    return safeLocalWorker ? BASIC_MONTHLY_LIMIT_SCENARIO : null;
+    return safeLocalWorker ? LOCAL_AI_VOICE_SCENARIO : null;
   } catch {
     return null;
   } finally {
@@ -58,6 +58,6 @@ export function getLocalAiVoiceTestScenario(): Promise<LocalAiVoiceTestScenario 
 }
 
 /** Synchronous read for cache/preload code after subscription detection. */
-export function isBasicMonthlyLimitScenarioActive(): boolean {
-  return __DEV__ && activeScenario === BASIC_MONTHLY_LIMIT_SCENARIO;
+export function isLocalAiVoiceScenarioActive(): boolean {
+  return __DEV__ && activeScenario === LOCAL_AI_VOICE_SCENARIO;
 }

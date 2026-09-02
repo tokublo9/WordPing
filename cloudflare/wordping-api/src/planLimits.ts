@@ -32,10 +32,15 @@ export function isVoiceQuotaFeature(feature: Feature): boolean {
  * none — but "no monthly quota" is not "no limits": Premium is still subject to
  * entitlement verification, the per-minute and per-day abuse limits in
  * ratelimit.ts, the kill switches, and the OpenAI project budget.
+ *
+ * `0` means the tier does not have the feature. Free and Basic both sit there:
+ * AI Voice is Premium. Nothing reaches the quota check on those tiers anyway —
+ * FEATURE_TIER rejects them at the entitlement guard first — but the zero is
+ * what the app's mirrored copy reads to know the feature is not included.
  */
 export const VOICE_MONTHLY_LIMITS: Readonly<Record<Tier, number | null>> = {
   free: 0,
-  basic: 200,
+  basic: 0,
   premium: null,
 };
 

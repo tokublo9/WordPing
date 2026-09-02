@@ -3,8 +3,8 @@ import { appNow } from '../../lib/appClock';
 import type { ActiveResultFilter } from './levels';
 
 /**
- * Temporary hiding, set by a "Pretty good" or "Not really" grade when
- * "Sync with test results" is on.
+ * Temporary hiding, set by a "Pretty good", "Not really" or "Don't know" grade
+ * when "Sync with test results" is on.
  *
  * The card is not deleted and not archived — it simply drops out of every
  * ordinary learning view until `hiddenUntil` passes, then reappears on its own.
@@ -23,11 +23,14 @@ import type { ActiveResultFilter } from './levels';
  *
  * The better the recall, the longer the card stays away: "Pretty good" is
  * remembered, so it waits three days; "Not really" is shaky and comes back the
- * next day. Perfect cards are deleted by the canonical app path, and "Don't
- * know" is never hidden — a word the user could not recall stays in front.
+ * next day; "Don't know" comes back within the hour, which is short enough to
+ * be the same study session but long enough that the answer is recalled rather
+ * than still on screen. Perfect cards are deleted by the canonical app path and
+ * have no hide at all.
  */
 export const PRETTY_GOOD_HIDE_MS = 72 * 60 * 60 * 1000;
 export const NOT_REALLY_HIDE_MS = 24 * 60 * 60 * 1000;
+export const DONT_KNOW_HIDE_MS = 60 * 60 * 1000;
 
 export interface CardVisibilityContext {
   now: number;
@@ -74,7 +77,7 @@ export function visibleCards<T extends VisibilityCard>(
 /**
  * The timestamp a grade should hide a card until.
  *
- * `durationMs` is always one of the two constants above — the caller picks
+ * `durationMs` is always one of the three constants above — the caller picks
  * which, so the grade-to-duration mapping lives in one place (grading.ts) and
  * this module stays a pure clock helper.
  */

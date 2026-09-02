@@ -115,14 +115,19 @@ describe('health reports the truth about the key', () => {
 });
 
 describe('paid users still work once the key is valid', () => {
-  it('a Basic user can generate voice', async () => {
+  it('a Basic user is refused voice, like a Free one', async () => {
+    // High-Quality AI Voice is Premium. Basic pays for Custom Voice for Words,
+    // which is a local audio file and never reaches this Worker.
     mockFetch([
       { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
     const response = await voiceCall(makeEnv());
-    expect(response.status).toBe(200);
-    expect(response.headers.get('Content-Type')).toBe('audio/wav');
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'subscription_required',
+      requiredTier: 'premium',
+    });
   });
 
   it('a Premium user can generate voice', async () => {
@@ -143,7 +148,7 @@ describe('paid users still work once the key is valid', () => {
   it('every configured voice is accepted and an unknown one fails validation', async () => {
     for (const voice of ['cedar', 'fable', 'alloy', 'ash', 'coral', 'nova', 'marin', 'shimmer']) {
       mockFetch([
-        { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+        { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
         { match: '/audio/speech', respond: () => wavBody() },
       ]);
       const response = await handleRequest(
@@ -154,7 +159,7 @@ describe('paid users still work once the key is valid', () => {
       expect(response.status, `${voice} must be accepted`).toBe(200);
     }
 
-    mockFetch([{ match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) }]);
+    mockFetch([{ match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) }]);
     const bad = await handleRequest(
       makeRequest('/v1/voice/card', { body: { text: 'hi', voice: 'not-a-voice' } }),
       makeEnv(),
@@ -212,7 +217,7 @@ describe('a 201 flows all the way through', () => {
       {
         match: 'api.revenuecat.com',
         respond: () => new Response(
-          JSON.stringify({ subscriber: { entitlements: { basic: { expires_date: FUTURE_DATE } } } }),
+          JSON.stringify({ subscriber: { entitlements: { premium: { expires_date: FUTURE_DATE } } } }),
           { status: 201 },
         ),
       },
@@ -238,7 +243,7 @@ describe('a secret with surrounding whitespace', () => {
     // it becomes `Bearer sk_...\n` and RevenueCat answers 401, which is
     // indistinguishable from a genuinely bad key.
     const { calls } = mockFetch([
-      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
     const env = makeEnv({ REVENUECAT_SECRET_API_KEY: '  sk-test-revenuecat-key\n' });
@@ -256,7 +261,7 @@ describe('a secret with surrounding whitespace', () => {
     // A probe that authenticated differently could report ok while real
     // requests failed — the failure mode this whole fix is about.
     const { calls } = mockFetch([
-      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
     const env = makeEnv({ REVENUECAT_SECRET_API_KEY: ' sk-test-revenuecat-key ' });
@@ -289,7 +294,7 @@ describe('server-to-server identification', () => {
     // your app." when the request looks like it came from a client app. The
     // header is what triggers it, so no RevenueCat call may carry it.
     const { calls } = mockFetch([
-      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
     const env = makeEnv();

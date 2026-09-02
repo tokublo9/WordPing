@@ -12,7 +12,11 @@ import { appStyles as s } from '../styles';
 import { LEGAL_URLS } from '../config/legalUrls';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
 import { BackupSection } from './BackupSection';
-import { AI_TEXT_FEATURES_ENABLED, SUBSCRIPTION_DIAGNOSTICS_ENABLED } from '../features/flags';
+import {
+  AI_TEXT_FEATURES_ENABLED,
+  FLIP_MODE_ENABLED,
+  SUBSCRIPTION_DIAGNOSTICS_ENABLED,
+} from '../features/flags';
 import { SubscriptionDiagnosticsSheet } from './SubscriptionDiagnosticsSheet';
 import { canUseBackup } from '../features/backup/backupAccess';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
@@ -90,6 +94,8 @@ interface Props {
   onPickLanguage: (code: string) => void;
   aiVoice: AIVoice;
   onPickAIVoice: (voice: AIVoice) => void;
+  cardViewMode: 'list' | 'flip';
+  onChangeCardViewMode: (mode: 'list' | 'flip') => void;
   showFullCard: boolean;
   onToggleShowFullCard: (v: boolean) => void;
   showResultColor: boolean;
@@ -118,6 +124,7 @@ export function SettingsModal({
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription,
   pal, language, onPickLanguage,
   aiVoice, onPickAIVoice,
+  cardViewMode, onChangeCardViewMode,
   showFullCard, onToggleShowFullCard,
   showResultColor, onToggleShowResultColor,
   verticalFlip, onToggleVerticalFlip,
@@ -166,10 +173,10 @@ export function SettingsModal({
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
 
   useEffect(() => {
-    if (visible && isSubscribed) return;
+    if (visible && canUseAI) return;
     stopPlayback();
     setVoicePickerVisible(false);
-  }, [visible, isSubscribed]);
+  }, [visible, canUseAI]);
 
   // ── Appearance-disabled toast ─────────────────────────────────────────────
   const [hintShowing, setHintShowing] = useState(false);
@@ -311,7 +318,11 @@ export function SettingsModal({
           <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('card_behavior')}</Text>
           </View>
-          {isSubscribed && (
+          {/* The AI voice picker belongs to High-Quality AI Voice, which is
+              Premium. `canUseAI` is that rule; a plan check here could drift
+              from it, and a picker for a voice the plan cannot play is only a
+              locked feature with a preview button. */}
+          {canUseAI && (
             <TouchableOpacity
               style={styles.cardBehaviorRow}
               onPress={() => {
@@ -336,6 +347,19 @@ export function SettingsModal({
                 <Ionicons name="chevron-forward" size={15} color={pal.sub} />
               </View>
             </TouchableOpacity>
+          )}
+          {/* Withheld rather than disabled while Word Flip is off: a switch
+              that cannot move is a worse answer than no switch. The preference
+              itself is untouched, so this row returns as it was. */}
+          {FLIP_MODE_ENABLED && (
+            <ToggleRow
+              icon="albums-outline"
+              label={t('view_flip')}
+              value={cardViewMode === 'flip'}
+              onToggle={enabled => onChangeCardViewMode(enabled ? 'flip' : 'list')}
+              themeColor={themeColor}
+              pal={pal}
+            />
           )}
           <ToggleRow
             icon="reader-outline"

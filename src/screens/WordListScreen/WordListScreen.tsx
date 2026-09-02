@@ -13,10 +13,14 @@ import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
 import { AD_BANNER_HEIGHT } from '../../components/AdBannerPlaceholder';
 import {
+  ALL_LEVEL_KEYS,
   LEVEL_FILTER_OPTIONS,
   countCardsByResult,
+  isSelectableResultFilter,
   type ActiveResultFilter,
+  type LevelFilterKey,
 } from '../../features/cards/levels';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 import { SwipeableCard } from '../../components/SwipeableCard';
 import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
@@ -51,6 +55,16 @@ const FAST_SCROLL_TOUCH_WIDTH = 48;
 const FAST_SCROLL_ACTIVE_TOUCH_WIDTH = 72;
 const FAST_SCROLL_VERTICAL_HIT_SLOP = 18;
 const FILTER_BORDER_WIDTH = 1;
+// Shared by the pills and by the gray chip, which gives back the height of the
+// top border it removes so its rule still lands on the pills' bottom edge.
+const CHIP_PADDING_V = 6;
+// The result-count flash. Short enough not to sit under the next answer, long
+// enough to be seen while the eye is still on the card that was just graded.
+const CHIP_FLASH_IN_MS = 130;
+const CHIP_FLASH_OUT_MS = 420;
+// Peak of the flash: the chip fills with its own colour and swells slightly.
+const CHIP_FLASH_TINT_OPACITY = 0.3;
+const CHIP_FLASH_SCALE = 1.22;
 // ReorderableList already reserves 100pt. This extra clearance keeps its final row
 // above the 58pt add button at the existing 48pt bottom offset.
 const FAB_LIST_EXTRA_CLEARANCE = 32;
@@ -105,6 +119,12 @@ export interface WordListScreenProps {
   themeColor: string;
   isSubscribed: boolean;
   isPremium?: boolean;
+  /** The plan includes High-Quality AI Voice — Premium only. */
+  canUseAIVoice?: boolean;
+  /** The plan includes Custom Voice for Words — Basic and Premium. */
+  canUseCustomVoice?: boolean;
+  /** The plan includes Hide Word — Basic only. */
+  canHideWord?: boolean;
   hasTextToSpeechHistory?: boolean;
 
   // Deep Sea skin scroll animation
@@ -120,7 +140,9 @@ export interface WordListScreenProps {
   verticalFlip: boolean;
   notificationsEnabled: boolean;
   cardViewMode: 'list' | 'flip';
-  onToggleViewMode(): void;
+  onChangeViewMode(mode: 'list' | 'flip'): void;
+  /** Lets the Settings control reuse the list-position handoff before changing mode. */
+  viewModeChangeRef: { current: ((mode: 'list' | 'flip') => void) | null };
   currentWordId: string | null;
   onCurrentWordChange(id: string | null): void;
 
@@ -149,23 +171,41 @@ export interface WordListScreenProps {
   reorder: WordListReorderProps;
   actions: WordListActionsProps;
 
+  /**
+   * Test Mode is a third card-area mode, not a sheet. `content` is the Test
+   * screen itself; it stays mounted for as long as `active` is true, so the
+   * session, its progress and its answers survive every unrelated re-render.
+   * List and Flip stay mounted underneath, which is what lets exiting return to
+   * whichever of them the user was on, at the position they left it.
+   */
+  testMode: {
+    active: boolean;
+    content: React.ReactNode;
+  };
+
   menuBtnRef: React.RefObject<View | null>;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function WordListScreen({
-  pal, themeColor, isSubscribed, isPremium = false, hasTextToSpeechHistory = false,
+  pal, themeColor, isSubscribed, isPremium = false,
+  canUseAIVoice = false, canUseCustomVoice = false, canHideWord = false,
+  hasTextToSpeechHistory = false,
   scrollY, deepSeaSkin,
   currentFolder, allFolderCards, filteredFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
-  cardViewMode, onToggleViewMode, currentWordId, onCurrentWordChange,
+  cardViewMode, onChangeViewMode, viewModeChangeRef, currentWordId, onCurrentWordChange,
   activeResultFilter, showResultFilters, showLevelLabels, showResultColor, onToggleResultFilter,
   flipped, closeOpenCard, onCardOpen,
-  selection, reorder, actions,
+  selection, reorder, actions, testMode,
   menuBtnRef,
 }: WordListScreenProps) {
   const t = useLang();
+  // Selection and reorder own the whole card area when they run, so Test Mode
+  // steps aside for them — by being hidden, never by being unmounted, or the
+  // session would be lost to a menu tap.
+  const showTestLayer = testMode.active && !selection.active && !reorder.active;
   const actionsRef = useRef(actions);
   const selectionRef = useRef(selection);
   const reorderRef = useRef(reorder);
@@ -237,6 +277,10 @@ export function WordListScreen({
     id: string;
     index: number;
   } | null>(null);
+  const [preparedFlipPosition, setPreparedFlipPosition] = useState<{
+    id: string;
+    index: number;
+  } | null>(null);
   const preparedListPositionRef = useRef(preparedListPosition);
   // The layer the user is actually looking at, recorded after commit. Only a
   // layer that is already on screen is allowed to cover a mode change.
@@ -284,6 +328,9 @@ export function WordListScreen({
   const listPositionPrepared = resolvedCurrentWordId === null
     || (preparedListPosition?.id === resolvedCurrentWordId
       && preparedListPosition.index === resolvedCurrentWordIndex);
+  const flipPositionPrepared = resolvedCurrentWordId === null
+    || (preparedFlipPosition?.id === resolvedCurrentWordId
+      && preparedFlipPosition.index === resolvedCurrentWordIndex);
 
   // Both mode layers stay mounted; this decides visibility only. See modeLayers.ts
   // for the rule — in short, Flip is a destination and never a loading placeholder.
@@ -291,6 +338,7 @@ export function WordListScreen({
     cardViewMode,
     reorderActive: reorder.active,
     listPositionPrepared,
+    flipPositionPrepared,
     visibleLayer: visibleLayerRef.current,
   });
   const { showListLayer, showFlipLayer } = layerVisibility;
@@ -298,7 +346,7 @@ export function WordListScreen({
   // was really on screen and neither may hold it later.
   const hasCards = filteredFolderCards.length > 0;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     visibleLayerRef.current = hasCards
       ? committedLayer({ showListLayer, showFlipLayer })
       : null;
@@ -323,6 +371,11 @@ export function WordListScreen({
     setPreparedListPosition(previous => previous?.id === cardId && previous.index === index
       ? previous
       : next);
+  }, []);
+  const markFlipPositionPrepared = useCallback((cardId: string, index: number) => {
+    setPreparedFlipPosition(previous => previous?.id === cardId && previous.index === index
+      ? previous
+      : { id: cardId, index });
   }, []);
 
   const handleTopVisibleCardChange = useCallback((cardId: string, index: number) => {
@@ -377,8 +430,8 @@ export function WordListScreen({
     listScrollToIndexRef.current?.(resolvedCurrentWordIndex);
   }, [reorder.active, resolvedCurrentWordId, resolvedCurrentWordIndex]);
 
-  const handleToggleViewMode = useCallback(() => {
-    if (cardViewMode === 'list') {
+  const handleViewModeChange = useCallback((nextMode: 'list' | 'flip') => {
+    if (cardViewMode === 'list' && nextMode === 'flip') {
       const topWordId = topVisibleWordIdRef.current ?? currentWordIdRef.current;
       if (topWordId) {
         currentWordIdRef.current = topWordId;
@@ -387,8 +440,17 @@ export function WordListScreen({
       // Freeze any native momentum before the list becomes non-interactive and hidden.
       listScrollToOffsetRef.current?.(listScrollOffsetRef.current);
     }
-    onToggleViewMode();
-  }, [cardViewMode, onCurrentWordChange, onToggleViewMode]);
+    onChangeViewMode(nextMode);
+  }, [cardViewMode, onChangeViewMode, onCurrentWordChange]);
+
+  useLayoutEffect(() => {
+    viewModeChangeRef.current = handleViewModeChange;
+    return () => {
+      if (viewModeChangeRef.current === handleViewModeChange) {
+        viewModeChangeRef.current = null;
+      }
+    };
+  }, [handleViewModeChange, viewModeChangeRef]);
 
   // listScrollAnim is fed by the list's native-driven Animated.event, so the scrollbar
   // thumb tracks the finger even while rows are rendering. This JS listener only feeds
@@ -656,7 +718,7 @@ export function WordListScreen({
         themeColor={themeColor}
         pal={pal}
         voiceLocked={false}
-        isSubscribed={isSubscribed}
+        canUseAIVoice={canUseAIVoice}
         onFlip={() => currentActions.onFlip(item.id)}
         onEdit={() => currentActions.onEdit(item)}
         onDelete={() => currentActions.onDelete(item.id)}
@@ -664,7 +726,8 @@ export function WordListScreen({
         onToggleNotif={() => currentActions.onToggleNotif(item.id)}
         onVoiceLocked={currentActions.onVoiceLocked}
         onCustomVoiceLocked={currentActions.onCustomVoiceLocked}
-        isPremium={isPremium}
+        canUseCustomVoice={canUseCustomVoice}
+        canHideWord={canHideWord}
         onOpen={onCardOpenRef.current}
         openCardRef={closeOpenCard}
         selectionMode={reorderMode ? false : currentSelection.active}
@@ -688,8 +751,9 @@ export function WordListScreen({
     handleHorizontalSwipeLockChange,
     handleVerticalGestureLock,
     isFastScrollGesture,
-    isPremium,
-    isSubscribed,
+    canUseAIVoice,
+    canUseCustomVoice,
+    canHideWord,
     isVerticalGestureLocked,
     pal,
     selection.active,
@@ -712,6 +776,23 @@ export function WordListScreen({
   const handleCustomVoiceLocked = useCallback(() => actionsRef.current.onCustomVoiceLocked(), []);
   const handleOpenAdd = useCallback(() => actionsRef.current.onOpenAdd(), []);
 
+  // Entering a test from a filtered list clears the filter and returns the list
+  // to the top first, so what waits underneath is the whole folder from the
+  // beginning rather than the narrow slice the user left. The queue never
+  // depended on the filter — Test Mode is handed the folder's visible cards
+  // either way — so this changes what the user comes back to, not what is
+  // tested. Leaving a test clears nothing: the same button is the way out.
+  const handleOpenTestMode = useCallback(() => {
+    if (!testMode.active && activeResultFilter !== null) {
+      onToggleResultFilter(activeResultFilter);
+      listScrollToOffsetRef.current?.(0);
+      // The imperative scroll fires no scroll event, so the offset the parallax
+      // and the word count read from is told directly.
+      handleListScroll(0);
+    }
+    actionsRef.current.onOpenTestMode();
+  }, [testMode.active, activeResultFilter, onToggleResultFilter, handleListScroll]);
+
   // ── Header ───────────────────────────────────────────────────────────────────
   // Memoized: these walk the whole folder on every render, including the renders a
   // scroll gesture triggers.
@@ -720,6 +801,48 @@ export function WordListScreen({
       && filteredFolderCards.every(card => selection.selectedIds.has(card.id)),
     [filteredFolderCards, selection.selectedIds],
   );
+  // The ordinary header contents: the folder name and the three icon controls.
+  const folderHeaderContent = (
+    <>
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: -4 }}
+        onPress={actions.onGoBack}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10 }}
+      >
+        <View style={{ paddingRight: 4 }}>
+          <Ionicons name="chevron-back" size={24} color={pal.text} />
+        </View>
+        <Text style={[s.title, { color: pal.text, flex: 1 }]} numberOfLines={1}>
+          {currentFolder?.name ?? ''}
+        </Text>
+      </TouchableOpacity>
+      <View style={s.headerIcons}>
+        {TEXT_TO_SPEECH_ENABLED && (isPremium || hasTextToSpeechHistory) && (
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={actions.onOpenTextToSpeech}
+            accessibilityLabel="Text-to-Speech"
+          >
+            <Ionicons name="volume-high-outline" size={22} color={pal.sub} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenNotifications}>
+          <Ionicons
+            name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
+            size={22}
+            color={notificationsEnabled ? themeColor : pal.sub}
+          />
+        </TouchableOpacity>
+        <View ref={menuBtnRef}>
+          <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenMenu}>
+            <Ionicons name="ellipsis-vertical" size={22} color={pal.sub} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+
   const header = (
     <View style={[s.header, wordListLayoutStyles.header]} onTouchStart={() => closeOpenCard.current?.()}>
       {selection.active ? (
@@ -764,66 +887,35 @@ export function WordListScreen({
             </TouchableOpacity>
           </View>
         </>
+      ) : testMode.active ? (
+        /* A test says only which mode it is: the folder name, the back chevron,
+           the notification toggle and the three-dots menu all step aside, and
+           the Test button in the row below is the way out.
+
+           Nothing shifts when they go. This row is a fixed 50pt for exactly
+           this reason — the selection and reorder headers already swap their
+           whole contents — so one stretched, centre-aligned child both centres
+           the badge and leaves every height below it untouched. */
+        <Text
+          style={[testHeaderStyles.title, { color: pal.text }]}
+          accessibilityRole="header"
+        >
+          TEST
+        </Text>
       ) : (
-        <>
-          <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: -4 }}
-            onPress={actions.onGoBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10 }}
-          >
-            <View style={{ paddingRight: 4 }}>
-              <Ionicons name="chevron-back" size={24} color={pal.text} />
-            </View>
-            <Text style={[s.title, { color: pal.text, flex: 1 }]} numberOfLines={1}>
-              {currentFolder?.name ?? ''}
-            </Text>
-          </TouchableOpacity>
-          <View style={s.headerIcons}>
-            {TEXT_TO_SPEECH_ENABLED && (isPremium || hasTextToSpeechHistory) && (
-              <TouchableOpacity
-                style={s.iconBtn}
-                onPress={actions.onOpenTextToSpeech}
-                accessibilityLabel="Text-to-Speech"
-              >
-                <Ionicons name="volume-high-outline" size={22} color={pal.sub} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenNotifications}>
-              <Ionicons
-                name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
-                size={22}
-                color={notificationsEnabled ? themeColor : pal.sub}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.iconBtn}
-              onPress={handleToggleViewMode}
-            >
-              <Ionicons
-                name={cardViewMode === 'flip' ? 'list-outline' : 'albums-outline'}
-                size={22}
-                color={pal.sub}
-              />
-            </TouchableOpacity>
-            <View ref={menuBtnRef}>
-              <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenMenu}>
-                <Ionicons name="ellipsis-vertical" size={22} color={pal.sub} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </>
+        folderHeaderContent
       )}
     </View>
   );
 
   // ── Word count / scroll position ──────────────────────────────────────────────
-  // The default summary distinguishes cards currently available for study from every
-  // existing card in the folder. The same line becomes a position readout once the
-  // list is scrolled, or while browsing an explicitly selected result category.
+  // At the top the line is a plain total — just how many words are in the list. The
+  // same line becomes a "current / total" position readout once the list is scrolled,
+  // or while browsing an explicitly selected result category. Both counts are the
+  // rows actually on screen, so the summary and the readout's denominator agree.
   const isFilterActive = activeResultFilter !== null;
-  const wordCountSummary = `${filteredFolderCards.length} / ${allFolderCards.length} ${
-    t(allFolderCards.length === 1 ? 'words_singular' : 'words_plural')
+  const wordCountSummary = `${filteredFolderCards.length} ${
+    t(filteredFolderCards.length === 1 ? 'words_singular' : 'words_plural')
   }`;
 
   // Whether there is more than one page to be at a position within, measured
@@ -836,6 +928,9 @@ export function WordListScreen({
     ? filteredFolderCards.length > 1
     : getScrollBarMetrics(listContentH, listViewH).show;
 
+  // Shown in every mode, Test Mode included: the folder's word count is true
+  // whichever way the cards are being studied, and the line holds the position
+  // of the colour filter row below it.
   const wordCount = (
     <View onTouchStart={() => closeOpenCard.current?.()}>
       <WordListPositionLabel
@@ -856,6 +951,52 @@ export function WordListScreen({
   const levelCounts = useMemo(() => countCardsByResult(allFolderCards), [allFolderCards]);
   const untestedCount = levelCounts.none;
   const isTestComplete = allFolderCards.length > 0 && untestedCount === 0;
+
+  // ── Result-count flash ────────────────────────────────────────────────────────
+  // Answering "Pretty good", "Not really" or "Don't know" raises one of these
+  // counts by one, and this row stays on screen for the whole test — so without a
+  // cue the only feedback for an answer is a digit quietly changing somewhere
+  // above the card. The chip that took the answer swells and fills with its own
+  // colour for a moment.
+  //
+  // Driven by the count itself rather than by a signal from Test Mode: whatever
+  // makes a category grow is the thing worth pointing at, and the screen needs no
+  // new prop to know it happened. Restricted to a running test so that adding,
+  // importing or restoring words — which also raise the grey untested count —
+  // does not flash a chip the user was not looking at.
+  const reduceMotion = useReduceMotion();
+  const chipFlashRef = useRef<Record<LevelFilterKey, Animated.Value> | null>(null);
+  if (chipFlashRef.current === null) {
+    chipFlashRef.current = {
+      good: new Animated.Value(0),
+      slightly: new Animated.Value(0),
+      unknown: new Animated.Value(0),
+      none: new Animated.Value(0),
+    };
+  }
+  const chipFlash = chipFlashRef.current;
+  const prevLevelCounts = useRef(levelCounts);
+  const chipFlashAnim = useRef<Animated.CompositeAnimation | null>(null);
+  useEffect(() => {
+    const prev = prevLevelCounts.current;
+    prevLevelCounts.current = levelCounts;
+    if (!testMode.active) return;
+    const risen = ALL_LEVEL_KEYS.filter(level => levelCounts[level] > prev[level]);
+    if (risen.length === 0) return;
+    // Answering faster than the flash fades restarts it on the new chip rather
+    // than letting two overlap at different points of the same curve.
+    chipFlashAnim.current?.stop();
+    chipFlashAnim.current = Animated.parallel(risen.map(level => {
+      const value = chipFlash[level];
+      value.setValue(0);
+      return Animated.sequence([
+        Animated.timing(value, { toValue: 1, duration: CHIP_FLASH_IN_MS, useNativeDriver: true }),
+        Animated.timing(value, { toValue: 0, duration: CHIP_FLASH_OUT_MS, useNativeDriver: true }),
+      ]);
+    }));
+    chipFlashAnim.current.start();
+  }, [levelCounts, testMode.active]);
+  useEffect(() => () => chipFlashAnim.current?.stop(), []);
 
   // Keep this slot only when it has visible label controls or when the reorder
   // toolbar is using it. Hiding labels should restore the compact list offset.
@@ -880,6 +1021,9 @@ export function WordListScreen({
           <View style={filterStyles.chipGroup}>
             {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
               const count = levelCounts[level];
+              // Gray is neither a button nor a pill: it keeps the count and
+              // wears only the bottom border, as a rule beneath the number.
+              const selectable = isSelectableResultFilter(level);
               const on = activeResultFilter === level;
               const contentColor = on ? color : '#9CA3AF';
               const accessibilityLabel = level === 'good'
@@ -889,18 +1033,24 @@ export function WordListScreen({
                 : level === 'unknown'
                 ? t('test_dont_know')
                 : 'Not tested';
-              return (
-                <TouchableOpacity
-                  key={level}
-                  style={[
-                    filterStyles.chip,
-                    { borderColor: on ? color : pal.border },
-                  ]}
-                  onPress={() => onToggleResultFilter(level)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${accessibilityLabel}, ${count}`}
-                  accessibilityState={{ selected: on }}
-                >
+              const flash = chipFlash[level];
+              const chipContent = (
+                <>
+                  {/* Behind the icon and the number, so neither is tinted or
+                      made harder to read at the peak of the flash. */}
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      filterStyles.chipFlash,
+                      {
+                        backgroundColor: color,
+                        opacity: flash.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, CHIP_FLASH_TINT_OPACITY],
+                        }),
+                      },
+                    ]}
+                  />
                   {icon != null
                     ? <Ionicons name={icon as any} size={13} color={contentColor} />
                     : null
@@ -908,7 +1058,60 @@ export function WordListScreen({
                   <Text style={[filterStyles.chipCount, { color: contentColor }]}>
                     {count}
                   </Text>
-                </TouchableOpacity>
+                </>
+              );
+              return (
+                <Animated.View
+                  key={level}
+                  // Reduce Motion keeps the colour fill and drops the swell, so the
+                  // count that changed is still marked without anything moving.
+                  style={reduceMotion ? undefined : {
+                    transform: [{
+                      scale: flash.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, CHIP_FLASH_SCALE],
+                      }),
+                    }],
+                  }}
+                >
+                  {selectable ? (
+                    <TouchableOpacity
+                      style={[
+                        filterStyles.chip,
+                        { borderColor: on ? color : pal.border },
+                      ]}
+                      onPress={() => onToggleResultFilter(level)}
+                      // Inert during a test: filtering the list underneath would
+                      // change nothing on screen and would silently rebuild the
+                      // set the user comes back to. Deliberately not dimmed —
+                      // these counts are live while answers are being given, and
+                      // the chip that just went up still has to be legible.
+                      disabled={testMode.active}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${accessibilityLabel}, ${count}`}
+                      accessibilityState={{ selected: on, disabled: testMode.active }}
+                    >
+                      {chipContent}
+                    </TouchableOpacity>
+                  ) : (
+                    /* Gray reports a count and filters nothing, so it is not a
+                       button: not pressable, announced as the reading it is
+                       rather than as a control that does nothing when used, and
+                       drawn as a rule under the number rather than as a pill. */
+                    <View
+                      style={[
+                        filterStyles.chip,
+                        filterStyles.grayChip,
+                        { borderColor: pal.border },
+                      ]}
+                      accessible
+                      accessibilityRole="text"
+                      accessibilityLabel={`${accessibilityLabel}, ${count}`}
+                    >
+                      {chipContent}
+                    </View>
+                  )}
+                </Animated.View>
               );
             })}
           </View>
@@ -923,7 +1126,8 @@ export function WordListScreen({
           <TouchableOpacity
             style={s.iconBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={actions.onOpenTestMode}
+            onPress={handleOpenTestMode}
+            accessibilityRole="button"
             accessibilityLabel={
               isTestComplete
                 ? 'Test complete.'
@@ -931,6 +1135,9 @@ export function WordListScreen({
                 ? `Test, ${untestedCount} remaining`
                 : 'Test'
             }
+            // The same control enters and leaves Test Mode, exactly as the mode
+            // itself is entered and left in place — there is nothing to dismiss.
+            accessibilityState={{ selected: testMode.active }}
           >
             <TestStatusIcon
               cardCount={allFolderCards.length}
@@ -1002,11 +1209,17 @@ export function WordListScreen({
         cards={filteredFolderCards}
         currentWordId={resolvedCurrentWordId}
         onCurrentWordChange={onCurrentWordChange}
-        active={cardViewMode === 'flip' && !reorder.active}
+        preparing={cardViewMode === 'flip' && !flipPositionPrepared && !reorder.active}
+        onPositionPrepared={markFlipPositionPrepared}
+        // During Flip → List, Flip remains the displayed layer until the hidden
+        // list confirms its restored position. Keep that held layer active so
+        // its reset effect cannot visibly alter it before List takes over.
+        active={showFlipLayer && !reorder.active && !showTestLayer}
         pal={pal}
         themeColor={themeColor}
-        isSubscribed={isSubscribed}
-        isPremium={isPremium}
+        canUseAIVoice={canUseAIVoice}
+        canUseCustomVoice={canUseCustomVoice}
+        canHideWord={canHideWord}
         onCustomVoiceLocked={handleCustomVoiceLocked}
         onEdit={handleFlipEdit}
         onDelete={handleFlipDelete}
@@ -1226,7 +1439,7 @@ export function WordListScreen({
   ) : null;
 
   // ── FAB ───────────────────────────────────────────────────────────────────────
-  const fab = !selection.active && !reorder.active ? (
+  const fab = !selection.active && !reorder.active && !showTestLayer ? (
     <TouchableOpacity
       style={[
         s.fab,
@@ -1242,12 +1455,42 @@ export function WordListScreen({
     </TouchableOpacity>
   ) : null;
 
+  // Header, word count and the colour-filter row — including the Test button —
+  // stay exactly where they are. Test Mode occupies the card area below them and
+  // nothing else. Both layers are mounted and only their visibility changes, so
+  // entering or leaving cannot flash the word list, an empty state, or the
+  // "No words yet" screen a completed test would otherwise leave behind.
   return (
     <>
       {header}
       {wordCount}
       {filterBar}
-      {cardContent}
+      <View style={cardAreaStyles.stack}>
+        <View
+          style={[
+            cardAreaStyles.layer,
+            showTestLayer ? cardAreaStyles.hidden : cardAreaStyles.visible,
+          ]}
+          pointerEvents={showTestLayer ? 'none' : 'auto'}
+          accessibilityElementsHidden={showTestLayer}
+          importantForAccessibility={showTestLayer ? 'no-hide-descendants' : 'auto'}
+        >
+          {cardContent}
+        </View>
+        {testMode.active ? (
+          <View
+            style={[
+              cardAreaStyles.layer,
+              showTestLayer ? cardAreaStyles.visible : cardAreaStyles.hidden,
+            ]}
+            pointerEvents={showTestLayer ? 'auto' : 'none'}
+            accessibilityElementsHidden={!showTestLayer}
+            importantForAccessibility={showTestLayer ? 'auto' : 'no-hide-descendants'}
+          >
+            {testMode.content}
+          </View>
+        ) : null}
+      </View>
       {selectionBar}
       {fab ? (
         <View style={fabOverlayStyles.root} pointerEvents="box-none">
@@ -1277,12 +1520,20 @@ const selStyles = StyleSheet.create({
 });
 
 const wordListLayoutStyles = StyleSheet.create({
-  // Normal, selection, and reorder headers contain different controls, but the
-  // list must always begin at the same screen coordinate when modes change.
+  // Normal, selection, reorder and test headers contain different controls, but
+  // the list must always begin at the same screen coordinate when modes change.
   header: { height: 50 },
 });
 
 const modeLayerStyles = StyleSheet.create({
+  stack: { flex: 1 },
+  layer: { ...StyleSheet.absoluteFillObject },
+  visible: { opacity: 1, zIndex: 1 },
+  hidden: { opacity: 0, zIndex: 0 },
+});
+
+// The same stacking rule one level up, between the List/Flip pair and Test Mode.
+const cardAreaStyles = StyleSheet.create({
   stack: { flex: 1 },
   layer: { ...StyleSheet.absoluteFillObject },
   visible: { opacity: 1, zIndex: 1 },
@@ -1294,6 +1545,20 @@ const fabOverlayStyles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 100,
     elevation: 100,
+  },
+});
+
+const testHeaderStyles = StyleSheet.create({
+  // A mode badge, not a page title: smaller than the folder name it replaces,
+  // and letter-spaced so four capitals do not read as an abbreviation. Stretched
+  // across the row so it centres on the screen; the row's own fixed height is
+  // what keeps everything below it in place.
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 2,
   },
 });
 
@@ -1317,14 +1582,37 @@ const filterStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: CHIP_PADDING_V,
     borderRadius: 20,
     borderWidth: FILTER_BORDER_WIDTH,
     backgroundColor: 'transparent',
   },
+  // The gray chip: the same chip squared off, with three of its four borders
+  // taken away, so all that is left is a rule under the count. It filters
+  // nothing, and now it does not look like something that would.
+  grayChip: {
+    borderRadius: 0,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: FILTER_BORDER_WIDTH,
+    // The removed top border, given back as padding, so the chip keeps the
+    // height of the pills beside it and its rule sits on their bottom edge.
+    paddingTop: CHIP_PADDING_V + FILTER_BORDER_WIDTH,
+  },
   chipCount: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  // Matches the chip's own radius so the flash fills the pill rather than a
+  // rectangle behind it. Inset by the border so the outline stays visible.
+  chipFlash: {
+    position: 'absolute',
+    top: FILTER_BORDER_WIDTH,
+    right: FILTER_BORDER_WIDTH,
+    bottom: FILTER_BORDER_WIDTH,
+    left: FILTER_BORDER_WIDTH,
+    borderRadius: 20,
   },
   hidden: { opacity: 0 },
 });

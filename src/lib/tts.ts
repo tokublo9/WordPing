@@ -1,7 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { MAX_AI_INPUT_CHARS } from '../constants';
 import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
-import { isBasicMonthlyLimitScenarioActive } from '../dev/localAiVoiceScenario';
+import { isLocalAiVoiceScenarioActive } from '../dev/localAiVoiceScenario';
+import { resolveCardVoiceSource } from '../features/voice/cardVoiceSource';
 
 /**
  * Promotional previews always use the app's default voice, matching the voice
@@ -36,6 +37,7 @@ import {
 } from './openaiGateway';
 import { isAIConsentGranted } from './aiConsent';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
+import { deferAudioPlayerRemoval } from './audioPlayerCleanup';
 import {
   DeduplicatedRequestRegistry,
   isSupportedCachedWav,
@@ -762,7 +764,7 @@ async function speakWithAI(
         loadingIndicatorDisplayed = Boolean(options.onPhaseChange);
         reportPhase('generating-or-downloading');
       },
-      bypassCache: isBasicMonthlyLimitScenarioActive() && sampleVersion === undefined && promo === undefined,
+      bypassCache: isLocalAiVoiceScenarioActive() && sampleVersion === undefined && promo === undefined,
       sampleVersion,
       ...(promo ? { promo } : {}),
     });
@@ -1020,9 +1022,13 @@ export async function speakCustom(
         settled = true;
         sub.remove();
         if (stopping) {
+          // Silence the old side now, but do not destroy its native player in
+          // the card-tap stack. `remove()` can synchronously wait on AVPlayer;
+          // deferring it lets the native-driver flip start immediately.
           try { player.pause(); } catch {}
         }
-        try { player.remove(); } catch {}
+        if (stopping) deferAudioPlayerRemoval(player);
+        else try { player.remove(); } catch {}
         if (currentPlayer === player) currentPlayer = null;
         if (stopActivePlayer === stop) stopActivePlayer = null;
         releaseAudioFocus(focusToken);
@@ -1032,6 +1038,10 @@ export async function speakCustom(
       };
 
       const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+        // Native status delivery can already be queued when pause/remove begins.
+        // Neither that callback nor a superseded playback epoch may revive UI
+        // state after the card has flipped or changed.
+        if (settled || myEpoch !== epoch) return;
         if (status.playing && !reportedPlaying) {
           reportedPlaying = true;
           options.onPhaseChange?.('playing');
@@ -1061,29 +1071,37 @@ export async function speakCustom(
  */
 export function speakWordCard(
   card: { audioUri?: string; audioSpeed?: number; audioVolume?: number; word: string; wordLang?: string },
-  isSubscribed: boolean,
+  canUseAIVoice: boolean,
   options?: TTSPlaybackOptions,
 ): Promise<void> {
-  if (card.audioUri) {
-    return speakCustom(card.audioUri, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0, options);
+  // The same predicate the card's voice button draws its icon from, so the icon
+  // and the audio can never disagree about which one this word plays.
+  if (resolveCardVoiceSource(card, 'word') === 'custom') {
+    // Registered audio wins outright: no generation, no device engine, no
+    // network. `speakCustom` only opens the local file.
+    return speakCustom(card.audioUri!, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0, options);
   }
-  return speak(card.word, isSubscribed, card.wordLang, options);
+  return speak(card.word, canUseAIVoice, card.wordLang, options);
 }
 
 /**
  * Speak `text` using the appropriate engine:
- * - Pro users  → OpenAI high-quality voice (auto-detects language from text)
- * - Free users → device TTS; locale is inferred from the text content via
+ * - With High-Quality AI Voice → OpenAI voice (auto-detects language from text)
+ * - Without it → device TTS; locale is inferred from the text content via
  *   detectLocale() so each card side is always spoken in its own language,
  *   regardless of the app's UI language setting.
+ *
+ * The flag is the AI Voice *capability*, not "is subscribed": AI Voice is a
+ * Premium feature, so Basic reaches the device engine here just as Free does.
+ * Basic's own voice feature is the card's attached audio, handled above.
  */
 export function speak(
   text: string,
-  isPro: boolean,
+  canUseAIVoice: boolean,
   forcedLocale?: string,
   options?: TTSPlaybackOptions,
 ): Promise<void> {
-  if (isPro) return speakWithAI(text, activeAIVoice, options);
+  if (canUseAIVoice) return speakWithAI(text, activeAIVoice, options);
   return speakFree(text, forcedLocale ?? detectLocale(text), options);
 }
 

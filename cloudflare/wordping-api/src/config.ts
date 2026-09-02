@@ -77,8 +77,13 @@ export type Tier = 'free' | 'basic' | 'premium';
 export const ANONYMOUS_FEATURES: ReadonlySet<Feature> = new Set<Feature>(['voice_promo']);
 
 export const FEATURE_TIER: Readonly<Record<Feature, Tier>> = {
-  voice_card: 'basic',
-  voice_sample: 'basic',
+  // High-Quality AI Voice is Premium, and so is its voice-picker preview: a
+  // picker for a voice the tier cannot use would only advertise a locked
+  // feature and spend a generation doing it. Basic's voice feature is Custom
+  // Voice for Words — the user's own audio file, which never reaches this
+  // Worker and therefore has no entry here.
+  voice_card: 'premium',
+  voice_sample: 'premium',
   voice_promo: 'free',
   voice_custom: 'premium',
   meaning: 'premium',
@@ -115,12 +120,12 @@ const NO_ACCESS: FeatureLimits = {
 export const DEFAULT_LIMITS: LimitTable = {
   voice_card: {
     free: NO_ACCESS,
-    basic: { maxCharsPerRequest: 300, maxRequestsPerMinute: 10, maxRequestsPerDay: 100, maxCharsPerDay: 15_000 },
+    basic: NO_ACCESS,
     premium: { maxCharsPerRequest: 500, maxRequestsPerMinute: 20, maxRequestsPerDay: 300, maxCharsPerDay: 50_000 },
   },
   voice_sample: {
     free: NO_ACCESS,
-    basic: { maxCharsPerRequest: 120, maxRequestsPerMinute: 8, maxRequestsPerDay: 40, maxCharsPerDay: 4_000 },
+    basic: NO_ACCESS,
     premium: { maxCharsPerRequest: 120, maxRequestsPerMinute: 8, maxRequestsPerDay: 40, maxCharsPerDay: 4_000 },
   },
   // Free by design; the tight per-minute and per-day caps are what stop the

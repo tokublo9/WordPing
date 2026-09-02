@@ -1,10 +1,20 @@
 import type { Env } from './env';
-import { privacyHash } from './identity';
-import { monthlyQuotaCounterKey } from './monthlyQuota';
-import { monthlyCounterTtlSeconds } from './planLimits';
 
-export const BASIC_MONTHLY_LIMIT_SCENARIO = 'basic_monthly_limit' as const;
-export type LocalAiVoiceTestScenario = typeof BASIC_MONTHLY_LIMIT_SCENARIO;
+/**
+ * The local AI-voice harness.
+ *
+ * Mocks the entitlement as Premium — the tier that owns High-Quality AI Voice —
+ * and mocks every upstream, so the whole voice path can be driven on a loopback
+ * Worker with no RevenueCat secret, no OpenAI key and no spend.
+ *
+ * It used to seed the Basic monthly counter to 200 so the exhaustion response
+ * could be exercised by hand. That seeding is gone: AI Voice is Premium and
+ * Premium is sold as included, so no tier is metered and there is no exhaustion
+ * response to reach. The quota machinery in monthlyQuota.ts is kept for the
+ * plan that may want it again.
+ */
+export const LOCAL_AI_VOICE_SCENARIO = 'local_ai_voice' as const;
+export type LocalAiVoiceTestScenario = typeof LOCAL_AI_VOICE_SCENARIO;
 
 const LOCAL_HOSTS: ReadonlySet<string> = new Set([
   'localhost',
@@ -27,29 +37,7 @@ export function resolveLocalAiVoiceTestScenario(
   env: Env,
 ): LocalAiVoiceTestScenario | null {
   if (!isLocalWorkerRequest(request)) return null;
-  return env.LOCAL_AI_VOICE_TEST_SCENARIO === BASIC_MONTHLY_LIMIT_SCENARIO
-    ? BASIC_MONTHLY_LIMIT_SCENARIO
+  return env.LOCAL_AI_VOICE_TEST_SCENARIO === LOCAL_AI_VOICE_SCENARIO
+    ? LOCAL_AI_VOICE_SCENARIO
     : null;
-}
-
-/** Seeds the real monthly counter shape in the Worker's local KV namespace. */
-export async function seedLocalBasicMonthlyLimit(
-  env: Env,
-  hashedAppUserId: string,
-  now: number = Date.now(),
-): Promise<string> {
-  const key = monthlyQuotaCounterKey(now, hashedAppUserId);
-  await env.WORDPING_KV.put(key, '200', {
-    expirationTtl: monthlyCounterTtlSeconds(now),
-  });
-  return key;
-}
-
-/** A fixed identity helper used only by tests and local diagnostics. */
-export async function localScenarioQuotaKey(
-  env: Env,
-  appUserId: string,
-  now: number = Date.now(),
-): Promise<string> {
-  return monthlyQuotaCounterKey(now, await privacyHash(env, 'rcuser', appUserId));
 }

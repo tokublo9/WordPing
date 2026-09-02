@@ -1,16 +1,11 @@
 /**
  * Which of the Word List screen's two mode layers is visible.
  *
- * List and Flip both stay mounted, so this only decides visibility. The rule
- * that matters:
- *
- *   **Flip is a destination, never a placeholder.**
- *
- * Flip owns the screen when it is the selected mode. It may additionally *keep*
- * the screen for the few frames a Flip → List toggle needs to scroll the list to
- * the current word, so the user does not watch that scroll happen — but only
- * when Flip was already the layer on screen. Opening a folder shows no layer
- * beforehand, so the list is displayed from the very first render.
+ * List and Flip both stay mounted, so this only decides visibility. During a
+ * mode change, the current layer stays on screen while the hidden destination
+ * restores its saved card or scroll position. Visibility then switches in one
+ * render, so the user never sees the destination's corrective positioning
+ * commit. A fresh screen can render its selected layer immediately.
  *
  * The earlier rule was `showFlip = !reorder.active && !showList`, which made
  * Flip the fallback for "the list has not reported its position yet". A freshly
@@ -26,6 +21,8 @@ export interface ModeLayerInput {
   reorderActive: boolean;
   /** The list has confirmed it is showing the current word at the expected row. */
   listPositionPrepared: boolean;
+  /** The mounted Flip deck has confirmed the current word is centred. */
+  flipPositionPrepared?: boolean;
   /** The layer the user is looking at right now, or null on a fresh screen. */
   visibleLayer: ModeLayer | null;
 }
@@ -39,18 +36,30 @@ export function resolveModeLayers({
   cardViewMode,
   reorderActive,
   listPositionPrepared,
+  flipPositionPrepared = false,
   visibleLayer,
 }: ModeLayerInput): ModeLayerVisibility {
   const listIsTargetLayer = reorderActive || cardViewMode === 'list';
   const listLayerReady = reorderActive || (cardViewMode === 'list' && listPositionPrepared);
+  const flipIsTargetLayer = !reorderActive && cardViewMode === 'flip';
+  // A freshly mounted Flip deck derives its initial slot from currentWordId, so
+  // it is ready on its first render. A deck hidden behind List may be stale and
+  // must explicitly confirm its centred card before becoming visible.
+  const flipLayerReady = flipIsTargetLayer
+    && (flipPositionPrepared || visibleLayer !== 'list');
 
-  // Only a Flip that is already on screen may cover a pending mode change.
+  // An already-visible Flip may cover a pending transition to List.
   const flipCoversModeChange = listIsTargetLayer && !listLayerReady && visibleLayer === 'flip';
-  const showFlipLayer = !reorderActive && (cardViewMode === 'flip' || flipCoversModeChange);
+  const showFlipLayer = !reorderActive && (flipLayerReady || flipCoversModeChange);
+  // Symmetric with the Flip hold above: List stays visible while the hidden
+  // Flip deck centres the destination card.
+  const listCoversModeChange = flipIsTargetLayer && !flipLayerReady && visibleLayer === 'list';
 
   return {
     showFlipLayer,
-    showListLayer: listLayerReady || (listIsTargetLayer && !showFlipLayer),
+    showListLayer: listCoversModeChange
+      || listLayerReady
+      || (listIsTargetLayer && !showFlipLayer),
   };
 }
 

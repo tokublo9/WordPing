@@ -18,25 +18,21 @@ test('the client mirrors the Worker limits exactly', () => {
   assert.deepEqual(workerValues, VOICE_MONTHLY_LIMITS);
 });
 
-test('Basic is metered and Premium has no monthly product quota', () => {
-  assert.deepEqual(VOICE_MONTHLY_LIMITS, { free: 0, basic: 200, premium: null });
+test('AI Voice is Premium, included rather than metered, and Basic has none', () => {
+  // 0 = the plan does not have the feature. null = it has it, uncapped.
+  assert.deepEqual(VOICE_MONTHLY_LIMITS, { free: 0, basic: 0, premium: null });
 });
 
-test('Basic renders a count and Premium defers to the included symbol', () => {
-  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US'), '200 / month');
-  assert.equal(formatVoiceMonthlyLimit('basic', 'ja'), '月200回');
-  // null tells the table to render its shared circle rather than a number.
+test('no plan renders a monthly count today, and null carries both meanings', () => {
+  // Null for Premium means "included"; null for Free and Basic means "not
+  // included". `planCanUseAI` is what tells the comparison table which is which,
+  // so neither ever renders as the number zero.
   assert.equal(formatVoiceMonthlyLimit('premium', 'en-US'), null);
   assert.equal(formatVoiceMonthlyLimit('premium', 'ja'), null);
-  assert.equal(formatVoiceMonthlyLimit('free', 'en-US'), '0');
-  assert.equal(formatVoiceMonthlyLimit('free', 'ja'), '0回');
-});
-
-test('the Basic value is short enough for an iPhone SE column', () => {
-  // The feature column is ~40% of a 320pt screen; both strings are well inside
-  // what fits at the table's font size on three lines.
-  assert.ok(formatVoiceMonthlyLimit('basic', 'en-US')!.length <= 12);
-  assert.ok(formatVoiceMonthlyLimit('basic', 'ja')!.length <= 8);
+  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US'), null);
+  assert.equal(formatVoiceMonthlyLimit('basic', 'ja'), null);
+  assert.equal(formatVoiceMonthlyLimit('free', 'en-US'), null);
+  assert.equal(formatVoiceMonthlyLimit('free', 'ja'), null);
 });
 
 test('a Basic user at the voice limit gets the voice message and the upgrade', () => {

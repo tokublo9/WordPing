@@ -93,14 +93,16 @@ This uses one ignored machine-local file and no real credentials. In
 ```dotenv
 OPENAI_API_KEY="local-mock-not-used"
 REVENUECAT_SECRET_API_KEY="local-mock-not-used"
-RATE_LIMIT_SALT="wordping-local-basic-limit"
+RATE_LIMIT_SALT="wordping-local-ai-voice"
 DEV_BYPASS_ENTITLEMENTS="0"
-LOCAL_AI_VOICE_TEST_SCENARIO="basic_monthly_limit"
+LOCAL_AI_VOICE_TEST_SCENARIO="local_ai_voice"
 ```
 
-The scenario is accepted only on a loopback request. It reports a mocked Basic
-entitlement, seeds the real current-month quota key to 200, and replaces every
-OpenAI upstream with a deterministic local response. The app discovers this
+The scenario is accepted only on a loopback request. It reports a mocked Premium
+entitlement — the tier High-Quality AI Voice belongs to — and replaces every
+OpenAI upstream with a deterministic local response. It no longer seeds a monthly
+quota counter: AI Voice is Premium and Premium is sold as included, so no tier is
+metered and there is no exhaustion response to exercise. The app discovers this
 contract from `/v1/health`, uses a fixed local RevenueCat-shaped identity without
 initializing the RevenueCat SDK, disables background voice preloads, and sends a
 normal `/v1/voice/card` request when the voice button is tapped.
@@ -110,7 +112,7 @@ Start the Worker with disposable local-only KV storage:
 ```bash
 cd /Users/tokumoto/Documents/WordPing/cloudflare/wordping-api
 nvm use 20
-npm run dev:basic-monthly-limit
+npm run dev:local-ai-voice
 ```
 
 In a second terminal, verify the safety contract:
@@ -123,8 +125,8 @@ The JSON must contain all four values below before starting the app:
 
 ```json
 {
-  "localAiVoiceTestScenario": "basic_monthly_limit",
-  "entitlement": "mock-basic",
+  "localAiVoiceTestScenario": "local_ai_voice",
+  "entitlement": "mock-premium",
   "upstreamsMocked": true,
   "storage": "isolated-local-kv"
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { gradeCard } from '../../src/features/cards/grading';
 import {
+  DONT_KNOW_HIDE_MS,
   NOT_REALLY_HIDE_MS,
   PRETTY_GOOD_HIDE_MS,
   cardsForVisibility,
@@ -50,7 +51,7 @@ test('the four grades follow the sync table exactly', () => {
   // Perfect!    → delete
   // Pretty good → hide 72 h
   // Not really  → hide 24 h
-  // Don't know  → stay visible
+  // Don't know  → hide 1 h
   const perfect = gradeCard(card('w1'), 'perfect', SYNC_ON);
   assert.equal(perfect.action, 'delete');
 
@@ -66,7 +67,11 @@ test('the four grades follow the sync table exactly', () => {
 
   const unknown = gradeCard(card('w1'), 'unknown', SYNC_ON);
   assert.ok(unknown.action === 'update');
-  assert.equal(unknown.patch.hiddenUntil, undefined);
+  assert.equal(unknown.patch.hiddenUntil, NOW + DONT_KNOW_HIDE_MS);
+  assert.equal(unknown.patch.hiddenUntil, NOW + 60 * 60 * 1000);
+  // The postponement matches the hide, so the card cannot come back to Test
+  // Mode while it is still invisible in the list it would be studied from.
+  assert.equal(unknown.patch.testNextReview, unknown.patch.hiddenUntil);
 });
 
 test('Pretty good hides three times as long as Not really', () => {
@@ -183,14 +188,35 @@ test('a Not really card leaves the visible list and returns after 24 h', () => {
   assert.deepEqual(visibleCards(folder, NOW + PRETTY_GOOD_HIDE_MS).map(c => c.id), ['w0', 'w1']);
 });
 
-test("a Don't know card is never hidden, even with sync on", () => {
+test("a Don't know card leaves the visible list and returns after 1 h", () => {
+  // Regraded down from Pretty good, so the long hide has to be replaced by the
+  // short one rather than left in place or simply cleared.
   const original = card('w1', { testLevel: 'good', hiddenUntil: NOW + PRETTY_GOOD_HIDE_MS });
   const outcome = gradeCard(original, 'unknown', SYNC_ON);
   assert.ok(outcome.action === 'update');
   const graded = applyPatch(original, outcome.patch);
-  assert.deepEqual(visibleCards([graded], NOW).map(c => c.id), ['w1']);
-  assert.equal(isCardHidden(graded, NOW), false);
-  assert.equal(graded.hiddenUntil, undefined);
+
+  assert.equal(isCardHidden(graded, NOW), true);
+  assert.deepEqual(visibleCards([graded], NOW).map(c => c.id), []);
+  assert.deepEqual(visibleCards([graded], NOW + DONT_KNOW_HIDE_MS - 1).map(c => c.id), []);
+  assert.deepEqual(visibleCards([graded], NOW + DONT_KNOW_HIDE_MS).map(c => c.id), ['w1']);
+
+  // The red filter still reaches it while it is away, exactly as the other
+  // grades' categories do.
+  assert.deepEqual(cardsForVisibility([graded], {
+    now: NOW,
+    activeResultFilter: 'unknown',
+  }).map(c => c.id), ['w1']);
+});
+
+test('Not really hides 24 times as long as Don\'t know', () => {
+  const slightly = gradeCard(card('w1'), 'slightly', SYNC_ON);
+  const unknown = gradeCard(card('w1'), 'unknown', SYNC_ON);
+  assert.ok(slightly.action === 'update' && unknown.action === 'update');
+  assert.equal(
+    (slightly.patch.hiddenUntil as number) - NOW,
+    ((unknown.patch.hiddenUntil as number) - NOW) * 24,
+  );
 });
 
 test('regrading refreshes each retained hide from the latest grading time', () => {

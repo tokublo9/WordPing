@@ -7,7 +7,7 @@ if [ "$node_major" -lt 20 ]; then
   exit 1
 fi
 
-state_dir="$(mktemp -d "${TMPDIR:-/tmp}/wordping-basic-limit.XXXXXX")"
+state_dir="$(mktemp -d "${TMPDIR:-/tmp}/wordping-local-ai-voice.XXXXXX")"
 
 cleanup() {
   rm -rf "$state_dir"

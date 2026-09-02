@@ -12,6 +12,7 @@ import {
   type ActiveResultFiltersByFolder,
 } from './levels';
 import { findDuplicateCard } from './duplicates';
+import { FLIP_MODE_ENABLED } from '../flags';
 import { createId } from '../../utils/createId';
 import { reportSideEffectFailure } from '../../utils/reportSideEffectFailure';
 import {
@@ -93,6 +94,8 @@ export interface UseCardsReturn {
   setWordFieldLang: Dispatch<SetStateAction<string | undefined>>;
   meaningFieldLang: string | undefined;
   setMeaningFieldLang: Dispatch<SetStateAction<string | undefined>>;
+  wordHideWord: boolean;
+  setWordHideWord: Dispatch<SetStateAction<boolean>>;
   wordAudioUri: string | undefined;
   setWordAudioUri: Dispatch<SetStateAction<string | undefined>>;
   wordAudioSpeed: number;
@@ -140,6 +143,7 @@ export function useCards({
   const [note, setNote] = useState('');
   const [wordFieldLang, setWordFieldLang] = useState<string | undefined>(undefined);
   const [meaningFieldLang, setMeaningFieldLang] = useState<string | undefined>(undefined);
+  const [wordHideWord, setWordHideWord] = useState(false);
   const [wordAudioUri, setWordAudioUri] = useState<string | undefined>(undefined);
   const [wordAudioSpeed, setWordAudioSpeed] = useState(1.0);
   const [wordAudioVolume, setWordAudioVolume] = useState(1.0);
@@ -147,7 +151,18 @@ export function useCards({
   const [testClearPending, setTestClearPending] = useState(false);
   const [wordModalVisible, setWordModalVisible] = useState(false);
   const [testModeVisible, setTestModeVisible] = useState(false);
-  const [cardViewMode, setCardViewMode] = useState<'list' | 'flip'>('list');
+  const [cardViewMode, setSelectedCardViewMode] = useState<'list' | 'flip'>('list');
+  // The single gate for Word Flip. Every route into the mode — the Settings
+  // toggle, the word list's own position-preserving change, and the internal
+  // calls that force 'list' — ends here, so refusing 'flip' in one place is
+  // enough and no caller has to know the feature is off.
+  const setCardViewMode = useCallback<Dispatch<SetStateAction<'list' | 'flip'>>>(action => {
+    if (!FLIP_MODE_ENABLED) {
+      setSelectedCardViewMode('list');
+      return;
+    }
+    setSelectedCardViewMode(action);
+  }, []);
   const [currentWordIdsByFolder, setCurrentWordIdsByFolder] = useState<Record<string, string>>({});
 
   // Position is retained per folder so leaving the Word List temporarily—or opening a
@@ -380,6 +395,7 @@ export function useCards({
     setNote('');
     setWordFieldLang(undefined);
     setMeaningFieldLang(undefined);
+    setWordHideWord(false);
     setWordAudioUri(undefined);
     setWordAudioSpeed(1.0);
     setWordAudioVolume(1.0);
@@ -395,6 +411,8 @@ export function useCards({
     setNote(card.note ?? '');
     setWordFieldLang(card.wordLang);
     setMeaningFieldLang(card.meaningLang);
+    // Absent on every card saved before the toggle existed, which reads as off.
+    setWordHideWord(card.hideWord === true);
     setWordAudioUri(card.audioUri);
     setWordAudioSpeed(card.audioSpeed ?? 1.0);
     setWordAudioVolume(card.audioVolume ?? 1.0);
@@ -447,6 +465,7 @@ export function useCards({
               note: note.trim(),
               wordLang: wordFieldLang,
               meaningLang: meaningFieldLang,
+              hideWord: wordHideWord,
               audioUri: wordAudioUri,
               audioSpeed: wordAudioSpeed,
               audioVolume: wordAudioVolume,
@@ -471,6 +490,7 @@ export function useCards({
         folderId: currentFolderId ?? undefined,
         wordLang: wordFieldLang,
         meaningLang: meaningFieldLang,
+        hideWord: wordHideWord,
         audioUri: wordAudioUri,
         audioSpeed: wordAudioSpeed,
         audioVolume: wordAudioVolume,
@@ -548,6 +568,7 @@ export function useCards({
     note, setNote,
     wordFieldLang, setWordFieldLang,
     meaningFieldLang, setMeaningFieldLang,
+    wordHideWord, setWordHideWord,
     wordAudioUri, setWordAudioUri,
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,

@@ -1,5 +1,6 @@
 import { planCanUseAI } from '../../lib/aiEntitlement';
-import type { PlanTier } from '../../lib/planLimits';
+import { planUnlocksCustomVoice } from '../voice/customVoiceAccess';
+import { planIsSubscribed, type PlanTier } from '../../lib/planLimits';
 
 /**
  * The "!" markers on features a new subscription just unlocked.
@@ -18,14 +19,14 @@ import type { PlanTier } from '../../lib/planLimits';
  */
 
 export const FEATURE_MARKERS = {
-  /** Settings → Card Behavior → the AI voice picker row. Basic and Premium. */
+  /** Settings → Card Behavior → the AI voice picker row. Premium only. */
   naturalAIVoice: 'natural-ai-voice.v1',
-  /** Settings → Help → About AI Voice. Basic and Premium. */
+  /** Settings → Help → About AI Voice. Premium only. */
   aboutAIVoice: 'about-ai-voice.v1',
   /** Settings → Theme Shop. Basic and Premium. */
   themeShop: 'theme-shop.v1',
   /**
-   * The custom-audio control in the word editor, Premium only.
+   * The custom-audio control in the word editor. Basic and Premium.
    *
    * One id for both the Add and the Edit sheet: it is the same control on the
    * same field, so finding it in one is finding it. There is no separate
@@ -40,12 +41,21 @@ export type FeatureMarkerId = (typeof FEATURE_MARKERS)[keyof typeof FEATURE_MARK
 /**
  * The plan a marker's feature needs.
  *
- * Read from the entitlement configuration rather than restated: the three
- * Basic markers use `planCanUseAI`, which is the same rule the features
- * themselves are gated on, and the Premium one asks for Premium directly.
+ * Read from each feature's own access rule rather than restated, so a marker
+ * can never point at something the plan cannot open. The two AI voice markers
+ * ride on `planCanUseAI`, which is Premium now that AI Voice has left Basic;
+ * the custom-audio control rides on its own rule, which is any paid plan; and
+ * the Theme Shop is any paid plan directly, because it sells no voice at all.
  */
 export function planUnlocksFeature(marker: FeatureMarkerId, plan: PlanTier): boolean {
-  return marker === FEATURE_MARKERS.customAudio ? plan === 'premium' : planCanUseAI(plan);
+  switch (marker) {
+    case FEATURE_MARKERS.customAudio:
+      return planUnlocksCustomVoice(plan);
+    case FEATURE_MARKERS.themeShop:
+      return planIsSubscribed(plan);
+    default:
+      return planCanUseAI(plan);
+  }
 }
 
 export interface MarkerVisibilityInput {

@@ -69,10 +69,12 @@ test('the app and the Worker speak exactly the same words', () => {
 test('the promo route is the only free feature, and it is free by config', () => {
   const config = read(WORKER_CONFIG);
   assert.match(config, /voice_promo: 'free',/u);
-  // Every other route still demands an entitlement.
-  assert.match(config, /voice_card: 'basic',/u);
-  assert.match(config, /voice_sample: 'basic',/u);
+  // Every other route still demands an entitlement, and every AI Voice route now
+  // demands Premium: the picker preview moves with the feature it previews.
+  assert.match(config, /voice_card: 'premium',/u);
+  assert.match(config, /voice_sample: 'premium',/u);
   assert.match(config, /voice_custom: 'premium',/u);
+  assert.doesNotMatch(config, /voice_\w+: 'basic',/u, 'no voice route is sold to Basic');
   for (const feature of ['meaning', 'breakdown', 'translation', 'example']) {
     assert.match(config, new RegExp(`${feature}: 'premium',`, 'u'));
   }
@@ -213,13 +215,16 @@ test('an offline preview says so; any other failure says the preview is unavaila
   );
 });
 
-test('word-card AI voice is still gated for Free users', () => {
+test('word-card AI voice is still gated for everyone below Premium', () => {
   // The preview route is additive: nothing about the paid path changed.
   const tts = read('src/lib/tts.ts');
-  assert.match(tts, /export function speak\(\s*text: string,\s*isPro: boolean,/u);
-  assert.match(tts, /if \(isPro\) return speakWithAI\(text, activeAIVoice, options\);\s*return speakFree\(/u);
-  // And the Worker still refuses /v1/voice/card without an entitlement.
-  assert.match(read(WORKER_CONFIG), /voice_card: 'basic',/u);
+  // The engine is chosen by the AI Voice *capability*, not by "is subscribed" —
+  // which is what puts Basic on the device engine alongside Free.
+  assert.match(tts, /export function speak\(\s*text: string,\s*canUseAIVoice: boolean,/u);
+  assert.match(tts, /if \(canUseAIVoice\) return speakWithAI\(text, activeAIVoice, options\);\s*return speakFree\(/u);
+  assert.doesNotMatch(tts, /\bisPro\b/u);
+  // And the Worker still refuses /v1/voice/card without a Premium entitlement.
+  assert.match(read(WORKER_CONFIG), /voice_card: 'premium',/u);
   assert.match(
     read('cloudflare/wordping-api/src/pipeline.ts'),
     /if \(!tierSatisfies\(tier, requiredTier\)\) \{\s*return reject\('subscription_required', 403/u,

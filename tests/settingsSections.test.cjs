@@ -429,26 +429,56 @@ test('the generic "Monthly API requests" row is gone everywhere', () => {
   assert.doesNotMatch(read('src/lib/planLimits.ts'), /formatMonthlyApiLimit|MONTHLY_API_LIMITS/u);
 });
 
-test('High-Quality AI Voice shows a Basic count and the Premium included symbol', () => {
+test('the two voice rows are read from the rules the app enforces', () => {
   const sheet = read('src/components/ProSheet.tsx');
-  assert.match(sheet, /const voiceBasic = formatVoiceMonthlyLimit\('basic', language\);/u);
-  assert.match(sheet, /const voicePremium = formatVoiceMonthlyLimit\('premium', language\);/u);
+
+  // AI Voice: a cross for a tier without the feature, its count if metered, and
+  // the shared included circle otherwise. `formatVoiceMonthlyLimit` returns null
+  // for both the included and the excluded case, so `planCanUseAI` picks between
+  // them — that is why the cell is a function rather than a `??`.
   assert.match(
     sheet,
-    /label: t\('cmp_ai_voice_hq'\),\s*basic: voiceBasic \?\? 'circle',\s*premium: voicePremium \?\? 'circle',/u,
+    /const voiceCell = \(tier: 'basic' \| 'premium'\): CellValue => \{\s*if \(!planCanUseAI\(tier\)\) return 'cross';\s*return formatVoiceMonthlyLimit\(tier, language\) \?\? 'circle';/u,
   );
-  // Values come from the shared plan definition, never literals.
-  assert.doesNotMatch(sheet, /'100 \/ month'|'月100回'|'1,000 \/ month'/u);
+  assert.match(
+    sheet,
+    /label: t\('cmp_ai_voice_hq'\),\s*basic: voiceCell\('basic'\),\s*premium: voiceCell\('premium'\),/u,
+  );
+
+  // Custom Voice: any paid plan, from its own access rule.
+  assert.match(
+    sheet,
+    /const CUSTOM_VOICE = \{\s*basic: planUnlocksCustomVoice\('basic'\),\s*premium: planUnlocksCustomVoice\('premium'\),\s*\} as const;/u,
+  );
+  assert.match(
+    sheet,
+    /label: t\('cmp_custom_voice'\),\s*basic: CUSTOM_VOICE\.basic \? 'circle' : 'cross',\s*premium: CUSTOM_VOICE\.premium \? 'circle' : 'cross',/u,
+  );
+  assert.match(sheet, /\{ key: 'custom_voice',[^\n]*basic: CUSTOM_VOICE\.basic, premium: CUSTOM_VOICE\.premium/u);
+
+  // Values come from the shared plan definitions, never literals.
+  assert.doesNotMatch(sheet, /'100 \/ month'|'月100回'|'1,000 \/ month'|'200 \/ month'/u);
   assert.match(sheet, /import \{ formatVoiceMonthlyLimit \} from '\.\.\/lib\/planLimits';/u);
+  assert.match(sheet, /import \{ planUnlocksCustomVoice \} from '\.\.\/features\/voice\/customVoiceAccess';/u);
+  assert.match(sheet, /import \{ planCanUseAI \} from '\.\.\/lib\/aiEntitlement';/u);
+
+  // The AI Voice promo card carries the same rule, so its badge cannot keep
+  // claiming a plan the app has stopped serving.
+  assert.match(
+    sheet,
+    /<PlanLabels basic=\{planCanUseAI\('basic'\)\} premium=\{planCanUseAI\('premium'\)\} t=\{t\} \/>/u,
+  );
 });
 
 test('unrelated comparison rows keep their circle and cross rendering', () => {
   const sheet = read('src/components/ProSheet.tsx');
   // Priority Support is asserted separately: it is now Premium-only and derives
   // its symbols from PRIORITY_SUPPORT rather than from literals.
+  // The two voice rows are asserted separately: they now derive their symbols
+  // from planCanUseAI and planUnlocksCustomVoice rather than from literals.
   for (const [key, basic, premium] of [
     ['cmp_themes', 'circle', 'circle'],
-    ['cmp_custom_voice', 'cross', 'circle'],
+    ['feat_text_to_speech_title', 'cross', 'circle'],
   ]) {
     assert.match(
       sheet,
@@ -612,23 +642,24 @@ test('the remaining toggles are accessible', () => {
 
 // ── Compact Settings switches ────────────────────────────────────────────────
 
-test('exactly the three visible Settings toggles use the compact control', () => {
+test('exactly the four visible Settings toggles use the compact control', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // One shared component, used once inside ToggleRow — not three transforms.
   assert.equal((settings.match(/<CompactSwitch/gu) ?? []).length, 1);
   assert.doesNotMatch(settings, /<Switch\b/u);
   assert.doesNotMatch(settings, /transform: \[\{ scale/u);
 
-  // ToggleRow defines the three visible Card Behavior toggles plus dormant
+  // ToggleRow defines the Flip/List selector, the three existing visible Card
+  // Behavior toggles, plus dormant
   // Hide AI. The AI Data Sharing switch was removed; permission is now
   // withdrawn from the About AI Voice explanation instead.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
   assert.deepEqual(rows, [
-    'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'hide_ai_tools',
+    'view_flip', 'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'hide_ai_tools',
   ]);
-  // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
+  // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so four render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
 
   // Nothing else in the app adopts it by accident.
@@ -740,7 +771,7 @@ test('exactly three Settings rows carry an information button', () => {
   assert.doesNotMatch(settings, /label=\{t\('hide_ai_tools'\)\}[\s\S]{0,200}info=\{/u);
 });
 
-test('exactly three Card Behavior rows use the compact shared layout and aligned icon column', () => {
+test('the informational Card Behavior rows use the compact shared layout and aligned icon column', () => {
   const settings = read('src/components/SettingsModal.tsx');
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .filter(match => match[1].includes('info={t('));
@@ -749,12 +780,14 @@ test('exactly three Card Behavior rows use the compact shared layout and aligned
     ['show_full_card', 'show_result_color_on_cards', 'vertical_flip'],
   );
 
-  // Natural AI Voice plus the three icon-bearing toggles are the only named
-  // rows that opt into cardBehaviorRow. The hidden Hide AI Tools row retains
-  // its previous layout and has no icon prop.
+  // Natural AI Voice, Flip/List, and the three informational toggles opt into
+  // cardBehaviorRow. The hidden Hide AI Tools row retains its previous layout
+  // and has no icon prop.
   assert.match(settings, /style=\{styles\.cardBehaviorRow\}[\s\S]{0,500}t\('feature_ai_voice'\)/u);
+  assert.match(settings, /<ToggleRow\s+icon="albums-outline"\s+label=\{t\('view_flip'\)\}/u);
   const iconRows = [...settings.matchAll(/<ToggleRow\s+icon="([^"]+)"\s+label=\{t\('([a-z_]+)'\)\}/gu)];
   assert.deepEqual(iconRows.map(match => [match[2], match[1]]), [
+    ['view_flip', 'albums-outline'],
     ['show_full_card', 'reader-outline'],
     ['show_result_color_on_cards', 'color-palette-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
@@ -798,6 +831,77 @@ test('exactly three Card Behavior rows use the compact shared layout and aligned
   const i18n = read('src/i18n.ts');
   assert.match(i18n, /show_full_card_desc:/u);
   assert.match(i18n, /vertical_flip_desc:/u);
+});
+
+// ── Flip/List mode location ─────────────────────────────────────────────────
+
+test('Flip/List mode exists once in Settings, immediately above Show full card content', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+
+  const modeRow = /<ToggleRow\s+icon="albums-outline"\s+label=\{t\('view_flip'\)\}\s+value=\{cardViewMode === 'flip'\}\s+onToggle=\{enabled => onChangeCardViewMode\(enabled \? 'flip' : 'list'\)\}[\s\S]*?\/>/u;
+  assert.match(settings, modeRow);
+  assert.equal((settings.match(/label=\{t\('view_flip'\)\}/gu) ?? []).length, 1);
+  assert.match(read('src/i18n.ts'), /view_flip:\s+'Flip Mode',/u);
+
+  const modeAt = settings.search(modeRow);
+  const fullCardAt = settings.indexOf("label={t('show_full_card')}");
+  const fullCardRowAt = settings.lastIndexOf('<ToggleRow', fullCardAt);
+  assert.ok(modeAt > 0 && fullCardAt > modeAt, 'mode control must precede Show full card content');
+  assert.doesNotMatch(settings.slice(modeAt + settings.slice(modeAt).match(modeRow)[0].length, fullCardRowAt), /<ToggleRow|<TouchableOpacity/u);
+
+  // The old top-right icon button is gone from the word-list header.
+  assert.doesNotMatch(wordList, /name=\{cardViewMode === 'flip' \? 'list-outline' : 'albums-outline'\}/u);
+  assert.doesNotMatch(wordList, /onPress=\{handleToggleViewMode\}/u);
+});
+
+test('the Settings selector changes the existing live mode without introducing another preference', () => {
+  const app = read('App.tsx');
+  const modals = read('src/app/AppModals.tsx');
+  const settings = read('src/components/SettingsModal.tsx');
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const cards = read('src/features/cards/useCards.ts');
+
+  // The original state owner and default remain unchanged.
+  assert.match(cards, /const \[cardViewMode, setSelectedCardViewMode\] = useState<'list' \| 'flip'>\('list'\);/u);
+  assert.doesNotMatch(settings, /useState<['"]?list|AsyncStorage|CARD_VIEW_MODE_KEY/u);
+
+  // Props carry that same state through the modal boundary and update it on
+  // every switch change, so no restart or close/reopen is required.
+  assert.match(app, /cardViewMode,\s*onChangeCardViewMode: handleCardViewModeChange,/u);
+  assert.match(modals, /cardViewMode=\{settingsModal\.cardViewMode\}\s*onChangeCardViewMode=\{settingsModal\.onChangeCardViewMode\}/u);
+  assert.match(settings, /value=\{cardViewMode === 'flip'\}\s*onToggle=\{enabled => onChangeCardViewMode\(enabled \? 'flip' : 'list'\)\}/u);
+
+  // Settings reuses the former word-list transition path, including the
+  // current-card handoff and momentum freeze before entering Flip Mode.
+  assert.match(app, /const changeFromWordList = wordListViewModeChangeRef\.current;[\s\S]{0,180}changeFromWordList\(mode\);/u);
+  assert.match(wordList, /if \(cardViewMode === 'list' && nextMode === 'flip'\)[\s\S]{0,900}listScrollToOffsetRef\.current\?\.\(listScrollOffsetRef\.current\);/u);
+  assert.match(wordList, /viewModeChangeRef\.current = handleViewModeChange;/u);
+});
+
+test('Word Flip is off behind one flag, and the dead switch is withheld', () => {
+  const flags = read('src/features/flags.ts');
+  const settings = read('src/components/SettingsModal.tsx');
+  const cards = read('src/features/cards/useCards.ts');
+
+  assert.match(flags, /export const FLIP_MODE_ENABLED = false;/u);
+
+  // One gate, on the setter every route into the mode passes through, so no
+  // caller has to know the feature is off and none can slip past it.
+  assert.match(
+    cards,
+    /const setCardViewMode = useCallback<Dispatch<SetStateAction<'list' \| 'flip'>>>\(action => \{\s*if \(!FLIP_MODE_ENABLED\) \{\s*setSelectedCardViewMode\('list'\);\s*return;\s*\}\s*setSelectedCardViewMode\(action\);/u,
+  );
+
+  // The Settings row is withheld, not disabled or left inert.
+  assert.match(settings, /\{FLIP_MODE_ENABLED && \(\s*<ToggleRow\s*icon="albums-outline"/u);
+  assert.match(settings, /FLIP_MODE_ENABLED,/u);
+
+  // Nothing was deleted: the browser, the layer resolver and the mode's own
+  // plumbing are all still here for the flag to switch back on.
+  assert.ok(fs.existsSync('src/components/FlipCardBrowser.tsx'));
+  assert.ok(fs.existsSync('src/features/cards/modeLayers.ts'));
+  assert.match(read('src/screens/WordListScreen/WordListScreen.tsx'), /showFlipLayer/u);
 });
 
 test('each remaining button opens its own description, and its toggle is untouched', () => {
@@ -925,7 +1029,7 @@ test('Perfect deletes once through the canonical path only when Sync is on', () 
   assert.match(screen, /const outcome = gradeCard\(card, kind, \{/u);
   assert.match(screen, /if \(outcome\.action === 'delete'\) onDeleteCard\(card\.id\);/u);
   assert.equal((screen.match(/onDeleteCard\(card\.id\)/gu) ?? []).length, 1);
-  assert.match(read('App.tsx'), /onDeleteCard: deleteCard,/u);
+  assert.match(read('App.tsx'), /onDeleteCard=\{deleteCard\}/u);
 });
 
 test('a repeated tap cannot grade or delete the same card twice', () => {
@@ -953,7 +1057,7 @@ test('each grade hides for its own fixed period when the sync option is enabled'
   // One mapping from grade to duration, so no call site can invent its own.
   assert.match(
     grading,
-    /const HIDE_MS: Record<AnswerKind, number \| null> = \{\s*perfect:\s*null,\s*good:\s*PRETTY_GOOD_HIDE_MS,\s*slightly:\s*NOT_REALLY_HIDE_MS,\s*unknown:\s*null,\s*\};/u,
+    /const HIDE_MS: Record<AnswerKind, number \| null> = \{\s*perfect:\s*null,\s*good:\s*PRETTY_GOOD_HIDE_MS,\s*slightly:\s*NOT_REALLY_HIDE_MS,\s*unknown:\s*DONT_KNOW_HIDE_MS,\s*\};/u,
   );
   // Off means no sync visibility field is created or changed at all.
   assert.match(grading, /if \(!syncTestResults\) return \{\};/u);
@@ -962,12 +1066,17 @@ test('each grade hides for its own fixed period when the sync option is enabled'
   const visibility = read('src/features/cards/visibility.ts');
   assert.match(visibility, /export const PRETTY_GOOD_HIDE_MS = 72 \* 60 \* 60 \* 1000;/u);
   assert.match(visibility, /export const NOT_REALLY_HIDE_MS = 24 \* 60 \* 60 \* 1000;/u);
+  assert.match(visibility, /export const DONT_KNOW_HIDE_MS = 60 \* 60 \* 1000;/u);
   // The superseded single-duration constant is gone.
   assert.doesNotMatch(visibility, /HIDE_AFTER_PRETTY_GOOD_MS/u);
 
   // Existing scoring is unchanged either way.
   assert.match(grading, /testNextReview: now \+ \(NEXT_REVIEW_DELAY_MS\.good as number\),\s*testLevel: 'good',/u);
   assert.match(grading, /testNextReview: now \+ \(NEXT_REVIEW_DELAY_MS\.slightly as number\),\s*testLevel: 'slightly',/u);
+  // "Don't know" now postpones too — one hour, from the same single mapping.
+  assert.match(grading, /testNextReview: now \+ \(NEXT_REVIEW_DELAY_MS\.unknown as number\),\s*testLevel: 'unknown',/u);
+  assert.match(grading, /const HOUR_MS = 60 \* 60 \* 1000;\s*const DAY_MS = 24 \* HOUR_MS;/u);
+  assert.match(grading, /unknown:\s*HOUR_MS,/u);
   assert.equal((grading.match(/action: 'delete'/gu) ?? []).length, 2);
 });
 
@@ -983,13 +1092,11 @@ test('clearing a test result also lifts the hide it produced', () => {
 
 test('Test Mode Reset moves every existing folder card into the gray category', () => {
   const app = read('App.tsx');
-  const modals = read('src/app/AppModals.tsx');
   const screen = read('src/components/TestModeScreen.tsx');
 
   // The ordinary queue still excludes temporarily hidden cards, while Reset
   // deliberately receives the complete folder collection.
-  assert.match(app, /cards: folderCards,\s*resetCards: allFolderCards,/u);
-  assert.match(modals, /cards=\{testMode\.cards\}\s*resetCards=\{testMode\.resetCards\}/u);
+  assert.match(app, /cards=\{folderCards\}\s*resetCards=\{allFolderCards\}/u);
   assert.match(screen, /const resetQueue = resetCards\.map\(c => \(\{ \.\.\.c, \.\.\.resetPatch \}\)\);/u);
   assert.match(screen, /resetCards\.forEach\(c => \{[\s\S]*?onUpdateCard\(c\.id, resetPatch\);/u);
   assert.match(screen, /testLevel: undefined,[\s\S]*?\.\.\.CLEAR_HIDE,/u);
@@ -1024,7 +1131,7 @@ test('one selector hides ordinary cards but result filters override visibility',
   assert.match(read('src/screens/FolderListScreen/FolderListScreen.tsx'), /if \(isCardHidden\(card, now\)\) continue;/u);
   // Test Mode studies the ordinary visible cards, but Reset can clear grading
   // and hiding from every existing card in the folder.
-  assert.match(read('App.tsx'), /cards: folderCards,\s*resetCards: allFolderCards,/u);
+  assert.match(read('App.tsx'), /cards=\{folderCards\}\s*resetCards=\{allFolderCards\}/u);
 
   // But never from backup, migration or repository reads.
   for (const path of [
@@ -1041,8 +1148,16 @@ test('only scheduled hiding is persisted in SQLite', () => {
   const schema = read('src/lib/sqlite/schema.ts');
   assert.match(schema, /ALTER TABLE learning_progress ADD COLUMN hidden_until INTEGER;/u);
   assert.match(schema, /version: 2,/u);
-  assert.match(schema, /CURRENT_SCHEMA_VERSION = 2/u);
   assert.doesNotMatch(schema, /hidden_indefinitely/u);
+  // The scheduled hide lives on learning_progress, because it is a review
+  // outcome. "Hide Word" is a display preference on `words`, and a grade must
+  // never clear it — two different columns on purpose.
+  assert.match(schema, /ALTER TABLE words ADD COLUMN hide_word INTEGER NOT NULL DEFAULT 0;/u);
+  assert.doesNotMatch(
+    schema,
+    /learning_progress ADD COLUMN hide_word/u,
+    'the display preference must not sit with the review outcomes',
+  );
   // Derived on read, never a timer.
   const visibility = read('src/features/cards/visibility.ts');
   assert.match(visibility, /card\.hiddenUntil > now/u);

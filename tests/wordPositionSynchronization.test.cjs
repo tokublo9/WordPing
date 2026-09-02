@@ -77,7 +77,10 @@ test('every colorful filter transition publishes the destination first card to b
   // same destination without remounting either mode.
   assert.match(wordList, /listScrollToIndexRef\.current\?\.\(resolvedCurrentWordIndex\);/u);
   assert.match(flip, /const target = resolveCurrentWordIndex\([\s\S]*?currentWordId/u);
-  assert.match(flip, /if \(target !== idxRef\.current \|\| centeredId !== targetId\) \{\s*goTo\(target\);/u);
+  assert.match(
+    flip,
+    /if \(target !== idxRef\.current \|\| centeredId !== targetId\) \{[\s\S]*?goTo\(target, active\);/u,
+  );
 });
 
 test('returning to Word List prepositions the mounted hidden list before revealing it', () => {
@@ -107,6 +110,32 @@ test('returning to Word List prepositions the mounted hidden list before reveali
   assert.match(reorderable, /scrollToIndexRetryCountRef\.current >= 2/u);
   assert.match(reorderable, /scrollToIndexRetryFrame\.current = requestAnimationFrame/u);
   assert.doesNotMatch(reorderable, /scrollToIndexRetryTimer/u);
+});
+
+test('List to Flip keeps the list visible until the mounted deck reports readiness', () => {
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  const flip = read('src/components/FlipCardBrowser.tsx');
+  const handler = /const handleViewModeChange = useCallback\([\s\S]*?\n\s*\}, \[cardViewMode,/u.exec(wordList)?.[0] ?? '';
+
+  assert.match(wordList, /const flipPositionPrepared = resolvedCurrentWordId === null[\s\S]{0,220}preparedFlipPosition\.index === resolvedCurrentWordIndex/u);
+  assert.match(wordList, /resolveModeLayers\(\{[\s\S]{0,220}flipPositionPrepared,/u);
+  assert.match(wordList, /preparing=\{cardViewMode === 'flip' && !flipPositionPrepared && !reorder\.active\}/u);
+  assert.match(wordList, /onPositionPrepared=\{markFlipPositionPrepared\}/u);
+  assert.match(flip, /if \(!active && !preparing\) \{\s*previousCardsRef\.current = cards;/u);
+  assert.match(flip, /goTo\(target, active\);/u);
+  assert.match(flip, /if \(preparing && target === idx && centeredId === targetId\) \{\s*onPositionPrepared\(targetId, target\);/u);
+  // The selected mode still publishes directly; readiness only controls which
+  // already-mounted layer is visible. No timer conceals an incorrect frame.
+  assert.match(handler, /onChangeViewMode\(nextMode\);/u);
+  assert.doesNotMatch(handler, /setTimeout|requestAnimationFrame|InteractionManager/u);
+});
+
+test('a Flip layer held during List restoration stays visually stable until handoff', () => {
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+
+  assert.match(wordList, /active=\{showFlipLayer && !reorder\.active && !showTestLayer\}/u);
+  assert.match(wordList, /useLayoutEffect\(\(\) => \{\s*visibleLayerRef\.current = hasCards/u);
+  assert.doesNotMatch(wordList, /useEffect\(\(\) => \{\s*visibleLayerRef\.current = hasCards/u);
 });
 
 test('rapid mode switches cannot publish a cancelled Flip transition', () => {

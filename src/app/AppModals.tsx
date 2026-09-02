@@ -6,7 +6,6 @@ import { SettingsModal } from '../components/SettingsModal';
 import { PaywallModal } from '../components/PaywallModal';
 import { ProSheet } from '../components/ProSheet';
 import { FolderCustomizeModal } from '../components/FolderCustomizeModal';
-import { TestModeScreen } from '../components/TestModeScreen';
 import { FolderPickerSheet } from '../components/FolderPickerSheet';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { TextToSpeechScreen } from '../components/TextToSpeechScreen';
@@ -25,6 +24,10 @@ export interface AppModalsProps {
   rawThemeColor: string;     // themeColor — used by PaywallModal
   isSubscribed: boolean;
   isPremium: boolean;
+  /** The plan includes Custom Voice for Words — Basic and Premium. */
+  canUseCustomVoice: boolean;
+  /** The plan includes Hide Word — Basic only. */
+  canHideWord: boolean;
   /** ISO-8601 expiry of the active entitlement; drives ProSheet's downgrade note. */
   subscriptionExpirationDate: string | null;
   /** False until RevenueCat has answered; paid features stay locked until then. */
@@ -51,6 +54,8 @@ export interface AppModalsProps {
     onChangeWordLang: Dispatch<SetStateAction<string | undefined>>;
     meaningLang: string | undefined;
     onChangeMeaningLang: Dispatch<SetStateAction<string | undefined>>;
+    hideWord: boolean;
+    onChangeHideWord: (value: boolean) => void;
     audioUri: string | undefined;
     onChangeAudioUri: Dispatch<SetStateAction<string | undefined>>;
     audioSpeed: number;
@@ -108,6 +113,8 @@ export interface AppModalsProps {
     onPickLanguage(code: string): void;
     aiVoice: AIVoice;
     onPickAIVoice(voice: AIVoice): void;
+    cardViewMode: 'list' | 'flip';
+    onChangeCardViewMode(mode: 'list' | 'flip'): void;
     showFullCard: boolean;
     onToggleShowFullCard: Dispatch<SetStateAction<boolean>>;
     showResultColor: boolean;
@@ -153,19 +160,8 @@ export interface AppModalsProps {
     onSave(name: string, icon: string): void;
   };
 
-  // TestModeScreen
-  testMode: {
-    visible: boolean;
-    cards: WordCard[];
-    resetCards: WordCard[];
-    explanationLang: string;
-    verticalFlip: boolean;
-    onUpdateCard(id: string, patch: Partial<WordCard>): void;
-    onDeleteCard(id: string): void;
-    /** First card graded this session — drives the result-filter tutorial. */
-    onFirstAnswer(): void;
-    onClose(): void;
-  };
+  // Test Mode is not here: it is a card-area mode of the word-list screen, not a
+  // sheet, so App.tsx renders it into WordListScreen's `testMode` prop.
 
   // FolderPickerSheet (move cards)
   movePicker: {
@@ -186,11 +182,12 @@ export interface AppModalsProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AppModals({
-  pal, themeColor, rawThemeColor, isSubscribed, isPremium, subscriptionExpirationDate,
+  pal, themeColor, rawThemeColor, isSubscribed, isPremium,
+  canUseCustomVoice, canHideWord, subscriptionExpirationDate,
   isSubscriptionLoaded,
   subscribe, subscribePremium, restore, onManageSubscription,
   wordModal, bulkImport, notifModal, textToSpeech, settingsModal, paywallModal,
-  proSheet, folderAdd, folderEdit, testMode, movePicker, onboarding,
+  proSheet, folderAdd, folderEdit, movePicker, onboarding,
 }: AppModalsProps) {
   return (
     <>
@@ -210,10 +207,14 @@ export function AppModals({
         themeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        canUseCustomVoice={canUseCustomVoice}
+        canHideWord={canHideWord}
         wordLang={wordModal.wordLang}
         onChangeWordLang={wordModal.onChangeWordLang}
         meaningLang={wordModal.meaningLang}
         onChangeMeaningLang={wordModal.onChangeMeaningLang}
+        hideWord={wordModal.hideWord}
+        onChangeHideWord={wordModal.onChangeHideWord}
         audioUri={wordModal.audioUri}
         onChangeAudioUri={wordModal.onChangeAudioUri}
         audioSpeed={wordModal.audioSpeed}
@@ -285,6 +286,8 @@ export function AppModals({
         onPickLanguage={settingsModal.onPickLanguage}
         aiVoice={settingsModal.aiVoice}
         onPickAIVoice={settingsModal.onPickAIVoice}
+        cardViewMode={settingsModal.cardViewMode}
+        onChangeCardViewMode={settingsModal.onChangeCardViewMode}
         showFullCard={settingsModal.showFullCard}
         onToggleShowFullCard={settingsModal.onToggleShowFullCard}
         showResultColor={settingsModal.showResultColor}
@@ -353,23 +356,6 @@ export function AppModals({
         themeColor={themeColor}
         isSubscribed={isSubscribed}
       />
-
-      {testMode.visible && (
-        <TestModeScreen
-          cards={testMode.cards}
-          resetCards={testMode.resetCards}
-          onUpdateCard={testMode.onUpdateCard}
-          onDeleteCard={testMode.onDeleteCard}
-          onFirstAnswer={testMode.onFirstAnswer}
-          onClose={testMode.onClose}
-          pal={pal}
-          themeColor={themeColor}
-          isSubscribed={isSubscribed}
-          isPremium={isPremium}
-          explanationLang={testMode.explanationLang}
-          verticalFlip={testMode.verticalFlip}
-        />
-      )}
 
       <FolderPickerSheet
         visible={movePicker.visible}

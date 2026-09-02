@@ -52,9 +52,12 @@ test('mode switching keeps inactive views mounted without rebuilding their heavy
   assert.match(wordList, /onReorder=\{handleReorderVisibleCards\}/u);
   assert.match(wordList, /onFooterPress=\{handleListFooterPress\}/u);
   assert.match(wordList, /initialScrollIndex=\{initialListPositionRef\.current\.index\}/u);
-  assert.match(flip, /if \(!previous\.active && !next\.active\) return true;/u);
-  assert.match(flip, /if \(!active\) \{\s*previousCardsRef\.current = cards;\s*return;/u);
+  assert.match(flip, /if \(!previous\.active && !next\.active && !previous\.preparing && !next\.preparing\) return true;/u);
+  assert.match(flip, /if \(!active && !preparing\) \{\s*previousCardsRef\.current = cards;\s*return;/u);
   assert.match(wordList, /key="persistent-word-list"/u);
+  assert.equal((wordList.match(/<FlipCardBrowser\b/gu) ?? []).length, 1);
+  assert.equal((wordList.match(/<ReorderableList\b/gu) ?? []).length, 1);
+  assert.doesNotMatch(wordList, /key=\{cardViewMode\}|key=\{show(?:List|Flip)Layer\}/u);
 });
 
 test('Flip swipe and progress share one transform-only animated gesture graph', () => {
@@ -66,8 +69,15 @@ test('Flip swipe and progress share one transform-only animated gesture graph', 
   assert.doesNotMatch(gestureMove, /onCurrentWordChange/u);
   assert.equal((gestureMove.match(/\.setValue\(/gu) ?? []).length, 1);
   assert.match(flip, /Animated\.add\(baseX, swipeX\)/u);
-  assert.match(flip, /const gestureProgress = Animated\.multiply\(swipeX,/u);
-  assert.match(flip, /const displayedThumbX = scrubbing \? scrubThumbX : swipeThumbX;/u);
+  // The thumb is one graph for the whole lifetime of the component: the committed
+  // position plus the live swipe offset. Swapping in a second animated value when a
+  // drag started is what used to leave the circle behind the finger, so there must be
+  // no conditional here at all.
+  assert.match(
+    flip,
+    /const displayedThumbX = useMemo\(\(\) => \{[\s\S]*?return Animated\.add\(thumbX, Animated\.multiply\(swipeX, -step \/ SCREEN_W\)\);/u,
+  );
+  assert.doesNotMatch(flip, /scrubThumbX|scrubbing \? /u);
   assert.match(flip, /transform: \[\{ scaleX: progressScaleX \}\]/u);
   assert.match(flip, /transform: \[\{ translateX: displayedThumbX \}\]/u);
   assert.doesNotMatch(flip, /width: thumbX/u);
@@ -163,7 +173,7 @@ test('the position reports the top visible word by stable ID', () => {
   assert.match(wordList, /total=\{filteredFolderCards\.length\}/u);
 });
 
-test('the default count shows visible over all existing cards in List and Flip', () => {
+test('the default count is a plain total, and scrolling turns it into a position', () => {
   const label = read('src/components/WordListPositionLabel.tsx');
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
 
@@ -201,10 +211,13 @@ test('the default count shows visible over all existing cards in List and Flip',
     wordList,
     /const hasMultiplePages = cardViewMode === 'flip'\s*\? filteredFolderCards\.length > 1\s*: getScrollBarMetrics\(listContentH, listViewH\)\.show;/u,
   );
+  // At the top the line is only the total — no second number to compare it against.
+  // The "x / y" shape belongs to the scrolled position readout alone.
   assert.match(
     wordList,
-    /const wordCountSummary = `\$\{filteredFolderCards\.length\} \/ \$\{allFolderCards\.length\} \$\{[\s\S]*?allFolderCards\.length === 1/u,
+    /const wordCountSummary = `\$\{filteredFolderCards\.length\} \$\{[\s\S]*?filteredFolderCards\.length === 1 \? 'words_singular' : 'words_plural'/u,
   );
+  assert.doesNotMatch(wordList, /const wordCountSummary = `[^`]*\//u);
   assert.doesNotMatch(wordList, /isFilterActive\s*\? `\$\{filteredFolderCards\.length\} \/ \$\{allFolderCards\.length\}`\s*:\s*folderCards\.length/u);
 });
 

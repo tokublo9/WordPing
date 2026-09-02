@@ -97,7 +97,7 @@ export async function handleRequest(
         version: WORKER_VERSION,
         requestId,
         localAiVoiceTestScenario,
-        entitlement: 'mock-basic',
+        entitlement: 'mock-premium',
         upstreamsMocked: true,
         storage: 'isolated-local-kv',
       });

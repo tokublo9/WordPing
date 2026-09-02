@@ -110,11 +110,12 @@ test('every user-initiated AI surface asks before it acts', () => {
 
 test('device TTS and attached audio stay usable without consent', () => {
   const playback = read('src/hooks/useWordCardVoicePlayback.ts');
-  // Only the subscriber path reaches the network; free-plan expo-speech and a
-  // card's own audio file must not be gated.
+  // Only the AI-Voice path reaches the network; device expo-speech — which is
+  // what Free *and Basic* now get — and a card's own audio file must not be
+  // gated. The flag is the capability, never a plan name.
   assert.match(
     playback,
-    /const usesAI = isSubscribed && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
+    /const usesAI = canUseAIVoice && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
   );
   assert.match(playback, /if \(usesAI && !await ensureAIConsentForUserAction\(\)\) return;/u);
 });

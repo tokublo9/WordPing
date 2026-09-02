@@ -69,6 +69,15 @@ export interface BackupWord {
    */
   audioSpeed?: number;
   audioVolume?: number;
+  /**
+   * The per-word "Hide Word" preference.
+   *
+   * Unlike `audioUri` this is not device-local — it is a choice about the word
+   * itself — so it travels. Optional and additive: a backup written before this
+   * field existed simply omits it and imports as visible, which is why the
+   * format version does not move.
+   */
+  hideWord?: boolean;
 }
 
 export interface BackupNote {

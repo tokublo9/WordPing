@@ -109,6 +109,7 @@ interface WordRow {
   audio_uri: string | null;
   audio_speed: number | null;
   audio_volume: number | null;
+  hide_word: number;
   note: string | null;
   level_id: string | null;
   next_review_at: number | null;
@@ -125,6 +126,7 @@ interface ReviewRow {
 const WORD_SELECT = `
   SELECT w.id, w.folder_id, w.word, w.meaning, w.created_at, w.notif_off,
          w.word_lang, w.meaning_lang, w.audio_uri, w.audio_speed, w.audio_volume,
+         w.hide_word,
          n.body AS note,
          p.level_id, p.next_review_at, p.mastered, p.hidden_until
     FROM words w
@@ -156,6 +158,7 @@ function toWordCard(row: WordRow, history: ReviewEntry[] | undefined): WordCard 
   if (row.audio_uri !== null) card.audioUri = row.audio_uri;
   if (row.audio_speed !== null) card.audioSpeed = row.audio_speed;
   if (row.audio_volume !== null) card.audioVolume = row.audio_volume;
+  if (row.hide_word === 1) card.hideWord = true;
   return card;
 }
 
@@ -212,8 +215,9 @@ async function syncWords(
 
     await db.runAsync(
       `INSERT INTO words (id, folder_id, word, meaning, created_at, position, notif_off,
-                          word_lang, meaning_lang, audio_uri, audio_speed, audio_volume)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          word_lang, meaning_lang, audio_uri, audio_speed, audio_volume,
+                          hide_word)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          folder_id = excluded.folder_id,
          word = excluded.word,
@@ -225,7 +229,8 @@ async function syncWords(
          meaning_lang = excluded.meaning_lang,
          audio_uri = excluded.audio_uri,
          audio_speed = excluded.audio_speed,
-         audio_volume = excluded.audio_volume`,
+         audio_volume = excluded.audio_volume,
+         hide_word = excluded.hide_word`,
       [
         card.id,
         folderId,
@@ -239,6 +244,7 @@ async function syncWords(
         card.audioUri ?? null,
         card.audioSpeed ?? null,
         card.audioVolume ?? null,
+        card.hideWord === true ? 1 : 0,
       ],
     );
 

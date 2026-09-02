@@ -125,6 +125,9 @@ function parseWords(raw: unknown[], errors: Errors): BackupWord[] {
     if (!optional(entry.meaningLang, nonEmptyString)) errors.add(`${at}.meaningLang must be a string`);
     if (!optional(entry.audioSpeed, finiteNumber)) errors.add(`${at}.audioSpeed must be a number`);
     if (!optional(entry.audioVolume, finiteNumber)) errors.add(`${at}.audioVolume must be a number`);
+    if (entry.hideWord !== undefined && typeof entry.hideWord !== 'boolean') {
+      errors.add(`${at}.hideWord must be a boolean`);
+    }
     return errors.failed ? [] : [entry as unknown as BackupWord];
   });
 }

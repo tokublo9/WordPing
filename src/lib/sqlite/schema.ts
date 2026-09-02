@@ -10,7 +10,7 @@ import type { SqlDatabase } from './types';
  */
 
 /** Bumped whenever a new entry is appended to MIGRATIONS. */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 /** Identifiers of the built-in review levels, seeded into `labels`. */
 export const LEVEL_LABEL_IDS = {
@@ -167,6 +167,19 @@ const MIGRATIONS: readonly Migration[] = [
       await db.execAsync(
         'CREATE INDEX IF NOT EXISTS idx_learning_hidden_until ON learning_progress(hidden_until);',
       );
+    },
+  },
+  {
+    // "Hide Word": the word text is not drawn on this card's study faces.
+    //
+    // A per-word display preference, so it belongs on `words` rather than on
+    // `learning_progress` — it is not a review outcome and no grade may clear
+    // it. NOT NULL DEFAULT 0 gives every existing row "visible", which is what
+    // an opt-in feature has to start at; SQLite backfills the default for rows
+    // that already exist, so there is no second pass to write.
+    version: 3,
+    async up(db) {
+      await db.execAsync('ALTER TABLE words ADD COLUMN hide_word INTEGER NOT NULL DEFAULT 0;');
     },
   },
 ];

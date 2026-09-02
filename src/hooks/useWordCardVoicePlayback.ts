@@ -11,6 +11,7 @@ import {
   resolveAiVoiceLimit,
 } from '../lib/api/voiceLimitMessage';
 import { showTopBanner } from '../lib/topBanner';
+import { resolveCardVoiceSource } from '../features/voice/cardVoiceSource';
 
 export type WordCardVoiceTarget = 'word' | 'meaning';
 export type WordCardVoiceState = {
@@ -20,8 +21,18 @@ export type WordCardVoiceState = {
 
 interface Options {
   item?: WordCard | null;
-  isSubscribed: boolean;
-  isPremium: boolean;
+  /**
+   * The plan includes High-Quality AI Voice — Premium only.
+   *
+   * Named for the capability rather than for a plan because the two voice
+   * features are sold separately: a Basic subscriber has `canUseCustomVoice`
+   * and not this one, and passing a bare `isSubscribed` here is exactly how
+   * that distinction used to be lost. False falls back to device TTS, which is
+   * what Free has always done — the voice button still speaks the word.
+   */
+  canUseAIVoice: boolean;
+  /** The plan includes Custom Voice for Words — Basic and Premium. */
+  canUseCustomVoice: boolean;
   onCustomVoiceLocked?: () => void;
   /** BCP-47 tag, for the quota message's number and date formatting. */
   language?: string;
@@ -34,8 +45,8 @@ interface Options {
 /** Shared playback state used by list cards and the Flip screen. */
 export function useWordCardVoicePlayback({
   item,
-  isSubscribed,
-  isPremium,
+  canUseAIVoice,
+  canUseCustomVoice,
   onCustomVoiceLocked,
   language = 'en-US',
   onUpgrade,
@@ -62,11 +73,42 @@ export function useWordCardVoicePlayback({
     setVoiceState(null);
   }, [setVoiceState]);
 
+  /**
+   * Abandon whatever this hook has playing or in flight.
+   *
+   * Bumping the sequence first is what keeps a request that is still resolving from
+   * starting playback for a card the user has already left. `stopPlayback` is called
+   * only when this hook is the one holding the audio, so a mounted list row can never
+   * silence the screen in front of it.
+   */
+  const abandonPlayback = useCallback(() => {
+    sequenceRef.current++;
+    if (voiceStateRef.current) stopPlayback();
+    voiceStateRef.current = null;
+    setVoiceStateValue(null);
+  }, []);
+
   useEffect(() => () => {
     sequenceRef.current++;
     if (voiceStateRef.current) stopPlayback();
     voiceStateRef.current = null;
   }, []);
+
+  /**
+   * Audio never outlives the card it belongs to.
+   *
+   * Every navigation path — a Flip swipe, a scrubber drag, a track tap, a delete,
+   * Test Mode's advance — ends with the card this hook speaks for changing identity,
+   * so one stop here covers all of them and no screen has to remember to do it. The
+   * ref starts at the mounted card, so mounting never stops anything.
+   */
+  const itemId = item?.id ?? null;
+  const spokenItemIdRef = useRef(itemId);
+  useEffect(() => {
+    if (spokenItemIdRef.current === itemId) return;
+    spokenItemIdRef.current = itemId;
+    abandonPlayback();
+  }, [itemId, abandonPlayback]);
 
   /**
    * Turns a failed voice request into the right message.
@@ -186,7 +228,7 @@ export function useWordCardVoicePlayback({
     if (!item) return;
     lastTargetRef.current = target;
     const buttonPressedAtMs = performance.now();
-    if (target === 'word' && item.audioUri && !isPremium) {
+    if (target === 'word' && item.audioUri && !canUseCustomVoice) {
       onCustomVoiceLocked?.();
       return;
     }
@@ -195,20 +237,32 @@ export function useWordCardVoicePlayback({
       return;
     }
 
-    // Only the subscriber path reaches OpenAI. Free-plan playback is expo-speech
-    // on the device and a card's attached audio is a local file, so neither asks
-    // for anything: a non-AI feature must keep working without consent.
-    const usesAI = isSubscribed && !(target === 'word' && Boolean(item.audioUri));
-    if (usesAI && !await ensureAIConsentForUserAction()) return;
+    // A different side of the card, while something is still playing. The engine would
+    // stop it anyway when the new clip claims audio focus, but that is after the
+    // consent check and the cache lookup — and the old clip belongs to text the user
+    // has already turned away from.
+    if (voiceStateRef.current) abandonPlayback();
 
+    // Claimed before the consent prompt rather than after it: flipping the card or
+    // swiping to the next one while the dialog is open must abandon this request, not
+    // let it start speaking a word that is no longer on screen.
     const sequence = ++sequenceRef.current;
+
+    // Only the AI-Voice path reaches OpenAI. Device TTS is expo-speech on the
+    // device and a card's attached audio is a local file, so neither asks for
+    // anything: a non-AI feature must keep working without consent. Basic is on
+    // the device path now, exactly as Free is.
+    const usesAI = canUseAIVoice && !(target === 'word' && Boolean(item.audioUri));
+    if (usesAI && !await ensureAIConsentForUserAction()) return;
+    if (sequenceRef.current !== sequence) return;
+
     setVoiceState({ target, phase: 'checking-cache' });
     if (__DEV__) console.log('[TTS playback stages]', {
       source: 'word-card',
       phase: 'subscription-permission-checks-complete',
       sinceButtonPressMs: Math.round(performance.now() - buttonPressedAtMs),
       usesAttachedAudio: target === 'word' ? Boolean(item.audioUri) : false,
-      subscribed: isSubscribed,
+      aiVoice: canUseAIVoice,
     });
 
     try {
@@ -220,15 +274,15 @@ export function useWordCardVoicePlayback({
         },
       };
       if (target === 'word') {
-        await speakWordCard(item, isSubscribed, playbackOptions);
+        await speakWordCard(item, canUseAIVoice, playbackOptions);
       } else {
-        await speak(item.meaning, isSubscribed, item.meaningLang, playbackOptions);
+        await speak(item.meaning, canUseAIVoice, item.meaningLang, playbackOptions);
       }
     } catch (error) {
       handleError(error);
     }
     if (sequenceRef.current === sequence) setVoiceState(null);
-  }, [handleError, isPremium, isSubscribed, item, onCustomVoiceLocked, setVoiceState, stopVoice]);
+  }, [abandonPlayback, canUseAIVoice, canUseCustomVoice, handleError, item, onCustomVoiceLocked, setVoiceState, stopVoice]);
 
   const playWord = useCallback(() => play('word'), [play]);
   const playMeaning = useCallback(() => play('meaning'), [play]);
@@ -236,5 +290,14 @@ export function useWordCardVoicePlayback({
   // Kept current so the Retry action in an error alert re-runs the request.
   playRef.current = play;
 
-  return { voiceState, playWord, playMeaning, stopVoice };
+  /**
+   * What the word-side button will play, so it can draw the matching icon.
+   *
+   * Derived from the same predicate `speakWordCard` routes on, so a word with a
+   * registered file always shows the custom glyph and always plays that file.
+   * The meaning side never has one, so callers leave its button at the default.
+   */
+  const wordVoiceSource = resolveCardVoiceSource(item, 'word');
+
+  return { voiceState, playWord, playMeaning, stopVoice, wordVoiceSource };
 }

@@ -16,8 +16,7 @@ import { consume } from './ratelimit';
 import { reserveMonthlyQuota } from './monthlyQuota';
 import { isVoiceQuotaFeature } from './planLimits';
 import {
-  BASIC_MONTHLY_LIMIT_SCENARIO,
-  seedLocalBasicMonthlyLimit,
+  LOCAL_AI_VOICE_SCENARIO,
   type LocalAiVoiceTestScenario,
 } from './localDevelopment';
 import { characterCount } from './schemas';
@@ -177,8 +176,10 @@ export async function guard<T>(
   if (identity === null) return reject('missing_install_id', 400);
 
   let tier: Tier;
-  if (context.localAiVoiceTestScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
-    tier = 'basic';
+  if (context.localAiVoiceTestScenario === LOCAL_AI_VOICE_SCENARIO) {
+    // Premium, because that is the tier High-Quality AI Voice belongs to. A
+    // mocked Basic would be refused here and the harness would drive nothing.
+    tier = 'premium';
     log('info', 'local_entitlement_mocked', response.requestId, {
       feature: spec.feature, tier,
     });
@@ -274,9 +275,6 @@ async function approve<T>(
     : '';
   const reserveQuota = async (): Promise<Response | null> => {
     if (!meteredForVoice) return null;
-    if (context.localAiVoiceTestScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
-      await seedLocalBasicMonthlyLimit(env, hashedAppUserId);
-    }
     const quota = await reserveMonthlyQuota(
       env,
       { tier, hashedAppUserId },

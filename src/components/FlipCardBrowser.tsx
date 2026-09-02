@@ -23,6 +23,8 @@ import { CardScrollFace } from './CardScrollFace';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
 import { CardResultAccessibilityLabel } from './CardResultAccessibilityLabel';
+import { HiddenWordIcon } from './HiddenWordIcon';
+import { isWordTextHidden } from '../features/cards/hideWordAccess';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MARGIN     = (SCREEN_W - FLIP_CARD_W) / 2;
@@ -58,17 +60,25 @@ interface Props {
   cards: WordCard[];
   currentWordId: string | null;
   onCurrentWordChange: (id: string | null) => void;
+  /** Synchronise the hidden deck when Flip is the selected destination. */
+  preparing: boolean;
+  /** Reports that the requested card is actually centred and safe to reveal. */
+  onPositionPrepared: (cardId: string, index: number) => void;
   active: boolean;
   pal: Palette;
   themeColor: string;
-  isSubscribed: boolean;
+  /** The plan includes High-Quality AI Voice — Premium only. */
+  canUseAIVoice: boolean;
   onEdit: (card: WordCard) => void;
   onDelete: (id: string) => void;
   onMove: (card: WordCard) => void;
   onToggleNotif: (id: string) => void;
   showLevelLabel?: boolean;
   verticalFlip?: boolean;
-  isPremium?: boolean;
+  /** The plan includes Custom Voice for Words — Basic and Premium. */
+  canUseCustomVoice?: boolean;
+  /** The plan includes Hide Word — Basic only. */
+  canHideWord?: boolean;
   onCustomVoiceLocked?: () => void;
 }
 
@@ -80,9 +90,10 @@ function getSlots(curr: number) {
 
 
 function FlipCardBrowserComponent({
-  cards, currentWordId, onCurrentWordChange, active,
-  pal, themeColor, isSubscribed, onEdit, onDelete, onMove, onToggleNotif,
-  showLevelLabel = true, verticalFlip = false, isPremium = false, onCustomVoiceLocked,
+  cards, currentWordId, onCurrentWordChange, preparing, onPositionPrepared, active,
+  pal, themeColor, canUseAIVoice, onEdit, onDelete, onMove, onToggleNotif,
+  showLevelLabel = true, verticalFlip = false, canUseCustomVoice = false,
+  canHideWord = false, onCustomVoiceLocked,
 }: Props) {
   const t = useLang();
   const initialIndex = resolveCurrentWordIndex(cards, currentWordId);
@@ -134,17 +145,25 @@ function FlipCardBrowserComponent({
     playWord,
     playMeaning,
     stopVoice,
+    wordVoiceSource,
   } = useWordCardVoicePlayback({
     item: activeVoiceCard,
-    isSubscribed,
-    isPremium,
+    canUseAIVoice,
+    canUseCustomVoice,
     onCustomVoiceLocked,
   });
 
   const flipAnim = useRef(new Animated.Value(0)).current;
-  const committedThumbX = useRef(new Animated.Value(xForIndex(Math.max(0, initialIndex), cards.length))).current;
-  const scrubThumbX = useRef(new Animated.Value(0)).current;
+  // The scrubber thumb's position, and the only value that ever moves it: a drag
+  // writes the finger's x, a committed card writes that card's tick, and the swipe
+  // gesture adds its live offset on top (below). One node, attached to the view for
+  // the component's whole life — see `displayedThumbX`.
+  const thumbX = useRef(new Animated.Value(xForIndex(Math.max(0, initialIndex), cards.length))).current;
   const thumbXRef = useRef(xForIndex(Math.max(0, initialIndex), cards.length));
+  const setThumbX = useCallback((x: number) => {
+    thumbXRef.current = x;
+    thumbX.setValue(x);
+  }, [thumbX]);
 
   const hasNext = idx < cards.length - 1;
   const hasPrev = idx > 0;
@@ -166,11 +185,31 @@ function FlipCardBrowserComponent({
   const transitioningRef = useRef(false);
   const mountedRef = useRef(true);
 
-  const swipeThumbX = useMemo(() => {
+  // Card navigation and the scrubber share this one graph instead of swapping the
+  // thumb between two animated values when a drag begins. The swap was the bug: the
+  // node swapped in held a stale position, was never resynchronised with the thumb on
+  // screen, and arrived on a React render fired from inside `onPanResponderGrant` —
+  // so the circle left the finger the moment the drag started. While a drag is in
+  // progress `swipeX` is 0, and this reduces to the finger's own position.
+  const displayedThumbX = useMemo(() => {
     const step = cards.length > 1 ? TRACK_W / (cards.length - 1) : 0;
-    const gestureProgress = Animated.multiply(swipeX, -step / SCREEN_W);
-    return Animated.add(committedThumbX, gestureProgress);
-  }, [cards.length, committedThumbX, swipeX]);
+    return Animated.add(thumbX, Animated.multiply(swipeX, -step / SCREEN_W));
+  }, [cards.length, thumbX, swipeX]);
+
+  const progressScaleX = useMemo(
+    () => Animated.divide(displayedThumbX, TRACK_W),
+    [displayedThumbX],
+  );
+
+  // Tick marks are mounted only for the duration of a scrub.
+  const [scrubbing, setScrubbing] = useState(false);
+  // The thumb follows the finger continuously while the card snaps per tick, so every
+  // writer of a committed position has to stand aside until the finger lifts.
+  const scrubbingRef  = useRef(false);
+  const dragStartXRef = useRef(0);
+  const scrubIdxRef   = useRef(0);
+  // Set while a long press on the card's text owns the gesture as an OS selection.
+  const selectingTextRef = useRef(false);
 
   // ── Flip interpolations (native driver) ───────────────────────────────────
 
@@ -200,6 +239,7 @@ function FlipCardBrowserComponent({
     bases[next].setValue(SCREEN_W);
     bases[prev].setValue(-SCREEN_W);
     transitioningRef.current = false;
+    selectingTextRef.current = false;
   }, [active, flipAnim, stopVoice, swipeX]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -210,6 +250,9 @@ function FlipCardBrowserComponent({
     stopVoice();
     flipAnim.setValue(0);
     setFlipped(false);
+    // The card under the selection is going away, so the selection cannot still be
+    // the reason to withhold the swipe gesture.
+    selectingTextRef.current = false;
     const c  = cardsRef.current;
     if (c.length === 0) {
       idxRef.current = 0;
@@ -229,19 +272,32 @@ function FlipCardBrowserComponent({
     setCurrSlot(0);
     idxRef.current = target;
     setIdx(target);
-    const targetX = xForIndex(target, c.length);
-    thumbXRef.current = targetX;
-    committedThumbX.setValue(targetX);
+    // Mid-drag the finger owns the thumb; snapping it onto the committed tick here
+    // would yank the circle out from under the finger at every tick it crosses.
+    if (!scrubbingRef.current) setThumbX(xForIndex(target, c.length));
     if (publishCurrentWord) onCurrentWordChangeRef.current(c[target].id);
-  }, [committedThumbX, flipAnim, stopVoice, swipeX]);
+  }, [flipAnim, setThumbX, stopVoice, swipeX]);
 
   const doFlip = useCallback(() => {
     const toValue = flipped ? 0 : 1;
+    // Kick the native-driver animation off before touching the audio engine. The
+    // stop still happens in this tap stack, but a synchronous native pause can no
+    // longer delay animation startup and native player destruction is deferred.
     Animated.timing(flipAnim, { toValue, duration: 350, useNativeDriver: true })
       .start(({ finished }) => {
         if (finished && mountedRef.current) setFlipped(f => !f);
       });
-  }, [flipped, flipAnim]);
+    // The side being spoken is leaving now — including on a flip back to front.
+    stopVoice();
+  }, [flipped, flipAnim, stopVoice]);
+
+  // The adjacent previews share the centred card's tree so their text is already laid
+  // out when they arrive; a tap on one must still do nothing.
+  const noFlip = useCallback(() => {}, []);
+
+  const handleSelectionGesture = useCallback((selecting: boolean) => {
+    selectingTextRef.current = selecting;
+  }, []);
 
   const handleDelete = useCallback(() => {
     const c = cardsRef.current[idxRef.current];
@@ -264,6 +320,11 @@ function FlipCardBrowserComponent({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder:  (_, { dx, dy }) =>
         !transitioningRef.current &&
+        // A long press on the card's text has handed the gesture to the OS text
+        // selection. Claiming it here would swipe the card away from the Copy menu.
+        // The next ordinary touch clears the flag from `onPressIn`, so an ordinary
+        // swipe is never withheld.
+        !selectingTextRef.current &&
         Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.5,
 
       // One shared value drives all three cards and the progress thumb.
@@ -282,6 +343,10 @@ function FlipCardBrowserComponent({
 
         if (toNext || toPrev) {
           transitioningRef.current = true;
+          // Stopped as the navigation is committed, not when the animation lands:
+          // the card is already leaving, so its clip must not play over the next one
+          // for the length of the transition.
+          stopVoice();
           const outSlot   = slots.curr;
           const inSlot    = toNext ? slots.next : slots.prev;
           const outTarget = toNext ? -SCREEN_W : SCREEN_W;
@@ -323,13 +388,10 @@ function FlipCardBrowserComponent({
             setCurrSlot(inSlot);
             idxRef.current = newIdx;
             setIdx(newIdx);
-            const targetX = xForIndex(newIdx, c.length);
-            thumbXRef.current = targetX;
-            committedThumbX.setValue(targetX);
+            setThumbX(xForIndex(newIdx, c.length));
             onCurrentWordChangeRef.current(c[newIdx]?.id ?? null);
             flipAnim.setValue(0);
             setFlipped(false);
-            stopVoice();
             transitioningRef.current = false;
           });
 
@@ -358,22 +420,12 @@ function FlipCardBrowserComponent({
   cardsLenRef.current = cards.length;
   goToRef.current     = goTo;
 
-  // Tick marks are mounted only for the duration of a scrub.
-  const [scrubbing, setScrubbing] = useState(false);
-  // The thumb follows the finger continuously while the card snaps per tick, so the
-  // index-driven sync below must not fight the gesture mid-drag.
-  const scrubbingRef  = useRef(false);
-  const dragStartXRef = useRef(0);
-  const scrubIdxRef   = useRef(0);
-
   useEffect(() => {
     // Skipped mid-scrub: the gesture owns the thumb until the finger lifts, otherwise
     // each committed card would yank the thumb back onto its tick under the finger.
     if (scrubbingRef.current) return;
-    const x = xForIndex(idx, cards.length);
-    thumbXRef.current = x;
-    committedThumbX.setValue(x);
-  }, [idx, cards.length, committedThumbX]);
+    setThumbX(xForIndex(idx, cards.length));
+  }, [idx, cards.length, setThumbX]);
 
   const progressPan = useRef(
     PanResponder.create({
@@ -392,9 +444,12 @@ function FlipCardBrowserComponent({
 
       onPanResponderMove: (_, { dx }) => {
         const n = cardsLenRef.current;
-        const x = Math.max(0, Math.min(TRACK_W, dragStartXRef.current + dx));
+        // The last card's tick is the far end of the travel: on a one-card list that
+        // is 0, so the thumb has nowhere to go and cannot drift off its only card.
+        const maxX = xForIndex(n - 1, n);
+        const x = Math.max(0, Math.min(maxX, dragStartXRef.current + dx));
         // Continuous so the thumb tracks the finger; the card commits per tick.
-        scrubThumbX.setValue(x);
+        setThumbX(x);
         const target = indexForX(x, n);
         if (target !== scrubIdxRef.current) {
           scrubIdxRef.current = target;
@@ -407,23 +462,20 @@ function FlipCardBrowserComponent({
       onPanResponderRelease: () => {
         const n = cardsLenRef.current;
         const target = scrubIdxRef.current;
-        // Settle exactly on the tick the card is showing.
-        const snapX = xForIndex(target, n);
-        thumbXRef.current = snapX;
-        scrubThumbX.setValue(snapX);
-        if (target !== idxRef.current) goToRef.current(target);
-        else onCurrentWordChangeRef.current(cardsRef.current[target]?.id ?? null);
+        // Released before the snap, so `goTo` below is the one that owns the thumb
+        // again and card, counter and circle all settle from the same call.
         scrubbingRef.current = false;
         setScrubbing(false);
+        // Settle exactly on the tick the card is showing.
+        setThumbX(xForIndex(target, n));
+        if (target !== idxRef.current) goToRef.current(target);
+        else onCurrentWordChangeRef.current(cardsRef.current[target]?.id ?? null);
       },
 
       onPanResponderTerminate: () => {
-        const n = cardsLenRef.current;
-        const snapX = xForIndex(idxRef.current, n);
-        thumbXRef.current = snapX;
-        scrubThumbX.setValue(snapX);
         scrubbingRef.current = false;
         setScrubbing(false);
+        setThumbX(xForIndex(idxRef.current, cardsLenRef.current));
       },
     })
   ).current;
@@ -450,7 +502,7 @@ function FlipCardBrowserComponent({
   // ── Sync slots after external card order/current-word changes ─────────────
 
   useLayoutEffect(() => {
-    if (!active) {
+    if (!active && !preparing) {
       previousCardsRef.current = cards;
       return;
     }
@@ -470,11 +522,17 @@ function FlipCardBrowserComponent({
     const targetId = cards[target].id;
     const centeredId = slotCardsRef.current[currSlotRef.current]?.id;
     if (target !== idxRef.current || centeredId !== targetId) {
-      goTo(target);
+      // Preparation occurs while the previous layer is still visible. Do not
+      // publish back to App until Flip is active; the selected currentWordId is
+      // already the requested destination.
+      goTo(target, active);
     } else if (currentWordId !== targetId) {
       onCurrentWordChangeRef.current(targetId);
     }
-  }, [active, cards, currentWordId, goTo]);
+    if (preparing && target === idx && centeredId === targetId) {
+      onPositionPrepared(targetId, target);
+    }
+  }, [active, cards, currentWordId, currSlot, goTo, idx, onPositionPrepared, preparing, slotCards]);
 
   // Cancelling a swipe by switching modes must not let its completion callback publish
   // a stale card after the list has already been restored.
@@ -518,12 +576,6 @@ function FlipCardBrowserComponent({
     [cardsById],
   );
 
-  const displayedThumbX = scrubbing ? scrubThumbX : swipeThumbX;
-  const progressScaleX = useMemo(
-    () => Animated.divide(displayedThumbX, TRACK_W),
-    [displayedThumbX],
-  );
-
   const card = resolveLatestCard(slotCards[currSlot]);
   if (!card) return null;
 
@@ -541,86 +593,111 @@ function FlipCardBrowserComponent({
           const c = resolveLatestCard(slotCards[si]);
           if (!c) return null;
           const isCurr = si === currSlot;
-          // Only static adjacent previews may be texture-cached. The current slot
-          // owns a ScrollView; rasterizing that interactive subtree can preserve
-          // its first viewport-sized layer until scrolling invalidates the cache.
-          const cacheStaticPreview = active && !isCurr;
 
           return (
             <Animated.View
               key={si}
               style={[s.cardOuter, { transform: [{ translateX: slotTranslateX[si] }] }]}
-              renderToHardwareTextureAndroid={cacheStaticPreview}
-              shouldRasterizeIOS={cacheStaticPreview}
+              // Adjacent slots render the centred card's tree so their text is already
+              // laid out when they arrive, but they stay as inert as the flat preview
+              // they replaced: no tap, no scroll, no selection.
+              pointerEvents={isCurr ? 'auto' : 'none'}
               {...(isCurr ? panResponder.panHandlers : undefined)}
             >
               {isCurr && <CardResultAccessibilityLabel testLevel={c.testLevel} />}
+
+              {/* Front face.
+                  Every slot renders the *same* tree, whether or not it is the centred
+                  card. That is what removed the one-frame text flash: an adjacent
+                  preview used to be a plain View, so the slot that a swipe promoted to
+                  centre had its whole subtree torn down and a ScrollView mounted in its
+                  place — the card box painted immediately and its text arrived with the
+                  next layout. Becoming current is now a prop change on views that are
+                  already mounted and measured.
+
+                  Pressable inside each CardScrollFace handles flip for taps.
+                  ScrollView inside CardScrollFace handles vertical scrolling.
+                  PanResponder on cardOuter handles horizontal card navigation.
+                  All three coexist because Pressable yields its responder to both
+                  the ScrollView (vertical) and the PanResponder (horizontal). */}
+              <Animated.View
+                style={[
+                  s.face,
+                  { backgroundColor: pal.card },
+                  isCurr
+                    ? { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] }
+                    : null,
+                ]}
+              >
+                <CardScrollFace
+                  onFlip={isCurr ? doFlip : noFlip}
+                  showVoice={isCurr}
+                  // Only the centred card is readable, so only it offers selection —
+                  // and only it needs to hold the swipe off while the user selects.
+                  selectableText={isCurr}
+                  onSelectionGesture={handleSelectionGesture}
+                  voiceButton={(
+                    <WordCardVoiceButton
+                      onPress={playWord}
+                      phase={voiceState?.target === 'word' ? voiceState.phase : undefined}
+                      source={wordVoiceSource}
+                      themeColor={themeColor}
+                      inactiveColor={pal.sub}
+                    />
+                  )}
+                >
+                  {/* With Hide Word on the face shows the eye-off mark and no
+                      word. Not transparent text, which VoiceOver still reads and
+                      the Copy gesture still selects. The card keeps its size from
+                      the face's own minHeight, and everything else on it is
+                      untouched.
+                      `selectable` otherwise gives the native long-press selection
+                      and Copy menu, exactly as in Test Mode. A quick tap still
+                      reaches the Pressable underneath, so tap-to-flip is
+                      unchanged. */}
+                  {isWordTextHidden(c, canHideWord)
+                    ? <HiddenWordIcon color={pal.text} />
+                    : <Text selectable={isCurr} style={[s.wordText, { color: pal.text }]}>{c.word}</Text>}
+                </CardScrollFace>
+                {c.notifOff && (
+                  <View style={s.notifOffBadge} pointerEvents="none">
+                    <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                  </View>
+                )}
+                {stripe(c)}
+              </Animated.View>
+
+              {/* Back face — only the centred card can be flipped, and it mounts behind
+                  a fully transparent front face, so nothing of it is ever seen arriving. */}
               {isCurr ? (
-                // Pressable inside each CardScrollFace handles flip for taps.
-                // ScrollView inside CardScrollFace handles vertical scrolling.
-                // PanResponder on cardOuter handles horizontal card navigation.
-                // All three coexist because Pressable yields its responder to both
-                // the ScrollView (vertical) and the PanResponder (horizontal).
-                <>
-                  <Animated.View
-                    style={[s.face, { backgroundColor: pal.card }, { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] }]}
-                  >
-                    <CardScrollFace
-                      onFlip={doFlip}
-                      voiceButton={(
-                        <WordCardVoiceButton
-                          onPress={playWord}
-                          phase={voiceState?.target === 'word' ? voiceState.phase : undefined}
-                          themeColor={themeColor}
-                          inactiveColor={pal.sub}
-                        />
-                      )}
-                    >
-                      <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
-                    </CardScrollFace>
-                    {c.notifOff && (
-                      <View style={s.notifOffBadge} pointerEvents="none">
-                        <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
-                      </View>
+                <Animated.View
+                  style={[s.face, s.faceAbsolute, { backgroundColor: pal.card }, { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] }]}
+                >
+                  <CardScrollFace
+                    onFlip={doFlip}
+                    selectableText
+                    onSelectionGesture={handleSelectionGesture}
+                    voiceButton={(
+                      <WordCardVoiceButton
+                        onPress={playMeaning}
+                        phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
+                        themeColor={themeColor}
+                        inactiveColor={pal.sub}
+                      />
                     )}
-                    {stripe(c)}
-                  </Animated.View>
-                  <Animated.View
-                    style={[s.face, s.faceAbsolute, { backgroundColor: pal.card }, { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] }]}
                   >
-                    <CardScrollFace
-                      onFlip={doFlip}
-                      voiceButton={(
-                        <WordCardVoiceButton
-                          onPress={playMeaning}
-                          phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
-                          themeColor={themeColor}
-                          inactiveColor={pal.sub}
-                        />
-                      )}
-                    >
-                      <Text style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
-                      {c.note ? <Text style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
-                    </CardScrollFace>
-                    {c.notifOff && (
-                      <View style={s.notifOffBadge} pointerEvents="none">
-                        <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
-                      </View>
-                    )}
-                  </Animated.View>
-                </>
-              ) : (
-                // Adjacent card — front face only, no interaction needed.
-                <View style={[s.cardInner, { backgroundColor: pal.card }]}>
-                  {stripe(c)}
-                  <Text style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
+                    {/* The note is selectable too: it is where an example sentence
+                        usually lives, and it is on screen with the meaning. */}
+                    <Text selectable style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
+                    {c.note ? <Text selectable style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
+                  </CardScrollFace>
                   {c.notifOff && (
                     <View style={s.notifOffBadge} pointerEvents="none">
                       <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
                     </View>
                   )}
-                </View>
-              )}
+                </Animated.View>
+              ) : null}
             </Animated.View>
           );
         })}
@@ -720,18 +797,6 @@ const s = StyleSheet.create({
     shadowOpacity: 0.10,
     shadowRadius: 18,
     elevation: 5,
-  },
-  // Adjacent (non-interactive) preview cards — centred without scroll.
-  cardInner: {
-    width: FLIP_CARD_W,
-    height: FLIP_CARD_H,
-    borderRadius: FLIP_CARD_RADIUS,
-    paddingTop: 52,
-    paddingHorizontal: 28,
-    paddingBottom: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
   // Each animated face — carries borderRadius + overflow so CardScrollFace is clipped.
   face: {
@@ -875,21 +940,24 @@ const s = StyleSheet.create({
 function flipCardBrowserPropsEqual(previous: Props, next: Props) {
   // While hidden, defer all render work. The latest props are applied synchronously by
   // the layout effect on the render that activates Flip again.
-  if (!previous.active && !next.active) return true;
+  if (!previous.active && !next.active && !previous.preparing && !next.preparing) return true;
   return previous.cards === next.cards
     && previous.currentWordId === next.currentWordId
     && previous.onCurrentWordChange === next.onCurrentWordChange
+    && previous.preparing === next.preparing
+    && previous.onPositionPrepared === next.onPositionPrepared
     && previous.active === next.active
     && previous.pal === next.pal
     && previous.themeColor === next.themeColor
-    && previous.isSubscribed === next.isSubscribed
+    && previous.canUseAIVoice === next.canUseAIVoice
     && previous.onEdit === next.onEdit
     && previous.onDelete === next.onDelete
     && previous.onMove === next.onMove
     && previous.onToggleNotif === next.onToggleNotif
     && previous.showLevelLabel === next.showLevelLabel
     && previous.verticalFlip === next.verticalFlip
-    && previous.isPremium === next.isPremium
+    && previous.canUseCustomVoice === next.canUseCustomVoice
+    && previous.canHideWord === next.canHideWord
     && previous.onCustomVoiceLocked === next.onCustomVoiceLocked;
 }
 

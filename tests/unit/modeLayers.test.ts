@@ -20,6 +20,7 @@ const FRESH_SCREEN: ModeLayerInput = {
   reorderActive: false,
   // A newly mounted list has not reported viewability yet.
   listPositionPrepared: false,
+  flipPositionPrepared: false,
   // Nothing is on screen when a folder is opened from the folder list.
   visibleLayer: null,
 };
@@ -97,6 +98,21 @@ test('opening a folder while Flip mode is selected goes straight to Flip', () =>
   assert.ok(frames.every(frame => !frame.showListLayer), 'the list never takes over Flip mode');
 });
 
+test('List to Flip holds List until the prepared Flip deck can replace it atomically', () => {
+  const { frames } = renderSequence([
+    { cardViewMode: 'list', reorderActive: false, listPositionPrepared: true },
+    { cardViewMode: 'flip', reorderActive: false, listPositionPrepared: true, flipPositionPrepared: false },
+    { cardViewMode: 'flip', reorderActive: false, listPositionPrepared: true, flipPositionPrepared: true },
+  ]);
+
+  assert.deepEqual(frames, [
+    { showFlipLayer: false, showListLayer: true },
+    { showFlipLayer: false, showListLayer: true },
+    { showFlipLayer: true, showListLayer: false },
+  ]);
+  assert.ok(frames.every(frame => frame.showListLayer !== frame.showFlipLayer));
+});
+
 test('Flip keeps the screen while a Flip to List toggle positions the list', () => {
   // This hold is the reason the gate exists: without it the user watches the
   // list scroll to the current word.
@@ -122,6 +138,35 @@ test('a held Flip yields as soon as the list is ready', () => {
   assert.equal(held.showFlipLayer, true);
   assert.equal(ready.showFlipLayer, false);
   assert.equal(ready.showListLayer, true);
+});
+
+test('Flip to List keeps exactly one committed layer through restoration', () => {
+  const { frames } = renderSequence([
+    { cardViewMode: 'flip', reorderActive: false, listPositionPrepared: false },
+    { cardViewMode: 'list', reorderActive: false, listPositionPrepared: false },
+    { cardViewMode: 'list', reorderActive: false, listPositionPrepared: true },
+  ]);
+
+  assert.deepEqual(frames, [
+    { showFlipLayer: true, showListLayer: false },
+    { showFlipLayer: true, showListLayer: false },
+    { showFlipLayer: false, showListLayer: true },
+  ]);
+  assert.ok(frames.every(frame => frame.showListLayer !== frame.showFlipLayer));
+});
+
+test('rapid mode changes retain the committed layer and never expose an empty frame', () => {
+  const { frames } = renderSequence([
+    { cardViewMode: 'list', reorderActive: false, listPositionPrepared: true },
+    { cardViewMode: 'flip', reorderActive: false, listPositionPrepared: false, flipPositionPrepared: false },
+    { cardViewMode: 'list', reorderActive: false, listPositionPrepared: false },
+    { cardViewMode: 'flip', reorderActive: false, listPositionPrepared: false, flipPositionPrepared: false },
+    { cardViewMode: 'flip', reorderActive: false, listPositionPrepared: false, flipPositionPrepared: true },
+    { cardViewMode: 'list', reorderActive: false, listPositionPrepared: true },
+  ]);
+
+  assert.deepEqual(frames.map(committedLayer), ['list', 'list', 'list', 'list', 'flip', 'list']);
+  assert.ok(frames.every(frame => frame.showListLayer !== frame.showFlipLayer));
 });
 
 // ── Returning from Word Flip, then opening a folder ──────────────────────────

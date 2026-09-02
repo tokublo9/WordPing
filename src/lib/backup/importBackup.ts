@@ -142,13 +142,16 @@ async function applyBackup(
         : null;
       await db.runAsync(
         `INSERT INTO words (id, folder_id, word, meaning, created_at, position, notif_off,
-                            word_lang, meaning_lang, audio_uri, audio_speed, audio_volume)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+                            word_lang, meaning_lang, audio_uri, audio_speed, audio_volume,
+                            hide_word)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
         [
           word.id, folderId, word.word, word.meaning, word.createdAt ?? null,
           word.position + wordOffset, word.notifOff === true ? 1 : 0,
           word.wordLang ?? null, word.meaningLang ?? null,
           word.audioSpeed ?? null, word.audioVolume ?? null,
+          // Absent in a backup written before the field existed: visible.
+          word.hideWord === true ? 1 : 0,
         ],
       );
       importedWordIds.add(word.id);

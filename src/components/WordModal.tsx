@@ -26,6 +26,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import { isWordTextHidden } from '../features/cards/hideWordAccess';
 import { File, Directory, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer, type AudioStatus } from 'expo-audio';
 import { claimAudioFocus, releaseAudioFocus } from '../lib/audioFocus';
@@ -48,6 +49,15 @@ const SCREEN_H = Dimensions.get('window').height;
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
+/**
+ * Alpha applied to the word field's text while Hide Word is on.
+ *
+ * About a third: clearly lighter than the ordinary near-black at a glance, and
+ * still legible against the input's background — the field has to stay usable,
+ * because it is the only place the word can be corrected.
+ */
+const HIDDEN_WORD_TEXT_ALPHA = '59';
+
 const MAX_AUDIO_FILE_BYTES = 20 * 1024 * 1024;
 const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac']);
 
@@ -106,6 +116,24 @@ interface Props {
   isSubscribed: boolean;
   /** Premium plan — gates the AI text tools (meaning, example, breakdown, translate). */
   isPremium?: boolean;
+  /**
+   * The plan includes Custom Voice for Words — Basic and Premium.
+   *
+   * Separate from `isPremium`: the attach-audio control is not an AI feature and
+   * is sold a tier lower than the AI text tools above.
+   */
+  canUseCustomVoice?: boolean;
+  /**
+   * The plan includes Hide Word — Basic only, and deliberately not Premium.
+   *
+   * Its own capability rather than Custom Voice's: the two overlap today only
+   * because Basic has both. Resolved by features/cards/hideWordAccess.ts, never
+   * by a plan check in here.
+   */
+  canHideWord?: boolean;
+  /** Per-word "Hide Word": the word text is not drawn on its study faces. */
+  hideWord?: boolean;
+  onChangeHideWord?: (value: boolean) => void;
   /** Per-feature "!" markers. The custom-audio control is the only one here. */
   discovery: FeatureDiscovery;
   wordLang: string | undefined;
@@ -128,7 +156,9 @@ export function WordModal({
   visible, onClose, onBulkImport, editingCard,
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
-  isSubscribed, isPremium = false, discovery, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
+  isSubscribed, isPremium = false, canUseCustomVoice = false,
+  canHideWord = false, hideWord = false, onChangeHideWord,
+  discovery, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
   audioUri, onChangeAudioUri,
   audioSpeed, onChangeAudioSpeed,
   audioVolume, onChangeAudioVolume,
@@ -138,6 +168,11 @@ export function WordModal({
   onResetAll,
 }: Props) {
   const t      = useLang();
+  // Dimmed, never concealed: the sheet is where the word is written. Resolved
+  // through the same rule the cards use, so the two can never disagree about
+  // what "hidden" means — a plan without Hide Word sees an ordinary field even
+  // on a word whose stored flag is set.
+  const wordFieldDimmed = isWordTextHidden({ hideWord }, canHideWord);
   const insets = useSafeAreaInsets();
 
   // The AI text controls (generate meaning, example, breakdown, translate).
@@ -647,29 +682,51 @@ export function WordModal({
                 <View style={{ paddingHorizontal: 24, paddingTop: 8, paddingBottom: Math.max(kbHeight, 520) }}>
                 {/* Word field */}
                 <View style={styles.fieldLabelRow}>
-                  <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>
-                    {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
-                  </Text>
-                  {isPremium ? (
-                    <View style={styles.audioBtnGroup}>
-                      {/* Premium-only control, so the marker is too. One id for
-                          the Add and the Edit sheet: it is the same control on
-                          the same field, so finding it in one is finding it. */}
+                  {/* Hide Word belongs to the word field, so it sits with the
+                      field's own label rather than among the Custom Voice
+                      controls: the two are separate capabilities and were only
+                      ever adjacent by layout accident. The fixed-gap left group
+                      keeps the label and switch adjacent; the voice group aligns
+                      itself independently at the right edge. */}
+                  <View style={styles.fieldLabelLeft}>
+                    <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>
+                      {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
+                    </Text>
+                    {canHideWord && (
+                      <TouchableOpacity
+                        onPress={() => onChangeHideWord?.(!hideWord)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={[
+                          styles.audioBtn,
+                          hideWord
+                            ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
+                            : { borderColor: pal.border },
+                        ]}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: hideWord }}
+                        accessibilityLabel={t('hide_word')}
+                        accessibilityHint={t(hideWord ? 'hide_word_on' : 'hide_word_off')}
+                      >
+                        <Ionicons
+                          name={hideWord ? 'eye-off' : 'eye-outline'}
+                          size={16}
+                          color={hideWord ? themeColor : pal.sub}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {(canUseCustomVoice || audioUri) ? (
+                    <View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>
+                      {canUseCustomVoice ? (
+                      <>
+                      {/* Subscriber-only control, so the marker is too. One id
+                          for the Add and the Edit sheet: it is the same control
+                          on the same field, so finding it in one is finding it. */}
                       <NewFeatureBadge
                         visible={discovery.isNew(FEATURE_MARKERS.customAudio)}
                         themeColor={themeColor}
                         label={t('new_feature_badge')}
                       />
-                      {audioUri && (
-                        <TouchableOpacity
-                          onPress={handleClearAudio}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel={t('remove_audio')}
-                          style={styles.audioRemoveBtn}
-                        >
-                          <Ionicons name="close-circle" size={18} color={pal.sub} />
-                        </TouchableOpacity>
-                      )}
                       <TouchableOpacity
                         onPress={() => {
                           discovery.dismiss(FEATURE_MARKERS.customAudio);
@@ -689,32 +746,63 @@ export function WordModal({
                           color={audioUri ? themeColor : pal.sub}
                         />
                       </TouchableOpacity>
-                    </View>
-                  ) : audioUri ? (
-                    // Downgraded from Premium: keep the play + remove buttons only for a word
-                    // that already had a custom voice saved. Play shows the locked-voice message.
-                    <View style={styles.audioBtnGroup}>
-                      <TouchableOpacity
-                        onPress={handleClearAudio}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityLabel={t('remove_audio')}
-                        style={styles.audioRemoveBtn}
-                      >
-                        <Ionicons name="close-circle" size={18} color={pal.sub} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={handleLockedVoicePlay}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={[styles.audioBtn, { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }]}
-                      >
-                        <Ionicons name="play-circle" size={16} color={themeColor} />
-                      </TouchableOpacity>
+                      {/* Remove sits to the right of the button it clears, and
+                          only once there is something to clear — so the Custom
+                          Voice button keeps the same place in the row whether or
+                          not a file is attached. */}
+                      {audioUri && (
+                        <TouchableOpacity
+                          onPress={handleClearAudio}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={t('remove_audio')}
+                          style={styles.audioRemoveBtn}
+                        >
+                          <Ionicons name="close-circle" size={18} color={pal.sub} />
+                        </TouchableOpacity>
+                      )}
+                      </>
+                      ) : audioUri ? (
+                      // Downgraded to Free: keep the play + remove buttons only for a word
+                      // that already had a custom voice saved. Play shows the locked-voice message.
+                      <>
+                        <TouchableOpacity
+                          onPress={handleLockedVoicePlay}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={[styles.audioBtn, { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }]}
+                        >
+                          <Ionicons name="play-circle" size={16} color={themeColor} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={handleClearAudio}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={t('remove_audio')}
+                          style={styles.audioRemoveBtn}
+                        >
+                          <Ionicons name="close-circle" size={18} color={pal.sub} />
+                        </TouchableOpacity>
+                      </>
+                      ) : null}
                     </View>
                   ) : null}
                 </View>
                 <View>
+                  {/* A hidden word is dimmed here rather than concealed: this is
+                      where it is written, so it stays legible and editable. The
+                      dimming is on the text colour alone — an `opacity` on the
+                      input would take the border, the background and the caret
+                      with it, and the label, the validation message and every
+                      other control are outside this style entirely.
+
+                      Resolved through the same rule the cards use, so a plan
+                      without Hide Word sees an ordinary field even on a word
+                      whose stored flag is set. */}
                   <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96 }]}
+                    style={[
+                      s.input,
+                      s.inputMultiline,
+                      { borderColor: pal.border, backgroundColor: pal.input, minHeight: 96 },
+                      { color: wordFieldDimmed ? pal.text + HIDDEN_WORD_TEXT_ALPHA : pal.text },
+                    ]}
                     value={word}
                     onChangeText={onChangeWord}
                     multiline
@@ -722,8 +810,8 @@ export function WordModal({
                   />
                 </View>
 
-                {/* Audio playback settings — visible only when an audio file is attached and user is Premium */}
-                {isPremium && audioUri ? (
+                {/* Audio playback settings — visible only when an audio file is attached and the plan includes Custom Voice */}
+                {canUseCustomVoice && audioUri ? (
                   <View style={[styles.audioSettings, { borderColor: pal.border, backgroundColor: pal.input }]}>
                     {/* Collapsible header */}
                     <TouchableOpacity
@@ -1286,8 +1374,19 @@ const styles = StyleSheet.create({
   fieldLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  // The label and Hide Word switch are adjacent siblings with one fixed gap.
+  // Neither child grows, and no spacer participates in this group.
+  fieldLabelLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // The Custom Voice controls independently align to the far edge of the same
+  // header row; this never inserts flexible space inside the left group.
+  wordHeaderRight: {
+    marginLeft: 'auto',
   },
   audioBtnGroup: {
     flexDirection: 'row',

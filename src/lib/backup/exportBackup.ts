@@ -38,6 +38,7 @@ interface WordRow {
   folder_id: string | null; created_at: number | null; notif_off: number;
   word_lang: string | null; meaning_lang: string | null;
   audio_speed: number | null; audio_volume: number | null;
+  hide_word: number;
 }
 
 interface NoteRow { word_id: string; body: string }
@@ -77,6 +78,7 @@ function toWord(row: WordRow): BackupWord {
     ...(row.meaning_lang !== null ? { meaningLang: row.meaning_lang } : {}),
     ...(row.audio_speed !== null ? { audioSpeed: row.audio_speed } : {}),
     ...(row.audio_volume !== null ? { audioVolume: row.audio_volume } : {}),
+    ...(row.hide_word === 1 ? { hideWord: true } : {}),
   };
 }
 
@@ -96,7 +98,7 @@ export async function exportBackup(db: SqlDatabase, options: ExportOptions): Pro
     db.getAllAsync<LabelRow>('SELECT id, name, kind, position, color FROM labels ORDER BY position ASC'),
     db.getAllAsync<WordRow>(
       `SELECT id, word, meaning, position, folder_id, created_at, notif_off,
-              word_lang, meaning_lang, audio_speed, audio_volume
+              word_lang, meaning_lang, audio_speed, audio_volume, hide_word
          FROM words ORDER BY position ASC`,
     ),
     db.getAllAsync<NoteRow>('SELECT word_id, body FROM notes ORDER BY word_id ASC'),

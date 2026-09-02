@@ -39,6 +39,15 @@ export interface WordCard {
   reviewHistory?: ReviewEntry[];
   wordLang?: string;    // BCP-47 locale for free device TTS (e.g. 'en-US', 'ja-JP')
   meaningLang?: string; // BCP-47 locale for free device TTS
+  /**
+   * Hide the word text on this card's study faces.
+   *
+   * Per-word, and off unless the user turns it on. Pairs with Custom Voice:
+   * with a recording attached and the text hidden, the card becomes a listening
+   * exercise — hear it, recall it, flip. Only the text is hidden; the voice
+   * button and every other control stay exactly where they were.
+   */
+  hideWord?: boolean;
   audioUri?: string;    // local file URI of a user-attached MP3 (Basic plan only)
   audioSpeed?: number;  // playback rate, e.g. 0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0 (default 1.0)
   audioVolume?: number; // playback volume 0.0–1.0 (default 1.0)

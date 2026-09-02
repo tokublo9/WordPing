@@ -15,7 +15,7 @@ import {
   type RateLimitWindow,
 } from './errors';
 import {
-  BASIC_MONTHLY_LIMIT_SCENARIO,
+  LOCAL_AI_VOICE_SCENARIO,
   getLocalAiVoiceTestScenario,
   LOCAL_AI_VOICE_APP_USER_ID,
 } from '../../dev/localAiVoiceScenario';
@@ -86,7 +86,7 @@ async function resolveIdentity(): Promise<{ installId: string; appUserId: string
     getInstallId(),
     getLocalAiVoiceTestScenario(),
   ]);
-  if (localScenario === BASIC_MONTHLY_LIMIT_SCENARIO) {
+  if (localScenario === LOCAL_AI_VOICE_SCENARIO) {
     return { installId, appUserId: LOCAL_AI_VOICE_APP_USER_ID };
   }
 

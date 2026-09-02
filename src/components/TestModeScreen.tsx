@@ -3,8 +3,8 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Easing,
   Modal,
-  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,7 +22,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BCP47_TO_UI_LANG, translate, useLang, type TranslationKey } from '../i18n';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
-import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 import {
   FLIP_CARD_H, FLIP_CARD_RADIUS, FLIP_CARD_W,
   FLIP_MEANING_FONT_SIZE, FLIP_MEANING_LINE_H,
@@ -30,8 +29,23 @@ import {
   FLIP_WORD_FONT_SIZE,
 } from '../constants';
 import { CardScrollFace } from './CardScrollFace';
+import { HiddenWordIcon } from './HiddenWordIcon';
+import { isWordTextHidden } from '../features/cards/hideWordAccess';
+import { useReduceMotion } from '../hooks/useReduceMotion';
 
 const TEST_MUTED_KEY = 'wordping_test_muted';
+
+// ── Card exit ────────────────────────────────────────────────────────────────
+// Every other answer keeps the card in the test — it comes back later — so the
+// card is swapped with a quick fade and nothing is implied about where it went.
+const ADVANCE_FADE_OUT_MS = 130;
+const CARD_FADE_IN_MS = 160;
+// "Perfect" is the one answer that takes the card out of the test, so it gets a
+// visibly different exit: the card shrinks and lifts away instead of dissolving
+// in place. Slower than the ordinary fade because it is saying something.
+const PERFECT_EXIT_MS = 320;
+const PERFECT_EXIT_SCALE = 0.62;
+const PERFECT_EXIT_LIFT = -40;
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -240,55 +254,31 @@ interface Props {
    * consistent with the grade that was already written to the card.
    */
   onFirstAnswer?: () => void;
+  /**
+   * Leaves Test Mode. The card area returns to whichever of List or Flip the
+   * user was on, because that mode was never navigated away from.
+   */
   onClose: () => void;
   pal: Palette;
   themeColor: string;
-  isSubscribed: boolean;
-  isPremium?: boolean;
+  /** The plan includes High-Quality AI Voice — Premium only. */
+  canUseAIVoice: boolean;
+  /** The plan includes Custom Voice for Words — Basic and Premium. */
+  canUseCustomVoice?: boolean;
+  /** The plan includes Hide Word — Basic only. */
+  canHideWord?: boolean;
+  /**
+   * The app-level "Custom Voice is locked" banner. Test Mode is part of the
+   * word-list screen now, so it shares that one banner instead of drawing a
+   * second copy of its own.
+   */
+  onCustomVoiceLocked?: () => void;
   explanationLang: string;
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onClose, pal, themeColor, isSubscribed, isPremium = false, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onClose, pal, themeColor, canUseAIVoice, canUseCustomVoice = false, canHideWord = false, onCustomVoiceLocked, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
-  const insets = useSafeAreaInsets();
-
-  // ── Locked custom-voice banner ────────────────────────────────────────────
-  // Rendered inside this full-screen modal so it appears above the Test sheet.
-  // Tap or swipe up to dismiss.
-  const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
-  const voiceBannerAnim  = useRef(new Animated.Value(0)).current;
-  const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const dismissVoiceBanner = useCallback(() => {
-    if (voiceBannerTimer.current) { clearTimeout(voiceBannerTimer.current); voiceBannerTimer.current = null; }
-    Animated.timing(voiceBannerAnim, { toValue: 0, duration: 220, useNativeDriver: false })
-      .start(({ finished }) => { if (finished) setVoiceBannerShowing(false); });
-  }, [voiceBannerAnim]);
-
-  const showVoiceLockedBanner = useCallback(() => {
-    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
-    setVoiceBannerShowing(true);
-    Animated.spring(voiceBannerAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: false }).start();
-    voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
-  }, [voiceBannerAnim, dismissVoiceBanner]);
-
-  const voiceBannerPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
-    onPanResponderMove: (_, g) => {
-      if (g.dy < 0) voiceBannerAnim.setValue(Math.max(0, 1 - (-g.dy) / 80));
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dy < -28) {
-        dismissVoiceBanner();
-      } else {
-        Animated.spring(voiceBannerAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
-        if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
-        voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
-      }
-    },
-  })).current;
 
   const [queue, setQueue] = useState<WordCard[]>(() => {
     const now = appNow();
@@ -314,10 +304,13 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   // idx stays at 0 (e.g., after Shuffle / Reset from the first card).
   const [sessionKey,  setSessionKey]  = useState(0);
   const [infoVisible, setInfoVisible] = useState(false);
-  const [sheetReady,  setSheetReady]  = useState(false);
 
   const flipAnim    = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
+  // Only the Perfect exit moves these; every other path leaves them at rest.
+  const cardScale   = useRef(new Animated.Value(1)).current;
+  const cardLift    = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReduceMotion();
 
   const total  = queue.length;
   const active = idx >= 0 && idx < total;
@@ -328,28 +321,25 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   // The same hook the Flip screen uses, so the icon here shares its audio source,
   // loading and playing states, toggle-to-stop behaviour, custom-voice lock and
   // error alerts rather than reimplementing any of them.
-  const { voiceState, playWord, playMeaning, stopVoice } = useWordCardVoicePlayback({
+  const { voiceState, playWord, playMeaning, stopVoice, wordVoiceSource } = useWordCardVoicePlayback({
     item: card,
-    isSubscribed,
-    isPremium,
-    onCustomVoiceLocked: showVoiceLockedBanner,
+    canUseAIVoice,
+    canUseCustomVoice,
+    onCustomVoiceLocked,
   });
 
   // ── Auto-play word when a new card (or new session) becomes active ────────
+  // There is no presentation animation to wait for any more — the card area is
+  // simply this content — so the stored mute preference is the only gate.
 
   useEffect(() => {
-    if (!sheetReady || !mutedLoaded) return;
+    if (!mutedLoaded) return;
     const current = queue[idx];
     if (!current?.word || muted) return;
     // Same action as tapping the icon, so the icon shows the loading and playing
     // states for automatic playback too. The lock case is handled inside it.
     void playWord();
-  }, [idx, sessionKey, sheetReady, mutedLoaded, isSubscribed, isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // The hook stops its own playback on unmount; this only clears the banner timer.
-  useEffect(() => () => {
-    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
-  }, []);
+  }, [idx, sessionKey, mutedLoaded, canUseAIVoice, canUseCustomVoice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Flip animation interpolations ────────────────────────────────────────
 
@@ -367,6 +357,8 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     stopVoice();
     flipAnim.setValue(0);
     cardOpacity.setValue(1);
+    cardScale.setValue(1);
+    cardLift.setValue(0);
     setFlipped(false);
     setBackPlayed(false);
     setQueue(newQueue);
@@ -378,7 +370,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     // the double-tap guard: the card animated away but was never graded, so no
     // hiddenUntil was written and it stayed in the word list.
     gradedIdsRef.current = new Set();
-  }, [flipAnim, cardOpacity]);
+  }, [flipAnim, cardOpacity, cardScale, cardLift]);
 
   const handleShuffle = () => restart(shuffle([...queue]));
 
@@ -430,8 +422,10 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   }, [muted, playMeaning]);
 
   const doToggleFlip = useCallback(() => {
+    // Start the native-driver animation before touching the audio engine. The
+    // unconditional stop below still runs in this tap stack, but cannot gate the
+    // first animation frame even if native pause has work to do.
     if (flipped) {
-      if (!muted) stopVoice();
       Animated.timing(flipAnim, { toValue: 0, duration: 300, useNativeDriver: true })
         .start(() => setFlipped(false));
     } else {
@@ -444,7 +438,10 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
           }
         });
     }
-  }, [flipped, flipAnim, card, backPlayed, muted]);
+    // Muting only hides the icon; any clip already playing still stops as soon
+    // as either side starts leaving the screen.
+    stopVoice();
+  }, [flipped, flipAnim, card, backPlayed, muted, playMeaning, stopVoice]);
 
   const advance = useCallback((kind: AnswerKind) => {
     if (!card) return;
@@ -465,246 +462,265 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     if (outcome.action === 'delete') onDeleteCard(card.id);
     else onUpdateCard(card.id, outcome.patch);
 
-    Animated.timing(cardOpacity, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => {
+    // Perfect removes the card from the test — deleted outright with "Sync with
+    // test results" on, mastered and out of the queue with it off — so the card
+    // is animated away rather than simply replaced. Reduce Motion falls back to
+    // the ordinary fade: the card still goes, it just does not travel.
+    const leavesTest = kind === 'perfect' && !reduceMotion;
+    const exit = leavesTest
+      ? Animated.parallel([
+          Animated.timing(cardOpacity, {
+            toValue: 0, duration: PERFECT_EXIT_MS,
+            easing: Easing.in(Easing.cubic), useNativeDriver: true,
+          }),
+          Animated.timing(cardScale, {
+            toValue: PERFECT_EXIT_SCALE, duration: PERFECT_EXIT_MS,
+            easing: Easing.in(Easing.cubic), useNativeDriver: true,
+          }),
+          Animated.timing(cardLift, {
+            toValue: PERFECT_EXIT_LIFT, duration: PERFECT_EXIT_MS,
+            easing: Easing.in(Easing.cubic), useNativeDriver: true,
+          }),
+        ])
+      : Animated.timing(cardOpacity, {
+          toValue: 0, duration: ADVANCE_FADE_OUT_MS, useNativeDriver: true,
+        });
+
+    exit.start(() => {
       flipAnim.setValue(0);
+      // Reset before the next card is shown, so it fades in at full size from
+      // where the card slot actually is rather than from the departed card's
+      // last frame.
+      cardScale.setValue(1);
+      cardLift.setValue(0);
       setFlipped(false);
       setBackPlayed(false);
       setIdx(i => i + 1);
-      Animated.timing(cardOpacity, { toValue: 1, duration: 160, useNativeDriver: true }).start();
+      Animated.timing(cardOpacity, {
+        toValue: 1, duration: CARD_FADE_IN_MS, useNativeDriver: true,
+      }).start();
     });
-  }, [card, onUpdateCard, onDeleteCard, onFirstAnswer, flipAnim, cardOpacity]);
+  }, [
+    card, onUpdateCard, onDeleteCard, onFirstAnswer,
+    flipAnim, cardOpacity, cardScale, cardLift, reduceMotion,
+  ]);
 
   // ── Layout ────────────────────────────────────────────────────────────────
+  // Test Mode is one of the word-list screen's card-area modes, not a sheet, so
+  // it draws no header, no chrome of its own and no safe-area padding: the
+  // screen above it keeps its own header, colour filter and Test button, and the
+  // enclosing SafeAreaView already owns the insets. This content begins at the
+  // progress bar.
 
-  const headerPad = insets.top + 10;
   const bottomPad = 16;
 
   return (
-    <Modal
-      visible
-      animationType="slide"
-      presentationStyle="fullScreen"
-      onShow={() => setSheetReady(true)}
-      onRequestClose={onClose}
-    >
-      <View style={[s.root, { backgroundColor: pal.bg }]}>
+    <View style={s.root}>
 
-        {/* Header */}
-        <View style={[s.header, { paddingTop: headerPad, borderBottomColor: pal.border }]}>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Ionicons name="close" size={24} color={pal.text} />
-          </TouchableOpacity>
-          {active ? (
-            <Text style={[s.progressText, { color: pal.sub }]}>{`${idx + 1} / ${total}`}</Text>
-          ) : (
-            <View />
-          )}
-          <TouchableOpacity
-            onPress={() => setInfoVisible(true)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('test_info_title')}
-          >
-            <Ionicons name="information-circle-outline" size={24} color={pal.sub} />
-          </TouchableOpacity>
+      {/* Progress bar */}
+      {active && (
+        <View style={[s.progressTrack, { backgroundColor: pal.border }]}>
+          <View style={[s.progressFill, { backgroundColor: themeColor, width: `${(idx / total) * 100}%` }]} />
         </View>
+      )}
 
-        {/* Progress bar */}
-        {active && (
-          <View style={[s.progressTrack, { backgroundColor: pal.border }]}>
-            <View style={[s.progressFill, { backgroundColor: themeColor, width: `${(idx / total) * 100}%` }]} />
+      {/* Main content */}
+      {done ? (
+        /* ── Completion / empty state ──────────────────────────────────── */
+        <View style={s.center}>
+          <View style={[s.iconWrap, { backgroundColor: themeColor + '20' }]}>
+            <Ionicons
+              name={total === 0 ? 'checkmark-done-outline' : 'trophy-outline'}
+              size={48}
+              color={themeColor}
+            />
           </View>
-        )}
-
-        {/* Main content */}
-        {done ? (
-          /* ── Completion / empty state ──────────────────────────────────── */
-          <View style={s.center}>
-            <View style={[s.iconWrap, { backgroundColor: themeColor + '20' }]}>
-              <Ionicons
-                name={total === 0 ? 'checkmark-done-outline' : 'trophy-outline'}
-                size={48}
-                color={themeColor}
-              />
-            </View>
-            <Text style={[s.centerTitle, { color: pal.text }]}>
-              {t(total === 0 ? 'test_empty_title' : 'test_complete_title')}
-            </Text>
-            <Text style={[s.centerHint, { color: pal.sub }]}>
-              {t(total === 0 ? 'test_empty_hint' : 'test_complete_hint')}
-            </Text>
-            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={onClose}>
-              <Text style={s.primaryBtnText}>{t('close')}</Text>
+          <Text style={[s.centerTitle, { color: pal.text }]}>
+            {t(total === 0 ? 'test_empty_title' : 'test_complete_title')}
+          </Text>
+          <Text style={[s.centerHint, { color: pal.sub }]}>
+            {t(total === 0 ? 'test_empty_hint' : 'test_complete_hint')}
+          </Text>
+          <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={onClose}>
+            <Text style={s.primaryBtnText}>{t('close')}</Text>
+          </TouchableOpacity>
+          {total === 0 && (
+            <TouchableOpacity
+              style={[s.secondaryBtn, { borderColor: pal.border }]}
+              onPress={handleReset}
+            >
+              <Ionicons name="refresh-outline" size={16} color={pal.sub} />
+              <Text style={[s.secondaryBtnText, { color: pal.sub }]}>{t('test_reset')}</Text>
             </TouchableOpacity>
-            {total === 0 && (
-              <TouchableOpacity
-                style={[s.secondaryBtn, { borderColor: pal.border }]}
-                onPress={handleReset}
-              >
-                <Ionicons name="refresh-outline" size={16} color={pal.sub} />
-                <Text style={[s.secondaryBtnText, { color: pal.sub }]}>{t('test_reset')}</Text>
-              </TouchableOpacity>
-            )}
+          )}
+        </View>
+      ) : (
+        /* ── Card area ─────────────────────────────────────────────────── */
+        <View style={s.cardArea}>
+
+          {/* Toolbar: always visible above the card during the test */}
+          <View style={s.toolbar}>
+            <TouchableOpacity
+              style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
+              onPress={handleReset}
+            >
+              <Ionicons name="refresh-outline" size={15} color={pal.text} />
+              <Text style={[s.toolBtnText, { color: pal.text }]}>{t('test_reset')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
+              onPress={handleShuffle}
+            >
+              <Ionicons name="shuffle" size={15} color={pal.text} />
+              <Text style={[s.toolBtnText, { color: pal.text }]}>{t('test_shuffle')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                s.toolBtn,
+                {
+                  backgroundColor: muted ? themeColor + '18' : pal.card,
+                  borderColor:     muted ? themeColor : pal.border,
+                },
+              ]}
+              onPress={handleMuteToggle}
+            >
+              <Ionicons
+                name="volume-mute-outline"
+                size={15}
+                color={muted ? themeColor : pal.text}
+              />
+              <Text style={[s.toolBtnText, { color: muted ? themeColor : pal.text }]}>{t('test_mute')}</Text>
+            </TouchableOpacity>
+            {/* Immediately to the right of Mute, and in the same row, so both
+                stay reachable for the whole test. Same action as before — it
+                opens the grading-results popup. */}
+            <TouchableOpacity
+              onPress={() => setInfoVisible(true)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('test_info_title')}
+              style={[s.toolBtn, s.toolIconBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
+            >
+              <Ionicons name="information-circle-outline" size={18} color={pal.sub} />
+            </TouchableOpacity>
           </View>
-        ) : (
-          /* ── Card area ─────────────────────────────────────────────────── */
-          <View style={s.cardArea}>
 
-            {/* Toolbar: always visible above the card during the test */}
-            <View style={s.toolbar}>
-              <TouchableOpacity
-                style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
-                onPress={handleReset}
-              >
-                <Ionicons name="refresh-outline" size={15} color={pal.text} />
-                <Text style={[s.toolBtnText, { color: pal.text }]}>{t('test_reset')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
-                onPress={handleShuffle}
-              >
-                <Ionicons name="shuffle" size={15} color={pal.text} />
-                <Text style={[s.toolBtnText, { color: pal.text }]}>{t('test_shuffle')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  s.toolBtn,
-                  {
-                    backgroundColor: muted ? themeColor + '18' : pal.card,
-                    borderColor:     muted ? themeColor : pal.border,
-                  },
-                ]}
-                onPress={handleMuteToggle}
-              >
-                <Ionicons
-                  name="volume-mute-outline"
-                  size={15}
-                  color={muted ? themeColor : pal.text}
-                />
-                <Text style={[s.toolBtnText, { color: muted ? themeColor : pal.text }]}>{t('test_mute')}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Word card */}
-            <View style={s.cardCenter}>
-              <Animated.View style={[s.cardFadeWrap, { opacity: cardOpacity }]}>
-                <View style={s.cardSlot}>
-                  {/* Front face */}
-                  <Animated.View
-                    style={[
-                      s.cardFace,
-                      { backgroundColor: pal.card },
-                      { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] },
-                    ]}
+          {/* Word card */}
+          <View style={s.cardCenter}>
+            <Animated.View
+              style={[
+                s.cardFadeWrap,
+                {
+                  opacity: cardOpacity,
+                  transform: [{ scale: cardScale }, { translateY: cardLift }],
+                },
+              ]}
+            >
+              <View style={s.cardSlot}>
+                {/* Front face */}
+                <Animated.View
+                  style={[
+                    s.cardFace,
+                    { backgroundColor: pal.card },
+                    { opacity: frontOpacity, transform: [{ perspective: 900 }, { [rotateKey]: frontRotate } as any] },
+                  ]}
+                >
+                  <CardScrollFace
+                    onFlip={doToggleFlip}
+                    voiceButton={(
+                      <WordCardVoiceButton
+                        onPress={speakWord}
+                        phase={voiceState?.target === 'word' ? voiceState.phase : undefined}
+                        source={wordVoiceSource}
+                        themeColor={themeColor}
+                        inactiveColor={pal.sub}
+                      />
+                    )}
+                    showVoice={!muted}
+                    selectableText
                   >
-                    <CardScrollFace
-                      onFlip={doToggleFlip}
-                      voiceButton={(
-                        <WordCardVoiceButton
-                          onPress={speakWord}
-                          phase={voiceState?.target === 'word' ? voiceState.phase : undefined}
-                          themeColor={themeColor}
-                          inactiveColor={pal.sub}
-                        />
-                      )}
-                      showVoice={!muted}
-                      selectableText
-                    >
-                      {/* `selectable` gives the native long-press selection and Copy
-                          menu on both platforms. A quick tap still reaches the
-                          Pressable underneath, so tap-to-flip is unchanged; the
-                          `selectableText` flag above is what stops the same hold
-                          also flipping the card away from the selection. The answer
-                          buttons are separate views a selection cannot reach. */}
-                      <Text selectable style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>
-                    </CardScrollFace>
-                  </Animated.View>
+                    {/* With Hide Word on the face shows the eye-off mark and no
+                        word, so there is no word to read aloud, select or copy.
+                        The card keeps its size from the face's own minHeight.
+                        Otherwise
+                        `selectable` gives the native long-press selection and Copy
+                        menu on both platforms. A quick tap still reaches the
+                        Pressable underneath, so tap-to-flip is unchanged; the
+                        `selectableText` flag above is what stops the same hold
+                        also flipping the card away from the selection. The answer
+                        buttons are separate views a selection cannot reach. */}
+                    {isWordTextHidden(card, canHideWord)
+                      ? <HiddenWordIcon color={pal.text} />
+                      : <Text selectable style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>}
+                  </CardScrollFace>
+                </Animated.View>
 
-                  {/* Back face */}
-                  <Animated.View
-                    style={[
-                      s.cardFace,
-                      StyleSheet.absoluteFillObject,
-                      { backgroundColor: pal.card },
-                      { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] },
-                    ]}
+                {/* Back face */}
+                <Animated.View
+                  style={[
+                    s.cardFace,
+                    StyleSheet.absoluteFillObject,
+                    { backgroundColor: pal.card },
+                    { opacity: backOpacity, transform: [{ perspective: 900 }, { [rotateKey]: backRotate } as any] },
+                  ]}
+                >
+                  <CardScrollFace
+                    onFlip={doToggleFlip}
+                    voiceButton={(
+                      <WordCardVoiceButton
+                        onPress={speakMeaning}
+                        phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
+                        themeColor={themeColor}
+                        inactiveColor={pal.sub}
+                      />
+                    )}
+                    showVoice={!muted}
+                    selectableText
                   >
-                    <CardScrollFace
-                      onFlip={doToggleFlip}
-                      voiceButton={(
-                        <WordCardVoiceButton
-                          onPress={speakMeaning}
-                          phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
-                          themeColor={themeColor}
-                          inactiveColor={pal.sub}
-                        />
-                      )}
-                      showVoice={!muted}
-                      selectableText
-                    >
-                      {/* Every user-authored field on this face is selectable, not
-                          just the meaning: the note is often where the example
-                          sentence lives. Both are covered by the one flag above —
-                          a long press on either keeps the card on this side. */}
-                      <Text selectable style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
-                      {card!.note ? (
-                        <Text selectable style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
-                      ) : null}
-                    </CardScrollFace>
-                  </Animated.View>
-                </View>
-              </Animated.View>
-            </View>
+                    {/* Every user-authored field on this face is selectable, not
+                        just the meaning: the note is often where the example
+                        sentence lives. Both are covered by the one flag above —
+                        a long press on either keeps the card on this side. */}
+                    <Text selectable style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
+                    {card!.note ? (
+                      <Text selectable style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
+                    ) : null}
+                  </CardScrollFace>
+                </Animated.View>
+              </View>
+            </Animated.View>
           </View>
-        )}
+        </View>
+      )}
 
-        {/* Answer buttons — revealed after first flip */}
-        {!done && (
-          <View
-            style={[s.answerRow, { paddingBottom: bottomPad, opacity: backPlayed ? 1 : 0 }]}
-            pointerEvents={backPlayed ? 'auto' : 'none'}
-          >
-            {ANSWERS.map(({ kind, labelKey, descKey, icon, color }) => (
-              <TouchableOpacity
-                key={kind}
-                style={[s.answerBtn, { backgroundColor: color + '18', borderColor: color + '70' }]}
-                onPress={() => advance(kind)}
-                activeOpacity={0.75}
-              >
-                <View style={s.answerBtnLeft}>
-                  {icon === '◎'
-                    ? <Text style={{ fontSize: 19, color, lineHeight: 20 }}>◎</Text>
-                    : <Ionicons name={icon as any} size={18} color={color} />
-                  }
-                  <Text style={[s.answerBtnLabel, { color }]}>{t(labelKey as any)}</Text>
-                </View>
-                <Text style={[s.answerBtnDesc, { color }]}>{t(descKey as any)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+      {/* Answer buttons — revealed after first flip */}
+      {!done && (
+        <View
+          style={[s.answerRow, { paddingBottom: bottomPad, opacity: backPlayed ? 1 : 0 }]}
+          pointerEvents={backPlayed ? 'auto' : 'none'}
+        >
+          {ANSWERS.map(({ kind, labelKey, descKey, icon, color }) => (
+            <TouchableOpacity
+              key={kind}
+              style={[s.answerBtn, { backgroundColor: color + '18', borderColor: color + '70' }]}
+              onPress={() => advance(kind)}
+              activeOpacity={0.75}
+            >
+              <View style={s.answerBtnLeft}>
+                {icon === '◎'
+                  ? <Text style={{ fontSize: 19, color, lineHeight: 20 }}>◎</Text>
+                  : <Ionicons name={icon as any} size={18} color={color} />
+                }
+                <Text style={[s.answerBtnLabel, { color }]}>{t(labelKey as any)}</Text>
+              </View>
+              <Text style={[s.answerBtnDesc, { color }]}>{t(descKey as any)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-        {/* Banner ad — hidden for Pro subscribers; also suppressed when ADS_ENABLED = false */}
-        {ADS_ENABLED && !isSubscribed ? (
-          <View
-            style={{
-              width: '100%',
-              height: AD_BANNER_HEIGHT,
-              marginBottom: insets.bottom,
-              backgroundColor: pal.chip,
-              borderTopWidth: StyleSheet.hairlineWidth,
-              borderTopColor: pal.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 11, letterSpacing: 0.5, color: pal.sub }}>Advertisement</Text>
-          </View>
-        ) : (
-          <View style={{ height: insets.bottom }} />
-        )}
-
-      </View>
+      {/* The banner ad and the bottom safe-area spacer belong to the screen
+          this content now sits inside, so neither is drawn a second time. */}
 
       <InfoPopup
         visible={infoVisible}
@@ -712,29 +728,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
         pal={pal}
         explanationLang={explanationLang}
       />
-
-      {/* Locked custom-voice error — above the Test sheet; tap or swipe up to dismiss */}
-      {voiceBannerShowing && (
-        <Animated.View
-          style={[
-            s.voiceBanner,
-            {
-              top: insets.top + 8,
-              backgroundColor: pal.dialog,
-              borderColor: pal.border,
-              opacity: voiceBannerAnim,
-              transform: [{ translateY: voiceBannerAnim.interpolate({ inputRange: [0, 1], outputRange: [-56, 0] }) }],
-            },
-          ]}
-          {...voiceBannerPan.panHandlers}
-        >
-          <TouchableOpacity activeOpacity={0.85} onPress={dismissVoiceBanner} style={s.voiceBannerTouch}>
-            <Ionicons name="warning" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
-            <Text style={[s.voiceBannerText, { color: pal.text }]}>{t('custom_voice_locked_msg')}</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-    </Modal>
+    </View>
   );
 }
 
@@ -742,40 +736,6 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-
-  // Locked custom-voice banner (top overlay)
-  voiceBanner: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    zIndex: 9999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  voiceBannerTouch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  voiceBannerText: { flex: 1, fontSize: 13, lineHeight: 18 },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  progressText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
 
   progressTrack: {
     height: 3,
@@ -796,9 +756,13 @@ const s = StyleSheet.create({
     paddingTop: 14,
   },
 
-  // Always-visible toolbar: Shuffle, Reset, Mute
+  // Always-visible toolbar: Reset, Shuffle, Mute, Info
   toolbar: {
     flexDirection: 'row',
+    // A fourth control now shares the row, and the three labels are translated.
+    // Wrapping keeps every one of them reachable on a narrow phone in any
+    // language, rather than pushing Info off the edge.
+    flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
@@ -816,6 +780,11 @@ const s = StyleSheet.create({
   toolBtnText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  // The Info control: same pill as the buttons beside it, sized for its icon
+  // alone so the row still fits on the narrowest phone in every language.
+  toolIconBtn: {
+    paddingHorizontal: 10,
   },
 
   // Flex container that centers the card below the toolbar

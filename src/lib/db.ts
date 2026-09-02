@@ -64,7 +64,7 @@ export const GESTURES_CARD_ID = 'wp-w5';
 // English placeholders — replaced with localized content when onboarding completes.
 const DEFAULT_CARDS: WordCard[] = [
   { id: 'wp-w1', createdAt: 1, word: 'Tap the card to reveal its meaning.',                               meaning: 'Tap the card to reveal its meaning.',                               note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
-  { id: 'wp-w2', createdAt: 2, word: 'Switch between List Mode and Flip Mode using the top-right button.', meaning: 'Switch between List Mode and Flip Mode using the top-right button.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w2', createdAt: 2, word: 'Switch between List Mode and Flip Mode in Settings.', meaning: 'Switch between List Mode and Flip Mode in Settings.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
   { id: 'wp-w3', createdAt: 3, word: 'Tap the graduation cap icon to test yourself.',                      meaning: 'Tap the graduation cap icon to test yourself.',                      note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
   { id: 'wp-w4', createdAt: 4, word: 'Set up notifications to review your words automatically.',           meaning: 'Set up notifications to review your words automatically.',           note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
   { id: GESTURES_CARD_ID, createdAt: 5, word: 'You can swipe or long-press words and folders.', meaning: '単語やフォルダは、スワイプまたは長押しで操作できます。', note: '', wordLang: 'en-US', meaningLang: 'ja-JP', folderId: WELCOME_FOLDER_ID },
