@@ -10,6 +10,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Folder, Palette, WordCard } from '../../types';
 import { appNow } from '../../lib/appClock';
 import { isCardHidden } from '../../features/cards/visibility';
+import { isCardDueForTest } from '../../features/cards/testSchedule';
 import { appStyles as s } from '../../styles';
 import { useLang } from '../../i18n';
 import { AD_BANNER_HEIGHT } from '../../components/AdBannerPlaceholder';
@@ -78,7 +79,10 @@ export function FolderListScreen({
       if (isCardHidden(card, now)) continue;
       const current = metrics.get(card.folderId) ?? { count: 0, untestedCount: 0 };
       current.count++;
-      if (!card.testLevel) current.untestedCount++;
+      // The same due/waiting rule the grey chip counts with, so a folder badge
+      // and the word list inside it can never disagree: a word whose waiting
+      // interval has run out is work to do again, not a finished result.
+      if (isCardDueForTest(card, now)) current.untestedCount++;
       metrics.set(card.folderId, current);
     }
     return metrics;

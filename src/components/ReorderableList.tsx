@@ -22,10 +22,6 @@ import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
 import { useLang } from '../i18n';
 
-const STRIPE_COLORS: Record<string, string> = {
-  perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
-};
-
 // Animated wrapper so `onScroll` can be a native-driven Animated.event while the list
 // still virtualizes normally. A plain FlatList would force that event back onto JS.
 const AnimatedFlatList = Animated.createAnimatedComponent(
@@ -61,7 +57,6 @@ interface Props {
   onReorder: (cards: WordCard[]) => void;
   pal: Palette;
   extraPaddingBottom?: number;
-  showLevelLabel?: boolean;
   /** When provided, rows render as folder items instead of word cards. */
   folderData?: Record<string, FolderRowData>;
   /** Uses the normal word-card renderer and injects its handle only in reorder mode. */
@@ -101,7 +96,6 @@ interface RowProps {
   isDragging: boolean;
   translateY: Animated.Value | null;
   rowRef: (el: View | null) => void;
-  showLevelLabel: boolean;
   folderItem?: FolderRowData;
   renderWordCard?: (card: WordCard, reorderMode: boolean, dragHandle?: ReactNode) => ReactNode;
   reorderEnabled: boolean;
@@ -112,7 +106,7 @@ interface RowProps {
 
 function DraggableRow({
   card, index, pal, isDragging, translateY, rowRef,
-  showLevelLabel, folderItem, renderWordCard, reorderEnabled,
+  folderItem, renderWordCard, reorderEnabled,
   onDragStart, onDragMove, onDragEnd,
 }: RowProps) {
   const t = useLang();
@@ -144,8 +138,6 @@ function DraggableRow({
       },
     })
   ).current;
-
-  const stripeColor = card.testLevel ? (STRIPE_COLORS[card.testLevel] ?? null) : null;
 
   const wordCardHandle = !!renderWordCard && !folderItem;
   const handleEl = (
@@ -190,9 +182,6 @@ function DraggableRow({
       ) : (
         // ── Word-card row ──────────────────────────────────────────────────
         <View style={[styles.rowInner, { backgroundColor: pal.card }]}>
-          {showLevelLabel && stripeColor && (
-            <View style={[styles.rowStripe, { backgroundColor: stripeColor }]} pointerEvents="none" />
-          )}
           <View style={styles.flipArea}>
             <Text style={[styles.cardText, { color: pal.text }]} numberOfLines={1}>
               {card.word}
@@ -209,7 +198,7 @@ function DraggableRow({
 
 function ReorderableListComponent({
   cards, onReorder, pal, extraPaddingBottom = 0,
-  showLevelLabel = true, folderData, renderWordCard,
+  folderData, renderWordCard,
   reorderEnabled = true, scrollEnabled = true,
   scrollAnim, onTopVisibleCardChange, onScrollOffsetChange,
   onScrollBeginDrag, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd,
@@ -805,7 +794,6 @@ function ReorderableListComponent({
             isDragging={draggingId === card.id}
             translateY={draggingId !== null ? (anims.current.get(card.id) ?? null) : null}
             rowRef={el => { rowRefs.current[idx] = el; }}
-            showLevelLabel={showLevelLabel}
             folderItem={folderData ? folderData[card.id] : undefined}
             renderWordCard={renderWordCard}
             reorderEnabled={reorderEnabled}
@@ -853,9 +841,6 @@ function ReorderableListComponent({
             ) : (
               // ── Word-card ghost ────────────────────────────────────────────
               <View style={[styles.ghostWordInner, styles.ghostElevation, { backgroundColor: pal.card }]}>
-                {showLevelLabel && draggingCard.testLevel && STRIPE_COLORS[draggingCard.testLevel] && (
-                  <View style={[styles.rowStripe, { backgroundColor: STRIPE_COLORS[draggingCard.testLevel]! }]} pointerEvents="none" />
-                )}
                 <View style={styles.flipArea}>
                   <Text style={[styles.cardText, { color: pal.text }]} numberOfLines={1}>
                     {draggingCard.word}
@@ -903,15 +888,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   cardText: { fontSize: 18, fontWeight: '600' },
-  rowStripe: {
-    position: 'absolute',
-    bottom: 4,
-    right: -15,
-    width: 40,
-    height: 5,
-    opacity: 0.7,
-    transform: [{ rotate: '-45deg' }],
-  },
 
   // ── Folder row — mirrors SwipeableFolder's item + itemOuter styles ─────────
   folderRow: {

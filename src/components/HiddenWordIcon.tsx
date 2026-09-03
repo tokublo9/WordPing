@@ -28,9 +28,9 @@ interface Props {
  * user learns the card is hidden without being told what it hides.
  *
  * Deliberately the only thing that changes. The card keeps its dimensions, and
- * the voice button, the level stripe, the notification badge, every action and —
- * in the list — the row's own tap and long-press all stay exactly where they
- * were: a hidden word is still a card you can hear, open, grade, edit and move.
+ * the voice button, the notification badge, every action and — in the list — the
+ * row's own tap and long-press all stay exactly where they were: a hidden word
+ * is still a card you can hear, open, grade, edit and move.
  */
 export function HiddenWordIcon({ color, variant = 'card' }: Props) {
   const t = useLang();

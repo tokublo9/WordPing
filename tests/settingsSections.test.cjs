@@ -642,24 +642,26 @@ test('the remaining toggles are accessible', () => {
 
 // ── Compact Settings switches ────────────────────────────────────────────────
 
-test('exactly the four visible Settings toggles use the compact control', () => {
+test('exactly the three visible Settings toggles use the compact control', () => {
   const settings = read('src/components/SettingsModal.tsx');
   // One shared component, used once inside ToggleRow — not three transforms.
   assert.equal((settings.match(/<CompactSwitch/gu) ?? []).length, 1);
   assert.doesNotMatch(settings, /<Switch\b/u);
   assert.doesNotMatch(settings, /transform: \[\{ scale/u);
 
-  // ToggleRow defines the Flip/List selector, the three existing visible Card
-  // Behavior toggles, plus dormant
-  // Hide AI. The AI Data Sharing switch was removed; permission is now
-  // withdrawn from the About AI Voice explanation instead.
+  // ToggleRow defines the Flip/List selector, the two remaining visible Card
+  // Behavior toggles, plus dormant Hide AI. The AI Data Sharing switch was
+  // removed; permission is now withdrawn from the About AI Voice explanation
+  // instead. "Show result colour on cards" was removed with its preference —
+  // the label is simply part of a card now.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
   assert.deepEqual(rows, [
-    'view_flip', 'show_full_card', 'show_result_color_on_cards', 'vertical_flip', 'hide_ai_tools',
+    'view_flip', 'show_full_card', 'vertical_flip', 'hide_ai_tools',
   ]);
-  // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so four render.
+  assert.doesNotMatch(settings, /show_result_color_on_cards/u);
+  // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
 
   // Nothing else in the app adopts it by accident.
@@ -693,7 +695,6 @@ test('remaining toggle state is unchanged and the dormant Sync preference is pre
   const settings = read('src/components/SettingsModal.tsx');
   for (const [value, handler] of [
     ['showFullCard', 'onToggleShowFullCard'],
-    ['showResultColor', 'onToggleShowResultColor'],
     ['verticalFlip', 'onToggleVerticalFlip'],
   ]) {
     assert.match(settings, new RegExp(`value=\\{${value}\\}\\s*onToggle=\\{${handler}\\}`, 'u'));
@@ -761,7 +762,7 @@ test('exactly three Settings rows carry an information button', () => {
   const withInfo = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .filter(match => match[1].includes('info={t('))
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]);
-  assert.deepEqual(withInfo, ['show_full_card', 'show_result_color_on_cards', 'vertical_flip']);
+  assert.deepEqual(withInfo, ['show_full_card', 'vertical_flip']);
 
   // No unrelated row gets one: SettingRow and the plain rows are untouched.
   const settingRow = settings.slice(settings.indexOf('function SettingRow'), settings.indexOf('// ── Toggle row'));
@@ -777,7 +778,7 @@ test('the informational Card Behavior rows use the compact shared layout and ali
     .filter(match => match[1].includes('info={t('));
   assert.deepEqual(
     rows.map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1]),
-    ['show_full_card', 'show_result_color_on_cards', 'vertical_flip'],
+    ['show_full_card', 'vertical_flip'],
   );
 
   // Natural AI Voice, Flip/List, and the three informational toggles opt into
@@ -789,7 +790,6 @@ test('the informational Card Behavior rows use the compact shared layout and ali
   assert.deepEqual(iconRows.map(match => [match[2], match[1]]), [
     ['view_flip', 'albums-outline'],
     ['show_full_card', 'reader-outline'],
-    ['show_result_color_on_cards', 'color-palette-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
   ]);
   assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\} \/>/u);
@@ -908,7 +908,6 @@ test('each remaining button opens its own description, and its toggle is untouch
   const settings = read('src/components/SettingsModal.tsx');
   for (const [row, body] of [
     ['show_full_card', 'show_full_card_info'],
-    ['show_result_color_on_cards', 'show_result_color_on_cards_info'],
     ['vertical_flip', 'vertical_flip_info'],
   ]) {
     assert.match(
@@ -975,15 +974,13 @@ test('all information controls keep a 44x44 target and the switch styling is unc
 
 test('the info copy is present in English and Japanese, and optional elsewhere', () => {
   const i18n = read('src/i18n.ts');
-  for (const key of ['show_full_card_info', 'show_result_color_on_cards_info', 'vertical_flip_info', 'info_button_label']) {
+  for (const key of ['show_full_card_info', 'vertical_flip_info', 'info_button_label']) {
     // Exactly two definitions: English and Japanese.
     assert.equal((i18n.match(new RegExp(`${key}:`, 'gu')) ?? []).length, 2, key);
   }
   assert.match(i18n, /show_full_card_info:      'In the word list, tapping a card shows its word, meaning and note together/u);
-  assert.match(i18n, /show_result_color_on_cards_info: 'A coloured label based on your level of understanding will appear in the bottom-right corner of each word card\.'/u);
   assert.match(i18n, /vertical_flip_info:       'Changes the card-flip animation from horizontal to vertical/u);
   assert.match(i18n, /show_full_card_info:      '単語リストでカードをタップしたとき/u);
-  assert.match(i18n, /show_result_color_on_cards_info: '単語カードの右下に理解度に応じた色のラベルが表示されます。'/u);
   assert.match(i18n, /vertical_flip_info:       'カードをめくるアニメーションを横方向から縦方向に変更します/u);
 
   // Declared as optional keys, so the other locales fall back to English
@@ -992,7 +989,7 @@ test('the info copy is present in English and Japanese, and optional elsewhere',
   // which broke every time an unrelated key was added to it.
   const appShellKey = /type AppShellKey =([\s\S]*?);/u.exec(i18n)?.[1];
   assert.ok(appShellKey, 'AppShellKey union not found');
-  for (const key of ['show_full_card_info', 'show_result_color_on_cards_info', 'vertical_flip_info', 'info_button_label']) {
+  for (const key of ['show_full_card_info', 'vertical_flip_info', 'info_button_label']) {
     assert.ok(appShellKey.includes(`'${key}'`), `${key} must be an optional key`);
   }
 });
@@ -1108,8 +1105,8 @@ test('reordering remains pending until Save and never drops a hidden card', () =
   const useCards = read('src/features/cards/useCards.ts');
   assert.match(useCards, /const replaceFolderOrder = useCallback\(\(orderedVisible: readonly WordCard\[\]\) => \{/u);
   assert.match(useCards, /setPendingFolderCards\(previous => mergeVisibleCardOrder\(/u);
-  assert.match(useCards, /sortByRegistrationOrder\(filteredFolderCards\)/u);
-  assert.match(useCards, /shuffleCards\(filteredFolderCards\)/u);
+  assert.match(useCards, /sortByRegistrationOrder\(folderCards\)/u);
+  assert.match(useCards, /shuffleCards\(folderCards\)/u);
   assert.match(useCards, /const exitReorderMode = \(\) => \{[\s\S]*?setCards\(previous =>/u);
   const cancel = useCards.match(/const cancelReorderMode = \(\) => \{([\s\S]*?)\n  \};/u)?.[1] ?? '';
   assert.match(cancel, /setPendingFolderCards\(null\)/u);
@@ -1118,14 +1115,17 @@ test('reordering remains pending until Save and never drops a hidden card', () =
   assert.match(read('App.tsx'), /onExit: exitReorderMode,\s*onCancel: cancelReorderMode,/u);
 });
 
-test('one selector hides ordinary cards but result filters override visibility', () => {
+test('one selector decides what the list shows, and nothing narrows it further', () => {
   const useCards = read('src/features/cards/useCards.ts');
   const visibility = read('src/features/cards/visibility.ts');
   assert.match(useCards, /const allFolderCards = useMemo/u);
   assert.match(useCards, /cardsForVisibility\(allFolderCards/u);
-  assert.match(visibility, /\(card\.testLevel \?\? 'none'\) === context\.activeResultFilter/u);
+  // One rule: inside its hide or not. No filter can override it any more.
+  assert.match(visibility, /export function shouldShowCard\(card: VisibilityCard, now: number = appNow\(\)\): boolean \{\s*return !isCardHidden\(card, now\);/u);
+  assert.doesNotMatch(visibility, /activeResultFilter|matchesResultFilter/u);
   assert.match(read('App.tsx'), /allFolderCards=\{allFolderCards\}/u);
-  assert.match(read('src/screens/WordListScreen/WordListScreen.tsx'), /countCardsByResult\(allFolderCards\)/u);
+  // The counts are taken where the clock signal lives, not in the screen.
+  assert.match(useCards, /countCardsByResult\(displayedAllFolderCards, appNow\(\)\)/u);
   // Notifications and folder counts.
   assert.match(read('src/notifications.ts'), /!isCardHidden\(c\)/u);
   assert.match(read('src/screens/FolderListScreen/FolderListScreen.tsx'), /if \(isCardHidden\(card, now\)\) continue;/u);

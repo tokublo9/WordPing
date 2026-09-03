@@ -10,6 +10,7 @@ import {
 } from '../../src/features/onboarding/tutorialState';
 import { gradeCard } from '../../src/features/cards/grading';
 import { shouldShowCard } from '../../src/features/cards/visibility';
+import { matchesResultFilter } from '../../src/features/cards/testSchedule';
 import { ALL_LEVEL_KEYS, countCardsByResult } from '../../src/features/cards/levels';
 import type { WordCard } from '../../src/types';
 
@@ -234,13 +235,12 @@ test('12. Perfect has no chip in either configuration', () => {
   // ...it is counted by no chip, including the untested one...
   const counts = countCardsByResult([card({ testLevel: 'perfect' })]);
   assert.deepEqual(counts, { good: 0, slightly: 0, unknown: 0, none: 0 });
-  // ...and no active filter can select it.
+  // ...and it is under no chip's sheet either.
   for (const level of ALL_LEVEL_KEYS) {
-    assert.equal(
-      shouldShowCard(card({ testLevel: 'perfect' }), { now: 0, activeResultFilter: level }),
-      false,
-    );
+    assert.equal(matchesResultFilter(card({ testLevel: 'perfect' }), level, 0), false, level);
   }
+  // It is still an ordinary word in the list, though: finished, not removed.
+  assert.equal(shouldShowCard(card({ testLevel: 'perfect' }), 0), true);
 });
 
 test('12. the other three grades store the same level with sync on or off', () => {
@@ -273,5 +273,6 @@ test('12. an untested card is the grey chip in both configurations', () => {
     countCardsByResult([card()]),
     { good: 0, slightly: 0, unknown: 0, none: 1 },
   );
-  assert.equal(shouldShowCard(card(), { now: 0, activeResultFilter: 'none' }), true);
+  assert.equal(matchesResultFilter(card(), 'none', 0), true);
+  assert.equal(shouldShowCard(card(), 0), true);
 });

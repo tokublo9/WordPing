@@ -206,12 +206,13 @@ test('a hidden list row keeps the height of a visible one', () => {
 test('everything else on the face is untouched', () => {
   const flip = read('src/components/FlipCardBrowser.tsx');
   const face = flip.slice(flip.indexOf('{/* Front face.'), flip.indexOf('{/* Back face'));
-  // The voice button — including the Custom Voice glyph this pairs with — the
-  // notification badge and the level stripe all still render on a hidden card.
+  // The voice button — including the Custom Voice glyph this pairs with — and
+  // the notification badge both still render on a hidden card. (The result
+  // label that used to sit beside them is no longer drawn on any card.)
   assert.match(face, /<WordCardVoiceButton/u);
   assert.match(face, /source=\{wordVoiceSource\}/u);
   assert.match(face, /c\.notifOff &&/u);
-  assert.match(face, /\{stripe\(c\)\}/u);
+  assert.doesNotMatch(face, /stripe/u);
   // None of them is conditional on the word being visible.
   assert.doesNotMatch(face, /!c\.hideWord && <WordCardVoiceButton/u);
 

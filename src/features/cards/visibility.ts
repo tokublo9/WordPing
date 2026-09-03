@@ -1,6 +1,5 @@
 import type { WordCard } from '../../types';
 import { appNow } from '../../lib/appClock';
-import type { ActiveResultFilter } from './levels';
 
 /**
  * Temporary hiding, set by a "Pretty good", "Not really" or "Don't know" grade
@@ -32,32 +31,30 @@ export const PRETTY_GOOD_HIDE_MS = 72 * 60 * 60 * 1000;
 export const NOT_REALLY_HIDE_MS = 24 * 60 * 60 * 1000;
 export const DONT_KNOW_HIDE_MS = 60 * 60 * 1000;
 
-export interface CardVisibilityContext {
-  now: number;
-  /** Null is the ordinary view; one matching category overrides temporary hiding. */
-  activeResultFilter: ActiveResultFilter;
-}
-
-type VisibilityCard = Pick<WordCard, 'hiddenUntil' | 'testLevel'>;
+type VisibilityCard = Pick<WordCard, 'hiddenUntil' | 'testLevel' | 'testMastered' | 'testNextReview'>;
 
 export function isCardHidden(card: VisibilityCard, now: number = appNow()): boolean {
   return card.hiddenUntil !== undefined && card.hiddenUntil > now;
 }
 
-/** One visibility decision used by both Word List and Flip Mode. */
-export function shouldShowCard(card: VisibilityCard, context: CardVisibilityContext): boolean {
-  if (context.activeResultFilter !== null) {
-    return (card.testLevel ?? 'none') === context.activeResultFilter;
-  }
-  return !isCardHidden(card, context.now);
+/**
+ * One visibility decision used by both Word List and Flip Mode.
+ *
+ * There is exactly one rule left: a word is shown unless it is inside the hide a
+ * grade gave it. Nothing narrows the list any further — the result chips report
+ * and explain, and the words resting under a colour are reached through that
+ * colour's own sheet rather than by filtering the list underneath.
+ */
+export function shouldShowCard(card: VisibilityCard, now: number = appNow()): boolean {
+  return !isCardHidden(card, now);
 }
 
 export function cardsForVisibility<T extends VisibilityCard>(
   cards: readonly T[],
-  context: CardVisibilityContext,
+  now: number = appNow(),
 ): readonly T[] {
-  return cards.some(card => !shouldShowCard(card, context))
-    ? cards.filter(card => shouldShowCard(card, context))
+  return cards.some(card => !shouldShowCard(card, now))
+    ? cards.filter(card => shouldShowCard(card, now))
     : cards;
 }
 
@@ -71,7 +68,7 @@ export function visibleCards<T extends VisibilityCard>(
   cards: readonly T[],
   now: number = appNow(),
 ): readonly T[] {
-  return cardsForVisibility(cards, { now, activeResultFilter: null });
+  return cardsForVisibility(cards, now);
 }
 
 /**

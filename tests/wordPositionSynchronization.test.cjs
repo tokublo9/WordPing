@@ -61,20 +61,18 @@ test('Word List and Word Flip share one per-folder current word ID', () => {
   assert.match(flip, /onCurrentWordChangeRef\.current\(c\[newIdx\]\?\.id \?\? null\)/u);
 });
 
-test('every colorful filter transition publishes the destination first card to both modes', () => {
-  const useCards = read('src/features/cards/useCards.ts');
+test('the shared current-word id still drives both modes to the same card', () => {
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
   const flip = read('src/components/FlipCardBrowser.tsx');
 
-  assert.match(useCards, /const nextFilter = toggleActiveResultFilter\(activeResultFilter, level\);/u);
-  assert.match(
-    useCards,
-    /cardsForVisibility\(allFolderCards, \{\s*now: appNow\(\),\s*activeResultFilter: nextFilter,\s*\}\)\[0\]\?\.id \?\? null;/u,
+  // Nothing narrows the list any more, so there are no filter transitions left
+  // to publish a destination for. What remains is the shared ID itself, which
+  // still drives the already-mounted list and Flip to the same card without
+  // remounting either mode.
+  assert.doesNotMatch(
+    read('src/features/cards/useCards.ts'),
+    /activeResultFilter|toggleResultFilter|nextFilter/u,
   );
-  assert.match(useCards, /setCurrentWordId\(firstCardId\);[\s\S]*?\[currentFolderId\]: nextFilter,/u);
-
-  // The shared ID drives the already-mounted list to index 0 and Flip to the
-  // same destination without remounting either mode.
   assert.match(wordList, /listScrollToIndexRef\.current\?\.\(resolvedCurrentWordIndex\);/u);
   assert.match(flip, /const target = resolveCurrentWordIndex\([\s\S]*?currentWordId/u);
   assert.match(

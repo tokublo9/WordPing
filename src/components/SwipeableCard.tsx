@@ -54,7 +54,6 @@ interface Props {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
-  showLevelLabel?: boolean;
   onHorizontalSwipeLockChange?: (locked: boolean) => void;
   onGestureStart?: () => void;
   onVerticalGestureLock?: () => void;
@@ -75,7 +74,7 @@ export function SwipeableCard({
   item, isFlipped, themeColor, pal, voiceLocked, canUseAIVoice,
   onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
-  showLevelLabel = true, onHorizontalSwipeLockChange,
+  onHorizontalSwipeLockChange,
   onGestureStart, onVerticalGestureLock, isVerticalGestureLocked,
   isFastScrollGesture,
   showFullCard = false,
@@ -349,20 +348,9 @@ export function SwipeableCard({
             activeOpacity={selectionMode && !reorderMode ? 0.7 : 1}
             disabled={reorderMode}
           >
-            {/* Test level stripe — diagonal ribbon in bottom-right corner, front side only */}
-            {showLevelLabel && !isFlipped && !!item.testLevel && (() => {
-              const STRIPE_COLORS: Record<string, string> = {
-                perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
-              };
-              const color = STRIPE_COLORS[item.testLevel!];
-              return color ? (
-                <View
-                  style={[styles.cornerStripe, { backgroundColor: color }]}
-                  pointerEvents="none"
-                />
-              ) : null;
-            })()}
-
+            {/* No result label is drawn on a card. The result itself is still
+                stored and still announced by CardResultAccessibilityLabel
+                above — only the corner ribbon is gone. */}
             {showFullCard && isFlipped ? (
               <>
                 {wordHidden
@@ -586,15 +574,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
-  },
-  cornerStripe: {
-    position: 'absolute',
-    bottom: 4,
-    right: -15,
-    width: 40,
-    height: 5,
-    opacity: 0.7,
-    transform: [{ rotate: '-45deg' }],
   },
 
   // Long-press overlay

@@ -14,7 +14,33 @@ WordPing is a mobile vocabulary learning app (Expo / React Native). Users add wo
 
 ---
 
+## Never Run Validation Without Being Asked
+
+**Do not run tests, typechecks, builds, or any other validation command unless
+the user explicitly asks for it in that message.** These runs make the user's Mac
+overheat, so they are the user's call, every time.
+
+This covers `npm test`, every `npm run test:*`, `npm run typecheck`,
+`npm run validate`, `tsc`, `node --test`, `vitest`, `expo export`, `eas build`
+and anything else whose purpose is to test, build, typecheck or validate.
+
+- **Never start one in the background**, and never as a "final verification".
+- Do not re-run something the user already let you run once. One permission
+  covers one run, not the rest of the session.
+- After editing code, **inspect the changed code by reading it** — that is the
+  check. Then say briefly which tests or checks you did not run, so the user
+  knows what is unverified.
+- If a change really needs a run, ask for permission and wait for the answer.
+
+Read-only inspection is always fine: `git diff`, `git status`, `grep`, reading
+files. The line is whether the command *executes* the project.
+
+---
+
 ## Commands
+
+Listed for reference. Read the rule above before running any of them — most
+require explicit permission each time.
 
 ```bash
 npm install --legacy-peer-deps   # always use --legacy-peer-deps
@@ -327,7 +353,11 @@ Defined in `constants.ts` as stable config objects. `KisekaeShopSheet.tsx` rende
 
 ### Word card layout (`SwipeableCard.tsx`)
 
-- Front: word + optional level label + `notifOff` indicator (top-right, non-interactive)
+- Front: word + `notifOff` indicator (top-right, non-interactive). **No result
+  label** — the corner ribbon that used to show the test result is not drawn on
+  any card surface (list row, reorder row and its drag ghost, or Flip). The
+  result is still stored, still filters, and is still announced by
+  `CardResultAccessibilityLabel`; it simply has no visual mark.
 - Back: meaning + note
 - Swipe-reveal right: notification toggle, move, edit, delete
 - Long-press: action overlay with same actions
@@ -455,9 +485,14 @@ Locales: `en ja ko zh es fr de pt vi id th ar` — JSON files in `website/messag
 
 ## Final Check Before Finishing
 
-- [ ] `npm run typecheck` passes (app + test project + Worker)
-- [ ] `npm test` passes (all three suites)
-- [ ] App still runs (`npx expo start`)
+This is a **reading** checklist, not a script to execute. Anything on it that
+would run the project needs the user's explicit permission first — see "Never Run
+Validation Without Being Asked". Where a check cannot be made by reading, say it
+was not run rather than running it.
+
+- [ ] `npm run typecheck` would pass (app + test project + Worker) — **ask before running**
+- [ ] `npm test` would pass (all three suites) — **ask before running**
+- [ ] App still runs (`npx expo start`) — **ask before running**
 - [ ] **App starts and all vocabulary works with the network off**
 - [ ] An AI failure affects only that feature — never startup, never local data
 - [ ] Free / Basic plan rules still work
@@ -465,9 +500,9 @@ Locales: `en ja ko zh es fr de pt vi id th ar` — JSON files in `website/messag
 - [ ] Skins preview correctly in shop
 - [ ] Notification menu item still visible (not gated on permission)
 - [ ] Word card layout unchanged (unless task asked)
-- [ ] If the schema changed: a new append-only migration, existing data survives, `npm run test:unit` covers it
+- [ ] If the schema changed: a new append-only migration, existing data survives, `npm run test:unit` covers it (write the test; **ask before running it**)
 - [ ] If the backup format changed: version bumped, old versions still import, round-trip test added
-- [ ] If the Worker changed: `npm run test:worker`, then `cd cloudflare/wordping-api && npx wrangler deploy`
+- [ ] If the Worker changed: `npm run test:worker`, then `cd cloudflare/wordping-api && npx wrangler deploy` — **ask before both**
 - [ ] **No secret in any `EXPO_PUBLIC_*`, `app.json`, `eas.json`, or committed file**
 - [ ] If website changed: builds without errors, no blank Vercel page
 - [ ] No unrelated files changed

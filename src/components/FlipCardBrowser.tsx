@@ -52,9 +52,6 @@ const indexForX = (x: number, count: number): number =>
   scrubberIndexForX(x, count, TRACK_W);
 const SWIPE_THRESHOLD = SCREEN_W * 0.25;
 const SLOT_INDICES = [0, 1, 2] as const;
-const STRIPE_COLORS: Partial<Record<string, string>> = {
-  perfect: '#22c55e', good: '#3B82F6', slightly: '#f59e0b', unknown: '#ef4444',
-};
 
 interface Props {
   cards: WordCard[];
@@ -73,7 +70,6 @@ interface Props {
   onDelete: (id: string) => void;
   onMove: (card: WordCard) => void;
   onToggleNotif: (id: string) => void;
-  showLevelLabel?: boolean;
   verticalFlip?: boolean;
   /** The plan includes Custom Voice for Words — Basic and Premium. */
   canUseCustomVoice?: boolean;
@@ -92,7 +88,7 @@ function getSlots(curr: number) {
 function FlipCardBrowserComponent({
   cards, currentWordId, onCurrentWordChange, preparing, onPositionPrepared, active,
   pal, themeColor, canUseAIVoice, onEdit, onDelete, onMove, onToggleNotif,
-  showLevelLabel = true, verticalFlip = false, canUseCustomVoice = false,
+  verticalFlip = false, canUseCustomVoice = false,
   canHideWord = false, onCustomVoiceLocked,
 }: Props) {
   const t = useLang();
@@ -546,13 +542,6 @@ function FlipCardBrowserComponent({
     };
   }, [flipAnim, swipeX]);
 
-  // ── Level stripe ──────────────────────────────────────────────────────────
-
-  const stripe = useCallback((c: WordCard) => {
-    const color = showLevelLabel && c.testLevel ? STRIPE_COLORS[c.testLevel] : null;
-    return color ? <View style={[s.flipStripe, { backgroundColor: color }]} /> : null;
-  }, [showLevelLabel]);
-
   // One tick per card at its exact scrubber position. Built per card count so a scrub
   // never rebuilds them, and mounted only while scrubbing.
   const ticks = useMemo(() => {
@@ -664,7 +653,6 @@ function FlipCardBrowserComponent({
                     <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
                   </View>
                 )}
-                {stripe(c)}
               </Animated.View>
 
               {/* Back face — only the centred card can be flipped, and it mounts behind
@@ -926,15 +914,6 @@ const s = StyleSheet.create({
     height: 18,
     borderRadius: 9,
   },
-  flipStripe: {
-    position: 'absolute',
-    bottom: 4,
-    right: -15,
-    width: 40,
-    height: 8,
-    opacity: 0.7,
-    transform: [{ rotate: '-45deg' }],
-  },
 });
 
 function flipCardBrowserPropsEqual(previous: Props, next: Props) {
@@ -954,7 +933,6 @@ function flipCardBrowserPropsEqual(previous: Props, next: Props) {
     && previous.onDelete === next.onDelete
     && previous.onMove === next.onMove
     && previous.onToggleNotif === next.onToggleNotif
-    && previous.showLevelLabel === next.showLevelLabel
     && previous.verticalFlip === next.verticalFlip
     && previous.canUseCustomVoice === next.canUseCustomVoice
     && previous.canHideWord === next.canHideWord

@@ -17,10 +17,6 @@ export type TranslationKey =
   | 'tut6_title' | 'tut6_desc'
   | 'tut7_title' | 'tut7_desc'
   | 'words_singular' | 'words_plural' | 'no_words_title' | 'no_words_hint'
-  | 'empty_filter_good_title' | 'empty_filter_good_description'
-  | 'empty_filter_slightly_title' | 'empty_filter_slightly_description'
-  | 'empty_filter_unknown_title' | 'empty_filter_unknown_description'
-  | 'empty_filter_none_title' | 'empty_filter_none_description'
   | 'alert_enter_word'
   | 'copy' | 'notif_on' | 'notif_off_action' | 'move' | 'move_to_folder' | 'edit' | 'delete'
   | 'ai_voice_unavailable' | 'quota_exceeded_msg'
@@ -53,7 +49,6 @@ export type TranslationKey =
   | 'test_know_perfectly' | 'test_know_good' | 'test_know_slightly' | 'test_dont_know'
   | 'test_desc_perfect' | 'test_desc_good' | 'test_desc_slightly' | 'test_desc_unknown'
   | 'test_complete_title' | 'test_complete_hint'
-  | 'test_empty_title' | 'test_empty_hint'
   | 'test_start' | 'test_shuffle' | 'test_reset' | 'test_reset_confirm'
   | 'test_info_title' | 'test_info_caption' | 'test_info_section' | 'test_info_footer'
   | 'test_info_perfect_exp' | 'test_info_good_exp'
@@ -106,7 +101,6 @@ export type TranslationKey =
   | 'ob_cat_other'
   | 'card_behavior'
   | 'show_full_card' | 'show_full_card_desc'
-  | 'show_result_color_on_cards'
   | 'vertical_flip' | 'vertical_flip_desc'
   | 'default_voice' | 'ai_voice_promo_desc' | 'ai_meaning_promo_desc' | 'themes_promo_desc'
   | 'plan_promo_label' | 'plan_hero_headline' | 'plan_hero_subtitle'
@@ -171,7 +165,7 @@ export type TranslationKey =
   | 'ai_consent_withdraw' | 'ai_consent_withdraw_confirm' | 'new_feature_badge'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
-  | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label'
+  | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label'
   // AI data-sharing consent — see AIConsentKey, which makes these optional per
   // locale so every language falls back to the English wording.
   | 'ai_consent_title' | 'ai_consent_body'
@@ -180,9 +174,18 @@ export type TranslationKey =
   | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
   | 'ai_consent_required_msg'
   // Tutorials, duplicate prevention and file import — see TutorialImportKey.
-  | 'help_section' | 'help_result_filters'
-  | 'result_filter_title' | 'result_filter_intro' | 'result_filter_untested'
+  | 'help_section'
+  | 'result_filter_title' | 'result_filter_intro'
   | 'result_filter_perfect_note' | 'result_filter_got_it'
+  | 'study_streak' | 'study_streak_none' | 'study_today'
+  | 'study_progress_title' | 'study_analytics_title' | 'study_back_to_test'
+  | 'study_answered_today' | 'study_today_a11y'
+  | 'study_test_complete_title' | 'study_test_complete_subtitle'
+  | 'study_activity_title' | 'study_activity_total' | 'study_activity_a11y'
+  | 'result_sheet_good_body' | 'result_sheet_slightly_body' | 'result_sheet_unknown_body'
+  | 'result_sheet_good_interval' | 'result_sheet_slightly_interval'
+  | 'result_sheet_unknown_interval'
+  | 'result_sheet_empty_title' | 'result_sheet_empty_hint' | 'result_sheet_delete_confirm'
   | 'duplicate_word_title' | 'duplicate_word_message' | 'duplicate_word_open'
   | 'duplicate_move_skipped'
   | 'import_from_file' | 'import_file_summary' | 'import_file_valid'
@@ -238,11 +241,6 @@ type BackupKey =
 /** Settings, announcements and AI-error copy that falls back to English. */
 type AppShellKey =
   | 'sync_test_results' | 'sync_test_results_desc'
-  | 'show_result_color_on_cards'
-  | 'empty_filter_good_title' | 'empty_filter_good_description'
-  | 'empty_filter_slightly_title' | 'empty_filter_slightly_description'
-  | 'empty_filter_unknown_title' | 'empty_filter_unknown_description'
-  | 'empty_filter_none_title' | 'empty_filter_none_description'
   | 'announcements_empty_title' | 'announcements_empty_desc'
   | 'purchases_section' | 'retry'
   | 'hide_word' | 'hide_word_on' | 'hide_word_off' | 'hide_word_card_label'
@@ -253,7 +251,7 @@ type AppShellKey =
   | 'ai_consent_withdraw' | 'ai_consent_withdraw_confirm' | 'new_feature_badge'
   | 'plan_downgrade_deferred_note'
   | 'voice_pick_info_title' | 'voice_pick_info_body'
-  | 'show_full_card_info' | 'show_result_color_on_cards_info' | 'vertical_flip_info' | 'info_button_label';
+  | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label';
 
 /**
  * AI data-sharing consent copy.
@@ -269,9 +267,18 @@ type AppShellKey =
  * other language falls back to English rather than showing a raw key.
  */
 type TutorialImportKey =
-  | 'help_section' | 'help_result_filters'
-  | 'result_filter_title' | 'result_filter_intro' | 'result_filter_untested'
+  | 'help_section'
+  | 'result_filter_title' | 'result_filter_intro'
   | 'result_filter_perfect_note' | 'result_filter_got_it'
+  | 'study_streak' | 'study_streak_none' | 'study_today'
+  | 'study_progress_title' | 'study_analytics_title' | 'study_back_to_test'
+  | 'study_answered_today' | 'study_today_a11y'
+  | 'study_test_complete_title' | 'study_test_complete_subtitle'
+  | 'study_activity_title' | 'study_activity_total' | 'study_activity_a11y'
+  | 'result_sheet_good_body' | 'result_sheet_slightly_body' | 'result_sheet_unknown_body'
+  | 'result_sheet_good_interval' | 'result_sheet_slightly_interval'
+  | 'result_sheet_unknown_interval'
+  | 'result_sheet_empty_title' | 'result_sheet_empty_hint' | 'result_sheet_delete_confirm'
   | 'duplicate_word_title' | 'duplicate_word_message' | 'duplicate_word_open'
   | 'duplicate_move_skipped'
   | 'import_from_file' | 'import_file_summary' | 'import_file_valid'
@@ -301,14 +308,41 @@ type Dict = Record<Exclude<TranslationKey, OptionalTranslationKey>, string>
 const enUS: Dict = {
   // ── Tutorials ─────────────────────────────────────────────────────────────
   help_section:          'Help',
-  help_result_filters:   'Filter by test results',
   result_filter_title:   'Filter by Test Results',
   result_filter_intro:
-    'Every answer you give in Test Mode sets that word’s result. The coloured buttons above your list filter it by those results — tap one to see only those words, and tap it again to clear it.',
-  result_filter_untested: 'Not tested yet',
+    'Every answer you give in Test Mode sets that word’s result, and buys the word a waiting time before you see it again. Tap a coloured button to read what that result means and to open the words it is holding, where you can delete any you no longer want. Tap the grey button to filter your list down to the words ready to be tested now — never tested, or waiting time over — and tap it again to clear it.',
   result_filter_perfect_note:
     '“Know perfectly” has no button of its own — those words count as finished and stop appearing under these filters. With “Sync with test results” on, they also leave your word list.',
   result_filter_got_it:  'Got it',
+  // ── Study analytics ───────────────────────────────────────────────────────
+  study_progress_title:     'Your progress',
+  study_analytics_title:   'Analytics',
+  study_back_to_test:      'Back to test',
+  study_answered_today:    'words answered today',
+  study_today_a11y:        '{n} words answered today',
+  study_test_complete_title:    'Test complete!',
+  study_test_complete_subtitle: 'You’ve reviewed all available words.',
+  study_streak:          '{n}-day streak',
+  study_streak_none:     'No streak yet',
+  study_today:           'Today',
+  study_activity_title:  'Last {n} days',
+  study_activity_total:  '{n} answers',
+  study_activity_a11y:   'Daily answers: {n} in the last {d} days.',
+  result_sheet_good_body:
+    'Words rated Pretty Good in a test are stored here. They will return to the main list after three days so you can test them again.',
+  result_sheet_slightly_body:
+    'Words rated Not really in a test are stored here. They will return to the main list after one day so you can test them again.',
+  result_sheet_unknown_body:
+    'Words rated Don’t know in a test are stored here. They will return to the main list after one hour so you can test them again.',
+  // The interval inside each body above, repeated so the dialog can emphasise
+  // exactly that phrase. It must appear in its body verbatim.
+  result_sheet_good_interval:     'three days',
+  result_sheet_slightly_interval: 'one day',
+  result_sheet_unknown_interval:  'one hour',
+  result_sheet_empty_title: 'No words stored here',
+  result_sheet_empty_hint:
+    'Words appear here after you give them this result in a test, and leave again once their waiting time is over.',
+  result_sheet_delete_confirm: 'Delete {n} selected words? This cannot be undone.',
 
   // ── Duplicate words ───────────────────────────────────────────────────────
   duplicate_word_title:   'Already added',
@@ -352,19 +386,10 @@ const enUS: Dict = {
   new_feature_badge: 'New feature',
 
   // ── Empty result filters ──────────────────────────────────────────────────
-  empty_filter_good_title: 'No “Pretty good” words yet',
-  empty_filter_good_description: 'Words you rate “Pretty good” in Test Mode will appear here. They’ll be hidden from the regular Word List and Flip Mode, then shown again after 3 days.',
-  empty_filter_slightly_title: 'No “Not really” words yet',
-  empty_filter_slightly_description: 'Words you rate “Not really” in Test Mode will appear here. They’ll be hidden from the regular Word List and Flip Mode, then shown again after 1 day.',
-  empty_filter_unknown_title: 'No “Don’t know” words yet',
-  empty_filter_unknown_description: 'Words you rate “Don’t know” in Test Mode will appear here and remain available for review.',
-  empty_filter_none_title: 'No untested words',
-  empty_filter_none_description: 'New words and words reset in Test Mode will appear here until you rate them.',
 
   // ── Settings · Card Behavior ────────────────────────────────────────────────
   sync_test_results:          'Sync with test results',
   sync_test_results_desc:     'Links test results with your word list. Perfect permanently deletes the card, Pretty good returns after 3 days, Not really returns after 1 day, and Don’t know stays visible.',
-  show_result_color_on_cards: 'Show result colour on cards',
 
   // ── Announcements ───────────────────────────────────────────────────────────
   announcements_empty_title: 'No announcements yet',
@@ -514,8 +539,6 @@ const enUS: Dict = {
   test_desc_unknown:     '1 hour',
   test_complete_title:   'Session Complete!',
   test_complete_hint:    'Come back later to review more words.',
-  test_empty_title:      'Nothing to review',
-  test_empty_hint:       'All caught up! Check back later.',
   test_start:            'Start',
   test_shuffle:          'Shuffle',
   test_reset:            'Reset',
@@ -662,7 +685,6 @@ const enUS: Dict = {
   vertical_flip_desc:       'Flip cards vertically instead of horizontally.',
   info_button_label:        'More information',
   show_full_card_info:      'In the word list, tapping a card shows its word, meaning and note together, instead of showing only the meaning on the back of the card.',
-  show_result_color_on_cards_info: 'A coloured label based on your level of understanding will appear in the bottom-right corner of each word card.',
   vertical_flip_info:       'Changes the card-flip animation from horizontal to vertical. Applies to Flip mode and Test Mode.',
   default_voice:         'Default Voice',
   ai_voice_promo_desc:   'Listen to remarkably natural audio generated by AI. You can also choose your favorite from 13 different voices.',
@@ -825,14 +847,38 @@ const enUS: Dict = {
 const ja: Dict = {
   // ── Tutorials ─────────────────────────────────────────────────────────────
   help_section:          'ヘルプ',
-  help_result_filters:   'テスト結果で絞り込む',
   result_filter_title:   'テスト結果で絞り込む',
   result_filter_intro:
-    'テストモードで回答するたびに、その単語の結果が設定されます。リスト上部の色付きボタンは、この結果で単語を絞り込むものです。タップするとその結果の単語だけが表示され、もう一度タップすると解除されます。',
-  result_filter_untested: '未テスト',
+    'テストモードで回答するたびに、その単語の結果が設定され、次に出題されるまでの待ち時間が決まります。色付きのボタンをタップすると、その結果の意味と、そこに保管されている単語が開き、不要な単語を削除できます。グレーのボタンをタップすると、今テストできる単語（未テスト、または待ち時間が過ぎた単語）だけが表示され、もう一度タップすると解除されます。',
   result_filter_perfect_note:
     '「完璧に覚えた」には専用のボタンがありません。覚え終えた単語として扱われ、これらのボタンでは表示されなくなります。「テスト結果と連動」がオンの場合は、単語リストからも外れます。',
   result_filter_got_it:  'わかりました',
+  study_progress_title:     'あなたの進捗',
+  study_analytics_title:   '学習分析',
+  study_back_to_test:      'テストに戻る',
+  study_answered_today:    '今日の回答',
+  study_today_a11y:        '今日回答した単語は{n}語です',
+  study_test_complete_title:    'テスト完了！',
+  study_test_complete_subtitle: '現在出題できる単語をすべて復習しました。',
+  study_streak:          '{n}日連続',
+  study_streak_none:     'まだ連続記録はありません',
+  study_today:           '今日',
+  study_activity_title:  '直近{n}日',
+  study_activity_total:  '{n}回',
+  study_activity_a11y:   '日別の回答数：直近{d}日で{n}回。',
+  result_sheet_good_body:
+    'テストで「まあまあ」と評価した単語がここに保管されます。3日後にメインのリストへ戻り、またテストできるようになります。',
+  result_sheet_slightly_body:
+    'テストで「微妙...」と評価した単語がここに保管されます。1日後にメインのリストへ戻り、またテストできるようになります。',
+  result_sheet_unknown_body:
+    'テストで「わからない」と評価した単語がここに保管されます。1時間後にメインのリストへ戻り、またテストできるようになります。',
+  result_sheet_good_interval:     '3日後',
+  result_sheet_slightly_interval: '1日後',
+  result_sheet_unknown_interval:  '1時間後',
+  result_sheet_empty_title: 'ここに保管されている単語はありません',
+  result_sheet_empty_hint:
+    'テストでこの評価をつけた単語がここに表示され、待ち時間が過ぎると戻ります。',
+  result_sheet_delete_confirm: '選択した{n}件の単語を削除しますか？この操作は取り消せません。',
 
   // ── Duplicate words ───────────────────────────────────────────────────────
   duplicate_word_title:   '登録済み',
@@ -876,19 +922,10 @@ const ja: Dict = {
   new_feature_badge: '新機能',
 
   // ── Empty result filters ──────────────────────────────────────────────────
-  empty_filter_good_title: '「まあまあ」の単語はまだありません',
-  empty_filter_good_description: 'テストモードで「まあまあ」と評価した単語がここに表示されます。通常の単語リストとフリップモードでは一時的に非表示になり、3日後に再表示されます。',
-  empty_filter_slightly_title: '「微妙...」の単語はまだありません',
-  empty_filter_slightly_description: 'テストモードで「微妙...」と評価した単語がここに表示されます。通常の単語リストとフリップモードでは一時的に非表示になり、1日後に再表示されます。',
-  empty_filter_unknown_title: '「わからない」の単語はまだありません',
-  empty_filter_unknown_description: 'テストモードで「わからない」と評価した単語がここに表示され、引き続き復習できます。',
-  empty_filter_none_title: '未テストの単語はありません',
-  empty_filter_none_description: '新しく追加した単語や、テスト結果をリセットした単語は、評価されるまでここに表示されます。',
 
   // ── Settings · Card Behavior ────────────────────────────────────────────────
   sync_test_results:          'テスト結果と連動',
   sync_test_results_desc:     'テスト結果と単語帳を連動します。Perfectではカードを完全に削除し、Pretty goodは3日後、Not reallyは1日後に再表示されます。Don’t knowは表示されたままです。',
-  show_result_color_on_cards: 'カードに結果の色を表示',
 
   // ── Announcements ───────────────────────────────────────────────────────────
   announcements_empty_title: 'お知らせはまだありません',
@@ -1038,8 +1075,6 @@ const ja: Dict = {
   test_desc_unknown:     '1時間後',
   test_complete_title:   'セッション完了！',
   test_complete_hint:    '後でまた復習しよう。',
-  test_empty_title:      '復習するワードなし',
-  test_empty_hint:       'すべて完了！また後で確認してね。',
   test_start:            'スタート',
   test_shuffle:          'シャッフル',
   test_reset:            'リセット',
@@ -1186,7 +1221,6 @@ const ja: Dict = {
   vertical_flip_desc:       'カードを横方向ではなく縦方向に反転させます。',
   info_button_label:        '詳細情報',
   show_full_card_info:      '単語リストでカードをタップしたとき、裏面に意味だけを表示するのではなく、単語・意味・メモをまとめて表示します。',
-  show_result_color_on_cards_info: '単語カードの右下に理解度に応じた色のラベルが表示されます。',
   vertical_flip_info:       'カードをめくるアニメーションを横方向から縦方向に変更します。フリップモードとテストモードに適用されます。',
   default_voice: 'デフォルト',
   ai_voice_promo_desc: 'AIボイスアイコンをタップして、より自然な発音を聞いてみましょう。',
@@ -1470,8 +1504,6 @@ const ko: Dict = {
   test_desc_unknown:     '1시간 후',
   test_complete_title:   '세션 완료!',
   test_complete_hint:    '나중에 다시 와서 복습하세요.',
-  test_empty_title:      '복습할 단어 없음',
-  test_empty_hint:       '모두 완료! 나중에 다시 확인해봐요.',
   test_start:            '시작',
   test_shuffle:          '셔플',
   test_reset:            '초기화',
@@ -1807,8 +1839,6 @@ const zhCN: Dict = {
   test_desc_unknown:     '1小时后',
   test_complete_title:   '本轮完成！',
   test_complete_hint:    '稍后回来复习更多单词。',
-  test_empty_title:      '没有待复习单词',
-  test_empty_hint:       '全部完成！稍后再来。',
   test_start:            '开始',
   test_shuffle:          '随机',
   test_reset:            '重置',
@@ -2144,8 +2174,6 @@ const es: Dict = {
   test_desc_unknown:     '1 hora',
   test_complete_title:   '¡Sesión completada!',
   test_complete_hint:    'Vuelve más tarde para repasar más palabras.',
-  test_empty_title:      'Nada que repasar',
-  test_empty_hint:       '¡Todo al día! Vuelve más tarde.',
   test_start:            'Empezar',
   test_shuffle:          'Mezclar',
   test_reset:            'Reiniciar',
@@ -2481,8 +2509,6 @@ const fr: Dict = {
   test_desc_unknown:     '1 heure',
   test_complete_title:   'Session terminée !',
   test_complete_hint:    'Reviens plus tard pour réviser plus de mots.',
-  test_empty_title:      'Rien à réviser',
-  test_empty_hint:       'Tout est à jour ! Reviens plus tard.',
   test_start:            'Commencer',
   test_shuffle:          'Mélanger',
   test_reset:            'Réinitialiser',
@@ -2818,8 +2844,6 @@ const de: Dict = {
   test_desc_unknown:     '1 Stunde',
   test_complete_title:   'Sitzung abgeschlossen!',
   test_complete_hint:    'Komm später zurück, um mehr Wörter zu lernen.',
-  test_empty_title:      'Nichts zu üben',
-  test_empty_hint:       'Alles erledigt! Schau später vorbei.',
   test_start:            'Starten',
   test_shuffle:          'Mischen',
   test_reset:            'Zurücksetzen',
@@ -3155,8 +3179,6 @@ const it: Dict = {
   test_desc_unknown:     '1 ora',
   test_complete_title:   'Sessione completata!',
   test_complete_hint:    'Torna più tardi per ripassare altre parole.',
-  test_empty_title:      'Niente da ripassare',
-  test_empty_hint:       'Tutto in ordine! Torna più tardi.',
   test_start:            'Inizia',
   test_shuffle:          'Mescola',
   test_reset:            'Reimposta',
@@ -3492,8 +3514,6 @@ const ptBR: Dict = {
   test_desc_unknown:     '1 hora',
   test_complete_title:   'Sessão concluída!',
   test_complete_hint:    'Volte mais tarde para revisar mais palavras.',
-  test_empty_title:      'Nada para revisar',
-  test_empty_hint:       'Tudo em dia! Volte mais tarde.',
   test_start:            'Começar',
   test_shuffle:          'Embaralhar',
   test_reset:            'Redefinir',
@@ -3754,7 +3774,6 @@ const ru: Dict = {
   test_know_good: 'Неплохо', test_know_slightly: 'Не очень', test_dont_know: 'Не знаю',
   test_desc_perfect: 'Готово', test_desc_good: '3 дня', test_desc_slightly: 'Завтра', test_desc_unknown: '1 час',
   test_complete_title: 'Сессия завершена!', test_complete_hint: 'Вернитесь позже для повторения.',
-  test_empty_title: 'Нечего повторять', test_empty_hint: 'Всё готово! Вернитесь позже.',
   test_start: 'Начать', test_shuffle: 'Перемешать', test_reset: 'Сбросить',
   test_reset_confirm: 'Весь прогресс будет удалён.',
   test_info_title: 'Метод тестирования на основе кривой забывания', test_info_caption: 'Кривая забывания показывает, как память ослабевает со временем. Своевременное повторение помогает дольше сохранять знания.',
@@ -3951,7 +3970,6 @@ const ar: Dict = {
   test_know_good: 'جيد', test_know_slightly: 'ليس تماماً', test_dont_know: 'لا أعرف',
   test_desc_perfect: 'تم', test_desc_good: '3 أيام', test_desc_slightly: 'غداً', test_desc_unknown: 'ساعة واحدة',
   test_complete_title: 'اكتملت الجلسة!', test_complete_hint: 'عد لاحقاً لمراجعة المزيد.',
-  test_empty_title: 'لا يوجد ما تراجعه', test_empty_hint: 'أنجزت الكل! تحقق لاحقاً.',
   test_start: 'بدء', test_shuffle: 'خلط', test_reset: 'إعادة ضبط',
   test_reset_confirm: 'سيتم حذف كل التقدم.',
   test_info_title: 'طريقة اختبار تستند إلى منحنى النسيان', test_info_caption: 'يوضح منحنى النسيان كيف تضعف الذاكرة بمرور الوقت. تساعد المراجعة في الوقت المناسب على تثبيت المعلومات لمدة أطول.',
@@ -4149,7 +4167,6 @@ const hi: Dict = {
   test_know_good: 'काफी अच्छा', test_know_slightly: 'थोड़ा', test_dont_know: 'नहीं जानता',
   test_desc_perfect: 'हो गया', test_desc_good: '3 दिन', test_desc_slightly: 'कल', test_desc_unknown: '1 घंटा',
   test_complete_title: 'सेशन पूरा!', test_complete_hint: 'अधिक शब्द दोहराने के लिए बाद में आएं।',
-  test_empty_title: 'दोहराने के लिए कुछ नहीं', test_empty_hint: 'सब पूरा! बाद में जांचें।',
   test_start: 'शुरू करें', test_shuffle: 'फेरबदल करें', test_reset: 'रीसेट',
   test_reset_confirm: 'सारी प्रगति हट जाएगी।',
   test_info_title: 'विस्मरण वक्र पर आधारित परीक्षण विधि', test_info_caption: 'विस्मरण वक्र दिखाता है कि समय के साथ याददाश्त कैसे कम होती है। सही समय पर दोहराने से जानकारी अधिक समय तक याद रहती है।',
@@ -4347,7 +4364,6 @@ const tr: Dict = {
   test_know_good: 'Oldukça iyi', test_know_slightly: 'Pek değil', test_dont_know: 'Bilmiyorum',
   test_desc_perfect: 'Bitti', test_desc_good: '3 gün', test_desc_slightly: 'Yarın', test_desc_unknown: '1 saat',
   test_complete_title: 'Oturum Tamamlandı!', test_complete_hint: 'Daha fazla kelime tekrarlamak için geri dön.',
-  test_empty_title: 'Tekrarlanacak bir şey yok', test_empty_hint: 'Her şey tamam! Daha sonra kontrol edin.',
   test_start: 'Başlat', test_shuffle: 'Karıştır', test_reset: 'Sıfırla',
   test_reset_confirm: 'Tüm ilerleme silinecek.',
   test_info_title: 'Unutma Eğrisine Dayalı Bir Test Yöntemi', test_info_caption: 'Unutma eğrisi, belleğin zamanla nasıl zayıfladığını gösterir. Doğru zamanda tekrar yapmak bilginin daha uzun süre kalmasını sağlar.',
@@ -4545,7 +4561,6 @@ const nl: Dict = {
   test_know_good: 'Vrij goed', test_know_slightly: 'Niet echt', test_dont_know: 'Weet het niet',
   test_desc_perfect: 'Klaar', test_desc_good: '3 dagen', test_desc_slightly: 'Morgen', test_desc_unknown: '1 uur',
   test_complete_title: 'Sessie voltooid!', test_complete_hint: 'Kom later terug voor meer woorden.',
-  test_empty_title: 'Niets te oefenen', test_empty_hint: 'Alles bijgewerkt! Kom later terug.',
   test_start: 'Starten', test_shuffle: 'Schudden', test_reset: 'Resetten',
   test_reset_confirm: 'Alle voortgang wordt gewist.',
   test_info_title: 'Een testmethode gebaseerd op de vergeetcurve', test_info_caption: 'De vergeetcurve laat zien hoe herinneringen na verloop van tijd vervagen. Op het juiste moment herhalen helpt om ze langer te onthouden.',
@@ -4743,7 +4758,6 @@ const vi: Dict = {
   test_know_good: 'Khá tốt', test_know_slightly: 'Chưa chắc', test_dont_know: 'Không biết',
   test_desc_perfect: 'Xong', test_desc_good: '3 ngày', test_desc_slightly: 'Ngày mai', test_desc_unknown: '1 giờ',
   test_complete_title: 'Hoàn thành!', test_complete_hint: 'Quay lại sau để ôn thêm.',
-  test_empty_title: 'Không có gì để ôn', test_empty_hint: 'Tất cả xong! Kiểm tra lại sau.',
   test_start: 'Bắt đầu', test_shuffle: 'Xáo trộn', test_reset: 'Đặt lại',
   test_reset_confirm: 'Tất cả tiến trình sẽ bị xóa.',
   test_info_title: 'Phương pháp kiểm tra dựa trên đường cong lãng quên', test_info_caption: 'Đường cong lãng quên cho thấy trí nhớ suy giảm theo thời gian. Ôn tập đúng lúc giúp ghi nhớ lâu hơn.',
@@ -4940,7 +4954,6 @@ const th: Dict = {
   test_know_good: 'ค่อนข้างดี', test_know_slightly: 'ไม่แน่ใจ', test_dont_know: 'ไม่รู้',
   test_desc_perfect: 'เสร็จ', test_desc_good: '3 วัน', test_desc_slightly: 'พรุ่งนี้', test_desc_unknown: '1 ชั่วโมง',
   test_complete_title: 'เสร็จสิ้นแล้ว!', test_complete_hint: 'กลับมาทบทวนอีกครั้งในภายหลัง',
-  test_empty_title: 'ไม่มีอะไรให้ทบทวน', test_empty_hint: 'ทุกอย่างเสร็จแล้ว! กลับมาดูทีหลัง',
   test_start: 'เริ่ม', test_shuffle: 'สุ่ม', test_reset: 'รีเซ็ต',
   test_reset_confirm: 'ความคืบหน้าทั้งหมดจะถูกลบ',
   test_info_title: 'วิธีทดสอบตามเส้นโค้งการลืม', test_info_caption: 'เส้นโค้งการลืมแสดงให้เห็นว่าความจำลดลงตามเวลา การทบทวนในเวลาที่เหมาะสมช่วยให้จำได้นานขึ้น',
@@ -5137,7 +5150,6 @@ const id: Dict = {
   test_know_good: 'Cukup baik', test_know_slightly: 'Kurang yakin', test_dont_know: 'Tidak tahu',
   test_desc_perfect: 'Selesai', test_desc_good: '3 hari', test_desc_slightly: 'Besok', test_desc_unknown: '1 jam',
   test_complete_title: 'Sesi Selesai!', test_complete_hint: 'Kembali lagi nanti untuk meninjau lebih banyak kata.',
-  test_empty_title: 'Tidak ada yang perlu ditinjau', test_empty_hint: 'Semua beres! Periksa lagi nanti.',
   test_start: 'Mulai', test_shuffle: 'Acak', test_reset: 'Atur Ulang',
   test_reset_confirm: 'Semua progres akan dihapus.',
   test_info_title: 'Metode Tes Berdasarkan Kurva Lupa', test_info_caption: 'Kurva lupa menunjukkan bagaimana ingatan melemah seiring waktu. Mengulang pada waktu yang tepat membantu mengingat lebih lama.',
@@ -5334,7 +5346,6 @@ const pl: Dict = {
   test_know_good: 'Całkiem dobrze', test_know_slightly: 'Nie za bardzo', test_dont_know: 'Nie wiem',
   test_desc_perfect: 'Gotowe', test_desc_good: '3 dni', test_desc_slightly: 'Jutro', test_desc_unknown: '1 godzina',
   test_complete_title: 'Sesja zakończona!', test_complete_hint: 'Wróć później, aby powtórzyć więcej słów.',
-  test_empty_title: 'Nic do powtórzenia', test_empty_hint: 'Wszystko gotowe! Wróć później.',
   test_start: 'Start', test_shuffle: 'Przetasuj', test_reset: 'Resetuj',
   test_reset_confirm: 'Cały postęp zostanie usunięty.',
   test_info_title: 'Metoda testowania oparta na krzywej zapominania', test_info_caption: 'Krzywa zapominania pokazuje, jak pamięć słabnie z czasem. Powtórka we właściwym momencie pomaga zachować informacje na dłużej.',
@@ -5531,7 +5542,6 @@ const el: Dict = {
   test_know_good: 'Αρκετά καλά', test_know_slightly: 'Όχι και τόσο', test_dont_know: 'Δεν ξέρω',
   test_desc_perfect: 'Έτοιμο', test_desc_good: '3 μέρες', test_desc_slightly: 'Αύριο', test_desc_unknown: '1 ώρα',
   test_complete_title: 'Η συνεδρία ολοκληρώθηκε!', test_complete_hint: 'Επιστρέψτε αργότερα για επανάληψη.',
-  test_empty_title: 'Τίποτα για επανάληψη', test_empty_hint: 'Όλα ενημερωμένα! Ελέγξτε αργότερα.',
   test_start: 'Έναρξη', test_shuffle: 'Ανακάτεμα', test_reset: 'Επαναφορά',
   test_reset_confirm: 'Όλη η πρόοδος θα διαγραφεί.',
   test_info_title: 'Μέθοδος τεστ βασισμένη στην καμπύλη λήθης', test_info_caption: 'Η καμπύλη λήθης δείχνει πώς εξασθενεί η μνήμη με τον χρόνο. Η επανάληψη την κατάλληλη στιγμή βοηθά στη διατήρηση των γνώσεων για περισσότερο.',
@@ -5728,7 +5738,6 @@ const sv: Dict = {
   test_know_good: 'Ganska bra', test_know_slightly: 'Inte riktigt', test_dont_know: 'Vet inte',
   test_desc_perfect: 'Klar', test_desc_good: '3 dagar', test_desc_slightly: 'Imorgon', test_desc_unknown: '1 timme',
   test_complete_title: 'Session slutförd!', test_complete_hint: 'Kom tillbaka senare för att repetera fler ord.',
-  test_empty_title: 'Inget att repetera', test_empty_hint: 'Allt klart! Kom tillbaka senare.',
   test_start: 'Starta', test_shuffle: 'Blanda', test_reset: 'Återställ',
   test_reset_confirm: 'All framsteg kommer att raderas.',
   test_info_title: 'En testmetod baserad på glömskekurvan', test_info_caption: 'Glömskekurvan visar hur minnet försvagas med tiden. Repetition vid rätt tidpunkt hjälper dig att minnas längre.',

@@ -4,11 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Appearance, Folder, WordCard } from '../types';
 import {
   HIDE_AI_TOOLS_KEY,
+  STUDY_LOG_KEY,
   SYNC_TEST_RESULTS_KEY,
   SHOW_FULL_CARD_KEY,
-  SHOW_RESULT_COLOR_KEY,
   VERTICAL_FLIP_KEY,
-  WORD_LIST_FILTERS_KEY,
 } from '../constants';
 import {
   FIRST_TEST_ANSWER_KEY,
@@ -17,9 +16,8 @@ import {
 } from '../features/onboarding/tutorialState';
 import { persist, persistFolders } from '../lib/db';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
+import { serializeStudyLog, type StudyLog } from '../features/study/studyLog';
 import type { AIVoice } from '../lib/aiVoices';
-import type { ActiveResultFiltersByFolder } from '../features/cards/levels';
-import { serializeShowResultColorPreference } from '../features/settings/resultColorPreference';
 
 export interface UseAppPersistenceParams {
   cards: WordCard[];
@@ -31,16 +29,14 @@ export interface UseAppPersistenceParams {
   language: string;
   aiVoice: AIVoice;
   showFullCard: boolean;
-  showResultColor: boolean;
   verticalFlip: boolean;
   hideAiTools: boolean;
   syncTestResults: boolean;
+  studyLog: StudyLog;
   resultFilterTutorialSeen: boolean;
   firstTestAnswerRecorded: boolean;
-  activeResultFiltersByFolder: ActiveResultFiltersByFolder;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
-  activeResultFiltersLoaded: MutableRefObject<boolean>;
 }
 
 export function useAppPersistence({
@@ -53,16 +49,14 @@ export function useAppPersistence({
   language,
   aiVoice,
   showFullCard,
-  showResultColor,
   verticalFlip,
   hideAiTools,
   syncTestResults,
+  studyLog,
   resultFilterTutorialSeen,
   firstTestAnswerRecorded,
-  activeResultFiltersByFolder,
   hasLoaded,
   cardsLoaded,
-  activeResultFiltersLoaded,
 }: UseAppPersistenceParams): void {
   // Persist cards + settings whenever any of them change. Gated on cardsLoaded, which
   // opens as soon as stored cards reach state: a word added while the remaining
@@ -89,14 +83,6 @@ export function useAppPersistence({
 
   useEffect(() => {
     if (!hasLoaded.current) return;
-    AsyncStorage.setItem(
-      SHOW_RESULT_COLOR_KEY,
-      serializeShowResultColorPreference(showResultColor),
-    ).catch(e => reportSideEffectFailure('setShowResultColor', e));
-  }, [showResultColor]);
-
-  useEffect(() => {
-    if (!hasLoaded.current) return;
     AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setVerticalFlip', e));
   }, [verticalFlip]);
@@ -112,6 +98,14 @@ export function useAppPersistence({
     AsyncStorage.setItem(SYNC_TEST_RESULTS_KEY, syncTestResults ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setSyncTestResults', e));
   }, [syncTestResults]);
+
+  // One write per answer, and the value is a handful of small numbers. A failed
+  // write costs a day's tally, never a word: nothing here is vocabulary.
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(STUDY_LOG_KEY, serializeStudyLog(studyLog))
+      .catch(e => reportSideEffectFailure('setStudyLog', e));
+  }, [studyLog]);
 
   // One-time tutorial flags. Each is only ever set, never cleared, so these
   // writes are a handful per install and the `hasLoaded` guard keeps the initial
@@ -130,9 +124,4 @@ export function useAppPersistence({
       .catch(e => reportSideEffectFailure('setFirstTestAnswerRecorded', e));
   }, [firstTestAnswerRecorded]);
 
-  useEffect(() => {
-    if (!activeResultFiltersLoaded.current) return;
-    AsyncStorage.setItem(WORD_LIST_FILTERS_KEY, JSON.stringify(activeResultFiltersByFolder))
-      .catch(e => reportSideEffectFailure('setWordListFilters', e));
-  }, [activeResultFiltersByFolder]);
 }

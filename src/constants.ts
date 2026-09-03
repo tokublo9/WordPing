@@ -42,7 +42,6 @@ export const CARDS_KEY = 'vocabulary_cards';
 export const THEME_KEY = 'theme_color';
 export const APPEARANCE_KEY = 'appearance';
 export const AI_VOICE_KEY = 'ai_voice';
-export const WORD_LIST_FILTERS_KEY = 'word_list_level_filters';
 
 export const DEFAULT_DISPLAY_ONLY_WORD = false;
 
@@ -453,9 +452,10 @@ export const MAX_AI_INPUT_CHARS = 500;
 
 export const SHOW_FULL_CARD_KEY  = 'card_show_full';
 export const VERTICAL_FLIP_KEY   = 'card_vertical_flip';
-export const SHOW_RESULT_COLOR_KEY = 'card_show_result_color';
 export const HIDE_AI_TOOLS_KEY   = 'wordping_hide_ai_tools';
 export const SYNC_TEST_RESULTS_KEY = 'wordping_sync_test_results';
+// Answers per local day. Written on every graded card, so it must stay small.
+export const STUDY_LOG_KEY = 'wordping_study_log';
 
 // ── Flip / Test card shared geometry ─────────────────────────────────────────
 const { width: _SCREEN_W } = Dimensions.get('window');

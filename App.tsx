@@ -58,6 +58,7 @@ import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
 import { TestModeScreen } from './src/components/TestModeScreen';
+import { recordAnswer } from './src/features/study/studyLog';
 import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
 import { useThemeController } from './src/features/themes/useThemeController';
@@ -101,11 +102,11 @@ export default function App() {
     language, setLanguage,
     aiVoice, setAIVoice,
     showFullCard, setShowFullCard,
-    showResultColor, setShowResultColor,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
     syncTestResults: savedSyncTestResults,
     setSyncTestResults: setSavedSyncTestResults,
+    studyLog, setStudyLog,
     resultFilterTutorialSeen, setResultFilterTutorialSeen,
     firstTestAnswerRecorded, setFirstTestAnswerRecorded,
     settingsLoaded,
@@ -121,12 +122,12 @@ export default function App() {
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
-    activeResultFiltersByFolder, setActiveResultFiltersByFolder,
-    hasLoaded, cardsLoaded, activeResultFiltersLoaded, loadFailed,
+    hasLoaded, cardsLoaded, loadFailed,
   } = useAppBootstrap({
-    applySettings, markSettingsLoaded, setShowFullCard, setShowResultColor,
+    applySettings, markSettingsLoaded, setShowFullCard,
     setVerticalFlip, setHideAiTools,
     setSyncTestResults: setSavedSyncTestResults,
+    setStudyLog,
     setResultFilterTutorialSeen,
     setFirstTestAnswerRecorded,
   });
@@ -148,6 +149,7 @@ export default function App() {
   const [hasTextToSpeechHistory, setHasTextToSpeechHistory] = useState(false);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [testModeAnalyticsVisible, setTestModeAnalyticsVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
   const menuBtnRef = useRef<View>(null);
   const [paywallVisible, setPaywallVisible] = useState(false);
@@ -372,14 +374,15 @@ export default function App() {
   const {
     flipped, toggleFlip,
     selectionMode, selectedIds,
-    enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
+    enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, deleteCards,
+    setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
     handleRegistrationOrder, handleRandomOrder,
-    activeResultFilter, toggleResultFilter,
     // Temporarily disabled with the Hide Labels menu control:
     // showLevelLabels, setShowLevelLabels,
-    allFolderCards, folderCards, filteredFolderCards,
+    levelCounts,
+    allFolderCards, folderCards,
     cardViewMode, setCardViewMode, currentWordId, setCurrentWordId,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,
@@ -402,13 +405,28 @@ export default function App() {
     currentFolderId,
     language,
     setMenuVisible,
-    activeResultFiltersByFolder,
-    setActiveResultFiltersByFolder,
     onCardRegistered: handleCardRegistered,
     onCardsDeleted: handleCardsDeleted,
   });
 
   const currentFolder = folders.find(f => f.id === currentFolderId) ?? null;
+
+  const openTestModeAnalytics = useCallback(() => {
+    setTestModeAnalyticsVisible(true);
+  }, []);
+  const closeTestModeAnalytics = useCallback(() => {
+    setTestModeAnalyticsVisible(false);
+  }, []);
+  const quitTestMode = useCallback(() => {
+    // Exiting changes only Test Mode presentation state. Each answer has already
+    // been written at selection time, so there is no completion path to run.
+    setTestModeAnalyticsVisible(false);
+    setTestModeVisible(false);
+  }, [setTestModeVisible]);
+  const toggleTestMode = useCallback(() => {
+    setTestModeAnalyticsVisible(false);
+    setTestModeVisible(open => !open);
+  }, [setTestModeVisible]);
 
   const {
     folderNotifSettings,
@@ -524,11 +542,11 @@ export default function App() {
   useAppPersistence({
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
-    showFullCard, showResultColor, verticalFlip, hideAiTools,
+    showFullCard, verticalFlip, hideAiTools,
     syncTestResults: savedSyncTestResults,
+    studyLog,
     resultFilterTutorialSeen, firstTestAnswerRecorded,
-    activeResultFiltersByFolder,
-    hasLoaded, cardsLoaded, activeResultFiltersLoaded,
+    hasLoaded, cardsLoaded,
   });
 
   useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
@@ -581,6 +599,7 @@ export default function App() {
     exitFolderReorderMode();
     // Test Mode belongs to the folder it was started in, and its queue is that
     // folder's words. Leaving the folder ends it rather than carrying it over.
+    setTestModeAnalyticsVisible(false);
     setTestModeVisible(false);
     setCurrentFolderId(id);
     scrollY.setValue(0);
@@ -589,6 +608,7 @@ export default function App() {
   const goBackToFolders = () => {
     exitSelectionMode();
     cancelReorderMode();
+    setTestModeAnalyticsVisible(false);
     setTestModeVisible(false);
     setCurrentFolderId(null);
     // Reset depth gradient to ocean surface when navigating away from word list.
@@ -609,7 +629,14 @@ export default function App() {
       // it survives a force-quit straight afterwards. Setting it does not
       // interrupt the test — it only makes the tutorial eligible for later.
       onFirstAnswer={() => setFirstTestAnswerRecorded(true)}
-      onClose={() => setTestModeVisible(false)}
+      // Every graded card, counted on the day it was answered. Written with the
+      // real clock, like every other persisted timestamp, so the development
+      // time offset can never end up in the record.
+      onAnswerRecorded={answeredAt => setStudyLog(log => recordAnswer(log, answeredAt))}
+      studyLog={studyLog}
+      analyticsOpen={testModeAnalyticsVisible}
+      onCloseAnalytics={closeTestModeAnalytics}
+      onOpenAnalytics={openTestModeAnalytics}
       pal={pal}
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
@@ -675,7 +702,8 @@ export default function App() {
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
           currentFolder={currentFolder}
           allFolderCards={allFolderCards}
-          filteredFolderCards={filteredFolderCards}
+          visibleFolderCards={folderCards}
+          levelCounts={levelCounts}
           showFullCard={showFullCard}
           verticalFlip={verticalFlip}
           notificationsEnabled={notificationsEnabled}
@@ -684,13 +712,10 @@ export default function App() {
           viewModeChangeRef={wordListViewModeChangeRef}
           currentWordId={currentWordId}
           onCurrentWordChange={setCurrentWordId}
-          activeResultFilter={activeResultFilter}
           // Hidden until the user has a reason to understand them — see
           // shouldShowResultFilters. Existing users with results keep them.
           showResultFilters={showResultFilters}
           showLevelLabels={SHOW_LEVEL_LABELS}
-          showResultColor={showResultColor}
-          onToggleResultFilter={toggleResultFilter}
           flipped={flipped}
           closeOpenCard={closeOpenCard}
           onCardOpen={handleCardOpen}
@@ -725,17 +750,22 @@ export default function App() {
             onOpenMenu: openMenu,
             // One control, both directions: the Test button switches the card
             // area into Test Mode and back out again, in place.
-            onOpenTestMode: () => setTestModeVisible(open => !open),
+            onOpenTestMode: toggleTestMode,
             onFlip: toggleFlip,
             onEdit: openEdit,
             onDelete: deleteCard,
+            onDeleteWords: deleteCards,
             onMove: openMovePicker,
             onToggleNotif: toggleCardNotif,
             onVoiceLocked: openVoicePaywall,
             onCustomVoiceLocked: showVoiceLockBanner,
             onOpenAdd: openAdd,
           }}
-          testMode={{ active: testModeVisible, content: testModeContent }}
+          testMode={{
+            active: testModeVisible,
+            content: testModeContent,
+            onQuit: quitTestMode,
+          }}
           menuBtnRef={menuBtnRef}
         />
       )}
@@ -835,8 +865,6 @@ export default function App() {
           onChangeCardViewMode: handleCardViewModeChange,
           showFullCard,
           onToggleShowFullCard: setShowFullCard,
-          showResultColor,
-          onToggleShowResultColor: setShowResultColor,
           verticalFlip,
           onToggleVerticalFlip: setVerticalFlip,
           hideAiTools,

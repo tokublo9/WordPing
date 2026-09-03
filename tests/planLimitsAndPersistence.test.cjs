@@ -257,10 +257,10 @@ test('a failed data load never opens the persistence write gate', () => {
   assert.match(bootstrap, /loadFailedRef\.current = true;/u, 'the failure path must record that the read failed');
   assert.match(
     bootstrap,
-    /const readSucceeded = !loadFailedRef\.current;\s*hasLoaded\.current = readSucceeded;\s*cardsLoaded\.current = readSucceeded;\s*activeResultFiltersLoaded\.current = readSucceeded;/u,
-    'all three gates must be conditional on a successful read',
+    /const readSucceeded = !loadFailedRef\.current;\s*hasLoaded\.current = readSucceeded;\s*cardsLoaded\.current = readSucceeded;/u,
+    'both gates must be conditional on a successful read',
   );
-  assert.doesNotMatch(bootstrap, /cardsLoaded\.current = true;\s*activeResultFiltersLoaded\.current = true;/u,
+  assert.doesNotMatch(bootstrap, /cardsLoaded\.current = true;/u,
     'no unconditional gate opening may remain');
 
   // The user has to be told, or the app silently discards what they type.

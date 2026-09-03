@@ -34,7 +34,6 @@ import {
 import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
 import { isAIRequestError } from '../lib/api/errors';
 import { AIConsentDialog } from './AIConsentDialog';
-import { ResultFilterTutorial } from './ResultFilterTutorial';
 import { AboutAIVoiceDialog } from './AboutAIVoiceDialog';
 // Still used by the voice picker's own previews, which are ordinary
 // user-content AI requests and stay gated exactly as before.
@@ -98,8 +97,6 @@ interface Props {
   onChangeCardViewMode: (mode: 'list' | 'flip') => void;
   showFullCard: boolean;
   onToggleShowFullCard: (v: boolean) => void;
-  showResultColor: boolean;
-  onToggleShowResultColor: (v: boolean) => void;
   verticalFlip: boolean;
   onToggleVerticalFlip: (v: boolean) => void;
   hideAiTools: boolean;
@@ -126,7 +123,6 @@ export function SettingsModal({
   aiVoice, onPickAIVoice,
   cardViewMode, onChangeCardViewMode,
   showFullCard, onToggleShowFullCard,
-  showResultColor, onToggleShowResultColor,
   verticalFlip, onToggleVerticalFlip,
   hideAiTools, onToggleHideAiTools,
   canUseAI,
@@ -142,9 +138,6 @@ export function SettingsModal({
   const [announcementsVisible, setAnnouncementsVisible] = useState(false);
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
   const [voicePickerVisible, setVoicePickerVisible] = useState(false);
-  // Help → the colour-filter explanation. Its own state because it is a richer
-  // dialog than the shared text popup: it renders the actual chip legend.
-  const [resultFilterHelpVisible, setResultFilterHelpVisible] = useState(false);
   const [aboutAIVoiceVisible, setAboutAIVoiceVisible] = useState(false);
   // Mounted content and native Modal visibility are deliberately separate.
   // The content stays mounted throughout the fade-out and is cleared only once
@@ -372,16 +365,6 @@ export function SettingsModal({
             pal={pal}
           />
           <ToggleRow
-            icon="color-palette-outline"
-            label={t('show_result_color_on_cards')}
-            info={t('show_result_color_on_cards_info')}
-            onShowInfo={showInfoPopup}
-            value={showResultColor}
-            onToggle={onToggleShowResultColor}
-            themeColor={themeColor}
-            pal={pal}
-          />
-          <ToggleRow
             icon="swap-vertical-outline"
             label={t('vertical_flip')}
             info={t('vertical_flip_info')}
@@ -407,32 +390,30 @@ export function SettingsModal({
           )}
 
           {/* ── Help ─────────────────────────────────────────────────────── */}
-          {/* The result-filter explanation, reopenable on demand. It reuses the
-              same dialog the automatic version uses, so the wording can never
-              drift between the two ways of seeing it. Reopening from here does
-              not reset the "seen" flag — it is a reference, not a replay. */}
+          {/* About AI Voice is the only entry, and it belongs to a plan that has
+              AI Voice, so the heading and its divider are drawn with it rather
+              than left standing above nothing. */}
+          {canUseAI && (
+          <>
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
           <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('help_section')}</Text>
           </View>
-          <SettingRow icon="color-filter-outline" label={t('help_result_filters')} pal={pal}
-            onPress={() => setResultFilterHelpVisible(true)} />
-          {/* About AI Voice — second in Help, and only for a plan that has AI
-              Voice. `canUseAI` comes from the one entitlement rule and is false
-              until RevenueCat has answered, so the row cannot appear for a
-              moment and then vanish.
+          {/* About AI Voice. `canUseAI` comes from the one entitlement rule and
+              is false until RevenueCat has answered, so the row cannot appear
+              for a moment and then vanish.
 
               Opening it dismisses its own marker and nothing else, and grants
               no permission — it is where permission is *withdrawn*, not given. */}
-          {canUseAI && (
-            <SettingRow icon="mic-outline" label={t('ai_voice_info_menu')} pal={pal}
-              badge={discovery.isNew(FEATURE_MARKERS.aboutAIVoice)}
-              themeColor={themeColor}
-              onPress={() => {
-                discovery.dismiss(FEATURE_MARKERS.aboutAIVoice);
-                setAboutAIVoiceVisible(true);
-              }} />
+          <SettingRow icon="mic-outline" label={t('ai_voice_info_menu')} pal={pal}
+            badge={discovery.isNew(FEATURE_MARKERS.aboutAIVoice)}
+            themeColor={themeColor}
+            onPress={() => {
+              discovery.dismiss(FEATURE_MARKERS.aboutAIVoice);
+              setAboutAIVoiceVisible(true);
+            }} />
+          </>
           )}
 
           {/* ── App Info ─────────────────────────────────────────────────── */}
@@ -516,13 +497,6 @@ export function SettingsModal({
         <AboutAIVoiceDialog
           visible={aboutAIVoiceVisible}
           onClose={() => setAboutAIVoiceVisible(false)}
-          pal={pal}
-          themeColor={themeColor}
-        />
-
-        <ResultFilterTutorial
-          visible={resultFilterHelpVisible}
-          onDismiss={() => setResultFilterHelpVisible(false)}
           pal={pal}
           themeColor={themeColor}
         />

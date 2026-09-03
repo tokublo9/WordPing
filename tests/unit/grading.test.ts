@@ -152,7 +152,7 @@ test('a Pretty good card leaves the visible list immediately and returns after 7
   );
 });
 
-test('an active matching result filter overrides ordinary hiding for list and Flip data', () => {
+test('a graded card leaves the list, and nothing can bring it back early', () => {
   const goodOutcome = gradeCard(card('good'), 'good', SYNC_ON);
   const folder = [
     applyPatch(card('good'), goodOutcome.action === 'update' ? goodOutcome.patch : {}),
@@ -161,18 +161,14 @@ test('an active matching result filter overrides ordinary hiding for list and Fl
     card('ungraded'),
   ];
 
-  assert.deepEqual(cardsForVisibility(folder, {
-    now: NOW,
-    activeResultFilter: null,
-  }).map(c => c.id), ['unknown', 'ungraded']);
-  assert.deepEqual(cardsForVisibility(folder, {
-    now: NOW,
-    activeResultFilter: 'good',
-  }).map(c => c.id), ['good']);
-  assert.deepEqual(cardsForVisibility(folder, {
-    now: NOW,
-    activeResultFilter: 'slightly',
-  }).map(c => c.id), ['slightly']);
+  // One rule decides the list: inside its hide, or not. There is no filter to
+  // override it — the words resting under a result are reached through that
+  // colour's own sheet, which lists them without changing the list underneath.
+  assert.deepEqual(cardsForVisibility(folder, NOW).map(c => c.id), ['unknown', 'ungraded']);
+  assert.deepEqual(
+    cardsForVisibility(folder, NOW + NOT_REALLY_HIDE_MS).map(c => c.id),
+    ['slightly', 'unknown', 'ungraded'],
+  );
 });
 
 test('a Not really card leaves the visible list and returns after 24 h', () => {
@@ -200,13 +196,6 @@ test("a Don't know card leaves the visible list and returns after 1 h", () => {
   assert.deepEqual(visibleCards([graded], NOW).map(c => c.id), []);
   assert.deepEqual(visibleCards([graded], NOW + DONT_KNOW_HIDE_MS - 1).map(c => c.id), []);
   assert.deepEqual(visibleCards([graded], NOW + DONT_KNOW_HIDE_MS).map(c => c.id), ['w1']);
-
-  // The red filter still reaches it while it is away, exactly as the other
-  // grades' categories do.
-  assert.deepEqual(cardsForVisibility([graded], {
-    now: NOW,
-    activeResultFilter: 'unknown',
-  }).map(c => c.id), ['w1']);
 });
 
 test('Not really hides 24 times as long as Don\'t know', () => {

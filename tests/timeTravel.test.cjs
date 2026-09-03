@@ -38,7 +38,10 @@ test('visibility and grading-time comparisons use appNow without offsetting pers
   assert.match(useCards, /const now = appNow\(\);/u);
   assert.match(folders, /const now = appNow\(\);/u);
   assert.match(visibility, /now: number = appNow\(\)/u);
-  assert.match(gradingScreen, /const now = appNow\(\);[\s\S]*?testNextReview <= now/u);
+  // The due/waiting rule reads the same clock, and the test queue asks it
+  // rather than comparing timestamps a second time.
+  assert.match(read('src/features/cards/testSchedule.ts'), /now: number = appNow\(\)/u);
+  assert.match(gradingScreen, /const now = appNow\(\);[\s\S]*?isCardDueForTest\(c, now\)/u);
   assert.match(gradingScreen, /now: Date\.now\(\),[\s\S]*?syncTestResults/u);
   assert.doesNotMatch([useCards, folders, visibility].join('\n'), /Date\.now\(/u);
 });

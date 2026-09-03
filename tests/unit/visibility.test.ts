@@ -10,6 +10,7 @@ import {
   nextHideExpiry,
   visibleCards,
 } from '../../src/features/cards/visibility';
+import { matchesResultFilter } from '../../src/features/cards/testSchedule';
 import type { WordCard } from '../../src/types';
 
 function card(id: string, hiddenUntil?: number): WordCard {
@@ -45,37 +46,60 @@ test('a card with no hiddenUntil is always visible', () => {
   assert.equal(isCardHidden(card('a'), NOW), false);
 });
 
-test('a matching colorful result filter overrides hidden state only for its category', () => {
+test('the list shows what is not resting, and no chip can narrow it', () => {
   const cards = [
-    { ...card('good', NOW + PRETTY_GOOD_HIDE_MS), testLevel: 'good' as const },
-    { ...card('slightly', NOW + NOT_REALLY_HIDE_MS), testLevel: 'slightly' as const },
-    { ...card('unknown'), testLevel: 'unknown' as const },
-    card('none'),
+    {
+      ...card('waiting-good', NOW + PRETTY_GOOD_HIDE_MS),
+      testLevel: 'good' as const,
+      testNextReview: NOW + PRETTY_GOOD_HIDE_MS,
+    },
+    { ...card('elapsed-unknown'), testLevel: 'unknown' as const, testNextReview: NOW - 1 },
+    card('never-tested'),
   ];
-  assert.deepEqual(cardsForVisibility(cards, {
-    now: NOW,
-    activeResultFilter: 'good',
-  }).map(c => c.id), ['good']);
-  assert.deepEqual(cardsForVisibility(cards, {
-    now: NOW,
-    activeResultFilter: 'unknown',
-  }).map(c => c.id), ['unknown']);
-  assert.deepEqual(cardsForVisibility(cards, {
-    now: NOW,
-    activeResultFilter: 'none',
-  }).map(c => c.id), ['none']);
+
+  // Only the hide decides. The resting word is out; everything else is in.
+  assert.deepEqual(
+    cardsForVisibility(cards, NOW).map(c => c.id),
+    ['elapsed-unknown', 'never-tested'],
+  );
+  // It comes back on its own when its hide ends — nothing else brings it back.
+  assert.deepEqual(
+    cardsForVisibility(cards, NOW + PRETTY_GOOD_HIDE_MS).map(c => c.id),
+    ['waiting-good', 'elapsed-unknown', 'never-tested'],
+  );
+  // Which chip a word sits under is a separate question, answered without
+  // touching the list. The colour sheets read it; the list never does.
+  assert.equal(matchesResultFilter(cards[0], 'good', NOW), true);
+  assert.equal(matchesResultFilter(cards[1], 'none', NOW), true);
 });
 
-test('a retained Sync-off Perfect card is ordinary-visible but has no colorful filter', () => {
-  const perfect = { ...card('perfect'), testLevel: 'perfect' as const };
-  assert.deepEqual(cardsForVisibility([perfect], {
-    now: NOW,
-    activeResultFilter: null,
-  }).map(c => c.id), ['perfect']);
-  assert.deepEqual(cardsForVisibility([perfect], {
-    now: NOW,
-    activeResultFilter: 'good',
-  }), []);
+test('a word crosses from its colour into grey by the clock alone', () => {
+  const graded = {
+    ...card('red', NOW + 60 * 60 * 1000),
+    testLevel: 'unknown' as const,
+    testNextReview: NOW + 60 * 60 * 1000,
+  };
+
+  // Answered: it is red, and not in the queue.
+  assert.equal(matchesResultFilter(graded, 'unknown', NOW), true);
+  assert.equal(matchesResultFilter(graded, 'none', NOW), false);
+  // An hour later the very same object, unchanged, has swapped sides — and is
+  // back in the list, because its hide ended at the same moment.
+  const later = NOW + 60 * 60 * 1000;
+  assert.equal(matchesResultFilter(graded, 'unknown', later), false);
+  assert.equal(matchesResultFilter(graded, 'none', later), true);
+  assert.deepEqual(cardsForVisibility([graded], later).map(c => c.id), ['red']);
+});
+
+test('a retained Sync-off Perfect card is an ordinary list word, under no chip', () => {
+  const perfect = { ...card('perfect'), testLevel: 'perfect' as const, testMastered: true };
+  assert.deepEqual(cardsForVisibility([perfect], NOW).map(c => c.id), ['perfect']);
+  assert.equal(matchesResultFilter(perfect, 'good', NOW), false);
+  // Finished, so it is not waiting to be tested either — grey is work to do.
+  assert.equal(matchesResultFilter(perfect, 'none', NOW), false);
+  // Half a mark from a restored backup is still finished.
+  const half = { ...card('half'), testLevel: 'perfect' as const };
+  assert.equal(matchesResultFilter(half, 'none', NOW), false);
 });
 
 test('a card is hidden until the timestamp passes, then reappears', () => {

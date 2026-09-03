@@ -1,57 +1,32 @@
 import type { TranslationKey } from '../../i18n';
-import type { ActiveResultFilter, LevelFilterKey } from './levels';
 
-export type WordListEmptyState = 'none' | 'generic' | 'result-filter';
-
-export interface ResultFilterEmptyCopyKeys {
-  title: TranslationKey;
-  description: TranslationKey;
-}
-
-/** Copy follows the same four authoritative result keys used by filtering and grading. */
-export const RESULT_FILTER_EMPTY_COPY_KEYS: Record<LevelFilterKey, ResultFilterEmptyCopyKeys> = {
-  good: {
-    title: 'empty_filter_good_title',
-    description: 'empty_filter_good_description',
-  },
-  slightly: {
-    title: 'empty_filter_slightly_title',
-    description: 'empty_filter_slightly_description',
-  },
-  unknown: {
-    title: 'empty_filter_unknown_title',
-    description: 'empty_filter_unknown_description',
-  },
-  none: {
-    title: 'empty_filter_none_title',
-    description: 'empty_filter_none_description',
-  },
-};
-
-export function resultFilterEmptyCopyKeys(
-  activeResultFilter: ActiveResultFilter,
-): ResultFilterEmptyCopyKeys | null {
-  return activeResultFilter === null
-    ? null
-    : RESULT_FILTER_EMPTY_COPY_KEYS[activeResultFilter];
-}
+export type WordListEmptyState = 'none' | 'generic' | 'session-complete';
 
 interface ResolveWordListEmptyStateOptions {
   allCardCount: number;
   visibleCardCount: number;
-  activeResultFilter: ActiveResultFilter;
 }
 
 /**
- * Distinguishes a filter with no matches from the existing generic empty state.
- * This is presentation-only: it never changes card visibility or stored card data.
+ * Distinguishes a finished review from an empty folder.
+ *
+ * Nothing narrows the Word List any more, so a folder that holds words but shows
+ * none of them can only be in that state because every word is inside the hide a
+ * grade set — which is to say the review is done. "No words yet" would be plainly
+ * wrong there: the words exist and are coming back on their own.
+ *
+ * This is presentation-only: it never changes card visibility or stored data.
  */
 export function resolveWordListEmptyState({
   allCardCount,
   visibleCardCount,
-  activeResultFilter,
 }: ResolveWordListEmptyStateOptions): WordListEmptyState {
   if (visibleCardCount > 0) return 'none';
-  if (allCardCount > 0 && activeResultFilter !== null) return 'result-filter';
-  return 'generic';
+  return allCardCount > 0 ? 'session-complete' : 'generic';
 }
+
+/** The finished-review copy, shown when every word is resting under a result. */
+export const SESSION_COMPLETE_COPY_KEYS: { title: TranslationKey; hint: TranslationKey } = {
+  title: 'test_complete_title',
+  hint: 'test_complete_hint',
+};

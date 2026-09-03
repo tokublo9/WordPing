@@ -24,6 +24,7 @@ test('the information UI is a centred popup with backdrop and both dismissal pat
   assert.match(popup, /<View style=\{is\.backdrop\}>/u);
   assert.equal((popup.match(/onPress=\{onClose\}/gu) ?? []).length, 2);
   assert.match(screen, /onPress=\{\(\) => setInfoVisible\(true\)\}[\s\S]{0,180}accessibilityRole="button"[\s\S]{0,100}accessibilityLabel=\{t\('test_info_title'\)\}/u);
+  assert.match(screen, /<InfoPopup\s*visible=\{infoVisible\}\s*onClose=\{\(\) => setInfoVisible\(false\)\}/u);
   assert.match(styles, /backdrop:\s*\{[\s\S]*alignItems: 'center',[\s\S]*justifyContent: 'center'/u);
   assert.match(styles, /dialog:\s*\{[\s\S]*maxWidth: 440,[\s\S]*borderRadius: 18/u);
   assert.doesNotMatch(screen, /function InfoSheet|sheetOuter|borderTopLeftRadius|translateY: slideY/u);
@@ -82,7 +83,7 @@ test('English and Japanese contain all four grading descriptions exactly', () =>
   for (const copy of expected) assert.ok(i18n.includes(copy), `Missing localized copy: ${copy}`);
 });
 
-test('grading durations, deletion path, and Reset implementation remain authoritative and unchanged', () => {
+test('grading durations, deletion path, and completion Reset behavior remain authoritative', () => {
   const visibility = read('src/features/cards/visibility.ts');
   const grading = read('src/features/cards/grading.ts');
   const screen = read('src/components/TestModeScreen.tsx');
@@ -97,5 +98,5 @@ test('grading durations, deletion path, and Reset implementation remain authorit
   assert.match(screen, /const outcome = gradeCard\(card, kind,/u);
   assert.match(screen, /if \(outcome\.action === 'delete'\) onDeleteCard\(card\.id\)/u);
   assert.match(screen, /testMastered: false,[\s\S]{0,100}testNextReview: 0,[\s\S]{0,100}testLevel: undefined,[\s\S]{0,100}\.\.\.CLEAR_HIDE/u);
-  assert.match(screen, /onPress=\{handleReset\}[\s\S]{0,200}test_reset/u);
+  assert.match(screen, /onPress=\{handleReset\}[\s\S]{0,300}test_reset/u);
 });

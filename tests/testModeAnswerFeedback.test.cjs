@@ -24,11 +24,13 @@ function filterBar(source) {
 test('each result chip owns an animated value, created once', () => {
   const wordList = read(WORD_LIST);
 
-  // One value per filter key, held in a ref so a flash repaints the chip
+  // One value per drawn chip, held in a ref so a flash repaints the chip
   // instead of re-rendering the screen, and so the values survive the
-  // re-render the changed count itself causes.
-  assert.match(wordList, /useRef<Record<LevelFilterKey, Animated\.Value> \| null>\(null\)/u);
-  for (const level of ['good', 'slightly', 'unknown', 'none']) {
+  // re-render the changed count itself causes. The due count has no chip, so it
+  // has no value either.
+  assert.match(wordList, /useRef<Record<ResultColorFilter, Animated\.Value> \| null>\(null\)/u);
+  assert.doesNotMatch(wordList, /none: new Animated\.Value\(0\)/u);
+  for (const level of ['good', 'slightly', 'unknown']) {
     assert.match(
       wordList,
       new RegExp(`${level}: new Animated\\.Value\\(0\\)`, 'u'),
@@ -46,7 +48,7 @@ test('only a count that increased is flashed, and only during a test', () => {
   assert.match(wordList, /const prevLevelCounts = useRef\(levelCounts\);/u);
   assert.match(
     wordList,
-    /const risen = ALL_LEVEL_KEYS\.filter\(level => levelCounts\[level\] > prev\[level\]\);/u,
+    /const risen = RESULT_COLOR_FILTERS\.filter\(level => levelCounts\[level\] > prev\[level\]\);/u,
   );
   assert.match(wordList, /if \(risen\.length === 0\) return;/u);
 
@@ -79,6 +81,9 @@ test('the flash is a swell and a colour fill, driven natively', () => {
   assert.match(bar, /style=\{\[\s*filterStyles\.chipFlash,/u);
   assert.match(wordList, /chipFlash: \{\s*position: 'absolute',/u);
 
+  // Every chip is a pill, so the tint is a pill: no second shape to keep.
+  assert.doesNotMatch(wordList, /chipFlashSquare/u);
+
   // The tint is behind the icon and the number and cannot take a touch.
   assert.match(bar, /<Animated\.View\s*pointerEvents="none"\s*style=\{\[\s*filterStyles\.chipFlash/u);
   const chipJsx = bar.slice(bar.indexOf('filterStyles.chipFlash'));
@@ -90,10 +95,32 @@ test('the flash is a swell and a colour fill, driven natively', () => {
   // No JS-driven colour interpolation: both halves of the flash are opacity and
   // transform, so the row stays smooth while the list below it is live.
   const flashEffect = wordList.slice(
-    wordList.indexOf('const risen = ALL_LEVEL_KEYS'),
+    wordList.indexOf('const risen = RESULT_COLOR_FILTERS'),
     wordList.indexOf('chipFlashAnim.current.start();'),
   );
   assert.doesNotMatch(flashEffect, /useNativeDriver: false/u);
+});
+
+test('a chip that took an answer keeps its colour for the rest of the session', () => {
+  const wordList = read(WORD_LIST);
+
+  // The number is drawn in the filter's own colour from the moment its count
+  // rises — during the flash and after it — and each colour is independent.
+  assert.match(
+    wordList,
+    /const \[raisedLevels, setRaisedLevels\] = useState<ReadonlySet<ResultColorFilter>>\(new Set\(\)\);/u,
+  );
+  assert.match(wordList, /for \(const level of risen\) next\.add\(level\);/u);
+  assert.match(
+    wordList,
+    /const contentColor = raisedLevels\.has\(level as ResultColorFilter\)\s*\? color\s*: '#9CA3AF';/u,
+  );
+  // Finishing and walking out are the same thing: the session is over, so the
+  // row goes back to neutral.
+  assert.match(
+    wordList,
+    /useEffect\(\(\) => \{\s*if \(testMode\.active\) return;\s*setRaisedLevels\(current => \(current\.size === 0 \? current : new Set\(\)\)\);\s*\}, \[testMode\.active\]\);/u,
+  );
 });
 
 test('Reduce Motion keeps the mark and drops the movement', () => {

@@ -4,7 +4,7 @@ import type { Appearance } from '../types';
 import { DEFAULT_LANGUAGE, DEFAULT_THEME } from '../constants';
 import type { Settings } from '../lib/db';
 import { DEFAULT_AI_VOICE, type AIVoice } from '../lib/aiVoices';
-import { DEFAULT_SHOW_RESULT_COLOR } from '../features/settings/resultColorPreference';
+import type { StudyLog } from '../features/study/studyLog';
 
 export interface AppSettingsState {
   themeColor: string;
@@ -19,13 +19,14 @@ export interface AppSettingsState {
   setAIVoice: Dispatch<SetStateAction<AIVoice>>;
   showFullCard: boolean;
   setShowFullCard: Dispatch<SetStateAction<boolean>>;
-  showResultColor: boolean;
-  setShowResultColor: Dispatch<SetStateAction<boolean>>;
   verticalFlip: boolean;
   setVerticalFlip: Dispatch<SetStateAction<boolean>>;
   hideAiTools: boolean;
   syncTestResults: boolean;
   setSyncTestResults: Dispatch<SetStateAction<boolean>>;
+  /** Answers per local day, the only record of what was studied when. */
+  studyLog: StudyLog;
+  setStudyLog: Dispatch<SetStateAction<StudyLog>>;
   setHideAiTools: Dispatch<SetStateAction<boolean>>;
   /** One-time tutorial. False until the stored flag says otherwise. */
   resultFilterTutorialSeen: boolean;
@@ -46,12 +47,12 @@ export function useAppSettings(): AppSettingsState {
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [aiVoice, setAIVoice] = useState<AIVoice>(DEFAULT_AI_VOICE);
   const [showFullCard, setShowFullCard] = useState(false);
-  const [showResultColor, setShowResultColor] = useState(DEFAULT_SHOW_RESULT_COLOR);
   const [verticalFlip, setVerticalFlip] = useState(false);
   const [hideAiTools, setHideAiTools]   = useState(false);
   // Dormant saved preference retained for a possible future UI restoration.
   // Test Mode currently uses SYNC_WITH_TEST_RESULTS_ENABLED instead.
   const [syncTestResults, setSyncTestResults] = useState(false);
+  const [studyLog, setStudyLog] = useState<StudyLog>({});
   const [resultFilterTutorialSeen, setResultFilterTutorialSeen] = useState(false);
   const [firstTestAnswerRecorded, setFirstTestAnswerRecorded] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -73,10 +74,10 @@ export function useAppSettings(): AppSettingsState {
     language, setLanguage,
     aiVoice, setAIVoice,
     showFullCard, setShowFullCard,
-    showResultColor, setShowResultColor,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
     syncTestResults, setSyncTestResults,
+    studyLog, setStudyLog,
     resultFilterTutorialSeen, setResultFilterTutorialSeen,
     firstTestAnswerRecorded, setFirstTestAnswerRecorded,
     settingsLoaded,

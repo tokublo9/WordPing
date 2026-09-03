@@ -7,9 +7,8 @@ import {
   SYNC_TEST_RESULTS_KEY,
   ONBOARDING_KEY,
   SHOW_FULL_CARD_KEY,
-  SHOW_RESULT_COLOR_KEY,
+  STUDY_LOG_KEY,
   VERTICAL_FLIP_KEY,
-  WORD_LIST_FILTERS_KEY,
 } from '../constants';
 import {
   bootstrapData,
@@ -20,12 +19,8 @@ import {
 } from '../lib/db';
 import type { Settings } from '../lib/db';
 import { getPermissionStatus } from '../notifications';
+import { parseStudyLog, pruneStudyLog, type StudyLog } from '../features/study/studyLog';
 import { FORCE_SHOW_ONBOARDING } from '../components/OnboardingModal';
-import {
-  parseActiveResultFiltersByFolder,
-  type ActiveResultFiltersByFolder,
-} from '../features/cards/levels';
-import { parseShowResultColorPreference } from '../features/settings/resultColorPreference';
 import {
   FIRST_TEST_ANSWER_KEY,
   RESULT_FILTER_MIGRATION_KEY,
@@ -88,10 +83,10 @@ export interface UseAppBootstrapParams {
   applySettings(s: Settings): void;
   markSettingsLoaded(): void;
   setShowFullCard(v: boolean): void;
-  setShowResultColor(v: boolean): void;
   setVerticalFlip(v: boolean): void;
   setHideAiTools(v: boolean): void;
   setSyncTestResults(v: boolean): void;
+  setStudyLog(log: StudyLog): void;
   setResultFilterTutorialSeen(v: boolean): void;
   setFirstTestAnswerRecorded(v: boolean): void;
 }
@@ -112,11 +107,8 @@ export interface AppBootstrapState {
   setShowOnboarding: Dispatch<SetStateAction<boolean>>;
   notificationGranted: boolean;
   setNotificationGranted: Dispatch<SetStateAction<boolean>>;
-  activeResultFiltersByFolder: ActiveResultFiltersByFolder;
-  setActiveResultFiltersByFolder: Dispatch<SetStateAction<ActiveResultFiltersByFolder>>;
   hasLoaded: MutableRefObject<boolean>;
   cardsLoaded: MutableRefObject<boolean>;
-  activeResultFiltersLoaded: MutableRefObject<boolean>;
   /**
    * Stored data could not be read. Saving is disabled for this launch so an
    * empty screen cannot be written over the user's real vocabulary.
@@ -128,10 +120,10 @@ export function useAppBootstrap({
   applySettings,
   markSettingsLoaded,
   setShowFullCard,
-  setShowResultColor,
   setVerticalFlip,
   setHideAiTools,
   setSyncTestResults,
+  setStudyLog,
   setResultFilterTutorialSeen,
   setFirstTestAnswerRecorded,
 }: UseAppBootstrapParams): AppBootstrapState {
@@ -142,14 +134,12 @@ export function useAppBootstrap({
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [notificationGranted, setNotificationGranted] = useState(false);
-  const [activeResultFiltersByFolder, setActiveResultFiltersByFolder] = useState<ActiveResultFiltersByFolder>({});
 
   const hasLoaded = useRef(false);
   // Opens the cards/settings write path as soon as stored cards reach state, without
   // waiting for the later phases. A word added during those phases would otherwise be
   // held in memory only until some other change happened to trigger a write.
   const cardsLoaded = useRef(false);
-  const activeResultFiltersLoaded = useRef(false);
   const foldersRef = useRef<Folder[]>([]);
   // Set when the stored cards could not be read at all.
   //
@@ -169,21 +159,9 @@ export function useAppBootstrap({
       // the default FOLDERS_KEY entry so readFolders() sees it immediately after.
       let local: Awaited<ReturnType<typeof bootstrapData>>;
       let storedFolders: Folder[];
-      let rawLevelFilters: string | null = null;
       try {
         local = await bootstrapData();
-        [storedFolders, rawLevelFilters] = await Promise.all([
-          readFolders(),
-          AsyncStorage.getItem(WORD_LIST_FILTERS_KEY).catch(e => {
-            if (__DEV__) {
-              console.warn(
-                '[bootstrap] word-list filters load failed:',
-                e instanceof Error ? e.name : 'UnknownError',
-              );
-            }
-            return null;
-          }),
-        ]);
+        storedFolders = await readFolders();
       } catch (e) {
         if (__DEV__) {
           console.error(
@@ -207,10 +185,6 @@ export function useAppBootstrap({
         local.cards,
         storedFolders,
       );
-      // Queue the restored filters before folders become tappable. This prevents a
-      // Word List from rendering the all-enabled default before its saved state.
-      setActiveResultFiltersByFolder(parseActiveResultFiltersByFolder(rawLevelFilters));
-      activeResultFiltersLoaded.current = true;
       foldersRef.current = migratedFolders;
       setCards(migratedCards);
       setFolders(migratedFolders);
@@ -221,24 +195,24 @@ export function useAppBootstrap({
 
       // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────
       let rawShowFull: string | null = null;
-      let rawShowResultColor: string | null = null;
       let rawVertFlip: string | null = null;
       let rawHideAi:  string | null = null;
       let rawSyncTest: string | null = null;
+      let rawStudyLog: string | null = null;
       let obRaw: string | null = null;
       let rawResultFilterTutorial: string | null = null;
       let rawFirstTestAnswer: string | null = null;
       let rawResultFilterMigrated: string | null = null;
       try {
         [
-          rawShowFull, rawShowResultColor, rawVertFlip, rawHideAi, rawSyncTest, obRaw,
+          rawShowFull, rawVertFlip, rawHideAi, rawSyncTest, rawStudyLog, obRaw,
           rawResultFilterTutorial, rawFirstTestAnswer, rawResultFilterMigrated,
         ] = await Promise.all([
           AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
-          AsyncStorage.getItem(SHOW_RESULT_COLOR_KEY),
           AsyncStorage.getItem(VERTICAL_FLIP_KEY),
           AsyncStorage.getItem(HIDE_AI_TOOLS_KEY),
           AsyncStorage.getItem(SYNC_TEST_RESULTS_KEY),
+          AsyncStorage.getItem(STUDY_LOG_KEY),
           AsyncStorage.getItem(ONBOARDING_KEY),
           AsyncStorage.getItem(RESULT_FILTER_TUTORIAL_KEY),
           AsyncStorage.getItem(FIRST_TEST_ANSWER_KEY),
@@ -292,8 +266,9 @@ export function useAppBootstrap({
       }
 
       if (rawShowFull === 'true') setShowFullCard(true);
-      // Missing, malformed and unreadable legacy values are explicitly OFF.
-      setShowResultColor(parseShowResultColorPreference(rawShowResultColor));
+      // Pruned on the way in, so a log that has been sitting for years is
+      // trimmed once at launch rather than on every answer.
+      setStudyLog(pruneStudyLog(parseStudyLog(rawStudyLog), Date.now()));
       // Absent means off, which is the default for existing users.
       if (rawSyncTest === 'true') setSyncTestResults(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
@@ -349,7 +324,6 @@ export function useAppBootstrap({
         const readSucceeded = !loadFailedRef.current;
         hasLoaded.current = readSucceeded;
         cardsLoaded.current = readSucceeded;
-        activeResultFiltersLoaded.current = readSucceeded;
         // markSettingsLoaded calls a state setter; only call it if still mounted.
         // On the happy path it was already called above (idempotent).
         if (!cancelled) markSettingsLoaded();
@@ -383,10 +357,8 @@ export function useAppBootstrap({
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
-    activeResultFiltersByFolder, setActiveResultFiltersByFolder,
     hasLoaded,
     cardsLoaded,
-    activeResultFiltersLoaded,
     loadFailed,
   };
 }

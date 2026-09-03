@@ -28,7 +28,7 @@ test('the list data keeps its identity across unrelated renders', () => {
   );
   assert.match(
     useCards,
-    /const filteredFolderCards = useMemo\([\s\S]*?\[displayedAllFolderCards, activeResultFilter, hideEpoch\],\s*\);/u,
+    /const folderCards = useMemo\([\s\S]*?\[displayedAllFolderCards, hideEpoch\],\s*\);/u,
   );
   // A pending reorder deliberately changes list identity once, while unrelated
   // renders continue to reuse either the saved or pending array.
@@ -170,7 +170,7 @@ test('the position reports the top visible word by stable ID', () => {
   // The screen forwards it imperatively, so a new index does not re-render the screen.
   assert.match(wordList, /positionLabelRef\.current\?\.setCurrentVisibleIndex\(index \+ 1\)/u);
   assert.match(wordList, /onTopVisibleCardChange=\{handleTopVisibleCardChange\}/u);
-  assert.match(wordList, /total=\{filteredFolderCards\.length\}/u);
+  assert.match(wordList, /total=\{visibleWordCount\}/u);
 });
 
 test('the default count is a plain total, and scrolling turns it into a position', () => {
@@ -202,23 +202,25 @@ test('the default count is a plain total, and scrolling turns it into a position
   // It replaces the old header Text in place, keeping that line's styling.
   assert.match(
     wordList,
-    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{filteredFolderCards\.length\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{cardViewMode === 'flip' && isFilterActive\}\s*hasMultiplePages=\{hasMultiplePages\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
+    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{visibleWordCount\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{false\}\s*hasMultiplePages=\{hasMultiplePages\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
   );
   // "More than one page" comes from the same measurement the scrollbar uses in
   // List Mode, and from the card count in Flip Mode where each card is a page —
   // never from a fixed number of words.
   assert.match(
     wordList,
-    /const hasMultiplePages = cardViewMode === 'flip'\s*\? filteredFolderCards\.length > 1\s*: getScrollBarMetrics\(listContentH, listViewH\)\.show;/u,
+    /const hasMultiplePages = cardViewMode === 'flip'\s*\? visibleFolderCards\.length > 1\s*: getScrollBarMetrics\(listContentH, listViewH\)\.show;/u,
   );
   // At the top the line is only the total — no second number to compare it against.
   // The "x / y" shape belongs to the scrolled position readout alone.
   assert.match(
     wordList,
-    /const wordCountSummary = `\$\{filteredFolderCards\.length\} \$\{[\s\S]*?filteredFolderCards\.length === 1 \? 'words_singular' : 'words_plural'/u,
+    /const wordCountSummary = `\$\{visibleWordCount\} \$\{[\s\S]*?visibleWordCount === 1 \? 'words_singular' : 'words_plural'/u,
   );
   assert.doesNotMatch(wordList, /const wordCountSummary = `[^`]*\//u);
-  assert.doesNotMatch(wordList, /isFilterActive\s*\? `\$\{filteredFolderCards\.length\} \/ \$\{allFolderCards\.length\}`\s*:\s*folderCards\.length/u);
+  // The word count is read once and used where it is shown.
+  assert.match(wordList, /const visibleWordCount = visibleFolderCards\.length;/u);
+  assert.match(wordList, /const count = levelCounts\[level\];/u);
 });
 
 test('no floating indicator and no per-card numbering were added', () => {
@@ -238,8 +240,17 @@ test('no floating indicator and no per-card numbering were added', () => {
 
 test('per-render passes over the folder are collapsed into one', () => {
   const source = read('src/screens/WordListScreen/WordListScreen.tsx');
-  // One helper pass over the complete folder yields every chip count.
-  assert.match(source, /const levelCounts = useMemo\(\(\) => countCardsByResult\(allFolderCards\), \[allFolderCards\]\);/u);
+  const useCards = read('src/features/cards/useCards.ts');
+  // One helper pass over the complete folder yields every chip count, memoized
+  // beside the lists it must agree with. It lives in the hook rather than the
+  // screen because a count taken during render would go stale the moment a
+  // waiting interval elapsed — hideEpoch is the wake-up for both.
+  assert.match(
+    useCards,
+    /const levelCounts = useMemo\(\s*\(\) => countCardsByResult\(displayedAllFolderCards, appNow\(\)\),[\s\S]*?\[displayedAllFolderCards, hideEpoch\],\s*\);/u,
+  );
+  assert.doesNotMatch(source, /countCardsByResult/u);
+  assert.match(source, /levelCounts: Record<LevelFilterKey, number>;/u);
   assert.match(source, /const count = levelCounts\[level\];/u);
   assert.match(source, /const untestedCount = levelCounts\.none;/u);
   assert.match(source, /const allVisibleCardsSelected = useMemo\(/u);

@@ -6,11 +6,10 @@ import { appNow } from '../../lib/appClock';
 import { CLEAR_HIDE, cardsForVisibility, nextHideExpiry } from './visibility';
 import { translate } from '../../i18n';
 import {
-  isLevelFilterKey,
-  toggleActiveResultFilter,
-  type ActiveResultFilter,
-  type ActiveResultFiltersByFolder,
+  countCardsByResult,
+  type LevelFilterKey,
 } from './levels';
+import { nextTestDueAt } from './testSchedule';
 import { findDuplicateCard } from './duplicates';
 import { FLIP_MODE_ENABLED } from '../flags';
 import { createId } from '../../utils/createId';
@@ -33,8 +32,6 @@ export interface UseCardsParams {
   currentFolderId: string | null;
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
-  activeResultFiltersByFolder: ActiveResultFiltersByFolder;
-  setActiveResultFiltersByFolder: Dispatch<SetStateAction<ActiveResultFiltersByFolder>>;
   onCardRegistered?(card: WordCard): void;
   onCardsDeleted?(ids: string[]): void;
 }
@@ -51,6 +48,8 @@ export interface UseCardsReturn {
   toggleSelect(id: string): void;
   selectAllCards(): void;
   deleteSelected(): void;
+  /** Deletes a set of words outright. The one delete path every surface uses. */
+  deleteCards(ids: readonly string[]): void;
   setNotifForSelected(notifOff: boolean): void;
   // Reorder
   reorderMode: boolean;
@@ -62,16 +61,24 @@ export interface UseCardsReturn {
   replaceFolderOrder(orderedVisible: readonly WordCard[]): void;
   handleRegistrationOrder(): void;
   handleRandomOrder(): void;
-  // Level filter
-  activeResultFilter: ActiveResultFilter;
-  toggleResultFilter(level: string): void;
   // Labels
   showLevelLabels: boolean;
   setShowLevelLabels: Dispatch<SetStateAction<boolean>>;
+  /**
+   * How many words sit under each chip at this moment. Computed here rather
+   * than in the screen because this is where the clock signal lives: the same
+   * wake-up that brings a rested word back to the list also moves it out of its
+   * colour and into grey.
+   */
+  levelCounts: Record<LevelFilterKey, number>;
   // Derived card lists (computed from injected cards + currentFolderId)
   allFolderCards: WordCard[];
+  /**
+   * The words the list and Flip Mode show: the folder, minus whatever is inside
+   * the hide its grade gave it. There is no second, narrower list — nothing
+   * filters — so this is the one visible set.
+   */
   folderCards: WordCard[];
-  filteredFolderCards: WordCard[];
   // View
   cardViewMode: 'list' | 'flip';
   setCardViewMode: Dispatch<SetStateAction<'list' | 'flip'>>;
@@ -124,8 +131,6 @@ export function useCards({
   currentFolderId,
   language,
   setMenuVisible,
-  activeResultFiltersByFolder,
-  setActiveResultFiltersByFolder,
   onCardRegistered,
   onCardsDeleted,
 }: UseCardsParams): UseCardsReturn {
@@ -207,21 +212,27 @@ export function useCards({
     ? pendingFolderCards
     : allFolderCards;
   const folderCards = useMemo(
-    () => cardsForVisibility(displayedAllFolderCards, {
-      now: appNow(),
-      activeResultFilter: null,
-    }) as WordCard[],
+    () => cardsForVisibility(displayedAllFolderCards, appNow()) as WordCard[],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hideEpoch is a clock signal, not a value read here
     [displayedAllFolderCards, hideEpoch],
   );
 
-  // One timer for the soonest hide, re-armed whenever it fires or the cards
-  // change. No polling, and nothing is written: the selector re-reads the
-  // stored timestamp, so a timer that fires late (the OS suspends them while
-  // backgrounded) still produces the correct result.
+  // One timer for the soonest moment anything changes by itself, re-armed
+  // whenever it fires or the cards change. No polling, and nothing is written:
+  // every selector re-reads the stored timestamps, so a timer that fires late
+  // (the OS suspends them while backgrounded) still produces the correct result.
+  //
+  // Two kinds of instant matter and they are not always the same one: a hide
+  // ending puts a card back in the list, and a waiting interval ending moves a
+  // card out of its colour chip and into grey. The earlier of the two is the
+  // wake-up, so neither can be missed.
   useEffect(() => {
     const now = appNow();
-    const expiry = nextHideExpiry(cards, now);
+    const hideExpiry = nextHideExpiry(cards, now);
+    const dueAt = nextTestDueAt(cards, now);
+    const expiry = hideExpiry === null
+      ? dueAt
+      : dueAt === null ? hideExpiry : Math.min(hideExpiry, dueAt);
     if (expiry === null) return;
     // A delay past setTimeout's 32-bit range fires immediately, which would
     // re-arm in a loop. A hide is 24 h, but an imported backup can carry any
@@ -230,16 +241,13 @@ export function useCards({
     const timer = setTimeout(() => setHideEpoch(epoch => epoch + 1), delay);
     return () => clearTimeout(timer);
   }, [cards, hideEpoch]);
-  const activeResultFilter = currentFolderId
-    ? (activeResultFiltersByFolder[currentFolderId] ?? null)
-    : null;
-  const filteredFolderCards = useMemo(
-    () => cardsForVisibility(displayedAllFolderCards, {
-      now: appNow(),
-      activeResultFilter,
-    }) as WordCard[],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- epochs wake time-dependent visibility
-    [displayedAllFolderCards, activeResultFilter, hideEpoch],
+  // One pass over the folder produces every chip count, and it is taken at the
+  // same instant as the lists above so a chip can never disagree with what
+  // tapping it shows. `hideEpoch` is the same clock signal the lists use.
+  const levelCounts = useMemo(
+    () => countCardsByResult(displayedAllFolderCards, appNow()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hideEpoch is a clock signal, not a value read here
+    [displayedAllFolderCards, hideEpoch],
   );
 
   // ── Flip ─────────────────────────────────────────────────────────────────────
@@ -277,21 +285,30 @@ export function useCards({
 
   const selectAllCards = () => {
     setSelectedIds(prev => {
-      const allSelected = filteredFolderCards.length > 0
-        && filteredFolderCards.every(card => prev.has(card.id));
-      return allSelected ? new Set() : new Set(filteredFolderCards.map(card => card.id));
+      const allSelected = folderCards.length > 0
+        && folderCards.every(card => prev.has(card.id));
+      return allSelected ? new Set() : new Set(folderCards.map(card => card.id));
     });
   };
 
-  const deleteSelected = () => {
-    const deletedIds = [...selectedIds];
-    setCards(prev => prev.filter(c => !selectedIds.has(c.id)));
+  // One delete, wherever it is asked for: the selection bar, a card's own
+  // delete, and the result sheet all land here, so the audio cache, the
+  // notification schedule and the flip state are cleaned up the same way each
+  // time rather than three times over.
+  const deleteCards = (ids: readonly string[]) => {
+    if (ids.length === 0) return;
+    const doomed = new Set(ids);
+    setCards(prev => prev.filter(c => !doomed.has(c.id)));
     setFlipped(prev => {
       const next = new Set(prev);
-      selectedIds.forEach(id => next.delete(id));
+      doomed.forEach(id => next.delete(id));
       return next;
     });
-    onCardsDeleted?.(deletedIds);
+    onCardsDeleted?.([...ids]);
+  };
+
+  const deleteSelected = () => {
+    deleteCards([...selectedIds]);
     exitSelectionMode();
   };
 
@@ -347,7 +364,7 @@ export function useCards({
   const handleRegistrationOrder = () => {
     setPendingFolderCards(previous => mergeVisibleCardOrder(
       previous ?? allFolderCards,
-      sortByRegistrationOrder(filteredFolderCards),
+      sortByRegistrationOrder(folderCards),
     ));
     setReorderSortDir('registration');
   };
@@ -355,28 +372,9 @@ export function useCards({
   const handleRandomOrder = () => {
     setPendingFolderCards(previous => mergeVisibleCardOrder(
       previous ?? allFolderCards,
-      shuffleCards(filteredFolderCards),
+      shuffleCards(folderCards),
     ));
     setReorderSortDir('random');
-  };
-
-  // ── Level filter ──────────────────────────────────────────────────────────────
-  const toggleResultFilter = (level: string) => {
-    if (!currentFolderId || !isLevelFilterKey(level)) return;
-    const nextFilter = toggleActiveResultFilter(activeResultFilter, level);
-    const firstCardId = cardsForVisibility(allFolderCards, {
-      now: appNow(),
-      activeResultFilter: nextFilter,
-    })[0]?.id ?? null;
-
-    // Both learning modes consume this shared ID. Publishing the first card in
-    // the destination view makes List scroll to index 0 and Flip center index 0
-    // for every filter-on, filter-switch and filter-off transition.
-    setCurrentWordId(firstCardId);
-    setActiveResultFiltersByFolder(prev => ({
-      ...prev,
-      [currentFolderId]: nextFilter,
-    }));
   };
 
   // ── Card-open tracking ────────────────────────────────────────────────────────
@@ -539,11 +537,7 @@ export function useCards({
     }
   };
 
-  const deleteCard = (id: string) => {
-    setCards(prev => prev.filter(c => c.id !== id));
-    setFlipped(prev => { const n = new Set(prev); n.delete(id); return n; });
-    onCardsDeleted?.([id]);
-  };
+  const deleteCard = (id: string) => deleteCards([id]);
 
   const toggleCardNotif = (id: string) => {
     setCards(prev => prev.map(c => c.id === id ? { ...c, notifOff: !c.notifOff } : c));
@@ -552,13 +546,14 @@ export function useCards({
   return {
     flipped, toggleFlip,
     selectionMode, selectedIds,
-    enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, setNotifForSelected,
+    enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, deleteCards,
+    setNotifForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
     handleRegistrationOrder, handleRandomOrder,
-    activeResultFilter, toggleResultFilter,
     showLevelLabels, setShowLevelLabels,
-    allFolderCards, folderCards, filteredFolderCards,
+    levelCounts,
+    allFolderCards, folderCards,
     cardViewMode, setCardViewMode, currentWordId, setCurrentWordId,
     closeOpenCard, handleCardOpen,
     wordModalVisible, setWordModalVisible,

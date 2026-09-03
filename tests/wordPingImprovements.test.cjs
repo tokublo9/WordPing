@@ -163,24 +163,25 @@ test('the parser stays free of react-native so both formats are testable', () =>
 
 // ── 3. About AI Voice on Free ────────────────────────────────────────────────
 
-test('1-3, 5. About AI Voice sits second in Help, only for an eligible plan', () => {
+test('1-3, 5. About AI Voice is the Help section, only for an eligible plan', () => {
   const settings = read('src/components/SettingsModal.tsx');
   const help = settings.slice(
     settings.indexOf("t('help_section')"),
     settings.indexOf('{/* ── App Info'),
   );
 
-  // The section's rows, in the order they render: the result filters first,
-  // About AI Voice immediately below, and nothing else in between.
+  // The section's rows, in the order they render: About AI Voice is the only
+  // one — the result-filter row was removed with its dialog.
   const rowLabels = [...help.matchAll(/<SettingRow[\s\S]*?label=\{t\('(\w+)'\)\}/gu)]
     .map(match => match[1]);
-  assert.deepEqual(rowLabels, ['help_result_filters', 'ai_voice_info_menu']);
+  assert.deepEqual(rowLabels, ['ai_voice_info_menu']);
 
   // Basic and Premium see it; Free does not, and neither does anyone while the
   // subscription is still loading — `canUseAI` is false until RevenueCat answers.
+  // The heading rides on the same condition, so it never stands above nothing.
   assert.match(
-    help,
-    /\{canUseAI && \(\s*<SettingRow icon="mic-outline" label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?\)\}/u,
+    settings.slice(settings.indexOf('{/* ── Help ─'), settings.indexOf('{/* ── App Info')),
+    /\{canUseAI && \(\s*<>[\s\S]*?<SettingRow icon="mic-outline" label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?<\/>\s*\)\}/u,
   );
   // The rule is not restated here.
   assert.doesNotMatch(settings, /planCanUseAI|VOICE_MONTHLY_LIMITS/u);
@@ -589,7 +590,7 @@ test('the popup is driven by live screen state, not by how the test ended', () =
   assert.match(app, /isTestModeOpen: testModeVisible,/u);
   assert.match(app, /isScreenBusy: screenBusy,/u);
   assert.doesNotMatch(app, /testModeClosed/u, 'no separate exit flag may survive');
-  assert.match(app, /onClose=\{\(\) => setTestModeVisible\(false\)\}/u);
+  assert.match(app, /onOpenTestMode: toggleTestMode,/u);
 });
 
 test('only dismissing the tutorial reveals the filters', () => {
@@ -614,12 +615,23 @@ test('only dismissing the tutorial reveals the filters', () => {
   assert.match(app, /const dismissResultFilterTutorial = useCallback\(\(\) => \{\s*setResultFilterTutorialSeen\(true\);/u);
 });
 
-test('the result-filter tutorial can be reopened from the Help section', () => {
+test('Settings has no result-filter row, and no Help heading without a row', () => {
   const settings = read('src/components/SettingsModal.tsx');
+  // The explanation is shown once, automatically, from App.tsx. Settings no
+  // longer offers a way back to it, so it must not carry the row, the dialog
+  // or the state that opened it.
+  assert.doesNotMatch(settings, /help_result_filters/u);
+  assert.doesNotMatch(settings, /ResultFilterTutorial/u);
+  assert.doesNotMatch(settings, /resultFilterHelpVisible/u);
+  // About AI Voice is the only entry left, so the heading is drawn under the
+  // same condition rather than standing above nothing on a plan without it.
   assert.match(settings, /t\('help_section'\)/u);
-  assert.match(settings, /label=\{t\('help_result_filters'\)\}/u);
-  // The same component as the automatic version, so the wording cannot drift.
-  assert.match(settings, /<ResultFilterTutorial/u);
+  const help = settings.slice(
+    settings.indexOf("{/* ── Help ─"),
+    settings.indexOf("{/* ── App Info ─"),
+  );
+  assert.match(help, /\{canUseAI && \(\s*<>/u);
+  assert.match(help, /ai_voice_info_menu/u);
 });
 
 // ── 5. Duplicate words ───────────────────────────────────────────────────────
@@ -706,7 +718,7 @@ test('the Test Mode icon holds its position whether or not the chips show', () =
 
   // The button itself is outside the conditional, so neither its style nor its
   // touch target changes between the two states.
-  const testButton = bar.slice(bar.indexOf('onPress={actions.onOpenTestMode}'));
+  const testButton = bar.slice(bar.indexOf('onPress={handleOpenTestMode}'));
   assert.doesNotMatch(testButton, /showResultFilters/u);
   assert.match(bar, /<TouchableOpacity\s*style=\{s\.iconBtn\}\s*hitSlop=\{\{ top: 8, bottom: 8, left: 8, right: 8 \}\}/u);
 
@@ -816,8 +828,8 @@ test('the Perfect note is true whether or not result syncing is on', () => {
 test('every new string ships in English and Japanese', () => {
   const i18n = read('src/i18n.ts');
   const keys = [
-    'help_section', 'help_result_filters',
-    'result_filter_title', 'result_filter_intro', 'result_filter_untested',
+    'help_section',
+    'result_filter_title', 'result_filter_intro',
     'result_filter_perfect_note', 'result_filter_got_it',
     'duplicate_word_title', 'duplicate_word_message', 'duplicate_word_open',
     'duplicate_move_skipped',

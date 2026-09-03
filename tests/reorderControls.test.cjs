@@ -56,7 +56,7 @@ test('Random runs only on an explicit tap and Registration order does not modify
 
   assert.equal((useCards.match(/shuffleCards\(/gu) ?? []).length, 1);
   assert.match(randomHandler, /setPendingFolderCards/u);
-  assert.match(randomHandler, /shuffleCards\(filteredFolderCards\)/u);
-  assert.match(registrationHandler, /sortByRegistrationOrder\(filteredFolderCards\)/u);
+  assert.match(randomHandler, /shuffleCards\(folderCards\)/u);
+  assert.match(registrationHandler, /sortByRegistrationOrder\(folderCards\)/u);
   assert.doesNotMatch(`${randomHandler}\n${registrationHandler}`, /createdAt|setCards/u);
 });

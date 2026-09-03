@@ -15,6 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
 import { CLEAR_HIDE } from '../features/cards/visibility';
+import { isCardDueForTest } from '../features/cards/testSchedule';
+import { StudyAnalytics } from './StudyAnalytics';
+import { recordAnswer, type StudyLog } from '../features/study/studyLog';
 import { appNow } from '../lib/appClock';
 import { SYNC_WITH_TEST_RESULTS_ENABLED } from '../features/flags';
 import { gradeCard, type AnswerKind } from '../features/cards/grading';
@@ -255,10 +258,21 @@ interface Props {
    */
   onFirstAnswer?: () => void;
   /**
-   * Leaves Test Mode. The card area returns to whichever of List or Flip the
-   * user was on, because that mode was never navigated away from.
+   * One graded card, at the moment it was graded.
+   *
+   * Called only after a result is chosen — never for opening the mode, turning
+   * a card over, or walking out part-way through — and once per card per pass,
+   * so the same word answered again in a later pass counts again.
    */
-  onClose: () => void;
+  onAnswerRecorded?: (answeredAt: number) => void;
+  /** The durable study record shown by the analytics view. */
+  studyLog?: StudyLog;
+  /** Whether the parent-owned Test Mode analytics view is covering the card. */
+  analyticsOpen: boolean;
+  /** Dismisses analytics without changing any part of the current test session. */
+  onCloseAnalytics: () => void;
+  /** Opens analytics as a view over the current session, without changing it. */
+  onOpenAnalytics: () => void;
   pal: Palette;
   themeColor: string;
   /** The plan includes High-Quality AI Voice — Premium only. */
@@ -277,12 +291,14 @@ interface Props {
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onClose, pal, themeColor, canUseAIVoice, canUseCustomVoice = false, canHideWord = false, onCustomVoiceLocked, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, pal, themeColor, canUseAIVoice, canUseCustomVoice = false, canHideWord = false, onCustomVoiceLocked, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
 
+  // The same rule the grey chip counts with, so the number on that chip is the
+  // number of cards this queue is built from rather than a second opinion.
   const [queue, setQueue] = useState<WordCard[]>(() => {
     const now = appNow();
-    return cards.filter(c => !c.testMastered && (!c.testNextReview || c.testNextReview <= now));
+    return cards.filter(c => isCardDueForTest(c, now));
   });
 
   const [idx,         setIdx]         = useState(0);
@@ -304,6 +320,10 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   // idx stays at 0 (e.g., after Shuffle / Reset from the first card).
   const [sessionKey,  setSessionKey]  = useState(0);
   const [infoVisible, setInfoVisible] = useState(false);
+  // The parent owns durable persistence. This local mirror is advanced in the
+  // same answer event so the completion screen cannot render one answer behind
+  // while React is still delivering the updated prop back down.
+  const [sessionStudyLog, setSessionStudyLog] = useState<StudyLog>(studyLog);
 
   const flipAnim    = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -311,11 +331,18 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   const cardScale   = useRef(new Animated.Value(1)).current;
   const cardLift    = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReduceMotion();
-
   const total  = queue.length;
   const active = idx >= 0 && idx < total;
   const done   = idx >= total;
   const card   = active ? queue[idx] : null;
+  /**
+   * The session ran and every card in it was answered.
+   *
+   * The completed queue and an initially empty queue share the same analytics
+   * screen. `analyticsOpen` reaches that screen without changing `done`, so a
+   * test paused to inspect analytics remains resumable.
+   */
+  const showAnalytics = done || analyticsOpen;
 
   // ── Voice playback ────────────────────────────────────────────────────────
   // The same hook the Flip screen uses, so the icon here shares its audio source,
@@ -364,13 +391,14 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     setQueue(newQueue);
     setIdx(0);
     setSessionKey(k => k + 1);
+    onCloseAnalytics();
     // A restart is a fresh pass over the queue, so every card is answerable
     // again. Without this, Shuffle and Reset left the already-answered IDs in
     // place and the next tap on any of those cards was silently swallowed by
     // the double-tap guard: the card animated away but was never graded, so no
     // hiddenUntil was written and it stayed in the word list.
     gradedIdsRef.current = new Set();
-  }, [flipAnim, cardOpacity, cardScale, cardLift]);
+  }, [flipAnim, cardOpacity, cardScale, cardLift, onCloseAnalytics]);
 
   const handleShuffle = () => restart(shuffle([...queue]));
 
@@ -453,14 +481,20 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     gradedIdsRef.current.add(card.id);
     stopVoice();
 
+    // Grading writes absolute timestamps. The development visibility offset must
+    // never be persisted into reviewHistory, testNextReview, hiddenUntil — or
+    // the study record, which is why this is the real clock and not appNow().
+    const answeredAt = Date.now();
     const outcome = gradeCard(card, kind, {
-      // Grading writes absolute timestamps. The development visibility offset
-      // must never be persisted into reviewHistory, testNextReview or hiddenUntil.
-      now: Date.now(),
+      now: answeredAt,
       syncTestResults: SYNC_WITH_TEST_RESULTS_ENABLED,
     });
     if (outcome.action === 'delete') onDeleteCard(card.id);
     else onUpdateCard(card.id, outcome.patch);
+    // After the result, and after it has been applied: an answer is recorded
+    // because one was given, not because the screen was opened.
+    setSessionStudyLog(log => recordAnswer(log, answeredAt));
+    onAnswerRecorded?.(answeredAt);
 
     // Perfect removes the card from the test — deleted outright with "Sync with
     // test results" on, mastered and out of the queue with it off — so the card
@@ -501,7 +535,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
       }).start();
     });
   }, [
-    card, onUpdateCard, onDeleteCard, onFirstAnswer,
+    card, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded,
     flipAnim, cardOpacity, cardScale, cardLift, reduceMotion,
   ]);
 
@@ -513,7 +547,6 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   // progress bar.
 
   const bottomPad = 16;
-
   return (
     <View style={s.root}>
 
@@ -525,35 +558,50 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
       )}
 
       {/* Main content */}
-      {done ? (
-        /* ── Completion / empty state ──────────────────────────────────── */
-        <View style={s.center}>
-          <View style={[s.iconWrap, { backgroundColor: themeColor + '20' }]}>
-            <Ionicons
-              name={total === 0 ? 'checkmark-done-outline' : 'trophy-outline'}
-              size={48}
-              color={themeColor}
-            />
-          </View>
-          <Text style={[s.centerTitle, { color: pal.text }]}>
-            {t(total === 0 ? 'test_empty_title' : 'test_complete_title')}
-          </Text>
-          <Text style={[s.centerHint, { color: pal.sub }]}>
-            {t(total === 0 ? 'test_empty_hint' : 'test_complete_hint')}
-          </Text>
-          <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={onClose}>
-            <Text style={s.primaryBtnText}>{t('close')}</Text>
-          </TouchableOpacity>
-          {total === 0 && (
+      {showAnalytics ? (
+        /* The card branch is replaced directly, only after its answer and local
+           activity tally were applied. There is no intermediate empty card or
+           word-list empty state. A manually opened view leaves `idx`, `queue`,
+           `flipped` and every animation value untouched. */
+        <ScrollView
+          style={s.analyticsScroll}
+          contentContainerStyle={s.center}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {done ? (
+            <View style={s.completionSection} accessible accessibilityRole="text">
+              <View style={[s.completionIcon, { backgroundColor: themeColor + '20' }]}>
+                <Ionicons name="checkmark" size={34} color={themeColor} />
+              </View>
+              <Text style={[s.completionTitle, { color: pal.text }]} accessibilityRole="header">
+                {t('study_test_complete_title')}
+              </Text>
+              <Text style={[s.completionSubtitle, { color: pal.sub }]}>
+                {t('study_test_complete_subtitle')}
+              </Text>
+            </View>
+          ) : null}
+          <StudyAnalytics log={sessionStudyLog} now={Date.now()} pal={pal} themeColor={themeColor} />
+          <View style={[s.analyticsActions, done && s.completionActions]}>
+            {!done && (
+              <TouchableOpacity
+                style={[s.primaryBtn, { backgroundColor: themeColor }]}
+                onPress={onCloseAnalytics}
+              >
+                <Text style={s.primaryBtnText}>{t('study_back_to_test')}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={[s.secondaryBtn, { borderColor: pal.border }]}
+              style={s.secondaryBtn}
               onPress={handleReset}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="refresh-outline" size={16} color={pal.sub} />
+              <Ionicons name="refresh-outline" size={14} color={pal.sub} />
               <Text style={[s.secondaryBtnText, { color: pal.sub }]}>{t('test_reset')}</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        </ScrollView>
       ) : (
         /* ── Card area ─────────────────────────────────────────────────── */
         <View style={s.cardArea}>
@@ -562,10 +610,12 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
           <View style={s.toolbar}>
             <TouchableOpacity
               style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
-              onPress={handleReset}
+              onPress={onOpenAnalytics}
+              accessibilityRole="button"
+              accessibilityLabel={t('study_analytics_title')}
             >
-              <Ionicons name="refresh-outline" size={15} color={pal.text} />
-              <Text style={[s.toolBtnText, { color: pal.text }]}>{t('test_reset')}</Text>
+              <Ionicons name="stats-chart-outline" size={15} color={pal.text} />
+              <Text style={[s.toolBtnText, { color: pal.text }]}>{t('study_analytics_title')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
@@ -583,17 +633,16 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                 },
               ]}
               onPress={handleMuteToggle}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel={t('test_mute')}
             >
               <Ionicons
                 name="volume-mute-outline"
                 size={15}
                 color={muted ? themeColor : pal.text}
               />
-              <Text style={[s.toolBtnText, { color: muted ? themeColor : pal.text }]}>{t('test_mute')}</Text>
             </TouchableOpacity>
-            {/* Immediately to the right of Mute, and in the same row, so both
-                stay reachable for the whole test. Same action as before — it
-                opens the grading-results popup. */}
             <TouchableOpacity
               onPress={() => setInfoVisible(true)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -694,7 +743,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
       )}
 
       {/* Answer buttons — revealed after first flip */}
-      {!done && (
+      {!done && !analyticsOpen && (
         <View
           style={[s.answerRow, { paddingBottom: bottomPad, opacity: backPlayed ? 1 : 0 }]}
           pointerEvents={backPlayed ? 'auto' : 'none'}
@@ -756,10 +805,10 @@ const s = StyleSheet.create({
     paddingTop: 14,
   },
 
-  // Always-visible toolbar: Reset, Shuffle, Mute, Info
+  // Always-visible toolbar: Analytics, Shuffle, Mute, Info
   toolbar: {
     flexDirection: 'row',
-    // A fourth control now shares the row, and the three labels are translated.
+    // Four controls share the row, and the three labels are translated.
     // Wrapping keeps every one of them reachable on a narrow phone in any
     // language, rather than pushing Info off the edge.
     flexWrap: 'wrap',
@@ -861,57 +910,78 @@ const s = StyleSheet.create({
     opacity: 0.75,
   },
 
-  // Completion / empty screen
+  // Completion / analytics screen
+  analyticsScroll: { flex: 1 },
   center: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingVertical: 24,
   },
-  iconWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
+  completionSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 26,
+  },
+  completionIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
-  centerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+  completionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 6,
   },
-  centerHint: {
-    fontSize: 15,
+  completionSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
+    marginTop: 6,
   },
+  // Manual analytics stacks Back above the compact, left-aligned Reset.
+  analyticsActions: {
+    width: '100%',
+    marginTop: 48,
+    minHeight: 44,
+    alignItems: 'center',
+    gap: 14,
+  },
+  // Completion has no Back button and retains its existing far-left Reset.
+  completionActions: {
+    alignItems: 'flex-start',
+  },
+  // Back is used only for manually opened analytics and spans the available
+  // action width above Reset.
   primaryBtn: {
     width: '100%',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 14,
+    paddingVertical: 13,
+    borderRadius: 12,
   },
   primaryBtnText: {
     color: '#fff',
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
   },
   secondaryBtn: {
-    width: '100%',
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginTop: 12,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    // Reset is intentionally quieter than the primary Back action.
+    backgroundColor: 'transparent',
   },
   secondaryBtnText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
   },
 });
