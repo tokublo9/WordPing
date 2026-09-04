@@ -982,7 +982,7 @@ const ja: Dict = {
   voice_credits_upgrade:  'プレミアムにアップグレード',
   voice_credits_use_free: '無料の音声を使う',
 
-  app_name:          'ワードピング',
+  app_name:          'ワードコア',
   settings:          '設定',
   theme_color:       'テーマカラー',
   appearance:        '外観',
@@ -1411,7 +1411,7 @@ const ja: Dict = {
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
 const ko: Dict = {
-  app_name:          '워드핑',
+  app_name:          '워드코어',
   settings:          '설정',
   theme_color:       '테마 색상',
   appearance:        '디스플레이',
@@ -1737,7 +1737,7 @@ const ko: Dict = {
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
 const zhCN: Dict = {
-  app_name:          '单词Ping',
+  app_name:          'WordCore',
   settings:          '设置',
   theme_color:       '主题颜色',
   appearance:        '外观',
@@ -2063,7 +2063,7 @@ const zhCN: Dict = {
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
 const es: Dict = {
-  app_name:          'PalabraPing',
+  app_name:          'WordCore',
   settings:          'Ajustes',
   theme_color:       'Color de tema',
   appearance:        'Apariencia',
@@ -2389,7 +2389,7 @@ const es: Dict = {
 
 // ── French ─────────────────────────────────────────────────────────────────────
 const fr: Dict = {
-  app_name:          'MotPing',
+  app_name:          'WordCore',
   settings:          'Paramètres',
   theme_color:       'Couleur du thème',
   appearance:        'Apparence',
@@ -2715,7 +2715,7 @@ const fr: Dict = {
 
 // ── German ─────────────────────────────────────────────────────────────────────
 const de: Dict = {
-  app_name:          'WortPing',
+  app_name:          'WordCore',
   settings:          'Einstellungen',
   theme_color:       'Designfarbe',
   appearance:        'Erscheinungsbild',
@@ -3041,7 +3041,7 @@ const de: Dict = {
 
 // ── Italian ────────────────────────────────────────────────────────────────────
 const it: Dict = {
-  app_name:          'ParolaPing',
+  app_name:          'WordCore',
   settings:          'Impostazioni',
   theme_color:       'Colore del tema',
   appearance:        'Aspetto',
@@ -3367,7 +3367,7 @@ const it: Dict = {
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
 const ptBR: Dict = {
-  app_name:          'PalavraPing',
+  app_name:          'WordCore',
   settings:          'Configurações',
   theme_color:       'Cor do tema',
   appearance:        'Aparência',
@@ -3693,7 +3693,7 @@ const ptBR: Dict = {
 
 // ── Russian ────────────────────────────────────────────────────────────────────
 const ru: Dict = {
-  app_name: 'ВордПинг',
+  app_name: 'ВордКор',
   settings: 'Настройки', theme_color: 'Цвет темы', appearance: 'Внешний вид',
   mode_light: 'Светлый', mode_dark: 'Тёмный', mode_system: 'Системный',
   remove_ads: 'Убрать рекламу', language: 'Язык',
@@ -3883,7 +3883,7 @@ const ru: Dict = {
 
 // ── Arabic ─────────────────────────────────────────────────────────────────────
 const ar: Dict = {
-  app_name: 'وورد بينغ',
+  app_name: 'وورد كور',
   settings: 'الإعدادات', theme_color: 'لون السمة', appearance: 'المظهر',
   mode_light: 'فاتح', mode_dark: 'داكن', mode_system: 'النظام',
   remove_ads: 'إزالة الإعلانات', language: 'اللغة',
@@ -4074,7 +4074,7 @@ const ar: Dict = {
 
 // ── Hindi ──────────────────────────────────────────────────────────────────────
 const hi: Dict = {
-  app_name: 'वर्डपिंग',
+  app_name: 'वर्डकोर',
   settings: 'सेटिंग्स', theme_color: 'थीम रंग', appearance: 'दिखावट',
   mode_light: 'लाइट', mode_dark: 'डार्क', mode_system: 'सिस्टम',
   remove_ads: 'विज्ञापन हटाएं', language: 'भाषा',
@@ -4265,7 +4265,7 @@ const hi: Dict = {
 
 // ── Turkish ────────────────────────────────────────────────────────────────────
 const tr: Dict = {
-  app_name: 'KelimePing',
+  app_name: 'WordCore',
   settings: 'Ayarlar', theme_color: 'Tema Rengi', appearance: 'Görünüm',
   mode_light: 'Açık', mode_dark: 'Koyu', mode_system: 'Sistem',
   remove_ads: 'Reklamları Kaldır', language: 'Dil',
@@ -4456,7 +4456,7 @@ const tr: Dict = {
 
 // ── Dutch ──────────────────────────────────────────────────────────────────────
 const nl: Dict = {
-  app_name: 'WoordPing',
+  app_name: 'WordCore',
   settings: 'Instellingen', theme_color: 'Themakleur', appearance: 'Weergave',
   mode_light: 'Licht', mode_dark: 'Donker', mode_system: 'Systeem',
   remove_ads: 'Advertenties verwijderen', language: 'Taal',
@@ -4647,7 +4647,7 @@ const nl: Dict = {
 
 // ── Vietnamese ────────────────────────────────────────────────────────────────
 const vi: Dict = {
-  app_name: 'TừPing',
+  app_name: 'WordCore',
   settings: 'Cài đặt', theme_color: 'Màu chủ đề', appearance: 'Giao diện',
   mode_light: 'Sáng', mode_dark: 'Tối', mode_system: 'Hệ thống',
   remove_ads: 'Xóa quảng cáo', language: 'Ngôn ngữ',
@@ -4837,7 +4837,7 @@ const vi: Dict = {
 
 // ── Thai ───────────────────────────────────────────────────────────────────────
 const th: Dict = {
-  app_name: 'เวิร์ดพิง',
+  app_name: 'เวิร์ดคอร์',
   settings: 'การตั้งค่า', theme_color: 'สีธีม', appearance: 'รูปแบบ',
   mode_light: 'สว่าง', mode_dark: 'มืด', mode_system: 'ระบบ',
   remove_ads: 'ลบโฆษณา', language: 'ภาษา',
@@ -5027,7 +5027,7 @@ const th: Dict = {
 
 // ── Indonesian ─────────────────────────────────────────────────────────────────
 const id: Dict = {
-  app_name: 'KataPing',
+  app_name: 'WordCore',
   settings: 'Pengaturan', theme_color: 'Warna Tema', appearance: 'Tampilan',
   mode_light: 'Terang', mode_dark: 'Gelap', mode_system: 'Sistem',
   remove_ads: 'Hapus Iklan', language: 'Bahasa',
@@ -5217,7 +5217,7 @@ const id: Dict = {
 
 // ── Polish ─────────────────────────────────────────────────────────────────────
 const pl: Dict = {
-  app_name: 'SłowoPing',
+  app_name: 'WordCore',
   settings: 'Ustawienia', theme_color: 'Kolor motywu', appearance: 'Wygląd',
   mode_light: 'Jasny', mode_dark: 'Ciemny', mode_system: 'Systemowy',
   remove_ads: 'Usuń reklamy', language: 'Język',
@@ -5407,7 +5407,7 @@ const pl: Dict = {
 
 // ── Greek ──────────────────────────────────────────────────────────────────────
 const el: Dict = {
-  app_name: 'ΛέξηPing',
+  app_name: 'WordCore',
   settings: 'Ρυθμίσεις', theme_color: 'Χρώμα θέματος', appearance: 'Εμφάνιση',
   mode_light: 'Φωτεινό', mode_dark: 'Σκοτεινό', mode_system: 'Σύστημα',
   remove_ads: 'Κατάργηση διαφημίσεων', language: 'Γλώσσα',
@@ -5597,7 +5597,7 @@ const el: Dict = {
 
 // ── Swedish ────────────────────────────────────────────────────────────────────
 const sv: Dict = {
-  app_name: 'OrdPing',
+  app_name: 'WordCore',
   settings: 'Inställningar', theme_color: 'Temafärg', appearance: 'Utseende',
   mode_light: 'Ljust', mode_dark: 'Mörkt', mode_system: 'System',
   remove_ads: 'Ta bort annonser', language: 'Språk',
