@@ -850,139 +850,30 @@ test('every new string ships in English and Japanese', () => {
   assert.match(i18n, /result_filter_got_it:  'わかりました'/u);
 });
 
-// ── TEMPORARY: Subscription Diagnostics ──────────────────────────────────────
-// Delete this block together with the feature. See SUBSCRIPTION_DIAGNOSTICS_ENABLED.
+test('Settings has no Subscription Diagnostics UI or hidden entry point', () => {
+  assert.equal(fs.existsSync('src/components/SubscriptionDiagnosticsSheet.tsx'), false);
 
-test('Subscription Diagnostics is read-only and leaks no credential', () => {
-  const sheet = read('src/components/SubscriptionDiagnosticsSheet.tsx');
-
-  // It reads two RevenueCat getters and calls nothing that could change a plan.
-  assert.match(sheet, /Purchases\.getAppUserID\(\)/u);
-  assert.match(sheet, /Purchases\.getCustomerInfo\(\)/u);
-  for (const mutator of [
-    'purchasePackage', 'purchaseProduct', 'restorePurchases', 'syncPurchases',
-    'logIn', 'logOut', 'setAttributes', 'configure',
+  for (const path of [
+    'App.tsx',
+    'src/app/AppModals.tsx',
+    'src/components/SettingsModal.tsx',
+    'src/features/flags.ts',
+    'src/i18n.ts',
   ]) {
-    assert.doesNotMatch(
-      sheet,
-      new RegExp(`Purchases\\.${mutator}\\b`, 'u'),
-      `diagnostics must not call ${mutator}`,
-    );
-  }
-  // It cannot reach the app's own subscription actions either.
-  assert.doesNotMatch(sheet, /useSubscription|subscribePremium|setPlan|unsubscribe/u);
-
-  // Entitlement identifiers only — never the objects that carry receipts.
-  assert.match(sheet, /Object\.keys\(info\.entitlements\.active\)/u);
-  // Checked against the code alone: the comments deliberately name these terms
-  // to say they are excluded, and must not fail the very rule they document.
-  const code = sheet
-    .replace(/\/\*[\s\S]*?\*\//gu, '')
-    .replace(/^\s*\/\/.*$/gmu, '');
-  // The entitlement object carries these alongside the fields we do read.
-  // `productIdentifier` is deliberately not on this list — it is the SKU, and
-  // it is one of the values the panel exists to report.
-  assert.doesNotMatch(
-    code,
-    /receipt|verification|originalPurchaseDate|latestPurchaseDate|\btoken\b|nonSubscriptionTransactions/iu,
-    'no receipt, transaction or verification payload may be shown',
-  );
-  // The manage-subscription link is reported as present or absent, never as a URL.
-  assert.match(code, /hasManagementUrl: info\.managementURL !== null/u);
-  assert.doesNotMatch(code, /value=\{[^}]*managementURL/u);
-
-  // The SDK key is read, but only ever to describe itself. Every value derived
-  // from it is a slice or a length — the string itself is never put in state
-  // and never rendered, so the panel cannot leak a usable key.
-  const describe = code.slice(code.indexOf('function describeKey'), code.indexOf('type State ='));
-  assert.match(describe, /apiKey\.slice\(0, 9\)/u);
-  assert.match(describe, /apiKey\.slice\(-4\)/u);
-  assert.match(describe, /keyLength: apiKey\.length/u);
-  // Every value it returns is derived. Strip the three permitted forms — a
-  // slice, a length, and the emptiness test — and no mention of the key should
-  // remain, so none of them can be the key itself.
-  const returned = describe.slice(describe.indexOf('return {'));
-  const derivedOnly = returned
-    .replace(/apiKey\.slice\([^)]*\)/gu, '')
-    .replace(/apiKey\.length/gu, '')
-    .replace(/apiKey === ''/gu, '');
-  assert.doesNotMatch(derivedOnly, /\bapiKey\b/u, 'the raw key must never be returned');
-  // Every mention of the key in the whole file is inside describeKey. The call
-  // site passes the env var straight in, so nothing else ever holds it.
-  assert.equal(
-    (code.match(/\bapiKey\b/gu) ?? []).length,
-    (describe.match(/\bapiKey\b/gu) ?? []).length,
-    'the key must never be referenced outside describeKey',
-  );
-  assert.match(code, /\.\.\.describeKey\(process\.env\.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY \?\? ''\)/u);
-});
-
-test('Subscription Diagnostics reports the canonical customer and its purchase', () => {
-  const sheet = read('src/components/SubscriptionDiagnosticsSheet.tsx');
-
-  // A transferred receipt leaves the device on an alias, and a dashboard search
-  // for the current ID then finds nothing — so the original is shown too, with
-  // its own Copy button and an explicit ALIASED callout when they differ.
-  assert.match(sheet, /originalAppUserId: info\.originalAppUserId/u);
-  assert.match(sheet, /isAliased: info\.originalAppUserId !== appUserId/u);
-  assert.match(sheet, /ALIASED — search the dashboard for the original ID/u);
-  assert.equal((sheet.match(/<CopyButton/gu) ?? []).length, 2);
-
-  // The purchase, reduced to what identifies it.
-  for (const field of [
-    'productIdentifier: premiumInfo.productIdentifier',
-    'premiumInfo.isSandbox',
-    'expirationDate: premiumInfo.expirationDate',
-    'willRenew: premiumInfo.willRenew',
-    'periodType: premiumInfo.periodType',
-  ]) {
-    assert.ok(sheet.includes(field), `missing ${field}`);
-  }
-  // Read from the premium entitlement by its shared identifier, not a literal.
-  assert.match(sheet, /info\.entitlements\.active\[ENTITLEMENT_IDS\.PREMIUM\]/u);
-  // Absent premium is a stated result, not a crash or a blank.
-  assert.match(sheet, /premium === null \? \(\s*<Field label="Premium" value="not active"/u);
-});
-
-test('Subscription Diagnostics is hidden behind a long press and one flag', () => {
-  const settings = read('src/components/SettingsModal.tsx');
-
-  // No visible affordance: the version row is not tappable, only holdable.
-  assert.match(
-    settings,
-    /label=\{t\('app_version'\)\}\s*value=\{APP_VERSION\} pal=\{pal\}\s*\{\.\.\.\(SUBSCRIPTION_DIAGNOSTICS_ENABLED\s*\? \{ onLongPress: \(\) => setDiagnosticsVisible\(true\) \}\s*: null\)\}/u,
-  );
-  assert.match(settings, /delayLongPress=\{800\}/u);
-  assert.match(settings, /\{SUBSCRIPTION_DIAGNOSTICS_ENABLED && \(\s*<SubscriptionDiagnosticsSheet/u);
-
-  // Labelled exactly as required.
-  assert.match(read('src/components/SubscriptionDiagnosticsSheet.tsx'), /Subscription Diagnostics/u);
-});
-
-test('Subscription Diagnostics can be removed by deleting three things', () => {
-  const flags = read('src/features/flags.ts');
-  assert.match(flags, /export const SUBSCRIPTION_DIAGNOSTICS_ENABLED = true;/u);
-  assert.match(flags, /REMOVE BEFORE THE APP STORE SUBMISSION/u);
-
-  // Referenced only by the flag, its own component, SettingsModal and this test —
-  // so a stale reference cannot survive the deletion.
-  const referencing = [
-    'App.tsx', 'src/app/AppModals.tsx', 'src/hooks/useSubscription.ts',
-    'src/lib/purchases.ts', 'src/i18n.ts',
-  ];
-  for (const path of referencing) {
     assert.doesNotMatch(
       read(path),
-      /SUBSCRIPTION_DIAGNOSTICS_ENABLED|SubscriptionDiagnostics/u,
-      `${path} must not reference the temporary diagnostics`,
+      /SUBSCRIPTION_DIAGNOSTICS_ENABLED|SubscriptionDiagnostics|diagnosticsVisible/u,
+      `${path} must not retain diagnostics-only UI or navigation`,
     );
   }
-  // It owns no translation keys, so removal leaves no orphans behind.
-  assert.doesNotMatch(read('src/i18n.ts'), /diagnostics/iu);
+
+  const settings = read('src/components/SettingsModal.tsx');
+  assert.match(settings, /<SettingRow icon="information-circle-outline" label=\{t\('app_version'\)\}\s*value=\{APP_VERSION\} pal=\{pal\} \/>/u);
+  assert.doesNotMatch(settings, /delayLongPress|onLongPress/u);
 });
 
+
 // ── TEMPORARY: the Apple Sandbox build profile ───────────────────────────────
-// Delete alongside Subscription Diagnostics once sandbox testing is finished.
 
 test('the sandbox profile targets Apple Sandbox without disturbing the others', () => {
   const eas = JSON.parse(read('eas.json'));
@@ -1006,12 +897,8 @@ test('the sandbox profile targets Apple Sandbox without disturbing the others', 
   assert.ok(sandbox.env[RC].startsWith('appl_'), 'must be an App Store key');
   assert.ok(!sandbox.env[RC].startsWith('test_'), 'must not be the Test Store key');
 
-  // Marked in the build itself, so a tester can tell on-device.
+  // Marked in the build environment for profile-specific behavior.
   assert.equal(sandbox.env.EXPO_PUBLIC_BUILD_PROFILE, 'sandbox');
-  assert.match(
-    read('src/components/SubscriptionDiagnosticsSheet.tsx'),
-    /buildProfile: process\.env\.EXPO_PUBLIC_BUILD_PROFILE/u,
-  );
 
   // The other three are untouched: dev and preview keep the Test Store key,
   // production keeps store distribution and its auto-increment.

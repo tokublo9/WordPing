@@ -27,7 +27,7 @@ test('a word round-trips through every optional field', async () => {
   const db = await freshDatabase();
   const card: WordCard = {
     id: 'w1', createdAt: 42, word: 'run', meaning: 'move fast', note: 'irregular',
-    notifOff: true, folderId: 'f1', testMastered: true, testNextReview: 999,
+    notifCandidate: true, folderId: 'f1', testMastered: true, testNextReview: 999,
     testLevel: 'slightly', reviewHistory: [{ ts: 1, rating: 'unknown' }],
     wordLang: 'en-US', meaningLang: 'ja',
     audioUri: 'file:///a.mp3', audioSpeed: 0.75, audioVolume: 0.5,

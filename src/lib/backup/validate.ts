@@ -84,6 +84,9 @@ function parseFolders(raw: unknown[], errors: Errors): BackupFolder[] {
     if (entry.notifDisplayOnlyWord !== undefined && typeof entry.notifDisplayOnlyWord !== 'boolean') {
       errors.add(`${at}.notifDisplayOnlyWord must be a boolean`);
     }
+    if (entry.notifNotifyAllWords !== undefined && typeof entry.notifNotifyAllWords !== 'boolean') {
+      errors.add(`${at}.notifNotifyAllWords must be a boolean`);
+    }
     return errors.failed ? [] : [entry as unknown as BackupFolder];
   });
 }
@@ -118,6 +121,11 @@ function parseWords(raw: unknown[], errors: Errors): BackupWord[] {
     if (!finiteNumber(entry.position)) errors.add(`${at}.position must be a number`);
     if (!optional(entry.folderId, nonEmptyString)) errors.add(`${at}.folderId must be a string`);
     if (!optional(entry.createdAt, finiteNumber)) errors.add(`${at}.createdAt must be a number`);
+    // Both eras are legal: `notifOff` is the mute `notifCandidate` replaced, and
+    // a file still carrying it must import rather than be rejected.
+    if (entry.notifCandidate !== undefined && typeof entry.notifCandidate !== 'boolean') {
+      errors.add(`${at}.notifCandidate must be a boolean`);
+    }
     if (entry.notifOff !== undefined && typeof entry.notifOff !== 'boolean') {
       errors.add(`${at}.notifOff must be a boolean`);
     }

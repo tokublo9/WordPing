@@ -19,7 +19,7 @@ const FOLDERS: Folder[] = [
 const CARDS: WordCard[] = [
   {
     id: 'w-run', createdAt: 300, word: 'run', meaning: 'move fast', note: 'irregular',
-    folderId: 'f-verbs', wordLang: 'en-US', meaningLang: 'ja', notifOff: true,
+    folderId: 'f-verbs', wordLang: 'en-US', meaningLang: 'ja', notifCandidate: true,
     testLevel: 'good', testNextReview: 999, testMastered: true,
     reviewHistory: [{ ts: 1, rating: 'unknown' }, { ts: 2, rating: 'good' }],
     audioSpeed: 1.25, audioVolume: 0.8,

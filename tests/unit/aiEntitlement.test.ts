@@ -83,8 +83,8 @@ beforeEach(() => {
 // ── The rule comes from the existing entitlement configuration ───────────────
 
 test('eligibility is derived from the configured AI allowance, not a tier list', () => {
-  // A zero allowance is what makes a plan ineligible. Basic sits there with Free:
-  // it is a paying plan that buys Custom Voice for Words, not AI.
+  // A zero allowance is what makes a plan ineligible. Basic sits there with
+  // Free even though it is a paying plan.
   assert.equal(VOICE_MONTHLY_LIMITS.free, 0);
   assert.equal(VOICE_MONTHLY_LIMITS.basic, 0);
   assert.equal(planCanUseAI('free'), false);
@@ -99,7 +99,7 @@ test('2. nothing is eligible while the subscription state is still loading', () 
 
 test('1 & 3. only Premium is eligible; Free and Basic are not', () => {
   assert.equal(hasEligibleAIEntitlement(VERIFIED_FREE), false);
-  assert.equal(hasEligibleAIEntitlement(BASIC), false, 'Basic pays for Custom Voice, not AI');
+  assert.equal(hasEligibleAIEntitlement(BASIC), false, 'Basic does not include AI Voice');
   assert.equal(hasEligibleAIEntitlement(PREMIUM), true);
 });
 

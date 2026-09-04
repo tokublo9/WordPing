@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, WordCard } from '../../types';
 import { planFolderMove } from '../cards/duplicates';
 import { createId } from '../../utils/createId';
+import { createDefaultFolderNotifSettings } from '../notifications/defaultSettings';
 
 export interface UseFoldersParams {
   folders: Folder[];
@@ -92,7 +93,12 @@ export function useFolders({
         c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: surviving[0].id } : c
       ));
     } else {
-      const fallback: Folder = { id: createId('folder'), name: fallbackFolderName, createdAt: Date.now() };
+      const fallback: Folder = {
+        id: createId('folder'),
+        name: fallbackFolderName,
+        createdAt: Date.now(),
+        notifSettings: createDefaultFolderNotifSettings(),
+      };
       setFolders([fallback]);
       setCards(prev => prev.map(c =>
         c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: fallback.id } : c
@@ -102,7 +108,13 @@ export function useFolders({
   };
 
   const createFolder = (name: string, icon = 'folder-outline') => {
-    const folder: Folder = { id: createId('folder'), name, icon, createdAt: Date.now() };
+    const folder: Folder = {
+      id: createId('folder'),
+      name,
+      icon,
+      createdAt: Date.now(),
+      notifSettings: createDefaultFolderNotifSettings(),
+    };
     setFolders(prev => [...prev, folder]);
   };
 
@@ -112,7 +124,12 @@ export function useFolders({
       setFolders(remaining);
       setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: remaining[0].id } : c));
     } else {
-      const fallback: Folder = { id: createId('folder'), name: fallbackFolderName, createdAt: Date.now() };
+      const fallback: Folder = {
+        id: createId('folder'),
+        name: fallbackFolderName,
+        createdAt: Date.now(),
+        notifSettings: createDefaultFolderNotifSettings(),
+      };
       setFolders([fallback]);
       setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: fallback.id } : c));
     }

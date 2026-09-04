@@ -277,21 +277,11 @@ interface Props {
   themeColor: string;
   /** The plan includes High-Quality AI Voice — Premium only. */
   canUseAIVoice: boolean;
-  /** The plan includes Custom Voice for Words — Basic and Premium. */
-  canUseCustomVoice?: boolean;
-  /** The plan includes Hide Word — Basic only. */
-  canHideWord?: boolean;
-  /**
-   * The app-level "Custom Voice is locked" banner. Test Mode is part of the
-   * word-list screen now, so it shares that one banner instead of drawing a
-   * second copy of its own.
-   */
-  onCustomVoiceLocked?: () => void;
   explanationLang: string;
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, pal, themeColor, canUseAIVoice, canUseCustomVoice = false, canHideWord = false, onCustomVoiceLocked, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, pal, themeColor, canUseAIVoice, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
 
   // The same rule the grey chip counts with, so the number on that chip is the
@@ -346,13 +336,11 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
 
   // ── Voice playback ────────────────────────────────────────────────────────
   // The same hook the Flip screen uses, so the icon here shares its audio source,
-  // loading and playing states, toggle-to-stop behaviour, custom-voice lock and
-  // error alerts rather than reimplementing any of them.
+  // loading and playing states, toggle-to-stop behaviour and error alerts
+  // rather than reimplementing any of them.
   const { voiceState, playWord, playMeaning, stopVoice, wordVoiceSource } = useWordCardVoicePlayback({
     item: card,
     canUseAIVoice,
-    canUseCustomVoice,
-    onCustomVoiceLocked,
   });
 
   // ── Auto-play word when a new card (or new session) becomes active ────────
@@ -364,9 +352,9 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     const current = queue[idx];
     if (!current?.word || muted) return;
     // Same action as tapping the icon, so the icon shows the loading and playing
-    // states for automatic playback too. The lock case is handled inside it.
+    // states for automatic playback too.
     void playWord();
-  }, [idx, sessionKey, mutedLoaded, canUseAIVoice, canUseCustomVoice]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idx, sessionKey, mutedLoaded, canUseAIVoice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Flip animation interpolations ────────────────────────────────────────
 
@@ -698,7 +686,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         `selectableText` flag above is what stops the same hold
                         also flipping the card away from the selection. The answer
                         buttons are separate views a selection cannot reach. */}
-                    {isWordTextHidden(card, canHideWord)
+                    {isWordTextHidden(card)
                       ? <HiddenWordIcon color={pal.text} />
                       : <Text selectable style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>}
                   </CardScrollFace>

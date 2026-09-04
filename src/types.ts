@@ -1,6 +1,15 @@
 export interface FolderNotifSettings {
   intervalSeconds: number;  // 0 = off
   displayOnlyWord: boolean;
+  /**
+   * "Notify All Words" — ignore the candidate list for this folder.
+   *
+   * Off by default and absent on every folder that has not turned it on, so
+   * notifications draw from the words the user picked and nothing else. On, the
+   * whole folder is eligible. Per folder, like the interval and the content
+   * preference beside it.
+   */
+  notifyAllWords?: boolean;
 }
 
 export interface Folder {
@@ -25,7 +34,17 @@ export interface WordCard {
   word: string;
   meaning: string;
   note: string;
-  notifOff?: boolean;
+  /**
+   * The user put this word on its folder's notification list.
+   *
+   * Opt-in, and the only per-word notification state there is: it replaced the
+   * old `notifOff` mute, which said the opposite and would otherwise have been
+   * a second, silent veto over a word the user had just added. Absent means not
+   * a candidate, so a newly registered word notifies nothing until it is added.
+   * Set from the Add/Edit sheet, Flip Mode and the selection bar; read only by
+   * the scheduler.
+   */
+  notifCandidate?: boolean;
   folderId?: string;
   testMastered?: boolean;
   testNextReview?: number; // Unix ms; if set and > appNow(), skip in test queue
@@ -48,7 +67,7 @@ export interface WordCard {
    * button and every other control stay exactly where they were.
    */
   hideWord?: boolean;
-  audioUri?: string;    // local file URI of a user-attached MP3 (Basic plan only)
+  audioUri?: string;    // local file URI of user-attached audio (available on every plan)
   audioSpeed?: number;  // playback rate, e.g. 0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0 (default 1.0)
   audioVolume?: number; // playback volume 0.0–1.0 (default 1.0)
 }

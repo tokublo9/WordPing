@@ -19,7 +19,7 @@ import type { PlanTier } from '../../src/lib/planLimits';
  */
 
 const ALL = Object.values(FEATURE_MARKERS);
-/** What any paid plan unlocks: the Theme Shop and the custom-audio control. */
+/** What any paid plan unlocks in addition to Free's Custom Voice marker. */
 const BASIC_SET = [
   FEATURE_MARKERS.themeShop,
   FEATURE_MARKERS.customAudio,
@@ -35,8 +35,8 @@ function visible(plan: PlanTier, seen: string[] = [], isSubscriptionLoaded = tru
     shouldShowFeatureMarker({ marker, plan, isSubscriptionLoaded, seen: new Set(seen) }));
 }
 
-test('20. a Free user sees none of the subscribed-feature markers', () => {
-  assert.deepEqual(visible('free'), []);
+test('20. a Free user can discover the Custom Voice control', () => {
+  assert.deepEqual(visible('free'), [FEATURE_MARKERS.customAudio]);
 });
 
 test('21. nothing is marked while the subscription state is unknown', () => {
@@ -57,11 +57,12 @@ test('16. Premium receives those plus both AI Voice surfaces', () => {
 });
 
 test('the plan requirement comes from each feature rule, not a tier list', () => {
-  for (const marker of BASIC_SET) {
-    assert.equal(planUnlocksFeature(marker, 'free'), false);
-    assert.equal(planUnlocksFeature(marker, 'basic'), true);
-    assert.equal(planUnlocksFeature(marker, 'premium'), true);
-  }
+  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'free'), true);
+  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'basic'), true);
+  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'premium'), true);
+  assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'free'), false);
+  assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'basic'), true);
+  assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'premium'), true);
   for (const marker of PREMIUM_ONLY) {
     assert.equal(planUnlocksFeature(marker, 'free'), false);
     assert.equal(planUnlocksFeature(marker, 'basic'), false, `${marker} follows AI Voice`);
@@ -103,7 +104,7 @@ test('17. a Basic user upgrading to Premium keeps what they already found', () =
 
 test('22. a downgrade hides inaccessible markers without erasing history', () => {
   const seen = [FEATURE_MARKERS.themeShop];
-  assert.deepEqual(visible('free', seen), [], 'nothing is offered on Free');
+  assert.deepEqual(visible('free', seen), [FEATURE_MARKERS.customAudio]);
   // The set itself is untouched — hiding is by entitlement, not by forgetting.
   assert.deepEqual([...markFeatureSeen(new Set(seen), FEATURE_MARKERS.themeShop)], seen);
 });

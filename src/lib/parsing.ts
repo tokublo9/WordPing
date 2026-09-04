@@ -36,7 +36,16 @@ export function parseCard(value: unknown): WordCard | null {
   if (typeof c.createdAt === 'number' && Number.isFinite(c.createdAt) && c.createdAt >= 0) {
     card.createdAt = c.createdAt;
   }
-  if (typeof c.notifOff === 'boolean') card.notifOff = c.notifOff;
+  // Every record this parser sees was written by the AsyncStorage era, where the
+  // only per-word notification state was `notifOff` — the mute `notifCandidate`
+  // replaced. It converts the way schema migration 4 did: a word that was not
+  // muted was notifying, so it joins the notification list rather than dropping
+  // off it. Absent counts as not muted, which is what the old app meant by it.
+  // Set only when true, so a word that stays off the list gains no field.
+  const wasNotifying = typeof c.notifCandidate === 'boolean'
+    ? c.notifCandidate
+    : c.notifOff !== true;
+  if (wasNotifying) card.notifCandidate = true;
   if (typeof c.folderId === 'string') card.folderId = c.folderId;
   if (typeof c.testMastered === 'boolean') card.testMastered = c.testMastered;
   if (typeof c.testNextReview === 'number' && Number.isFinite(c.testNextReview)) {
@@ -91,6 +100,9 @@ export function parseFolder(value: unknown): Folder | null {
         intervalSeconds: Math.max(0, settings.intervalSeconds),
         displayOnlyWord: settings.displayOnlyWord,
       };
+      // Absent in every legacy record, which reads as off — the candidate list
+      // applies. Set only when on, matching how the database reads it back.
+      if (settings.notifyAllWords === true) folder.notifSettings.notifyAllWords = true;
     }
   }
   return folder;

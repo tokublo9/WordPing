@@ -35,9 +35,9 @@ test('1. a first Premium purchase offers consent once the sheet has closed', () 
 });
 
 test('2. a Basic purchase offers nothing, because Basic shares nothing', () => {
-  // Basic buys Custom Voice for Words — a local audio file that reaches no
-  // network — so a completed Basic purchase has no data sharing to permit and
-  // must not raise the dialog. Upgrading to Premium is what asks.
+  // Basic unlocks no server-backed AI feature, so a completed Basic purchase
+  // has no data sharing to permit and must not raise the dialog. Upgrading to
+  // Premium is what asks.
   assert.equal(
     shouldPromptConsentAfterSubscription({ ...AFTER_PURCHASE, plan: 'basic' }),
     false,

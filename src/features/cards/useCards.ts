@@ -50,7 +50,8 @@ export interface UseCardsReturn {
   deleteSelected(): void;
   /** Deletes a set of words outright. The one delete path every surface uses. */
   deleteCards(ids: readonly string[]): void;
-  setNotifForSelected(notifOff: boolean): void;
+  /** Adds or removes every selected word from the notification list. */
+  setNotifCandidateForSelected(candidate: boolean): void;
   // Reorder
   reorderMode: boolean;
   reorderSortDir: 'registration' | 'random' | null;
@@ -119,7 +120,9 @@ export interface UseCardsReturn {
   saveCard(): void;
   bulkImportCards(drafts: readonly BulkImportDraft[], destinationFolderId: string): BulkImportResult;
   deleteCard(id: string): void;
+  /** Flips one word's place on its folder's notification list. */
   toggleCardNotif(id: string): void;
+  toggleCardHideWord(id: string): void;
   // Test mode
   testModeVisible: boolean;
   setTestModeVisible: Dispatch<SetStateAction<boolean>>;
@@ -312,8 +315,8 @@ export function useCards({
     exitSelectionMode();
   };
 
-  const setNotifForSelected = (notifOff: boolean) => {
-    setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, notifOff } : c));
+  const setNotifCandidateForSelected = (candidate: boolean) => {
+    setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, notifCandidate: candidate } : c));
     exitSelectionMode();
   };
 
@@ -539,15 +542,33 @@ export function useCards({
 
   const deleteCard = (id: string) => deleteCards([id]);
 
+  /**
+   * Adds the word to its folder's notification list, or takes it off.
+   *
+   * Writes `notifCandidate` and nothing else, so eligibility never disturbs a
+   * grade, a review interval or Hide Front Word. Applied to the live card
+   * immediately — the Add/Edit sheet's action is not staged behind Save.
+   */
   const toggleCardNotif = (id: string) => {
-    setCards(prev => prev.map(c => c.id === id ? { ...c, notifOff: !c.notifOff } : c));
+    setCards(prev => prev.map(c => c.id === id ? { ...c, notifCandidate: !c.notifCandidate } : c));
+  };
+
+  /**
+   * Flips one word's Hide Front Word setting.
+   *
+   * The same stored `hideWord` flag the editor writes, so List, Flip and Test
+   * all follow from the one card update and persist through the ordinary
+   * snapshot — there is no second state to keep in step.
+   */
+  const toggleCardHideWord = (id: string) => {
+    setCards(prev => prev.map(c => c.id === id ? { ...c, hideWord: !c.hideWord } : c));
   };
 
   return {
     flipped, toggleFlip,
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, deleteCards,
-    setNotifForSelected,
+    setNotifCandidateForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
     handleRegistrationOrder, handleRandomOrder,
@@ -568,7 +589,7 @@ export function useCards({
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
     reviewHistory, testClearPending, resetWordReview,
-    openAdd, openEdit, saveCard, bulkImportCards, deleteCard, toggleCardNotif,
+    openAdd, openEdit, saveCard, bulkImportCards, deleteCard, toggleCardNotif, toggleCardHideWord,
     testModeVisible, setTestModeVisible,
   };
 }

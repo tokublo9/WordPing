@@ -5,16 +5,11 @@ import {
   Animated,
   Dimensions,
   InteractionManager,
-  PanResponder,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { reloadLocalData, WELCOME_FOLDER_ID } from './src/lib/db';
+import { reloadLocalData, TIPS_FOLDER_ID, WELCOME_FOLDER_ID } from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, WordCard } from './src/types';
@@ -33,8 +28,6 @@ import {
   planCanUseAI,
   setAIEntitlementSnapshot,
 } from './src/lib/aiEntitlement';
-import { canUseCustomVoice as planAllowsCustomVoice } from './src/features/voice/customVoiceAccess';
-import { canUseHideWord as planAllowsHideWord } from './src/features/cards/hideWordAccess';
 import { ResultFilterTutorial } from './src/components/ResultFilterTutorial';
 import { useFeatureDiscovery } from './src/hooks/useFeatureDiscovery';
 import {
@@ -53,7 +46,7 @@ import { AppOverlays } from './src/app/AppOverlays';
 import { useCards } from './src/features/cards/useCards';
 import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScreen';
 import { WordListScreen } from './src/screens/WordListScreen/WordListScreen';
-import { WELCOME_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
+import { WELCOME_FOLDER_NAMES, TIPS_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcomeCards } from './src/features/onboarding/welcomeContent';
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
@@ -220,14 +213,9 @@ export default function App() {
     [entitlementSource, isSubscriptionLoaded, plan],
   );
   const canUseAI = hasEligibleAIEntitlement(aiEntitlement);
-  // The two voice features, resolved once and passed down as capabilities rather
-  // than as a plan name. They are deliberately different plans: High-Quality AI
-  // Voice is Premium, Custom Voice for Words is any paid plan. Passing
-  // `isSubscribed` to a voice surface is what used to conflate them.
+  // High-Quality AI Voice remains entitlement-gated. Custom Voice and Hide Word
+  // are local features available on every plan and need no capability state.
   const canUseAIVoice = canUseAI;
-  const canUseCustomVoice = planAllowsCustomVoice({ isSubscribed, isSubscriptionLoaded });
-  // Basic only, and not a ladder — so it takes the tier, not `isSubscribed`.
-  const canHideWord = planAllowsHideWord({ plan, isSubscriptionLoaded });
   const discovery = useFeatureDiscovery({ plan, isSubscriptionLoaded });
 
   useEffect(() => {
@@ -272,12 +260,6 @@ export default function App() {
     hasSeenResultFilterTutorial: resultFilterTutorialSeen,
   });
 
-  // ── Custom voice locked banner ────────────────────────────────────────────────
-  const insets = useSafeAreaInsets();
-  const [voiceBannerShowing, setVoiceBannerShowing] = useState(false);
-  const voiceBannerAnim = useRef(new Animated.Value(0)).current;
-  const voiceBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // A backup import in "replace" mode swaps out every row, so React state and
   // the database have to be resynchronised. Navigation is reset to the folder
   // list because the folder that was open may no longer exist.
@@ -299,31 +281,6 @@ export default function App() {
         }
       });
   }, [applySettings, foldersRef, setCards, setCurrentFolderId, setFolders]);
-
-  const dismissVoiceBanner = useCallback(() => {
-    if (voiceBannerTimer.current) { clearTimeout(voiceBannerTimer.current); voiceBannerTimer.current = null; }
-    Animated.timing(voiceBannerAnim, { toValue: 0, duration: 220, useNativeDriver: true })
-      .start(({ finished }) => { if (finished) setVoiceBannerShowing(false); });
-  }, [voiceBannerAnim]);
-
-  const showVoiceLockBanner = useCallback(() => {
-    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
-    setVoiceBannerShowing(true);
-    Animated.spring(voiceBannerAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }).start();
-    voiceBannerTimer.current = setTimeout(dismissVoiceBanner, 4000);
-  }, [voiceBannerAnim, dismissVoiceBanner]);
-
-  useEffect(() => () => {
-    if (voiceBannerTimer.current) clearTimeout(voiceBannerTimer.current);
-    voiceBannerAnim.stopAnimation();
-  }, [voiceBannerAnim]);
-
-  // Swipe the banner upward to dismiss it (tap-to-dismiss is on the banner itself).
-  const voiceBannerPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
-    onPanResponderRelease: (_, g) => { if (g.dy < -20) dismissVoiceBanner(); },
-  })).current;
 
   // ── Folder navigation ────────────────────────────────────────────────────────
   const [addingFolder, setAddingFolder] = useState(false);
@@ -375,7 +332,7 @@ export default function App() {
     flipped, toggleFlip,
     selectionMode, selectedIds,
     enterSelectionMode, exitSelectionMode, toggleSelect, selectAllCards, deleteSelected, deleteCards,
-    setNotifForSelected,
+    setNotifCandidateForSelected,
     reorderMode, reorderSortDir,
     enterReorderMode, exitReorderMode, cancelReorderMode, replaceFolderOrder,
     handleRegistrationOrder, handleRandomOrder,
@@ -397,7 +354,7 @@ export default function App() {
     wordAudioSpeed, setWordAudioSpeed,
     wordAudioVolume, setWordAudioVolume,
     reviewHistory, testClearPending, resetWordReview,
-    openAdd, openEdit, saveCard, bulkImportCards, deleteCard, toggleCardNotif,
+    openAdd, openEdit, saveCard, bulkImportCards, deleteCard, toggleCardNotif, toggleCardHideWord,
     testModeVisible, setTestModeVisible,
   } = useCards({
     cards,
@@ -433,6 +390,8 @@ export default function App() {
     notificationsEnabled,
     updateFolderNotif,
     handlePickInterval,
+    toggleNotifyAllWords,
+    noNotifiableWords,
     sendTestForCurrentFolder,
   } = useFolderNotifications({
     folders,
@@ -440,12 +399,18 @@ export default function App() {
     currentFolderId,
     notificationGranted,
     setNotificationGranted,
-    folderCards,
+    allFolderCards,
     t,
   });
 
   // The only remaining metered feature is AI voice playback. Words and folders are
   // unlimited on every plan, so nothing recommends Pro on registration any more.
+  // Read off the live card rather than the `editingCard` snapshot the sheet was
+  // opened with: the sheet's notification action writes through immediately, so
+  // the snapshot goes stale the moment it is tapped.
+  const editingCardNotifCandidate = editingCard !== null
+    && cards.find(c => c.id === editingCard.id)?.notifCandidate === true;
+
   const openVoicePaywall = () => setPaywallVisible(true);
 
   const openBulkImport = () => {
@@ -640,9 +605,6 @@ export default function App() {
       pal={pal}
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
-      canUseCustomVoice={canUseCustomVoice}
-      canHideWord={canHideWord}
-      onCustomVoiceLocked={showVoiceLockBanner}
       explanationLang={nativeLang}
       verticalFlip={verticalFlip}
     />
@@ -695,8 +657,6 @@ export default function App() {
           isSubscribed={isSubscribed}
           isPremium={isPremium}
           canUseAIVoice={canUseAIVoice}
-          canUseCustomVoice={canUseCustomVoice}
-          canHideWord={canHideWord}
           hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
@@ -725,7 +685,7 @@ export default function App() {
             onToggle: toggleSelect,
             onSelectAll: selectAllCards,
             onExit: exitSelectionMode,
-            onSetNotif: setNotifForSelected,
+            onSetNotifCandidate: setNotifCandidateForSelected,
             onMoveSelected: () => openMovePicker([...selectedIds]),
             onDelete: deleteSelected,
           }}
@@ -757,8 +717,8 @@ export default function App() {
             onDeleteWords: deleteCards,
             onMove: openMovePicker,
             onToggleNotif: toggleCardNotif,
+            onToggleHideWord: toggleCardHideWord,
             onVoiceLocked: openVoicePaywall,
-            onCustomVoiceLocked: showVoiceLockBanner,
             onOpenAdd: openAdd,
           }}
           testMode={{
@@ -778,8 +738,6 @@ export default function App() {
         rawThemeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
-        canUseCustomVoice={canUseCustomVoice}
-        canHideWord={canHideWord}
         subscriptionExpirationDate={subscriptionExpirationDate}
         isSubscriptionLoaded={isSubscriptionLoaded}
         subscribe={subscribe}
@@ -807,6 +765,17 @@ export default function App() {
           onChangeMeaningLang: setMeaningFieldLang,
           hideWord: wordHideWord,
           onChangeHideWord: setWordHideWord,
+          notifCandidate: editingCardNotifCandidate,
+          onToggleNotifCandidate: () => { if (editingCard) toggleCardNotif(editingCard.id); },
+          // The same picker the list rows open, aimed at this one word. The
+          // sheet closes first: the move is a navigation away from the word, and
+          // leaving the editor open over it would offer to save into a folder
+          // the word had just left.
+          onMove: () => {
+            if (!editingCard) return;
+            setWordModalVisible(false);
+            openMovePicker([editingCard.id]);
+          },
           audioUri: wordAudioUri,
           onChangeAudioUri: setWordAudioUri,
           audioSpeed: wordAudioSpeed,
@@ -836,6 +805,9 @@ export default function App() {
           onPickInterval: handlePickInterval,
           displayOnlyWord: folderNotifSettings.displayOnlyWord,
           onToggleDisplayOnlyWord: (value) => updateFolderNotif({ displayOnlyWord: value }),
+          notifyAllWords: folderNotifSettings.notifyAllWords === true,
+          onToggleNotifyAllWords: toggleNotifyAllWords,
+          noNotifiableWords,
           onTest: sendTestForCurrentFolder,
         }}
         textToSpeech={{
@@ -917,9 +889,15 @@ export default function App() {
               const withoutPlaceholders = prev.filter(c => !WELCOME_CARD_IDS.includes(c.id));
               return [...buildWelcomeCards(choices), ...withoutPlaceholders];
             });
-            const localizedFolderName = WELCOME_FOLDER_NAMES[choices.nativeLang] ?? WELCOME_FOLDER_NAMES['en-US'];
+            // The two seeded folders take the language the user just chose.
+            // Only these two ids are touched, and only by renaming — nothing is
+            // created here, so an existing folder list is left exactly as it is.
+            const localizedNames: Record<string, string> = {
+              [WELCOME_FOLDER_ID]: WELCOME_FOLDER_NAMES[choices.nativeLang] ?? WELCOME_FOLDER_NAMES['en-US'],
+              [TIPS_FOLDER_ID]:    TIPS_FOLDER_NAMES[choices.nativeLang]    ?? TIPS_FOLDER_NAMES['en-US'],
+            };
             setFolders(prev => prev.map(f =>
-              f.id === WELCOME_FOLDER_ID ? { ...f, name: localizedFolderName } : f
+              localizedNames[f.id] ? { ...f, name: localizedNames[f.id] } : f
             ));
             setCurrentFolderId(WELCOME_FOLDER_ID);
             setShowOnboarding(false);
@@ -956,28 +934,6 @@ export default function App() {
           are on top, because a modal presents its own native controller. */}
       <AIConsentDialog active pal={pal} themeColor={activeThemeColor} />
 
-      {/* Custom voice locked banner — tap or swipe up to dismiss */}
-      {voiceBannerShowing && (
-        <Animated.View
-          style={[
-            bannerStyles.banner,
-            {
-              top: insets.top + 8,
-              backgroundColor: pal.dialog,
-              borderColor: pal.border,
-              opacity: voiceBannerAnim,
-              transform: [{ translateY: voiceBannerAnim.interpolate({ inputRange: [0, 1], outputRange: [-56, 0] }) }],
-            },
-          ]}
-          {...voiceBannerPan.panHandlers}
-        >
-          <TouchableOpacity activeOpacity={0.85} onPress={dismissVoiceBanner} style={bannerStyles.touch}>
-            <Ionicons name="warning" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
-            <Text style={[bannerStyles.text, { color: pal.text }]}>{t('custom_voice_locked_msg')}</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
       {/* AI Voice usage limits — non-blocking, replaces the old native alert */}
       <TopBanner pal={pal} />
 
@@ -985,25 +941,3 @@ export default function App() {
     </LangContext.Provider>
   );
 }
-
-const bannerStyles = StyleSheet.create({
-  banner: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    zIndex: 9999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  touch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  text: { flex: 1, fontSize: 13, lineHeight: 18 },
-});

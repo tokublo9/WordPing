@@ -78,27 +78,6 @@ export const SYNC_WITH_TEST_RESULTS_ENABLED = true;
  */
 export const REVENUECAT_DIAGNOSTICS_ENABLED = true;
 
-/**
- * TEMPORARY — Subscription Diagnostics, for diagnosing TestFlight builds.
- *
- * Adds a hidden read-only panel behind a long press on the app version row in
- * Settings → App Info. It reports the RevenueCat App User ID, the resolved
- * plan, the active entitlement identifiers, how the entitlement was resolved
- * and whether it has loaded — the values needed to explain why a tester's
- * purchase did not take effect.
- *
- * REMOVE BEFORE THE APP STORE SUBMISSION. Removal is:
- *   1. this constant,
- *   2. src/components/SubscriptionDiagnosticsSheet.tsx,
- *   3. its import and the two lines that mount it in SettingsModal.tsx.
- * Nothing else references it, and it owns no state, no storage and no i18n
- * keys, so deleting it leaves nothing behind.
- *
- * It cannot change anything: it reads `Purchases.getCustomerInfo()` and the
- * published entitlement snapshot, and calls no purchase, restore or sync API.
- */
-export const SUBSCRIPTION_DIAGNOSTICS_ENABLED = true;
-
 /** Feature keys of the four hidden text features, as used by the paywall. */
 export const AI_TEXT_FEATURE_KEYS = ['meaning', 'example', 'translate', 'breakdown'] as const;
 

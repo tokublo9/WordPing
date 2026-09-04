@@ -44,14 +44,12 @@ interface Props {
   words: readonly WordCard[];
   onClose: () => void;
   onDelete: (ids: string[]) => void;
-  /** The plan includes Hide Word — a hidden word stays hidden here too. */
-  canHideWord: boolean;
   pal: Palette;
   themeColor: string;
 }
 
 export function ResultWordsSheet({
-  level, words, onClose, onDelete, canHideWord, pal, themeColor,
+  level, words, onClose, onDelete, pal, themeColor,
 }: Props) {
   const t = useLang();
   const insets = useSafeAreaInsets();
@@ -201,7 +199,7 @@ export function ResultWordsSheet({
                         activeOpacity={0.7}
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: selected }}
-                        accessibilityLabel={isWordTextHidden(word, canHideWord) ? undefined : word.word}
+                        accessibilityLabel={isWordTextHidden(word) ? undefined : word.word}
                       >
                         <Ionicons
                           name={selected ? 'checkbox' : 'square-outline'}
@@ -209,7 +207,7 @@ export function ResultWordsSheet({
                           color={selected ? themeColor : pal.sub}
                         />
                         <View style={styles.rowText}>
-                          {isWordTextHidden(word, canHideWord)
+                          {isWordTextHidden(word)
                             ? <HiddenWordIcon color={pal.text} variant="row" />
                             : (
                               <Text style={[styles.word, { color: pal.text }]} numberOfLines={1}>

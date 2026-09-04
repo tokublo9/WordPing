@@ -35,29 +35,22 @@ test('the editor copies the picked file into persistent storage', () => {
   assert.match(picker, /AUDIO_EXTENSIONS\.has\(candidateExtension\) \? candidateExtension : 'm4a'/u);
 });
 
-test('remove sits to the right of the Custom Voice button, in both states', () => {
+test('remove sits to the right of the always-available Custom Voice button', () => {
   const modal = read('src/components/WordModal.tsx');
   const group = modal.slice(
-    modal.indexOf('{(canUseCustomVoice || audioUri) ? ('),
+    modal.indexOf('<View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>'),
     modal.indexOf('<View>\n                  {/* A hidden word is dimmed here'),
   );
 
-  // Unlocked: the button that attaches or plays the file, then the × that
-  // clears it. Remove renders only once there is something to clear, so the
-  // Custom Voice button holds the same place whether or not a file is attached.
-  const unlocked = group.slice(0, group.indexOf(') : audioUri ? ('));
+  // The button that attaches or plays the file comes before the × that clears
+  // it. Remove renders only once there is something to clear, so the Custom
+  // Voice button holds the same place whether or not a file is attached.
   assert.ok(
-    unlocked.indexOf('handleAudioButton();') < unlocked.indexOf('onPress={handleClearAudio}'),
+    group.indexOf('handleAudioButton();') < group.indexOf('onPress={handleClearAudio}'),
     'the Custom Voice button must come first',
   );
-  assert.match(unlocked, /<\/TouchableOpacity>\s*\{\/\*[\s\S]*?\*\/\}\s*\{audioUri && \(/u);
-
-  // Downgraded: the same order, so the row does not rearrange with the plan.
-  const locked = group.slice(group.indexOf(') : audioUri ? ('));
-  assert.ok(
-    locked.indexOf('onPress={handleLockedVoicePlay}') < locked.indexOf('onPress={handleClearAudio}'),
-    'the locked play button must come first too',
-  );
+  assert.match(group, /<\/TouchableOpacity>\s*\{\/\*[\s\S]*?\*\/\}\s*\{audioUri && \(/u);
+  assert.doesNotMatch(group, /isSubscribed|isPremium|canUseCustomVoice|handleLockedVoicePlay/u);
 });
 
 test('the file is saved with the word and survives a round trip', () => {

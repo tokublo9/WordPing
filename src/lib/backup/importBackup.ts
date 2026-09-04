@@ -1,4 +1,7 @@
-import { EXPORTABLE_SETTING_KEYS, type BackupFile, type ImportMode, type ImportSummary } from './format';
+import {
+  EXPORTABLE_SETTING_KEYS,
+  type BackupFile, type BackupWord, type ImportMode, type ImportSummary,
+} from './format';
 import { validateBackup, type ValidationResult } from './validate';
 import type { SqlDatabase } from '../sqlite/types';
 
@@ -16,6 +19,25 @@ export class BackupImportError extends Error {
     super('backup_invalid');
     this.name = 'BackupImportError';
   }
+}
+
+/**
+ * Whether a backed-up word belongs on its folder's notification list.
+ *
+ * Two eras of file reach this. A current one carries `notifCandidate` and is
+ * taken at its word. An older one carries only `notifOff`, the mute this
+ * replaced, and is converted with the same rule schema migration 4 applied on
+ * the device: a word that was not muted was notifying, so it becomes a
+ * candidate. Restoring an old backup therefore reproduces the reminders it was
+ * taken with rather than silently arriving with an empty list.
+ *
+ * A file from before either field existed has neither, and its words start off
+ * the list — the same default a newly registered word gets.
+ */
+function backupWordIsNotifCandidate(word: BackupWord): boolean {
+  if (word.notifCandidate !== undefined) return word.notifCandidate === true;
+  if (word.notifOff !== undefined) return word.notifOff !== true;
+  return false;
 }
 
 /** Tables cleared by a `replace` import, in foreign-key-safe order. */
@@ -114,13 +136,17 @@ async function applyBackup(
       }
       await db.runAsync(
         `INSERT INTO folders (id, name, created_at, icon, color,
-                              notif_interval_seconds, notif_display_only_word, position)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                              notif_interval_seconds, notif_display_only_word,
+                              notif_notify_all_words, position)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           folder.id, folder.name, folder.createdAt,
           folder.icon ?? null, folder.color ?? null,
           folder.notifIntervalSeconds ?? null,
           folder.notifDisplayOnlyWord === undefined ? null : folder.notifDisplayOnlyWord ? 1 : 0,
+          // Absent in a backup written before the field existed: off, so the
+          // folder's candidate list applies.
+          folder.notifNotifyAllWords === true ? 1 : 0,
           folder.position + folderOffset,
         ],
       );
@@ -141,13 +167,13 @@ async function applyBackup(
         ? word.folderId
         : null;
       await db.runAsync(
-        `INSERT INTO words (id, folder_id, word, meaning, created_at, position, notif_off,
+        `INSERT INTO words (id, folder_id, word, meaning, created_at, position, notif_candidate,
                             word_lang, meaning_lang, audio_uri, audio_speed, audio_volume,
                             hide_word)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
         [
           word.id, folderId, word.word, word.meaning, word.createdAt ?? null,
-          word.position + wordOffset, word.notifOff === true ? 1 : 0,
+          word.position + wordOffset, backupWordIsNotifCandidate(word) ? 1 : 0,
           word.wordLang ?? null, word.meaningLang ?? null,
           word.audioSpeed ?? null, word.audioVolume ?? null,
           // Absent in a backup written before the field existed: visible.

@@ -83,7 +83,8 @@ export interface WordListSelectionProps {
   onToggle(id: string): void;
   onSelectAll(): void;
   onExit(): void;
-  onSetNotif(notifOff: boolean): void;
+  /** Adds every selected word to its folder's notification list, or removes them. */
+  onSetNotifCandidate(candidate: boolean): void;
   onMoveSelected(): void;
   onDelete(): void;
 }
@@ -107,12 +108,15 @@ export interface WordListActionsProps {
   onFlip(id: string): void;
   onEdit(card: WordCard): void;
   onDelete(id: string): void;
+  /** Flip Mode's Move button and the selection bar. The word rows no longer offer it. */
   onMove(ids: string[]): void;
+  /** Flip Mode's notification button. The word rows no longer offer it. */
   onToggleNotif(id: string): void;
+  /** The swipe / long-press Hide Front Word action on a word row. */
+  onToggleHideWord(id: string): void;
   /** Bulk delete, used by the result sheet. Deletes and nothing else. */
   onDeleteWords(ids: string[]): void;
   onVoiceLocked(): void;
-  onCustomVoiceLocked(): void;
   onOpenAdd(): void;
 }
 
@@ -123,10 +127,6 @@ export interface WordListScreenProps {
   isPremium?: boolean;
   /** The plan includes High-Quality AI Voice — Premium only. */
   canUseAIVoice?: boolean;
-  /** The plan includes Custom Voice for Words — Basic and Premium. */
-  canUseCustomVoice?: boolean;
-  /** The plan includes Hide Word — Basic only. */
-  canHideWord?: boolean;
   hasTextToSpeechHistory?: boolean;
 
   // Deep Sea skin scroll animation
@@ -196,7 +196,7 @@ export interface WordListScreenProps {
 
 export function WordListScreen({
   pal, themeColor, isSubscribed, isPremium = false,
-  canUseAIVoice = false, canUseCustomVoice = false, canHideWord = false,
+  canUseAIVoice = false,
   hasTextToSpeechHistory = false,
   scrollY, deepSeaSkin,
   currentFolder, allFolderCards, visibleFolderCards,
@@ -728,12 +728,8 @@ export function WordListScreen({
         onFlip={() => currentActions.onFlip(item.id)}
         onEdit={() => currentActions.onEdit(item)}
         onDelete={() => currentActions.onDelete(item.id)}
-        onMove={() => currentActions.onMove([item.id])}
-        onToggleNotif={() => currentActions.onToggleNotif(item.id)}
+        onToggleHideWord={() => currentActions.onToggleHideWord(item.id)}
         onVoiceLocked={currentActions.onVoiceLocked}
-        onCustomVoiceLocked={currentActions.onCustomVoiceLocked}
-        canUseCustomVoice={canUseCustomVoice}
-        canHideWord={canHideWord}
         onOpen={onCardOpenRef.current}
         openCardRef={closeOpenCard}
         selectionMode={reorderMode ? false : currentSelection.active}
@@ -757,8 +753,6 @@ export function WordListScreen({
     handleVerticalGestureLock,
     isFastScrollGesture,
     canUseAIVoice,
-    canUseCustomVoice,
-    canHideWord,
     isVerticalGestureLocked,
     pal,
     selection.active,
@@ -777,7 +771,6 @@ export function WordListScreen({
   const handleFlipDelete = useCallback((id: string) => actionsRef.current.onDelete(id), []);
   const handleFlipMove = useCallback((card: WordCard) => actionsRef.current.onMove([card.id]), []);
   const handleFlipToggleNotif = useCallback((id: string) => actionsRef.current.onToggleNotif(id), []);
-  const handleCustomVoiceLocked = useCallback(() => actionsRef.current.onCustomVoiceLocked(), []);
   const handleOpenAdd = useCallback(() => actionsRef.current.onOpenAdd(), []);
 
   // Entering a test from a filtered list clears the filter and returns the list
@@ -1249,9 +1242,6 @@ export function WordListScreen({
         pal={pal}
         themeColor={themeColor}
         canUseAIVoice={canUseAIVoice}
-        canUseCustomVoice={canUseCustomVoice}
-        canHideWord={canHideWord}
-        onCustomVoiceLocked={handleCustomVoiceLocked}
         onEdit={handleFlipEdit}
         onDelete={handleFlipDelete}
         onMove={handleFlipMove}
@@ -1413,7 +1403,7 @@ export function WordListScreen({
     <View style={[selStyles.bar, { backgroundColor: pal.dialog, borderTopColor: pal.border }]}>
       <TouchableOpacity
         style={selStyles.barBtn}
-        onPress={() => selection.onSetNotif(false)}
+        onPress={() => selection.onSetNotifCandidate(true)}
         disabled={selection.selectedIds.size === 0}
       >
         <Ionicons
@@ -1422,17 +1412,17 @@ export function WordListScreen({
           color={selection.selectedIds.size === 0 ? pal.sub : themeColor}
         />
         <Text style={[selStyles.barLabel, { color: selection.selectedIds.size === 0 ? pal.sub : themeColor }]}>
-          {t('notif_on')}
+          {t('notif_add_word')}
         </Text>
       </TouchableOpacity>
       <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
       <TouchableOpacity
         style={selStyles.barBtn}
-        onPress={() => selection.onSetNotif(true)}
+        onPress={() => selection.onSetNotifCandidate(false)}
         disabled={selection.selectedIds.size === 0}
       >
         <Ionicons name="notifications-off-outline" size={20} color={pal.sub} />
-        <Text style={[selStyles.barLabel, { color: pal.sub }]}>{t('notif_off_action')}</Text>
+        <Text style={[selStyles.barLabel, { color: pal.sub }]}>{t('notif_remove_word')}</Text>
       </TouchableOpacity>
       <View style={[selStyles.barDivider, { backgroundColor: pal.border }]} />
       <TouchableOpacity
@@ -1542,7 +1532,6 @@ export function WordListScreen({
         words={sheetWords}
         onClose={() => setSheetLevel(null)}
         onDelete={actions.onDeleteWords}
-        canHideWord={canHideWord}
         pal={pal}
         themeColor={themeColor}
       />

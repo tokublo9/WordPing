@@ -1,27 +1,63 @@
 import type { OnboardingChoices, WordCard } from '../../types';
 import { WELCOME_FOLDER_ID } from '../../lib/db';
 
+/**
+ * The two folders a brand-new install starts with.
+ *
+ * Both are seeded in English by `DEFAULT_FOLDERS` in `lib/db.ts` and renamed to
+ * the language the user picks the moment onboarding completes — which on a
+ * genuine first launch always happens before the folder list is visible.
+ *
+ * They are named after what they teach rather than after a greeting: the first
+ * tells the user the gesture, the second tells them what the gesture leads to.
+ * Existing installs keep whatever these folders are called now, including the
+ * original "Welcome"; nothing here renames a folder that already exists.
+ */
 export const WELCOME_FOLDER_NAMES: Record<string, string> = {
-  'en-US': 'Welcome',
-  'ja-JP': 'ようこそ',
-  'ko-KR': '환영합니다',
-  'zh-CN': '欢迎',
-  'es-ES': 'Bienvenido',
-  'fr-FR': 'Bienvenue',
-  'de-DE': 'Willkommen',
-  'it-IT': 'Benvenuto',
-  'pt-BR': 'Bem-vindo',
-  'ru-RU': 'Добро пожаловать',
-  'ar':    'أهلاً بك',
-  'hi-IN': 'स्वागत है',
-  'tr-TR': 'Hoş Geldiniz',
-  'nl-NL': 'Welkom',
-  'vi-VN': 'Chào mừng',
-  'th-TH': 'ยินดีต้อนรับ',
-  'id-ID': 'Selamat Datang',
-  'pl-PL': 'Witaj',
-  'el-GR': 'Καλώς ήρθατε',
-  'sv-SE': 'Välkommen',
+  'en-US': 'Swipe or hold a folder',
+  'ja-JP': 'フォルダーをスライドか長押し',
+  'ko-KR': '폴더를 밀거나 길게 누르세요',
+  'zh-CN': '滑动或长按文件夹',
+  'es-ES': 'Desliza o mantén pulsada una carpeta',
+  'fr-FR': 'Balayez ou maintenez un dossier',
+  'de-DE': 'Wische oder halte einen Ordner',
+  'it-IT': 'Scorri o tieni premuta una cartella',
+  'pt-BR': 'Deslize ou segure uma pasta',
+  'ru-RU': 'Проведите или удержите папку',
+  'ar':    'اسحب المجلد أو اضغط عليه مطولاً',
+  'hi-IN': 'फ़ोल्डर को स्वाइप करें या दबाए रखें',
+  'tr-TR': 'Bir klasörü kaydırın veya basılı tutun',
+  'nl-NL': 'Veeg of houd een map ingedrukt',
+  'vi-VN': 'Vuốt hoặc giữ một thư mục',
+  'th-TH': 'ปัดหรือกดค้างที่โฟลเดอร์',
+  'id-ID': 'Geser atau tahan folder',
+  'pl-PL': 'Przesuń lub przytrzymaj folder',
+  'el-GR': 'Σύρετε ή κρατήστε πατημένο έναν φάκελο',
+  'sv-SE': 'Svep eller håll in en mapp',
+};
+
+/** The second default folder — see the note on WELCOME_FOLDER_NAMES. */
+export const TIPS_FOLDER_NAMES: Record<string, string> = {
+  'en-US': 'You can change its name and icon',
+  'ja-JP': '名前やアイコンを変更できるよ',
+  'ko-KR': '이름과 아이콘을 바꿀 수 있어요',
+  'zh-CN': '可以更改名称和图标',
+  'es-ES': 'Puedes cambiar su nombre y su icono',
+  'fr-FR': 'Vous pouvez changer son nom et son icône',
+  'de-DE': 'Du kannst Name und Symbol ändern',
+  'it-IT': 'Puoi cambiarne il nome e l’icona',
+  'pt-BR': 'Você pode mudar o nome e o ícone',
+  'ru-RU': 'Можно изменить название и значок',
+  'ar':    'يمكنك تغيير الاسم والأيقونة',
+  'hi-IN': 'आप इसका नाम और आइकन बदल सकते हैं',
+  'tr-TR': 'Adını ve simgesini değiştirebilirsiniz',
+  'nl-NL': 'Je kunt de naam en het pictogram wijzigen',
+  'vi-VN': 'Bạn có thể đổi tên và biểu tượng',
+  'th-TH': 'เปลี่ยนชื่อและไอคอนได้',
+  'id-ID': 'Kamu bisa mengubah nama dan ikonnya',
+  'pl-PL': 'Możesz zmienić jego nazwę i ikonę',
+  'el-GR': 'Μπορείτε να αλλάξετε το όνομα και το εικονίδιο',
+  'sv-SE': 'Du kan ändra namn och ikon',
 };
 
 // Translations for the tutorial messages in the Welcome folder.

@@ -441,12 +441,20 @@ export const ONBOARDING_KEY   = 'wordping_onboarding';
 export const LANGUAGE_KEY = 'app_language';
 export const DEFAULT_LANGUAGE = 'en-US';
 
-export const REVEAL_WIDTH = 220;
+/**
+ * How far a word row slides to expose its actions.
+ *
+ * Measured from the three 44pt circles it holds: 14 left padding + 3 × 44 +
+ * 2 × 10 between them. It shrank with the actions — Move used to be a fourth
+ * circle here and is now only in the Add/Edit sheet — because `actionBg` is a
+ * fixed width, so a width left sized for four would open onto a blank strip
+ * where the removed icon used to be.
+ */
+export const REVEAL_WIDTH = 166;
 
 
 // Words and folders are unlimited on every plan — there is no count limit constant.
 export const FREE_VOICE_LIMIT = 10;
-export const BASIC_CUSTOM_VOICE_LIMIT = 10;
 
 export const MAX_AI_INPUT_CHARS = 500;
 

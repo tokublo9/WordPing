@@ -14,11 +14,8 @@
  * Only the word side has a custom voice. The meaning side is a different piece
  * of text with no file attached, so it is always `tts`.
  *
- * Entitlement is deliberately *not* part of this. Whether the plan may play a
- * registered file is `canUseCustomVoice`, checked separately in
- * `useWordCardVoicePlayback`; a downgraded user still sees the custom icon on a
- * word that has one, and tapping it explains the lock rather than silently
- * speaking something else.
+ * Entitlement is deliberately not part of this. Custom Voice is a local feature
+ * available on every plan, so a registered file always remains playable.
  *
  * Pure — no react-native or expo import — so the rule is tested directly.
  */

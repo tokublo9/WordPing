@@ -1,11 +1,25 @@
-import { Animated, Modal, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Modal,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
 import { getToggleOffTrackColor, INTERVAL_OPTIONS } from '../constants';
 import { useLang } from '../i18n';
 import { appStyles as s } from '../styles';
+import { CompactSwitch } from './CompactSwitch';
+import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
+
+const INFO_BUTTON_TARGET = 44;
+const INFO_ICON_OPACITY = 0.62;
 
 interface Props {
   visible: boolean;
@@ -14,6 +28,14 @@ interface Props {
   onPickInterval: (seconds: number) => void;
   displayOnlyWord: boolean;
   onToggleDisplayOnlyWord: (value: boolean) => void;
+  /** "Notify All Words" for this folder — off means the candidate list applies. */
+  notifyAllWords: boolean;
+  onToggleNotifyAllWords: (value: boolean) => void;
+  /**
+   * The folder is scheduled to notify, draws from its list, and the list is
+   * empty. Nothing will fire until the user acts, so the sheet says so.
+   */
+  noNotifiableWords: boolean;
   pal: Palette;
   themeColor: string;
   onTest: () => void;
@@ -21,11 +43,16 @@ interface Props {
 
 export function NotificationModal({
   visible, onClose, intervalSeconds, onPickInterval,
-  displayOnlyWord, onToggleDisplayOnlyWord, pal, themeColor, onTest,
+  displayOnlyWord, onToggleDisplayOnlyWord,
+  notifyAllWords, onToggleNotifyAllWords, noNotifiableWords,
+  pal, themeColor, onTest,
 }: Props) {
   const t = useLang();
   const offTrackColor = getToggleOffTrackColor(pal.bg, pal.border);
   const [testSent, setTestSent] = useState(false);
+  const [infoContent, setInfoContent] = useState<SettingsInfoContent | null>(null);
+  const [infoPopupVisible, setInfoPopupVisible] = useState(false);
+  const infoPopupClosing = useRef(false);
   const slideY = useRef(new Animated.Value(600)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -47,7 +74,25 @@ export function NotificationModal({
     ]).start(() => onClose());
   };
 
+  const showInfoPopup = useCallback((content: SettingsInfoContent) => {
+    infoPopupClosing.current = false;
+    setInfoContent(content);
+    setInfoPopupVisible(true);
+  }, []);
+
+  const closeInfoPopup = useCallback(() => {
+    if (infoPopupClosing.current) return;
+    infoPopupClosing.current = true;
+    setInfoPopupVisible(false);
+  }, []);
+
+  const dismissInfoPopup = useCallback(() => {
+    setInfoContent(null);
+    infoPopupClosing.current = false;
+  }, []);
+
   return (
+    <>
     <Modal visible={visible} animationType="none" transparent onRequestClose={handleClose}>
       {/* Backdrop — fades in place, does not slide */}
       <Animated.View
@@ -169,11 +214,150 @@ export function NotificationModal({
                 style={styles.contentSwitch}
               />
             </TouchableOpacity>
+
+            {/* One stored boolean with one control. Off is the default
+                selected-words behavior; On expands the pool to the folder. */}
+            <View style={styles.scopeRows}>
+              <NotificationScopeRow
+                label={t('notif_selected_words')}
+                info={t('notif_selected_words_desc')}
+                onShowInfo={showInfoPopup}
+                pal={pal}
+              />
+              <View style={[styles.scopeDivider, { backgroundColor: pal.border }]} />
+              <NotificationScopeRow
+                label={t('notif_all_words')}
+                info={t('notif_all_words_desc')}
+                value={notifyAllWords}
+                onValueChange={onToggleNotifyAllWords}
+                onShowInfo={showInfoPopup}
+                pal={pal}
+                themeColor={themeColor}
+                offTrackColor={offTrackColor}
+              />
+            </View>
+
+            {/* Nothing will arrive, and the two ways out of that. Shown only
+                when the folder is actually trying to notify, so it never
+                appears as a complaint about a folder set to Off. */}
+            {noNotifiableWords && (
+              <View style={[styles.warning, { backgroundColor: pal.chip, borderColor: '#F2B445' }]}>
+                <Ionicons name="alert-circle-outline" size={17} color="#F2B445" />
+                <Text style={[styles.warningText, { color: pal.text }]}>
+                  {t('notif_no_candidates')}
+                </Text>
+              </View>
+            )}
           </View>
 
         </TouchableOpacity>
       </Animated.View>
     </Modal>
+    <SettingsInfoPopup
+      visible={infoPopupVisible}
+      content={infoContent}
+      onClose={closeInfoPopup}
+      onDismiss={dismissInfoPopup}
+      pal={pal}
+      themeColor={themeColor}
+    />
+    </>
+  );
+}
+
+function NotificationScopeRow({
+  label, info, value, onValueChange, onShowInfo, pal, themeColor, offTrackColor,
+}: {
+  label: string;
+  info: string;
+  value?: boolean;
+  onValueChange?(value: boolean): void;
+  onShowInfo(content: SettingsInfoContent): void;
+  pal: Palette;
+  themeColor?: string;
+  offTrackColor?: string;
+}) {
+  const t = useLang();
+  const handleInfoPress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    onShowInfo({ title: label, body: info });
+  };
+
+  // This row describes the default Off state. Its Info button is intentionally
+  // its only interaction; it cannot change the stored notification scope.
+  if (
+    value === undefined
+    || onValueChange === undefined
+    || themeColor === undefined
+    || offTrackColor === undefined
+  ) {
+    return (
+      <View style={styles.scopeRow}>
+        <View style={styles.scopeTitleAndInfo}>
+          <Text style={[styles.scopeLabel, { color: pal.text }]}>{label}</Text>
+          <TouchableOpacity
+            style={styles.infoButton}
+            onPress={handleInfoPress}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={[label, t('info_button_label')].join(': ')}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={pal.sub}
+              style={styles.subtleInfoIcon}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const handleToggle = () => onValueChange(!value);
+  return (
+    <TouchableOpacity
+      style={styles.scopeRow}
+      onPress={handleToggle}
+      activeOpacity={0.7}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={label}
+      accessibilityHint={info}
+    >
+      <View style={styles.scopeTitleAndInfo}>
+        <Text style={[styles.scopeLabel, { color: pal.text }]}>{label}</Text>
+        <TouchableOpacity
+          style={styles.infoButton}
+          onPress={handleInfoPress}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${t('info_button_label')}`}
+        >
+          <Ionicons
+            name="information-circle-outline"
+            size={20}
+            color={pal.sub}
+            style={styles.subtleInfoIcon}
+          />
+        </TouchableOpacity>
+      </View>
+      <View
+        pointerEvents="none"
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <CompactSwitch
+          value={value}
+          onValueChange={onValueChange}
+          accessibilityLabel={label}
+          accessibilityHint={info}
+          themeColor={themeColor}
+          offTrackColor={offTrackColor}
+        />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -234,4 +418,38 @@ const styles = StyleSheet.create({
   contentTitle: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
   contentDescription: { fontSize: 12, lineHeight: 17, marginTop: 5 },
   contentSwitch: { transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] },
+  scopeRows: { marginTop: 10 },
+  scopeRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 8,
+  },
+  scopeTitleAndInfo: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scopeLabel: { fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' },
+  infoButton: {
+    width: INFO_BUTTON_TARGET,
+    height: INFO_BUTTON_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subtleInfoIcon: { opacity: INFO_ICON_OPACITY },
+  scopeDivider: { height: StyleSheet.hairlineWidth },
+  warning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+  },
+  warningText: { flex: 1, fontSize: 12, lineHeight: 17 },
 });

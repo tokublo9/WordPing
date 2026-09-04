@@ -17,6 +17,7 @@ import {
 } from './sqlite/repositories';
 import type { SqlDatabase } from './sqlite/types';
 import { reportSideEffectFailure } from '../utils/reportSideEffectFailure';
+import { createDefaultFolderNotifSettings } from '../features/notifications/defaultSettings';
 
 /**
  * Local data access for the app.
@@ -32,6 +33,15 @@ const SEEDED_KEY = 'wordping_seeded';
 
 export const DEFAULT_FOLDER_ID  = 'default';  // kept for migration of existing users
 export const WELCOME_FOLDER_ID  = 'wp-welcome';
+/**
+ * The second folder a new install starts with.
+ *
+ * Fixed id, like the first, so the seed is idempotent: it is written once, in
+ * the same transaction as the seeded flag, and only when the database holds no
+ * folders at all. An upgrading user is never a first launch, so this folder
+ * never appears underneath somebody's existing vocabulary.
+ */
+export const TIPS_FOLDER_ID     = 'wp-tips';
 
 /** Legacy AsyncStorage key names, reused as the ids in the app_settings table. */
 const LEGACY_KEYS: LegacyStorageKeys = {
@@ -44,9 +54,22 @@ const LEGACY_KEYS: LegacyStorageKeys = {
   aiVoice: AI_VOICE_KEY,
 };
 
-// Shown on a genuine first install.
+// Shown on a genuine first install. English placeholders — both names are
+// replaced with the user's language when onboarding completes, which on a first
+// launch always happens before the folder list is on screen.
 const DEFAULT_FOLDERS: Folder[] = [
-  { id: WELCOME_FOLDER_ID, name: 'Welcome', createdAt: 1 },
+  {
+    id: WELCOME_FOLDER_ID,
+    name: 'Swipe or hold a folder',
+    createdAt: 1,
+    notifSettings: createDefaultFolderNotifSettings(),
+  },
+  {
+    id: TIPS_FOLDER_ID,
+    name: 'You can change its name and icon',
+    createdAt: 2,
+    notifSettings: createDefaultFolderNotifSettings(),
+  },
 ];
 
 /**

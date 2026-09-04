@@ -349,18 +349,40 @@ Defined in `constants.ts` as stable config objects. `KisekaeShopSheet.tsx` rende
 
 ### Notifications
 
-`rescheduleAllNotifications(cards, folders)` distributes up to 64 slots across folders with a non-zero interval. Per-card mute: `WordCard.notifOff = true`. `notificationGranted` only controls whether scheduling happens — never gates the menu item.
+`rescheduleAllNotifications(cards, folders)` distributes up to 64 slots across folders with a non-zero interval. `notificationGranted` only controls whether scheduling happens — never gates the menu item.
+
+**Notifications are opt-in, and eligibility is decided in one place: `notifiableCards` in `features/notifications/notificationCandidates.ts`.** The scheduler and the sheet's Send Test both call it, after filtering by `folderId` and never before.
+
+- `WordCard.notifCandidate = true` — the user put this word on the list. Absent means not on it, so a newly registered word notifies nothing until it is added. Set from the Add/Edit sheet ("Add to Notifications" / "Remove from Notifications", under the Note field), Flip Mode's bell, and the selection bar.
+- `FolderNotifSettings.notifyAllWords` — the folder's "Notify All Words" switch. Off by default and per folder; on, the whole folder is eligible and the list is ignored.
+- Either way, a word inside the hide a grade gave it (`isCardHidden`) is out.
+
+**There is no fallback.** With the switch off and nothing on the list the folder schedules nothing — the Notification sheet shows `notif_no_candidates` rather than quietly reverting to every word. Eligibility is read from the live card array each reschedule, so a deleted or moved word is simply absent. Adding or removing a word writes `notifCandidate` alone: never a grade, a review interval or `hideWord`.
+
+`notifCandidate` **replaced** `notifOff`, the old opt-out mute, which would otherwise have been a second silent veto over a word the user had just added. Migration **5** adds `words.notif_candidate` and backfills `= 1 WHERE notif_off = 0`, so an upgrading user's reminders keep arriving; `notif_off` is left in place, unread. **Version 4 is retired and empty** — it was consumed twice during development, so a database that has it recorded may have either draft's columns or neither, and the runner skips a recorded version forever. Migration 5 therefore adds each column only if `PRAGMA table_info` says it is missing, and backfills only where it created the column, so it can never re-add a word the user has taken off the list. It is the one migration allowed to be defensive; a new one must not copy the pattern without the same reason. Backups accept both fields and write only the new one. The per-folder switch lives in `folders.notif_notify_all_words` and travels as `notifNotifyAllWords`, additive, so the backup format version does not move.
 
 ### Word card layout (`SwipeableCard.tsx`)
 
-- Front: word + `notifOff` indicator (top-right, non-interactive). **No result
+- Front: word + `notifCandidate` indicator (top-right, non-interactive — a bell
+  when the word is on its folder's notification list). **No result
   label** — the corner ribbon that used to show the test result is not drawn on
   any card surface (list row, reorder row and its drag ghost, or Flip). The
   result is still stored, still filters, and is still announced by
   `CardResultAccessibilityLabel`; it simply has no visual mark.
 - Back: meaning + note
-- Swipe-reveal right: notification toggle, move, edit, delete
-- Long-press: action overlay with same actions
+- Swipe-reveal right: Hide Front Word, edit, delete — three 44pt circles, which
+  is what `REVEAL_WIDTH` (166) is measured from. Add or remove one and the width
+  moves with it, or the row opens onto a blank strip.
+- Long-press: action overlay with the same actions, plus copy
+
+**Move is not on the row.** It lives in the Add/Edit sheet, under the Note field.
+Nothing about folder moving was removed: the selection bar and Flip Mode still
+open the same `openMovePicker`, and `moveCardsToFolder` is untouched.
+
+**The per-card notification toggle is not in either menu.** It was replaced in
+place by Hide Front Word, which flips the card's stored `hideWord` flag on every
+plan with no paywall. Notifications are reached from the Add/Edit sheet, Flip
+Mode's bell and the selection bar instead — see Notifications above.
 
 Do not change this layout unless the task specifically asks for it.
 
@@ -374,7 +396,7 @@ interface WordCard {
   word: string;
   meaning: string;
   note: string;
-  notifOff?: boolean;
+  notifCandidate?: boolean;  // on its folder's notification list
   hideWord?: boolean;       // hide the word text on the Flip and Test faces
   folderId?: string;
   wordLang?: string;        // BCP-47 for TTS

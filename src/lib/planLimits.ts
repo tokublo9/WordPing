@@ -16,12 +16,8 @@
 export type PlanTier = 'free' | 'basic' | 'premium';
 
 /**
- * A paid plan — Basic or Premium.
- *
- * The tier-typed form of `useSubscription`'s `isSubscribed`, defined once so
- * the features sold to "any subscriber" (themes, skins, Custom Voice for Words)
- * do not each restate the tier list. It says nothing about AI: that is
- * `planCanUseAI`, and the two deliberately differ.
+ * A paid plan — Basic or Premium. It says nothing about local features such as
+ * Custom Voice or Hide Word, which are available on every plan.
  */
 export function planIsSubscribed(plan: PlanTier): boolean {
   return plan !== 'free';
@@ -36,9 +32,8 @@ export function planIsSubscribed(plan: PlanTier): boolean {
  * limits.
  *
  * `0` means the plan does not have the feature at all. Free and Basic both sit
- * there: AI Voice is a Premium feature. Basic's own voice feature is Custom
- * Voice for Words, which is the user's own audio file and never reaches this
- * Worker — see features/voice/customVoiceAccess.ts.
+ * there: AI Voice is a Premium feature. Custom Voice is the user's own local
+ * audio and never reaches this Worker, so it has no entry in this table.
  *
  * Counted only for word-card generations that actually reach OpenAI. Audio
  * replayed from the device cache, voice-picker previews and device TTS never

@@ -10,7 +10,7 @@ import type { SqlDatabase } from './types';
  */
 
 /** Bumped whenever a new entry is appended to MIGRATIONS. */
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 /** Identifiers of the built-in review levels, seeded into `labels`. */
 export const LEVEL_LABEL_IDS = {
@@ -143,6 +143,20 @@ interface Migration {
 }
 
 /**
+ * The columns a table currently has.
+ *
+ * A migration that adds a column is normally allowed to assume the column is
+ * absent, because its version number is recorded in the same transaction and it
+ * therefore runs exactly once. Migration 5 cannot assume that — see its note —
+ * so it asks first. `table` is always a literal from this file; PRAGMA does not
+ * take a bound parameter for it.
+ */
+async function tableColumns(db: SqlDatabase, table: string): Promise<Set<string>> {
+  const rows = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  return new Set(rows.map(row => row.name));
+}
+
+/**
  * Append-only. Never edit or renumber an existing entry — a shipped device has
  * already recorded that version as applied and will skip it.
  */
@@ -180,6 +194,73 @@ const MIGRATIONS: readonly Migration[] = [
     version: 3,
     async up(db) {
       await db.execAsync('ALTER TABLE words ADD COLUMN hide_word INTEGER NOT NULL DEFAULT 0;');
+    },
+  },
+  {
+    // Retired, and deliberately empty.
+    //
+    // Version 4 was used twice during development, for two different features,
+    // and neither reached a release. Development databases therefore disagree
+    // about what having it recorded means: some have the columns a later draft
+    // added, some have columns from a draft that was reverted, some have
+    // neither. Because the runner skips any version already recorded, nothing
+    // put here could reach the first group at all.
+    //
+    // So version 4 asserts nothing, and the work moved to version 5, which
+    // checks the database rather than trusting the number. The entry stays
+    // because the list is append-only: removing it would renumber 5 and repeat
+    // the mistake.
+    version: 4,
+    async up() {},
+  },
+  {
+    // Notifications become opt-in, per word.
+    //
+    // `notif_candidate` replaces `notif_off` and means the opposite: the user
+    // put this word on the list, rather than took it off. A fresh word defaults
+    // to 0 — nothing notifies until it is added, which is the point.
+    //
+    // `notif_notify_all_words` is the per-folder override: NULL for every
+    // existing folder, which reads as off — the candidate list applies.
+    //
+    // Written defensively, unlike every migration above it. Each column is added
+    // only if it is missing, because a development database may already have it
+    // from the abandoned version 4 above, and re-adding a column is an error
+    // that would fail the whole upgrade and leave the app unable to read its
+    // own words. A released install has none of this ambiguity — it is at
+    // version 3 and takes the plain path through both branches.
+    //
+    // The backfill is what keeps this from silently switching an upgrading
+    // user's reminders off: every word that would have fired yesterday
+    // (`notif_off = 0`) becomes a candidate, so the same words keep arriving and
+    // the new list starts out describing the behaviour they already had. It runs
+    // only where this migration created the column. A database that already had
+    // it has already been through this, and re-running the backfill there would
+    // put back every word the user has since taken off the list — a silent edit
+    // to their data, which is worse than the reminder gap it would close.
+    //
+    // `notif_off` is left in place rather than dropped. Nothing reads or writes
+    // it any more; keeping the column costs a byte per row and means the
+    // backfill's source data still exists if it ever has to be re-examined,
+    // which dropping it would make impossible.
+    version: 5,
+    async up(db) {
+      const words = await tableColumns(db, 'words');
+      if (!words.has('notif_candidate')) {
+        await db.execAsync('ALTER TABLE words ADD COLUMN notif_candidate INTEGER NOT NULL DEFAULT 0;');
+        // Guarded because the backfill reads a column rather than writing one:
+        // `notif_off` is in the initial schema and so is always present, but a
+        // migration that assumes its source exists fails destructively if that
+        // ever stops being true.
+        if (words.has('notif_off')) {
+          await db.execAsync('UPDATE words SET notif_candidate = 1 WHERE notif_off = 0;');
+        }
+      }
+
+      const folders = await tableColumns(db, 'folders');
+      if (!folders.has('notif_notify_all_words')) {
+        await db.execAsync('ALTER TABLE folders ADD COLUMN notif_notify_all_words INTEGER;');
+      }
     },
   },
 ];

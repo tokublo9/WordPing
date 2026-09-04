@@ -71,11 +71,6 @@ interface Props {
   onMove: (card: WordCard) => void;
   onToggleNotif: (id: string) => void;
   verticalFlip?: boolean;
-  /** The plan includes Custom Voice for Words — Basic and Premium. */
-  canUseCustomVoice?: boolean;
-  /** The plan includes Hide Word — Basic only. */
-  canHideWord?: boolean;
-  onCustomVoiceLocked?: () => void;
 }
 
 // Returns { curr, next, prev } slot indices given the current center slot.
@@ -88,8 +83,7 @@ function getSlots(curr: number) {
 function FlipCardBrowserComponent({
   cards, currentWordId, onCurrentWordChange, preparing, onPositionPrepared, active,
   pal, themeColor, canUseAIVoice, onEdit, onDelete, onMove, onToggleNotif,
-  verticalFlip = false, canUseCustomVoice = false,
-  canHideWord = false, onCustomVoiceLocked,
+  verticalFlip = false,
 }: Props) {
   const t = useLang();
   const initialIndex = resolveCurrentWordIndex(cards, currentWordId);
@@ -145,8 +139,6 @@ function FlipCardBrowserComponent({
   } = useWordCardVoicePlayback({
     item: activeVoiceCard,
     canUseAIVoice,
-    canUseCustomVoice,
-    onCustomVoiceLocked,
   });
 
   const flipAnim = useRef(new Animated.Value(0)).current;
@@ -556,7 +548,7 @@ function FlipCardBrowserComponent({
   }, [cards.length, pal.sub]);
 
   // Slot content is intentionally stable during horizontal transitions, but
-  // mutable card properties (such as notifOff) must always come from the latest
+  // mutable card properties (such as notifCandidate) must always come from the latest
   // cards prop. This also avoids a stale first frame when Flip View is reopened.
   const resolveLatestCard = useCallback(
     (slotCard: WordCard | undefined) => slotCard
@@ -644,13 +636,13 @@ function FlipCardBrowserComponent({
                       and Copy menu, exactly as in Test Mode. A quick tap still
                       reaches the Pressable underneath, so tap-to-flip is
                       unchanged. */}
-                  {isWordTextHidden(c, canHideWord)
+                  {isWordTextHidden(c)
                     ? <HiddenWordIcon color={pal.text} />
                     : <Text selectable={isCurr} style={[s.wordText, { color: pal.text }]}>{c.word}</Text>}
                 </CardScrollFace>
-                {c.notifOff && (
-                  <View style={s.notifOffBadge} pointerEvents="none">
-                    <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                {c.notifCandidate && (
+                  <View style={s.notifBadge} pointerEvents="none">
+                    <Ionicons name="notifications-outline" size={13} color={pal.sub} />
                   </View>
                 )}
               </Animated.View>
@@ -679,9 +671,9 @@ function FlipCardBrowserComponent({
                     <Text selectable style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
                     {c.note ? <Text selectable style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
                   </CardScrollFace>
-                  {c.notifOff && (
-                    <View style={s.notifOffBadge} pointerEvents="none">
-                      <Ionicons name="notifications-off-outline" size={13} color={pal.sub} />
+                  {c.notifCandidate && (
+                    <View style={s.notifBadge} pointerEvents="none">
+                      <Ionicons name="notifications-outline" size={13} color={pal.sub} />
                     </View>
                   )}
                 </Animated.View>
@@ -726,13 +718,16 @@ function FlipCardBrowserComponent({
       {/* Action buttons — order: Notification (icon-only) · Move · Edit · Delete (text-only) */}
       <View style={s.actionRow}>
         <TouchableOpacity
-          style={[s.notifBtn, { borderColor: card.notifOff ? pal.border : themeColor }]}
+          style={[s.notifBtn, { borderColor: card.notifCandidate ? themeColor : pal.border }]}
           onPress={() => onToggleNotif(card.id)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: card.notifCandidate === true }}
+          accessibilityLabel={t(card.notifCandidate ? 'notif_remove_word' : 'notif_add_word')}
         >
           <Ionicons
-            name={card.notifOff ? 'notifications-off-outline' : 'notifications-outline'}
+            name={card.notifCandidate ? 'notifications' : 'notifications-outline'}
             size={20}
-            color={card.notifOff ? pal.sub : themeColor}
+            color={card.notifCandidate ? themeColor : pal.sub}
           />
         </TouchableOpacity>
 
@@ -816,7 +811,7 @@ const s = StyleSheet.create({
     lineHeight: FLIP_NOTE_LINE_H,
     marginTop: FLIP_NOTE_MARGIN_TOP,
   },
-  notifOffBadge: {
+  notifBadge: {
     position: 'absolute',
     bottom: 14,
     right: 14,
@@ -933,10 +928,7 @@ function flipCardBrowserPropsEqual(previous: Props, next: Props) {
     && previous.onDelete === next.onDelete
     && previous.onMove === next.onMove
     && previous.onToggleNotif === next.onToggleNotif
-    && previous.verticalFlip === next.verticalFlip
-    && previous.canUseCustomVoice === next.canUseCustomVoice
-    && previous.canHideWord === next.canHideWord
-    && previous.onCustomVoiceLocked === next.onCustomVoiceLocked;
+    && previous.verticalFlip === next.verticalFlip;
 }
 
 export const FlipCardBrowser = memo(FlipCardBrowserComponent, flipCardBrowserPropsEqual);

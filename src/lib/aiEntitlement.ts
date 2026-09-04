@@ -10,9 +10,8 @@ import { VOICE_MONTHLY_LIMITS, type PlanTier } from './planLimits';
  * there changes this rule automatically, and there is no second list of tier
  * names to fall out of step.
  *
- * This is the AI rule alone. Basic is a paying plan that simply buys something
- * else — Custom Voice for Words, which is a local audio file and reaches no
- * network. See features/voice/customVoiceAccess.ts.
+ * This is the AI rule alone. Custom Voice is a local feature available on every
+ * plan and reaches no network, so it is intentionally unrelated to this gate.
  *
  * This is a client-side gate, not an authorisation: the Worker still verifies
  * every entitlement against RevenueCat. What it buys is that an ineligible

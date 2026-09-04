@@ -133,9 +133,9 @@ test('the existing UI from the progress bar downward is reused unchanged', () =>
   assert.doesNotMatch(body, /insets\.(?:top|bottom)/u);
   assert.doesNotMatch(screen, /isSubscribed/u, 'the ad was its only use for the plan');
 
-  // The duplicate custom-voice banner went with it; there is one, in App.tsx.
+  // The old Custom Voice lock banner is gone because attached audio is free.
   assert.doesNotMatch(screen, /voiceBanner|PanResponder/u);
-  assert.match(read(APP), /onCustomVoiceLocked=\{showVoiceLockBanner\}/u);
+  assert.doesNotMatch(read(APP), /onCustomVoiceLocked|showVoiceLockBanner/u);
 });
 
 // ── 4. Analytics replaces Reset in the active-card toolbar ─────────────────

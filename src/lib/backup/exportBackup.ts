@@ -27,6 +27,7 @@ interface FolderRow {
   id: string; name: string; created_at: number; position: number;
   icon: string | null; color: string | null;
   notif_interval_seconds: number | null; notif_display_only_word: number | null;
+  notif_notify_all_words: number | null;
 }
 
 interface LabelRow {
@@ -35,7 +36,7 @@ interface LabelRow {
 
 interface WordRow {
   id: string; word: string; meaning: string; position: number;
-  folder_id: string | null; created_at: number | null; notif_off: number;
+  folder_id: string | null; created_at: number | null; notif_candidate: number;
   word_lang: string | null; meaning_lang: string | null;
   audio_speed: number | null; audio_volume: number | null;
   hide_word: number;
@@ -62,6 +63,9 @@ function toFolder(row: FolderRow): BackupFolder {
     ...(row.notif_display_only_word !== null
       ? { notifDisplayOnlyWord: row.notif_display_only_word === 1 }
       : {}),
+    // Written only when on, so a folder using the default exports exactly as it
+    // did before this field existed.
+    ...(row.notif_notify_all_words === 1 ? { notifNotifyAllWords: true } : {}),
   };
 }
 
@@ -73,7 +77,7 @@ function toWord(row: WordRow): BackupWord {
     position: row.position,
     ...(row.folder_id !== null ? { folderId: row.folder_id } : {}),
     ...(row.created_at !== null ? { createdAt: row.created_at } : {}),
-    ...(row.notif_off === 1 ? { notifOff: true } : {}),
+    ...(row.notif_candidate === 1 ? { notifCandidate: true } : {}),
     ...(row.word_lang !== null ? { wordLang: row.word_lang } : {}),
     ...(row.meaning_lang !== null ? { meaningLang: row.meaning_lang } : {}),
     ...(row.audio_speed !== null ? { audioSpeed: row.audio_speed } : {}),
@@ -92,12 +96,12 @@ export async function exportBackup(db: SqlDatabase, options: ExportOptions): Pro
   const [folders, labels, words, notes, wordLabels, progress, reviews, settingRows] = await Promise.all([
     db.getAllAsync<FolderRow>(
       `SELECT id, name, created_at, position, icon, color,
-              notif_interval_seconds, notif_display_only_word
+              notif_interval_seconds, notif_display_only_word, notif_notify_all_words
          FROM folders ORDER BY position ASC`,
     ),
     db.getAllAsync<LabelRow>('SELECT id, name, kind, position, color FROM labels ORDER BY position ASC'),
     db.getAllAsync<WordRow>(
-      `SELECT id, word, meaning, position, folder_id, created_at, notif_off,
+      `SELECT id, word, meaning, position, folder_id, created_at, notif_candidate,
               word_lang, meaning_lang, audio_speed, audio_volume, hide_word
          FROM words ORDER BY position ASC`,
     ),

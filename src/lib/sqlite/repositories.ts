@@ -26,6 +26,7 @@ interface FolderRow {
   color: string | null;
   notif_interval_seconds: number | null;
   notif_display_only_word: number | null;
+  notif_notify_all_words: number | null;
 }
 
 function toFolder(row: FolderRow): Folder {
@@ -37,13 +38,18 @@ function toFolder(row: FolderRow): Folder {
       intervalSeconds: Math.max(0, row.notif_interval_seconds),
       displayOnlyWord: row.notif_display_only_word === 1,
     };
+    // Set only when on. NULL — a folder from before this column existed — and 0
+    // both mean off, and absent is how the rest of the app spells off, so an
+    // untouched folder reads back exactly as it did before.
+    if (row.notif_notify_all_words === 1) folder.notifSettings.notifyAllWords = true;
   }
   return folder;
 }
 
 export async function readFolders(db: SqlDatabase): Promise<Folder[]> {
   const rows = await db.getAllAsync<FolderRow>(
-    `SELECT id, name, created_at, icon, color, notif_interval_seconds, notif_display_only_word
+    `SELECT id, name, created_at, icon, color,
+            notif_interval_seconds, notif_display_only_word, notif_notify_all_words
        FROM folders ORDER BY position ASC`,
   );
   return rows.map(toFolder);
@@ -58,6 +64,7 @@ function folderParams(folder: Folder, position: number): SqlParam[] {
     folder.color ?? null,
     folder.notifSettings ? folder.notifSettings.intervalSeconds : null,
     folder.notifSettings ? (folder.notifSettings.displayOnlyWord ? 1 : 0) : null,
+    folder.notifSettings ? (folder.notifSettings.notifyAllWords === true ? 1 : 0) : null,
     position,
   ];
 }
@@ -80,8 +87,9 @@ async function syncFolders(db: SqlDatabase, folders: readonly Folder[]): Promise
   for (const [position, folder] of folders.entries()) {
     await db.runAsync(
       `INSERT INTO folders (id, name, created_at, icon, color,
-                            notif_interval_seconds, notif_display_only_word, position)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            notif_interval_seconds, notif_display_only_word,
+                            notif_notify_all_words, position)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
          created_at = excluded.created_at,
@@ -89,6 +97,7 @@ async function syncFolders(db: SqlDatabase, folders: readonly Folder[]): Promise
          color = excluded.color,
          notif_interval_seconds = excluded.notif_interval_seconds,
          notif_display_only_word = excluded.notif_display_only_word,
+         notif_notify_all_words = excluded.notif_notify_all_words,
          position = excluded.position`,
       folderParams(folder, position),
     );
@@ -103,7 +112,7 @@ interface WordRow {
   word: string;
   meaning: string;
   created_at: number | null;
-  notif_off: number;
+  notif_candidate: number;
   word_lang: string | null;
   meaning_lang: string | null;
   audio_uri: string | null;
@@ -124,7 +133,7 @@ interface ReviewRow {
 }
 
 const WORD_SELECT = `
-  SELECT w.id, w.folder_id, w.word, w.meaning, w.created_at, w.notif_off,
+  SELECT w.id, w.folder_id, w.word, w.meaning, w.created_at, w.notif_candidate,
          w.word_lang, w.meaning_lang, w.audio_uri, w.audio_speed, w.audio_volume,
          w.hide_word,
          n.body AS note,
@@ -143,7 +152,7 @@ function toWordCard(row: WordRow, history: ReviewEntry[] | undefined): WordCard 
     note: row.note ?? '',
   };
   if (row.created_at !== null) card.createdAt = row.created_at;
-  if (row.notif_off === 1) card.notifOff = true;
+  if (row.notif_candidate === 1) card.notifCandidate = true;
   if (row.folder_id !== null) card.folderId = row.folder_id;
   if (row.mastered === 1) card.testMastered = true;
   if (row.next_review_at !== null) card.testNextReview = row.next_review_at;
@@ -214,7 +223,7 @@ async function syncWords(
     }
 
     await db.runAsync(
-      `INSERT INTO words (id, folder_id, word, meaning, created_at, position, notif_off,
+      `INSERT INTO words (id, folder_id, word, meaning, created_at, position, notif_candidate,
                           word_lang, meaning_lang, audio_uri, audio_speed, audio_volume,
                           hide_word)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -224,7 +233,7 @@ async function syncWords(
          meaning = excluded.meaning,
          created_at = excluded.created_at,
          position = excluded.position,
-         notif_off = excluded.notif_off,
+         notif_candidate = excluded.notif_candidate,
          word_lang = excluded.word_lang,
          meaning_lang = excluded.meaning_lang,
          audio_uri = excluded.audio_uri,
@@ -238,7 +247,7 @@ async function syncWords(
         card.meaning,
         card.createdAt ?? null,
         position,
-        card.notifOff === true ? 1 : 0,
+        card.notifCandidate === true ? 1 : 0,
         card.wordLang ?? null,
         card.meaningLang ?? null,
         card.audioUri ?? null,

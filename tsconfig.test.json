@@ -45,6 +45,7 @@
     "src/features/cards/grading.ts",
     "src/features/cards/flipGesture.ts",
     "src/features/cards/levels.ts",
+    "src/features/notifications/notificationCandidates.ts",
     "tests/unit/**/*.ts"
   ]
 }

@@ -24,16 +24,10 @@ interface Options {
   /**
    * The plan includes High-Quality AI Voice — Premium only.
    *
-   * Named for the capability rather than for a plan because the two voice
-   * features are sold separately: a Basic subscriber has `canUseCustomVoice`
-   * and not this one, and passing a bare `isSubscribed` here is exactly how
-   * that distinction used to be lost. False falls back to device TTS, which is
-   * what Free has always done — the voice button still speaks the word.
+   * False falls back to device TTS. Attached Custom Voice audio is local and
+   * available on every plan, so it does not participate in this entitlement.
    */
   canUseAIVoice: boolean;
-  /** The plan includes Custom Voice for Words — Basic and Premium. */
-  canUseCustomVoice: boolean;
-  onCustomVoiceLocked?: () => void;
   /** BCP-47 tag, for the quota message's number and date formatting. */
   language?: string;
   /** Opens the Upgrade Plan sheet from a plan or quota alert. */
@@ -46,8 +40,6 @@ interface Options {
 export function useWordCardVoicePlayback({
   item,
   canUseAIVoice,
-  canUseCustomVoice,
-  onCustomVoiceLocked,
   language = 'en-US',
   onUpgrade,
   onRestorePurchases,
@@ -228,10 +220,6 @@ export function useWordCardVoicePlayback({
     if (!item) return;
     lastTargetRef.current = target;
     const buttonPressedAtMs = performance.now();
-    if (target === 'word' && item.audioUri && !canUseCustomVoice) {
-      onCustomVoiceLocked?.();
-      return;
-    }
     if (voiceStateRef.current?.target === target) {
       stopVoice();
       return;
@@ -282,7 +270,7 @@ export function useWordCardVoicePlayback({
       handleError(error);
     }
     if (sequenceRef.current === sequence) setVoiceState(null);
-  }, [abandonPlayback, canUseAIVoice, canUseCustomVoice, handleError, item, onCustomVoiceLocked, setVoiceState, stopVoice]);
+  }, [abandonPlayback, canUseAIVoice, handleError, item, setVoiceState, stopVoice]);
 
   const playWord = useCallback(() => play('word'), [play]);
   const playMeaning = useCallback(() => play('meaning'), [play]);

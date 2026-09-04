@@ -4,14 +4,7 @@ const test = require('node:test');
 
 const read = relative => fs.readFileSync(relative, 'utf8');
 
-/**
- * Basic's voice feature is Custom Voice for Words. AI Voice is Premium.
- *
- * The two used to be the other way round, and both were reached through a plan
- * name — `isSubscribed` for AI Voice, `isPremium` for Custom Voice. What is
- * pinned here is the wiring the pure rules depend on: that every surface asks
- * its feature's own rule, and that no plan name stands in for either.
- */
+/** Custom Voice is local and free; only High-Quality AI Voice is gated. */
 
 // ── The entitlement checks ───────────────────────────────────────────────────
 
@@ -35,25 +28,16 @@ test('the Worker sells no voice generation to Basic', () => {
   }
 });
 
-test('Custom Voice has its own rule, and it is not the AI one', () => {
-  const access = read('src/features/voice/customVoiceAccess.ts');
-  // Any paid plan, expressed through the shared definition of "paid".
-  assert.match(access, /export function planUnlocksCustomVoice\(plan: PlanTier\): boolean \{\s*return planIsSubscribed\(plan\);/u);
-  assert.match(access, /export const CUSTOM_VOICE_MIN_PLAN: PlanTier = 'basic';/u);
-  // It is a local audio file: the module cannot reach the network or the AI rule.
-  assert.doesNotMatch(access, /fetch\(|planCanUseAI|requireAI|openaiGateway/u);
+test('Custom Voice has no entitlement module', () => {
+  assert.equal(fs.existsSync('src/features/voice/customVoiceAccess.ts'), false);
 });
 
-test('the card voice button asks the two capabilities, never a plan', () => {
+test('the card voice button gates only AI Voice', () => {
   const playback = read('src/hooks/useWordCardVoicePlayback.ts');
 
-  // Custom Voice decides whether a word's attached audio plays or shows the lock.
-  assert.match(
-    playback,
-    /if \(target === 'word' && item\.audioUri && !canUseCustomVoice\) \{\s*onCustomVoiceLocked\?\.\(\);/u,
-  );
-  // AI Voice decides the engine. Without it the device engine speaks, exactly as
-  // it always has for Free — the button is never dead and never raises a paywall.
+  assert.doesNotMatch(playback, /canUseCustomVoice|onCustomVoiceLocked|custom_voice_locked/u);
+  // AI Voice still decides the generated-speech engine. Attached audio remains
+  // part of speakWordCard and is available without a plan check.
   assert.match(playback, /await speakWordCard\(item, canUseAIVoice, playbackOptions\);/u);
   assert.match(playback, /await speak\(item\.meaning, canUseAIVoice, item\.meaningLang, playbackOptions\);/u);
   // No plan name reaches this hook at all. Checked against the code alone: the
@@ -64,7 +48,7 @@ test('the card voice button asks the two capabilities, never a plan', () => {
   assert.doesNotMatch(code, /isPremium|isSubscribed/u);
 });
 
-test('every voice surface is handed the capabilities, not the plan', () => {
+test('every voice surface receives only the AI capability', () => {
   for (const path of [
     'src/components/SwipeableCard.tsx',
     'src/components/FlipCardBrowser.tsx',
@@ -72,7 +56,7 @@ test('every voice surface is handed the capabilities, not the plan', () => {
   ]) {
     const source = read(path);
     assert.match(source, /canUseAIVoice/u, `${path} must take the AI Voice capability`);
-    assert.match(source, /canUseCustomVoice/u, `${path} must take the Custom Voice capability`);
+    assert.doesNotMatch(source, /canUseCustomVoice|onCustomVoiceLocked/u);
     // Nothing may pass a plan flag into the playback hook.
     const hookCall = source.slice(source.indexOf('useWordCardVoicePlayback({'));
     assert.doesNotMatch(
@@ -82,16 +66,17 @@ test('every voice surface is handed the capabilities, not the plan', () => {
     );
   }
 
-  // Both come from one place, so no screen can compute its own answer.
+  // The only voice capability comes from the AI entitlement rule.
   const app = read('App.tsx');
   assert.match(app, /const canUseAIVoice = canUseAI;/u);
-  assert.match(app, /const canUseCustomVoice = planAllowsCustomVoice\(\{ isSubscribed, isSubscriptionLoaded \}\);/u);
+  assert.doesNotMatch(app, /planAllowsCustomVoice|canUseCustomVoice|showVoiceLockBanner/u);
 });
 
-test('the word editor unlocks its attach-audio control for Basic', () => {
+test('the word editor always exposes Custom Voice and its playback settings', () => {
   const modal = read('src/components/WordModal.tsx');
-  assert.match(modal, /\{canUseCustomVoice \? \(/u);
-  assert.match(modal, /\{canUseCustomVoice && audioUri \? \(/u);
+  assert.doesNotMatch(modal, /canUseCustomVoice|handleLockedVoicePlay|custom_voice_locked_msg/u);
+  assert.match(modal, /<View style=\{\[styles\.audioBtnGroup, styles\.wordHeaderRight\]\}>/u);
+  assert.match(modal, /\{audioUri \? \(\s*<View style=\{\[styles\.audioSettings/u);
   // The AI text tools are a separate, Premium feature and keep their own flag.
   assert.match(modal, /const aiTextVisible = AI_TEXT_FEATURES_ENABLED && isPremium && !hideAiTools;/u);
 });
@@ -105,23 +90,17 @@ test('the AI voice picker follows AI Voice into Premium', () => {
 
 // ── Plan descriptions ────────────────────────────────────────────────────────
 
-test('the locked-voice message points at the plan that now unlocks it', () => {
+test('Custom Voice has no locked-plan copy while AI Voice still names Premium', () => {
   const i18n = read('src/i18n.ts');
-  const lines = i18n.split('\n').filter(line => line.includes('custom_voice_locked_msg:'));
-  assert.ok(lines.length >= 20, 'every locale carries the message');
-  for (const line of lines) {
-    assert.doesNotMatch(line, /Premium/u, `still names Premium: ${line.trim()}`);
-    assert.match(line, /Basic/u, `must name Basic: ${line.trim()}`);
-  }
-  // And the AI Voice refusal names Premium.
+  assert.doesNotMatch(i18n, /custom_voice_locked_msg|basic_voice_limit|cmp_custom_voice|feat_custom_voice/u);
   assert.match(i18n, /err_plan_required_speech: 'High-Quality AI Voice requires a Premium plan\./u);
 });
 
 test('a Basic purchase raises no AI consent dialog', () => {
   const onboarding = read('src/features/onboarding/subscriptionOnboarding.ts');
   // The post-purchase offer is gated on the AI rule, not on `plan !== 'free'`.
-  // Basic pays for a local audio file, so its purchase shares nothing and has
-  // nothing to permit — asking would be a dialog for a feature it cannot use.
+  // Basic unlocks no server-backed AI feature, so its purchase shares nothing
+  // and has nothing to permit.
   assert.match(onboarding, /if \(!planCanUseAI\(input\.plan\)\) return false;/u);
   assert.doesNotMatch(onboarding, /input\.plan === 'free'/u);
   assert.match(onboarding, /import \{ planCanUseAI \} from '\.\.\/\.\.\/lib\/aiEntitlement';/u);
@@ -139,7 +118,7 @@ test('a Basic purchase raises no AI consent dialog', () => {
 
 test('the discovery markers follow their own features', () => {
   const markers = read('src/features/onboarding/featureDiscovery.ts');
-  assert.match(markers, /case FEATURE_MARKERS\.customAudio:\s*return planUnlocksCustomVoice\(plan\);/u);
+  assert.match(markers, /case FEATURE_MARKERS\.customAudio:\s*return true;/u);
   assert.match(markers, /case FEATURE_MARKERS\.themeShop:\s*return planIsSubscribed\(plan\);/u);
   assert.match(markers, /default:\s*return planCanUseAI\(plan\);/u);
 });

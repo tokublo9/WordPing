@@ -25,7 +25,7 @@ test('the switch sits with the WORD label, not with the voice controls', () => {
   // Label first, then the switch, with only a small fixed gap between them.
   const left = labelRow.slice(
     labelRow.indexOf('<View style={styles.fieldLabelLeft}>'),
-    labelRow.indexOf('{(canUseCustomVoice || audioUri) ? ('),
+    labelRow.indexOf('<View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>'),
   );
   assert.match(left, /\{t\('word_label'\)\}/u, 'the label is in the left group');
   assert.ok(
@@ -48,62 +48,42 @@ test('the switch sits with the WORD label, not with the voice controls', () => {
   assert.match(modal, /wordHeaderRight: \{\s*marginLeft: 'auto',/u);
 
   // And it is no longer among the Custom Voice controls.
-  const voiceGroup = labelRow.slice(labelRow.indexOf('{(canUseCustomVoice || audioUri) ? ('));
+  const voiceGroup = labelRow.slice(labelRow.indexOf('<View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>'));
   assert.doesNotMatch(voiceGroup, /hide_word|canHideWord/u, 'nothing of Hide Word is left there');
 });
 
-test('the switch has its own capability, independent of Custom Voice', () => {
+test('the switch is always available and independent of Custom Voice', () => {
   const modal = read('src/components/WordModal.tsx');
 
-  // Gated on `canHideWord` alone, and now in a different part of the row
-  // entirely — so the two capabilities cannot be conflated by layout.
-  assert.match(modal, /\{canHideWord && \(\s*<TouchableOpacity/u);
-  assert.match(modal, /\{\(canUseCustomVoice \|\| audioUri\) \? \(/u);
+  assert.doesNotMatch(modal, /canHideWord|canUseCustomVoice/u);
   assert.equal((modal.match(/t\('hide_word'\)/gu) ?? []).length, 1, 'one control, one place');
 
-  // The rule is never restated in the component: no plan name reaches it, and
-  // it borrows no other feature's flag.
+  // The control itself contains no plan or voice gate.
   const code = modal
     .replace(/\/\*[\s\S]*?\*\//gu, '')
     .replace(/^\s*\/\/.*$/gmu, '');
-  const toggle = code.slice(code.indexOf('{canHideWord && ('), code.indexOf('</TouchableOpacity>', code.indexOf('{canHideWord && (')));
-  assert.doesNotMatch(toggle, /plan ===|isPremium|isSubscribed|canUseCustomVoice|canUseAIVoice/u);
+  const toggleAt = code.indexOf("accessibilityLabel={t('hide_word')}");
+  const toggle = code.slice(code.lastIndexOf('<TouchableOpacity', toggleAt), code.indexOf('</TouchableOpacity>', toggleAt));
+  assert.doesNotMatch(toggle, /plan ===|isPremium|isSubscribed|canUseAIVoice/u);
 });
 
-test('an active Basic entitlement reaches the left-side Hide Word switch', () => {
+test('Hide Word has no subscription wiring at the app boundary', () => {
   const access = read('src/features/cards/hideWordAccess.ts');
   const app = read('App.tsx');
   const modals = read('src/app/AppModals.tsx');
   const modal = read('src/components/WordModal.tsx');
 
-  // Basic is the feature's explicit allowed tier once subscription loading has
-  // completed. The capability is resolved once at the app boundary.
-  assert.match(access, /export const HIDE_WORD_PLAN: PlanTier = 'basic';/u);
-  assert.match(
-    access,
-    /return isSubscriptionLoaded && planUnlocksHideWord\(plan\) \? 'allowed' : 'locked';/u,
-  );
-  assert.match(
-    app,
-    /const canHideWord = planAllowsHideWord\(\{ plan, isSubscriptionLoaded \}\);/u,
-  );
+  assert.doesNotMatch(`${access}\n${app}\n${modals}\n${modal}`, /canHideWord|planUnlocksHideWord|HIDE_WORD_PLAN/u);
+  assert.match(access, /return card\?\.hideWord === true;/u);
 
-  // Pin both prop hops. Omitting the second one previously made WordModal use
-  // its false default, which removed the button even for an active Basic user.
-  const appModalsCall = app.slice(app.indexOf('<AppModals'), app.indexOf('wordModal={{'));
-  assert.match(appModalsCall, /canHideWord=\{canHideWord\}/u);
-  const wordModalCall = modals.slice(modals.indexOf('<WordModal'), modals.indexOf('<BulkImportModal'));
-  assert.match(wordModalCall, /canHideWord=\{canHideWord\}/u);
-
-  // The capability gates a child of the left group, never the right-side voice
-  // group, so a Basic user's control cannot disappear into that group again.
+  // The toggle remains in the left group with no conditional entitlement wrapper.
   const header = modal.slice(
     modal.indexOf('<View style={styles.fieldLabelRow}>'),
     modal.indexOf('<View>\n                  {/* A hidden word is dimmed here'),
   );
   const leftEnd = header.indexOf('</View>', header.indexOf('<View style={styles.fieldLabelLeft}>'));
-  assert.ok(header.indexOf('{canHideWord && (') < leftEnd, 'Hide Word is in the left group');
-  const right = header.slice(header.indexOf('{(canUseCustomVoice || audioUri) ? ('));
+  assert.ok(header.indexOf("accessibilityLabel={t('hide_word')}") < leftEnd, 'Hide Word is in the left group');
+  const right = header.slice(header.indexOf('<View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>'));
   assert.doesNotMatch(right, /canHideWord|hide_word/u);
 });
 
@@ -131,7 +111,7 @@ test('the setting belongs to the word, and edit loads what was saved', () => {
   assert.match(read('App.tsx'), /hideWord: wordHideWord,\s*onChangeHideWord: setWordHideWord,/u);
   assert.match(
     read('src/app/AppModals.tsx'),
-    /canHideWord=\{canHideWord\}[\s\S]*?hideWord=\{wordModal\.hideWord\}/u,
+    /hideWord=\{wordModal\.hideWord\}\s*onChangeHideWord=\{wordModal\.onChangeHideWord\}/u,
   );
 });
 
@@ -144,15 +124,14 @@ test('every surface that draws the word stops drawing it', () => {
     'src/components/SwipeableCard.tsx',
   ]) {
     const source = read(path);
-    // Through the shared rule, which needs both the per-word flag and the
-    // capability — so a plan without Hide Word never inherits a hidden card.
+    // Through the shared stored-value rule, with no plan capability argument.
     assert.match(
       source,
-      /isWordTextHidden\((c|card|item), canHideWord\)/u,
+      /isWordTextHidden\((c|card|item)\)/u,
       `${path} must resolve through the shared rule`,
     );
     assert.match(source, /import \{ isWordTextHidden \} from '\.\.\/features\/cards\/hideWordAccess';/u);
-    // Never the raw flag: that would ignore the plan.
+    // Never duplicate the raw flag check at a rendering surface.
     assert.doesNotMatch(source, /\{c\.hideWord\s*\?|\{card!\.hideWord\s*\?|\{item\.hideWord\s*\?/u);
   }
 });
@@ -211,7 +190,7 @@ test('everything else on the face is untouched', () => {
   // label that used to sit beside them is no longer drawn on any card.)
   assert.match(face, /<WordCardVoiceButton/u);
   assert.match(face, /source=\{wordVoiceSource\}/u);
-  assert.match(face, /c\.notifOff &&/u);
+  assert.match(face, /c\.notifCandidate &&/u);
   assert.doesNotMatch(face, /stripe/u);
   // None of them is conditional on the word being visible.
   assert.doesNotMatch(face, /!c\.hideWord && <WordCardVoiceButton/u);
@@ -225,7 +204,7 @@ test('everything else on the face is untouched', () => {
 test('the word list hides the word everywhere the row could draw it', () => {
   const swipeable = read('src/components/SwipeableCard.tsx');
   // One answer per row, resolved once.
-  assert.match(swipeable, /const wordHidden = isWordTextHidden\(item, canHideWord\);/u);
+  assert.match(swipeable, /const wordHidden = isWordTextHidden\(item\);/u);
 
   // Three places the row renders the word: the front face, the expanded flipped
   // face, and the lifted long-press preview. A `{item.word}` left outside a
@@ -237,9 +216,50 @@ test('the word list hides the word everywhere the row could draw it', () => {
   );
   assert.equal(
     (swipeable.match(/wordHidden/gu) ?? []).length,
-    5,
-    'one definition, one copy guard, and one per draw site',
+    12,
+    'one definition, one copy guard, one per draw site, and the two action controls',
   );
+});
+
+test('the swipe and long-press menus toggle Hide Front Word, not notifications', () => {
+  const swipeable = read('src/components/SwipeableCard.tsx');
+
+  // The per-card notification action is gone from both menus. Everything else
+  // about notifications stays: the badge on the row still renders, and the
+  // scheduler is untouched.
+  assert.doesNotMatch(swipeable, /onToggleNotif/u, 'the row no longer offers it');
+  assert.match(
+    swipeable,
+    /\{!!item\.notifCandidate && \(/u,
+    'the notification-list badge still draws',
+  );
+
+  // Both menus call the same toggle, and both label it by what the tap will do.
+  assert.match(swipeable, /setTimeout\(onToggleHideWord, 220\)/u, 'the swipe reveal');
+  assert.match(swipeable, /onPress=\{handleHideWordToggle\}/u, 'the long-press menu');
+  assert.equal(
+    (swipeable.match(/t\(wordHidden \? 'show_front_word_action' : 'hide_front_word_action'\)/gu) ?? []).length,
+    2,
+    'the swipe button names itself for VoiceOver, the menu row draws the label',
+  );
+
+  // It writes the stored flag the editor writes, so every surface follows from
+  // the one card update — and it asks nothing of the plan on the way.
+  const cards = read('src/features/cards/useCards.ts');
+  assert.match(cards, /const toggleCardHideWord = \(id: string\) => \{/u);
+  assert.match(cards, /c\.id === id \? \{ \.\.\.c, hideWord: !c\.hideWord \} : c/u);
+  assert.doesNotMatch(
+    swipeable,
+    /onToggleHideWord[^\n]*(isSubscribed|isPremium|Paywall|ProSheet)/u,
+    'no plan check stands between the user and this action',
+  );
+
+  // Wired end to end.
+  assert.match(
+    read('src/screens/WordListScreen/WordListScreen.tsx'),
+    /onToggleHideWord=\{\(\) => currentActions\.onToggleHideWord\(item\.id\)\}/u,
+  );
+  assert.match(read('App.tsx'), /onToggleHideWord: toggleCardHideWord,/u);
 });
 
 test('a hidden word is not exposed through accessibility or copy', () => {
@@ -280,7 +300,7 @@ test('the word field dims its text, and only its text', () => {
 
   // Dimmed rather than concealed: the sheet is where the word is written, so it
   // has to stay legible and editable there.
-  assert.match(modal, /const wordFieldDimmed = isWordTextHidden\(\{ hideWord \}, canHideWord\);/u);
+  assert.match(modal, /const wordFieldDimmed = isWordTextHidden\(\{ hideWord \}\);/u);
   assert.match(
     modal,
     /\{ color: wordFieldDimmed \? pal\.text \+ HIDDEN_WORD_TEXT_ALPHA : pal\.text \}/u,
@@ -291,7 +311,7 @@ test('the word field dims its text, and only its text', () => {
 
   // The colour alone. An `opacity` on the input would take the border, the
   // background and the caret with it.
-  const input = modal.slice(modal.indexOf('<TextInput'), modal.indexOf('scrollEnabled={false}'));
+  const input = modal.slice(modal.indexOf('<StationaryTapTextInput'), modal.indexOf('scrollEnabled={false}'));
   assert.doesNotMatch(input, /opacity/u);
   assert.match(input, /borderColor: pal\.border, backgroundColor: pal\.input, minHeight: 96/u);
   // ...and it stays editable: the sheet is the only place the word can be fixed.

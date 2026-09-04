@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { Folder, WordCard } from './types';
-import { isCardHidden } from './features/cards/visibility';
+import { notifiableCards } from './features/notifications/notificationCandidates';
 import { reportSideEffectFailure } from './utils/reportSideEffectFailure';
 
 Notifications.setNotificationHandler({
@@ -106,8 +106,14 @@ async function applySchedule(cards: WordCard[], folders: Folder[]): Promise<void
 
   for (const folder of active) {
     const { intervalSeconds, displayOnlyWord } = folder.notifSettings!;
-    // A temporarily hidden card is out of rotation, so it must not fire.
-    const eligible = cards.filter(c => c.folderId === folder.id && !c.notifOff && !isCardHidden(c));
+    // Ownership first, then eligibility. Both are read from the card array this
+    // reschedule was handed, so a word deleted or moved to another folder since
+    // the last one is simply absent and can never be picked.
+    const owned = cards.filter(c => c.folderId === folder.id);
+    const eligible = notifiableCards(owned, folder.notifSettings);
+    // Nothing on the list and "Notify All Words" off: this folder schedules
+    // nothing. It deliberately does not fall back to every word — the sheet
+    // tells the user why instead.
     if (eligible.length === 0) continue;
 
     const pool  = shuffled(eligible);

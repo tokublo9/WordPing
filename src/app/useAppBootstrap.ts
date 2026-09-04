@@ -31,6 +31,32 @@ import {
   serializeTutorialFlag,
 } from '../features/onboarding/tutorialState';
 import { loadAIConsent } from '../lib/aiConsent';
+import { createDefaultFolderNotifSettings } from '../features/notifications/defaultSettings';
+
+/**
+ * A readable one-line summary of a thrown value, for the development console.
+ *
+ * `error.name` alone is what a bootstrap failure used to print, and every
+ * SQLite failure is named plain "Error" — so the log said nothing at all while
+ * the message underneath named the exact missing column. This keeps the name
+ * but leads with the message, and callers pass the original object alongside so
+ * the stack survives and the console can expand it.
+ *
+ * Development only. Nothing here is shown to a user or sent anywhere.
+ */
+function describeError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    // A value that cannot be stringified must not replace the failure being
+    // reported with a failure to describe it.
+    return String(error);
+  }
+}
 
 // Assigns folderId to cards that predate the folder feature.
 // Creates a default folder when none exist — the only side effect.
@@ -41,7 +67,12 @@ function migrateCards(
   if (!rawCards.some(c => !c.folderId)) return { cards: rawCards, folders: existingFolders };
   let finalFolders = existingFolders;
   if (finalFolders.length === 0) {
-    finalFolders = [{ id: DEFAULT_FOLDER_ID, name: 'My Words', createdAt: Date.now() }];
+    finalFolders = [{
+      id: DEFAULT_FOLDER_ID,
+      name: 'My Words',
+      createdAt: Date.now(),
+      notifSettings: createDefaultFolderNotifSettings(),
+    }];
     persistFolders(finalFolders);
   }
   const firstId = finalFolders[0].id;
@@ -164,10 +195,11 @@ export function useAppBootstrap({
         storedFolders = await readFolders();
       } catch (e) {
         if (__DEV__) {
-          console.error(
-            '[bootstrap] local data load failed:',
-            e instanceof Error ? e.name : 'UnknownError',
-          );
+          // The error object itself, not a name pulled off it: a schema or
+          // constraint failure says which column or table it was in, and that
+          // sentence is the whole diagnosis. Passed through so the console keeps
+          // the stack and can expand it.
+          console.error('[bootstrap] local data load failed:', describeError(e), e);
         }
         // The stored cards were never read, so `cards` is [] for reasons that
         // have nothing to do with what is on disk. Persistence must stay shut:
@@ -310,10 +342,7 @@ export function useAppBootstrap({
         // Unexpected error after Phase 1 succeeded. Logged for diagnostics only;
         // finally block below ensures the app reaches a usable state.
         if (__DEV__) {
-          console.error(
-            '[bootstrap] unexpected error:',
-            e instanceof Error ? e.name : 'UnknownError',
-          );
+          console.error('[bootstrap] unexpected error:', describeError(e), e);
         }
       })
       .finally(() => {

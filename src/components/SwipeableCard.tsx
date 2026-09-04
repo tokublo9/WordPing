@@ -45,8 +45,14 @@ interface Props {
   onFlip: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onMove: () => void;
-  onToggleNotif: () => void;
+  /**
+   * Flips this word's Hide Front Word setting.
+   *
+   * It sits where the per-card notification toggle used to, which is why the
+   * notification indicator on the card front stays: scheduling is untouched,
+   * only its shortcut moved out of these two menus.
+   */
+  onToggleHideWord: () => void;
   onVoiceLocked: () => void;
   onOpen: (close: () => void) => void;
   /** Ref to the close-function of whichever card is currently swiped open (null if none). */
@@ -61,30 +67,22 @@ interface Props {
   /** Suppresses the card long-press/tap after the overlapping fast-scroll zone activates. */
   isFastScrollGesture?: () => boolean;
   showFullCard?: boolean;
-  /** The plan includes Custom Voice for Words — Basic and Premium. */
-  canUseCustomVoice?: boolean;
-  /** The plan includes Hide Word — Basic only. */
-  canHideWord?: boolean;
-  onCustomVoiceLocked?: () => void;
   reorderMode?: boolean;
   reorderHandle?: React.ReactNode;
 }
 
 export function SwipeableCard({
   item, isFlipped, themeColor, pal, voiceLocked, canUseAIVoice,
-  onFlip, onEdit, onDelete, onMove, onToggleNotif, onVoiceLocked, onOpen, openCardRef,
+  onFlip, onEdit, onDelete, onToggleHideWord, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
   onHorizontalSwipeLockChange,
   onGestureStart, onVerticalGestureLock, isVerticalGestureLocked,
   isFastScrollGesture,
   showFullCard = false,
-  canUseCustomVoice = false, canHideWord = false, onCustomVoiceLocked,
   reorderMode = false, reorderHandle,
 }: Props) {
   const t = useLang();
-  // Both the per-word flag and the capability, so a plan without Hide Word shows
-  // the word again rather than inheriting a row it cannot reveal.
-  const wordHidden = isWordTextHidden(item, canHideWord);
+  const wordHidden = isWordTextHidden(item);
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef(false);
   const startX = useRef(0);
@@ -242,9 +240,9 @@ export function SwipeableCard({
     dismissLifted();
   };
 
-  const handleNotifToggle = () => {
+  const handleHideWordToggle = () => {
     dismissLifted();
-    onToggleNotif();
+    onToggleHideWord();
   };
 
   const handleEditLifted = () => {
@@ -272,8 +270,6 @@ export function SwipeableCard({
     useWordCardVoicePlayback({
       item,
       canUseAIVoice,
-      canUseCustomVoice,
-      onCustomVoiceLocked,
     });
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -302,16 +298,12 @@ export function SwipeableCard({
       {!selectionMode && !reorderMode && (
         <View style={styles.actionBg}>
           <TouchableOpacity
-            style={[styles.circleBtn, { backgroundColor: item.notifOff ? '#C0C0C0' : themeColor }]}
-            onPress={() => { close(); setTimeout(onToggleNotif, 220); }}
+            style={[styles.circleBtn, { backgroundColor: wordHidden ? themeColor : '#C0C0C0' }]}
+            onPress={() => { close(); setTimeout(onToggleHideWord, 220); }}
+            accessibilityRole="button"
+            accessibilityLabel={t(wordHidden ? 'show_front_word_action' : 'hide_front_word_action')}
           >
-            <Ionicons name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'} size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.circleBtn, { backgroundColor: '#C0C0C0' }]}
-            onPress={() => { close(); setTimeout(onMove, 220); }}
-          >
-            <Ionicons name="folder-outline" size={20} color="#fff" />
+            <Ionicons name={wordHidden ? 'eye-off' : 'eye-outline'} size={20} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.circleBtn, { backgroundColor: '#C0C0C0' }]}
@@ -412,10 +404,10 @@ export function SwipeableCard({
                   locked={voiceLocked}
                   disabled={reorderMode}
                 />
-                {!!item.notifOff && (
+                {!!item.notifCandidate && (
                   <View style={{ opacity: 0.45 }} pointerEvents="none">
                     <Ionicons
-                      name="notifications-off-outline"
+                      name="notifications-outline"
                       size={13}
                       color={isFlipped ? '#fff' : pal.sub}
                     />
@@ -492,14 +484,14 @@ export function SwipeableCard({
                   <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />
                 </>
               )}
-              <TouchableOpacity style={styles.actionRow} onPress={handleNotifToggle}>
+              <TouchableOpacity style={styles.actionRow} onPress={handleHideWordToggle}>
                 <Ionicons
-                  name={item.notifOff ? 'notifications-off-outline' : 'notifications-outline'}
+                  name={wordHidden ? 'eye-off' : 'eye-outline'}
                   size={18}
-                  color={item.notifOff ? pal.text : themeColor}
+                  color={wordHidden ? themeColor : pal.text}
                 />
-                <Text style={[styles.actionLabel, { color: item.notifOff ? pal.text : themeColor }]}>
-                  {t(item.notifOff ? 'notif_off_action' : 'notif_on')}
+                <Text style={[styles.actionLabel, { color: wordHidden ? themeColor : pal.text }]}>
+                  {t(wordHidden ? 'show_front_word_action' : 'hide_front_word_action')}
                 </Text>
               </TouchableOpacity>
               <View style={[styles.actionDivider, { backgroundColor: pal.border }]} />

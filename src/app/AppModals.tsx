@@ -24,10 +24,6 @@ export interface AppModalsProps {
   rawThemeColor: string;     // themeColor — used by PaywallModal
   isSubscribed: boolean;
   isPremium: boolean;
-  /** The plan includes Custom Voice for Words — Basic and Premium. */
-  canUseCustomVoice: boolean;
-  /** The plan includes Hide Word — Basic only. */
-  canHideWord: boolean;
   /** ISO-8601 expiry of the active entitlement; drives ProSheet's downgrade note. */
   subscriptionExpirationDate: string | null;
   /** False until RevenueCat has answered; paid features stay locked until then. */
@@ -56,6 +52,10 @@ export interface AppModalsProps {
     onChangeMeaningLang: Dispatch<SetStateAction<string | undefined>>;
     hideWord: boolean;
     onChangeHideWord: (value: boolean) => void;
+    /** Live, not read off `editingCard`: the toggle below writes through immediately. */
+    notifCandidate: boolean;
+    onToggleNotifCandidate(): void;
+    onMove(): void;
     audioUri: string | undefined;
     onChangeAudioUri: Dispatch<SetStateAction<string | undefined>>;
     audioSpeed: number;
@@ -87,6 +87,9 @@ export interface AppModalsProps {
     onPickInterval(s: number): void;
     displayOnlyWord: boolean;
     onToggleDisplayOnlyWord(v: boolean): void;
+    notifyAllWords: boolean;
+    onToggleNotifyAllWords(v: boolean): void;
+    noNotifiableWords: boolean;
     onTest(): void;
   };
 
@@ -181,7 +184,7 @@ export interface AppModalsProps {
 
 export function AppModals({
   pal, themeColor, rawThemeColor, isSubscribed, isPremium,
-  canUseCustomVoice, canHideWord, subscriptionExpirationDate,
+  subscriptionExpirationDate,
   isSubscriptionLoaded,
   subscribe, subscribePremium, restore, onManageSubscription,
   wordModal, bulkImport, notifModal, textToSpeech, settingsModal, paywallModal,
@@ -205,14 +208,15 @@ export function AppModals({
         themeColor={themeColor}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
-        canUseCustomVoice={canUseCustomVoice}
-        canHideWord={canHideWord}
         wordLang={wordModal.wordLang}
         onChangeWordLang={wordModal.onChangeWordLang}
         meaningLang={wordModal.meaningLang}
         onChangeMeaningLang={wordModal.onChangeMeaningLang}
         hideWord={wordModal.hideWord}
         onChangeHideWord={wordModal.onChangeHideWord}
+        notifCandidate={wordModal.notifCandidate}
+        onToggleNotifCandidate={wordModal.onToggleNotifCandidate}
+        onMove={wordModal.onMove}
         audioUri={wordModal.audioUri}
         onChangeAudioUri={wordModal.onChangeAudioUri}
         audioSpeed={wordModal.audioSpeed}
@@ -245,6 +249,9 @@ export function AppModals({
         onPickInterval={notifModal.onPickInterval}
         displayOnlyWord={notifModal.displayOnlyWord}
         onToggleDisplayOnlyWord={notifModal.onToggleDisplayOnlyWord}
+        notifyAllWords={notifModal.notifyAllWords}
+        onToggleNotifyAllWords={notifModal.onToggleNotifyAllWords}
+        noNotifiableWords={notifModal.noNotifiableWords}
         pal={pal}
         themeColor={themeColor}
         onTest={notifModal.onTest}

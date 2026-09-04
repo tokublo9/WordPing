@@ -78,11 +78,11 @@ test('Test mode drives its voice icon through the shared playback hook', () => {
     assert.match(source, /<WordCardVoiceButton/u);
     assert.match(source, /themeColor=\{themeColor\}\s*inactiveColor=\{pal\.sub\}/u);
   }
-  // The hook takes the two voice capabilities, never a plan name: AI Voice is
-  // Premium and Custom Voice is any paid plan, so one `isSubscribed` cannot
-  // stand for both.
-  assert.match(testMode, /const \{ voiceState, playWord, playMeaning, stopVoice, wordVoiceSource \} = useWordCardVoicePlayback\(\{\s*item: card,\s*canUseAIVoice,\s*canUseCustomVoice,\s*onCustomVoiceLocked,/u);
-  // The lock banner is the app's one banner, not a second copy drawn over a sheet.
+  // Only generated AI Voice has an entitlement capability. Attached Custom
+  // Voice files are local and always available.
+  assert.match(testMode, /const \{ voiceState, playWord, playMeaning, stopVoice, wordVoiceSource \} = useWordCardVoicePlayback\(\{\s*item: card,\s*canUseAIVoice,\s*\}\);/u);
+  assert.doesNotMatch(testMode, /canUseCustomVoice|onCustomVoiceLocked/u);
+  // No duplicate lock banner is drawn over the screen.
   assert.doesNotMatch(testMode, /showVoiceLockedBanner|voiceBannerPan|s\.voiceBanner/u);
   // Phase is read per target, so the word and meaning icons show their own state.
   assert.match(testMode, /phase=\{voiceState\?\.target === 'word' \? voiceState\.phase : undefined\}/u);

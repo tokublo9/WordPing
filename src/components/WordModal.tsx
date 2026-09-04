@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   TouchableOpacity,
   TouchableWithoutFeedback,
   UIManager,
@@ -22,7 +23,7 @@ import {
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -46,6 +47,12 @@ import { appStyles as s } from '../styles';
 import { AD_BANNER_HEIGHT, ADS_ENABLED } from './AdBannerPlaceholder';
 
 const SCREEN_H = Dimensions.get('window').height;
+
+// Deliberately much smaller than ordinary press/scroll slop. An unfocused field
+// may focus only after a genuinely stationary tap; movement in either axis
+// permanently cancels that gesture's pending focus.
+const FIELD_TAP_MOVEMENT_SLOP = 2;
+const FIELD_TAP_MAX_DURATION_MS = 350;
 
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 const VOLUME_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
@@ -74,6 +81,79 @@ const RATING_COLORS: Record<TestLevel, string> = {
   slightly: '#f59e0b',
   unknown:  '#ef4444',
 };
+
+/**
+ * Keeps an unfocused native TextInput out of the responder path until a touch
+ * has ended as a stationary, single-finger tap. The wrapper yields immediately
+ * when the parent ScrollView asks to own a drag. Once focused, the wrapper no
+ * longer captures anything and all editing/selection gestures stay native.
+ */
+function StationaryTapTextInput({ onFocus, onBlur, ...props }: TextInputProps) {
+  const inputRef = useRef<TextInput>(null);
+  const focusedRef = useRef(false);
+  const [focused, setFocused] = useState(false);
+  const tapCancelledRef = useRef(false);
+  const tapStartedAtRef = useRef(0);
+
+  const tapGate = useRef(PanResponder.create({
+    onStartShouldSetPanResponderCapture: event => {
+      if (focusedRef.current) return false;
+      tapCancelledRef.current = event.nativeEvent.touches.length !== 1;
+      tapStartedAtRef.current = Date.now();
+      return true;
+    },
+    onPanResponderStart: (_event, gesture) => {
+      if (gesture.numberActiveTouches !== 1) tapCancelledRef.current = true;
+    },
+    onPanResponderMove: (_event, gesture) => {
+      if (
+        gesture.numberActiveTouches !== 1
+        || Math.hypot(gesture.dx, gesture.dy) > FIELD_TAP_MOVEMENT_SLOP
+      ) {
+        tapCancelledRef.current = true;
+      }
+    },
+    onPanResponderRelease: (_event, gesture) => {
+      if (
+        Math.hypot(gesture.dx, gesture.dy) > FIELD_TAP_MOVEMENT_SLOP
+        || Date.now() - tapStartedAtRef.current > FIELD_TAP_MAX_DURATION_MS
+      ) {
+        tapCancelledRef.current = true;
+      }
+      if (!tapCancelledRef.current) inputRef.current?.focus();
+    },
+    onPanResponderTerminate: () => {
+      tapCancelledRef.current = true;
+    },
+    onPanResponderTerminationRequest: () => {
+      tapCancelledRef.current = true;
+      return true;
+    },
+    // The unfocused TextInput has pointer events disabled, so the only native
+    // responder this can admit is the containing sheet's ScrollView.
+    onShouldBlockNativeResponder: () => false,
+  })).current;
+
+  return (
+    <View {...tapGate.panHandlers}>
+      <TextInput
+        {...props}
+        ref={inputRef}
+        pointerEvents={focused ? 'auto' : 'none'}
+        onFocus={event => {
+          focusedRef.current = true;
+          setFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={event => {
+          focusedRef.current = false;
+          setFocused(false);
+          onBlur?.(event);
+        }}
+      />
+    </View>
+  );
+}
 
 // ── TTS language options (BCP-47 codes supported by device TTS) ───────────────
 
@@ -116,24 +196,20 @@ interface Props {
   isSubscribed: boolean;
   /** Premium plan — gates the AI text tools (meaning, example, breakdown, translate). */
   isPremium?: boolean;
-  /**
-   * The plan includes Custom Voice for Words — Basic and Premium.
-   *
-   * Separate from `isPremium`: the attach-audio control is not an AI feature and
-   * is sold a tier lower than the AI text tools above.
-   */
-  canUseCustomVoice?: boolean;
-  /**
-   * The plan includes Hide Word — Basic only, and deliberately not Premium.
-   *
-   * Its own capability rather than Custom Voice's: the two overlap today only
-   * because Basic has both. Resolved by features/cards/hideWordAccess.ts, never
-   * by a plan check in here.
-   */
-  canHideWord?: boolean;
   /** Per-word "Hide Word": the word text is not drawn on its study faces. */
   hideWord?: boolean;
   onChangeHideWord?: (value: boolean) => void;
+  /**
+   * The word is on its folder's notification list.
+   *
+   * Live state, not the value `editingCard` was opened with: the action below
+   * writes straight through to the card rather than waiting for Save, so the
+   * label has to follow the card and not the snapshot.
+   */
+  notifCandidate?: boolean;
+  onToggleNotifCandidate?: () => void;
+  /** Opens the folder picker for this word. The same move the list rows use. */
+  onMove?: () => void;
   /** Per-feature "!" markers. The custom-audio control is the only one here. */
   discovery: FeatureDiscovery;
   wordLang: string | undefined;
@@ -156,8 +232,9 @@ export function WordModal({
   visible, onClose, onBulkImport, editingCard,
   word, onChangeWord, meaning, onChangeMeaning, note, onChangeNote,
   onSave, pal, themeColor,
-  isSubscribed, isPremium = false, canUseCustomVoice = false,
-  canHideWord = false, hideWord = false, onChangeHideWord,
+  isSubscribed, isPremium = false,
+  hideWord = false, onChangeHideWord,
+  notifCandidate = false, onToggleNotifCandidate, onMove,
   discovery, wordLang, onChangeWordLang, meaningLang, onChangeMeaningLang,
   audioUri, onChangeAudioUri,
   audioSpeed, onChangeAudioSpeed,
@@ -169,10 +246,8 @@ export function WordModal({
 }: Props) {
   const t      = useLang();
   // Dimmed, never concealed: the sheet is where the word is written. Resolved
-  // through the same rule the cards use, so the two can never disagree about
-  // what "hidden" means — a plan without Hide Word sees an ordinary field even
-  // on a word whose stored flag is set.
-  const wordFieldDimmed = isWordTextHidden({ hideWord }, canHideWord);
+  // through the same stored-value rule the cards use.
+  const wordFieldDimmed = isWordTextHidden({ hideWord });
   const insets = useSafeAreaInsets();
 
   // The AI text controls (generate meaning, example, breakdown, translate).
@@ -231,52 +306,6 @@ export function WordModal({
   const handleDismissKeyboard = () => {
     if (!isScrollingRef.current) Keyboard.dismiss();
   };
-
-  // ── Top error / hint banner ──────────────────────────────────────────────────
-  // Shared banner: shows either the Basic voice limit or the locked-custom-voice error.
-  const [hintShowing, setHintShowing] = useState(false);
-  const [hintKey, setHintKey]   = useState<TranslationKey>('basic_voice_limit');
-  const [hintIcon, setHintIcon] = useState<ComponentProps<typeof Ionicons>['name']>('mic-outline');
-  const hintAnim  = useRef(new Animated.Value(0)).current;
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const dismissHint = useCallback(() => {
-    if (hintTimer.current) { clearTimeout(hintTimer.current); hintTimer.current = null; }
-    Animated.timing(hintAnim, { toValue: 0, duration: 220, useNativeDriver: false })
-      .start(({ finished }) => { if (finished) setHintShowing(false); });
-  }, [hintAnim]);
-
-  const showHint = useCallback((key: TranslationKey, icon: ComponentProps<typeof Ionicons>['name']) => {
-    setHintKey(key);
-    setHintIcon(icon);
-    if (hintTimer.current) clearTimeout(hintTimer.current);
-    setHintShowing(true);
-    Animated.spring(hintAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: false }).start();
-    hintTimer.current = setTimeout(dismissHint, 2500);
-  }, [hintAnim, dismissHint]);
-
-  // Non-Premium user tapped play on a custom voice saved while Premium.
-  const handleLockedVoicePlay = useCallback(() => {
-    Keyboard.dismiss();
-    showHint('custom_voice_locked_msg', 'warning');
-  }, [showHint]);
-
-  const hintPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, g) => g.dy < -6,
-    onPanResponderMove: (_, g) => {
-      if (g.dy < 0) hintAnim.setValue(Math.max(0, 1 - (-g.dy) / 80));
-    },
-    onPanResponderRelease: (_, g) => {
-      if (g.dy < -28) {
-        dismissHint();
-      } else {
-        Animated.spring(hintAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
-        if (hintTimer.current) clearTimeout(hintTimer.current);
-        hintTimer.current = setTimeout(dismissHint, 2500);
-      }
-    },
-  })).current;
 
   // ── Audio ────────────────────────────────────────────────────────────────────
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -684,134 +713,99 @@ export function WordModal({
                 <View style={styles.fieldLabelRow}>
                   {/* Hide Word belongs to the word field, so it sits with the
                       field's own label rather than among the Custom Voice
-                      controls: the two are separate capabilities and were only
-                      ever adjacent by layout accident. The fixed-gap left group
+                      controls: the two features were only ever adjacent by
+                      layout accident. The fixed-gap left group
                       keeps the label and switch adjacent; the voice group aligns
                       itself independently at the right edge. */}
                   <View style={styles.fieldLabelLeft}>
                     <Text style={[s.inputLabel, { color: pal.sub, marginBottom: 0 }]}>
                       {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
                     </Text>
-                    {canHideWord && (
+                    <TouchableOpacity
+                      onPress={() => onChangeHideWord?.(!hideWord)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[
+                        styles.audioBtn,
+                        hideWord
+                          ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
+                          : { borderColor: pal.border },
+                      ]}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: hideWord }}
+                      accessibilityLabel={t('hide_word')}
+                      accessibilityHint={t(hideWord ? 'hide_word_on' : 'hide_word_off')}
+                    >
+                      <Ionicons
+                        name={hideWord ? 'eye-off' : 'eye-outline'}
+                        size={16}
+                        color={hideWord ? themeColor : pal.sub}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>
+                    <NewFeatureBadge
+                      visible={discovery.isNew(FEATURE_MARKERS.customAudio)}
+                      themeColor={themeColor}
+                      label={t('new_feature_badge')}
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        discovery.dismiss(FEATURE_MARKERS.customAudio);
+                        handleAudioButton();
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[
+                        styles.audioBtn,
+                        audioUri
+                          ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
+                          : { borderColor: pal.border },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
+                        size={16}
+                        color={audioUri ? themeColor : pal.sub}
+                      />
+                    </TouchableOpacity>
+                    {/* Remove sits to the right of the button it clears, and
+                        only once there is something to clear — so the Custom
+                        Voice button keeps the same place in the row whether or
+                        not a file is attached. */}
+                    {audioUri && (
                       <TouchableOpacity
-                        onPress={() => onChangeHideWord?.(!hideWord)}
+                        onPress={handleClearAudio}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={[
-                          styles.audioBtn,
-                          hideWord
-                            ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
-                            : { borderColor: pal.border },
-                        ]}
-                        accessibilityRole="switch"
-                        accessibilityState={{ checked: hideWord }}
-                        accessibilityLabel={t('hide_word')}
-                        accessibilityHint={t(hideWord ? 'hide_word_on' : 'hide_word_off')}
+                        accessibilityLabel={t('remove_audio')}
+                        style={styles.audioRemoveBtn}
                       >
-                        <Ionicons
-                          name={hideWord ? 'eye-off' : 'eye-outline'}
-                          size={16}
-                          color={hideWord ? themeColor : pal.sub}
-                        />
+                        <Ionicons name="close-circle" size={18} color={pal.sub} />
                       </TouchableOpacity>
                     )}
                   </View>
-                  {(canUseCustomVoice || audioUri) ? (
-                    <View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>
-                      {canUseCustomVoice ? (
-                      <>
-                      {/* Subscriber-only control, so the marker is too. One id
-                          for the Add and the Edit sheet: it is the same control
-                          on the same field, so finding it in one is finding it. */}
-                      <NewFeatureBadge
-                        visible={discovery.isNew(FEATURE_MARKERS.customAudio)}
-                        themeColor={themeColor}
-                        label={t('new_feature_badge')}
-                      />
-                      <TouchableOpacity
-                        onPress={() => {
-                          discovery.dismiss(FEATURE_MARKERS.customAudio);
-                          handleAudioButton();
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={[
-                          styles.audioBtn,
-                          audioUri
-                            ? { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }
-                            : { borderColor: pal.border },
-                        ]}
-                      >
-                        <Ionicons
-                          name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
-                          size={16}
-                          color={audioUri ? themeColor : pal.sub}
-                        />
-                      </TouchableOpacity>
-                      {/* Remove sits to the right of the button it clears, and
-                          only once there is something to clear — so the Custom
-                          Voice button keeps the same place in the row whether or
-                          not a file is attached. */}
-                      {audioUri && (
-                        <TouchableOpacity
-                          onPress={handleClearAudio}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel={t('remove_audio')}
-                          style={styles.audioRemoveBtn}
-                        >
-                          <Ionicons name="close-circle" size={18} color={pal.sub} />
-                        </TouchableOpacity>
-                      )}
-                      </>
-                      ) : audioUri ? (
-                      // Downgraded to Free: keep the play + remove buttons only for a word
-                      // that already had a custom voice saved. Play shows the locked-voice message.
-                      <>
-                        <TouchableOpacity
-                          onPress={handleLockedVoicePlay}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          style={[styles.audioBtn, { borderColor: themeColor + '60', backgroundColor: themeColor + '18' }]}
-                        >
-                          <Ionicons name="play-circle" size={16} color={themeColor} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={handleClearAudio}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel={t('remove_audio')}
-                          style={styles.audioRemoveBtn}
-                        >
-                          <Ionicons name="close-circle" size={18} color={pal.sub} />
-                        </TouchableOpacity>
-                      </>
-                      ) : null}
-                    </View>
-                  ) : null}
                 </View>
-                <View>
-                  {/* A hidden word is dimmed here rather than concealed: this is
-                      where it is written, so it stays legible and editable. The
-                      dimming is on the text colour alone — an `opacity` on the
-                      input would take the border, the background and the caret
-                      with it, and the label, the validation message and every
-                      other control are outside this style entirely.
+                {/* A hidden word is dimmed here rather than concealed: this is
+                    where it is written, so it stays legible and editable. The
+                    dimming is on the text colour alone — an `opacity` on the
+                    input would take the border, the background and the caret
+                    with it, and the label, the validation message and every
+                    other control are outside this style entirely.
 
-                      Resolved through the same rule the cards use, so a plan
-                      without Hide Word sees an ordinary field even on a word
-                      whose stored flag is set. */}
-                  <TextInput
-                    style={[
-                      s.input,
-                      s.inputMultiline,
-                      { borderColor: pal.border, backgroundColor: pal.input, minHeight: 96 },
-                      { color: wordFieldDimmed ? pal.text + HIDDEN_WORD_TEXT_ALPHA : pal.text },
-                    ]}
-                    value={word}
-                    onChangeText={onChangeWord}
-                    multiline
-                    scrollEnabled={false}
-                  />
-                </View>
+                    Resolved through the same stored-value rule the cards use. */}
+                <StationaryTapTextInput
+                  style={[
+                    s.input,
+                    s.inputMultiline,
+                    { borderColor: pal.border, backgroundColor: pal.input, minHeight: 96 },
+                    { color: wordFieldDimmed ? pal.text + HIDDEN_WORD_TEXT_ALPHA : pal.text },
+                  ]}
+                  value={word}
+                  onChangeText={onChangeWord}
+                  multiline
+                  scrollEnabled={false}
+                />
 
-                {/* Audio playback settings — visible only when an audio file is attached and the plan includes Custom Voice */}
-                {canUseCustomVoice && audioUri ? (
+                {/* Audio playback settings are available whenever a file is attached. */}
+                {audioUri ? (
                   <View style={[styles.audioSettings, { borderColor: pal.border, backgroundColor: pal.input }]}>
                     {/* Collapsible header */}
                     <TouchableOpacity
@@ -925,15 +919,13 @@ export function WordModal({
                   )}
                   </View>
                 </View>
-                <View>
-                  <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: aiTextVisible && meaning.trim() ? 4 : 18 }]}
-                    value={meaning}
-                    onChangeText={onChangeMeaning}
-                    multiline
-                    scrollEnabled={false}
-                  />
-                </View>
+                <StationaryTapTextInput
+                  style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: aiTextVisible && meaning.trim() ? 4 : 18 }]}
+                  value={meaning}
+                  onChangeText={onChangeMeaning}
+                  multiline
+                  scrollEnabled={false}
+                />
                 {aiTextVisible && meaning.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
@@ -1030,15 +1022,13 @@ export function WordModal({
                     </View>
                   )}
                 </View>
-                <View>
-                  <TextInput
-                    style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: aiTextVisible && note.trim() ? 4 : 18 }]}
-                    value={note}
-                    onChangeText={onChangeNote}
-                    multiline
-                    scrollEnabled={false}
-                  />
-                </View>
+                <StationaryTapTextInput
+                  style={[s.input, s.inputMultiline, { borderColor: pal.border, backgroundColor: pal.input, color: pal.text, minHeight: 96, marginBottom: aiTextVisible && note.trim() ? 4 : 18 }]}
+                  value={note}
+                  onChangeText={onChangeNote}
+                  multiline
+                  scrollEnabled={false}
+                />
                 {aiTextVisible && note.trim() ? (
                   <View style={styles.transSection}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
@@ -1079,6 +1069,52 @@ export function WordModal({
                     ) : null}
                   </View>
                 ) : null}
+                {/* Word actions — editing only. Both need a word that already
+                    exists: there is nothing to move or to put on a notification
+                    list until Save has created it. */}
+                {editingCard && (
+                  <View style={styles.wordActions}>
+                    <TouchableOpacity
+                      style={[styles.wordAction, { borderColor: pal.border }]}
+                      onPress={onMove}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="folder-outline" size={17} color={pal.sub} />
+                      <Text style={[styles.wordActionLabel, { color: pal.sub }]}>{t('move')}</Text>
+                    </TouchableOpacity>
+
+                    {/* Takes effect on the tap, not on Save — so the icon and
+                        label show the stored word's live state, and closing with
+                        Cancel leaves it as the user just set it. */}
+                    <TouchableOpacity
+                      style={[
+                        styles.wordAction,
+                        { borderColor: notifCandidate ? themeColor : pal.border },
+                      ]}
+                      onPress={onToggleNotifCandidate}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: notifCandidate }}
+                    >
+                      <Ionicons
+                        name={notifCandidate ? 'notifications' : 'notifications-outline'}
+                        size={17}
+                        color={notifCandidate ? themeColor : pal.sub}
+                      />
+                      <Text
+                        style={[
+                          styles.wordActionLabel,
+                          { color: notifCandidate ? themeColor : pal.sub },
+                        ]}
+                      >
+                        {t(notifCandidate ? 'notif_remove_word' : 'notif_add_word')}
+                      </Text>
+                      {notifCandidate && (
+                        <Ionicons name="checkmark" size={17} color={themeColor} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {/* Review History — only shown when editing an existing word */}
                 {editingCard && (
                   <View style={[styles.historySection, { borderTopColor: pal.border }]}>
@@ -1217,33 +1253,6 @@ export function WordModal({
             <Ionicons name="chevron-down" size={16} color={pal.sub} />
           </TouchableOpacity>
         </View>
-      )}
-
-      {/* Top error / hint banner — tap or swipe up to dismiss */}
-      {hintShowing && (
-        <Animated.View
-          style={[
-            styles.hintBanner,
-            {
-              top: insets.top + 8,
-              backgroundColor: pal.dialog,
-              borderColor: pal.border,
-              opacity: hintAnim,
-              transform: [{ translateY: hintAnim.interpolate({ inputRange: [0, 1], outputRange: [-56, 0] }) }],
-            },
-          ]}
-          {...hintPan.panHandlers}
-        >
-          <TouchableOpacity activeOpacity={0.85} onPress={dismissHint} style={styles.hintTouch}>
-            <Ionicons
-              name={hintIcon}
-              size={16}
-              color={hintIcon === 'warning' ? '#f59e0b' : pal.sub}
-              style={{ marginRight: 8 }}
-            />
-            <Text style={[styles.hintText, { color: pal.text }]}>{t(hintKey)}</Text>
-          </TouchableOpacity>
-        </Animated.View>
       )}
 
       {/* AI data-sharing consent — mounted here for the same reason as the
@@ -1491,6 +1500,23 @@ const styles = StyleSheet.create({
   },
 
   // ── Review History ───────────────────────────────────────────────────────────
+  wordActions: {
+    marginTop: 18,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  wordAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  wordActionLabel: { fontSize: 13, fontWeight: '500' },
   historySection: {
     marginTop: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -1591,24 +1617,4 @@ const styles = StyleSheet.create({
   },
   kbBtnText: { fontSize: 15, fontWeight: '700' },
 
-  // Basic voice limit banner — same appearance as SettingsModal's hintBanner
-  hintBanner: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    zIndex: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  hintTouch: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  hintText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

@@ -15,9 +15,7 @@ import { BackupSection } from './BackupSection';
 import {
   AI_TEXT_FEATURES_ENABLED,
   FLIP_MODE_ENABLED,
-  SUBSCRIPTION_DIAGNOSTICS_ENABLED,
 } from '../features/flags';
-import { SubscriptionDiagnosticsSheet } from './SubscriptionDiagnosticsSheet';
 import { canUseBackup } from '../features/backup/backupAccess';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
 import { LanguageModal } from './LanguageModal';
@@ -771,8 +769,6 @@ function AppInfoSheet({
   // misdetected, who is exactly the person who needs it. It is deliberately
   // outside the Backup section and its subscription gate.
   const [restoring, setRestoring] = useState(false);
-  // TEMPORARY: Subscription Diagnostics — see SUBSCRIPTION_DIAGNOSTICS_ENABLED.
-  const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   // Same entitlement rule the section itself applies, so the heading and its
   // divider can never appear above an empty body.
   const backupVisible = canUseBackup({ isPremium, isSubscriptionLoaded });
@@ -875,35 +871,17 @@ function AppInfoSheet({
           onPress={() => void openExternal(CONTACT_MAIL)} />
         <SettingRow icon="library-outline" label={t('license')} pal={pal}
           onPress={() => void openExternal(LEGAL_URLS.licenses)} />
-        {/* TEMPORARY: long-pressing the version opens Subscription Diagnostics.
-            An 800 ms hold, no visual affordance and no accessibility hint, so a
-            tester has to be told it exists. Tapping the row still does nothing.
-            Remove with SUBSCRIPTION_DIAGNOSTICS_ENABLED — see features/flags.ts. */}
         <SettingRow icon="information-circle-outline" label={t('app_version')}
-          value={APP_VERSION} pal={pal}
-          {...(SUBSCRIPTION_DIAGNOSTICS_ENABLED
-            ? { onLongPress: () => setDiagnosticsVisible(true) }
-            : null)} />
+          value={APP_VERSION} pal={pal} />
       </ScrollView>
-
-      {SUBSCRIPTION_DIAGNOSTICS_ENABLED && (
-        <SubscriptionDiagnosticsSheet
-          visible={diagnosticsVisible}
-          onClose={() => setDiagnosticsVisible(false)}
-          pal={pal}
-          themeColor={themeColor}
-        />
-      )}
     </Animated.View>
   );
 }
 
 // ── Settings row ───────────────────────────────────────────────────────────────
-function SettingRow({ icon, label, value, onPress, onLongPress, badge, themeColor, pal }: {
+function SettingRow({ icon, label, value, onPress, badge, themeColor, pal }: {
   icon: IoniconName; label: string; value?: string;
   onPress?: () => void;
-  /** TEMPORARY: only the app version row uses this, for Subscription Diagnostics. */
-  onLongPress?: () => void;
   /** Draws the "New feature" marker beside the label. */
   badge?: boolean;
   themeColor?: string;
@@ -912,8 +890,7 @@ function SettingRow({ icon, label, value, onPress, onLongPress, badge, themeColo
   const t = useLang();
   return (
     <TouchableOpacity style={styles.row} onPress={onPress}
-      onLongPress={onLongPress} delayLongPress={800}
-      disabled={!onPress && !onLongPress}
+      disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}>
       <Ionicons name={icon} size={18} color={pal.sub} />
       <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>

@@ -35,7 +35,19 @@ const LEGACY_FOLDERS: Folder[] = [
   },
 ];
 
-const LEGACY_CARDS: WordCard[] = [
+/**
+ * A card as the AsyncStorage era wrote it: `notifOff`, the mute that
+ * `notifCandidate` replaced, instead of the notification list.
+ */
+type LegacyCard = WordCard & { notifOff?: boolean };
+
+/** The legacy shape minus the field the new model does not store. */
+function withoutNotifOff(card: LegacyCard): WordCard {
+  const { notifOff: _notifOff, ...rest } = card;
+  return rest;
+}
+
+const LEGACY_CARDS: LegacyCard[] = [
   {
     id: 'w-run', createdAt: 1700000002000, word: 'run', meaning: 'to move quickly',
     note: 'irregular verb', folderId: 'f-verbs', wordLang: 'en-US', meaningLang: 'ja',
@@ -46,6 +58,8 @@ const LEGACY_CARDS: WordCard[] = [
   {
     id: 'w-apple', createdAt: 1700000003000, word: 'apple', meaning: 'a fruit',
     note: '', folderId: 'f-nouns', notifOff: true,
+    // The mute `notifCandidate` replaced: this word was silenced, so it does not
+    // join the notification list.
   },
   { id: 'w-loose', createdAt: 1700000004000, word: 'loose', meaning: 'not tight', note: '' },
 ];
@@ -95,9 +109,12 @@ test('migration preserves ids, timestamps, ordering and every field', async () =
   assert.deepEqual(words.map(word => word.id), ['w-run', 'w-apple', 'w-loose']);
 
   const [run, apple, loose] = words;
-  assert.deepEqual(run, LEGACY_CARDS[0]);
-  assert.deepEqual(apple, LEGACY_CARDS[1]);
-  assert.deepEqual(loose, LEGACY_CARDS[2]);
+  // `notifOff` is converted to `notifCandidate` on the way in — a word that was
+  // not muted was notifying, so it lands on the new list and the user's reminders
+  // survive the upgrade. `notifOff` itself is not stored, so it does not come back.
+  assert.deepEqual(run, { ...withoutNotifOff(LEGACY_CARDS[0]), notifCandidate: true });
+  assert.deepEqual(apple, withoutNotifOff(LEGACY_CARDS[1]), 'a muted word stays off the list');
+  assert.deepEqual(loose, { ...withoutNotifOff(LEGACY_CARDS[2]), notifCandidate: true });
 
   const folders = await readFolders(db);
   assert.deepEqual(folders, LEGACY_FOLDERS);

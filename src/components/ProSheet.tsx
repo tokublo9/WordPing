@@ -31,7 +31,6 @@ import {
 } from '../features/flags';
 import { planUnlocksBackup } from '../features/backup/backupAccess';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
-import { planUnlocksCustomVoice } from '../features/voice/customVoiceAccess';
 import { planCanUseAI } from '../lib/aiEntitlement';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { formatPrice } from '../lib/pricing';
@@ -144,7 +143,6 @@ const SHOP_BY_ID = new Map(SHOP_ITEMS.map(i => [i.id, i] as const));
 // Static requires so Metro bundles the local PNGs reliably. Filenames map 1:1 to
 // features; each screenshot keeps its own source dimensions and aspect ratio.
 const PAYWALL_IMAGES = {
-  custom:    require('../../screenshots/paywall/custom.png'),
   textToSpeech: require('../../screenshots/paywall/text-to-speech.png'),
   example:   require('../../screenshots/paywall/example.png'),
   breakdown: require('../../screenshots/paywall/breakdown.png'),
@@ -189,23 +187,12 @@ interface FeatureConfig {
  * comparison table cannot disagree. Premium only.
  */
 const PRIORITY_SUPPORT = { basic: false, premium: true } as const;
-/**
- * The two voice features, each read from its own access rule so the table can
- * never promise a plan something the app then locks. They are sold to different
- * plans: Custom Voice for Words comes with any subscription, High-Quality AI
- * Voice is Premium.
- */
-const CUSTOM_VOICE = {
-  basic: planUnlocksCustomVoice('basic'),
-  premium: planUnlocksCustomVoice('premium'),
-} as const;
 const DATA_TRANSFER = {
   basic: planUnlocksBackup('basic'),
   premium: planUnlocksBackup('premium'),
 } as const;
 
 const ALL_FEATURE_SECTIONS: FeatureConfig[] = [
-  { key: 'custom_voice', titleKey: 'cmp_custom_voice', descKey: 'feat_custom_voice_desc', noteKey: 'feat_custom_voice_note', image: PAYWALL_IMAGES.custom, icon: 'mic-outline', accent: '#0891B2', basic: CUSTOM_VOICE.basic, premium: CUSTOM_VOICE.premium },
   {
     key: 'text_to_speech',
     titleKey: 'feat_text_to_speech_title',
@@ -918,7 +905,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
   // definitions — and Basic/Premium availability — so re-enabling the flag
   // restores the table exactly. Row separators are drawn from the *filtered*
   // length below, so no dangling divider or broken striping is left behind.
-  // The two voice rows come from the same rules the app enforces, so the promise
+  // The AI Voice row comes from the same rule the app enforces, so the promise
   // and the enforcement cannot drift. A tier that has the feature shows either
   // its monthly count or the shared "included" circle; a tier that does not
   // shows the cross — `formatVoiceMonthlyLimit` returns null for both the
@@ -935,11 +922,6 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
       label: t('cmp_ai_voice_hq'),
       basic: voiceCell('basic'),
       premium: voiceCell('premium'),
-    },
-    {
-      label: t('cmp_custom_voice'),
-      basic: CUSTOM_VOICE.basic ? 'circle' : 'cross',
-      premium: CUSTOM_VOICE.premium ? 'circle' : 'cross',
     },
     { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle', textToSpeech: true },
     { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle', aiText: true },

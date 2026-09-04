@@ -245,7 +245,7 @@ test('the plan comparison table contains none of the four AI rows', () => {
   assert.match(sheet, /i < rows\.length - 1 &&/u);
 
   // Audio and non-AI-text rows must survive.
-  for (const key of ['cmp_themes', 'cmp_ai_voice_hq', 'cmp_custom_voice', 'cmp_priority_support', 'cmp_data_transfer']) {
+  for (const key of ['cmp_themes', 'cmp_ai_voice_hq', 'cmp_priority_support', 'cmp_data_transfer']) {
     assert.match(sheet, new RegExp(`t\\('${key}'\\)`, 'u'));
     assert.doesNotMatch(sheet, new RegExp(`t\\('${key}'\\)[^\\n]*aiText`, 'u'), `${key} must not be filtered`);
   }
@@ -258,8 +258,9 @@ test('the Upgrade Plan sheet promotes none of the four AI features', () => {
   for (const key of ['meaning', 'example', 'translate', 'breakdown']) {
     assert.match(sheet, new RegExp(`\\{ key: '${key}',`, 'u'), `${key} definition must remain`);
   }
-  // Prices and non-AI benefits untouched.
-  assert.match(sheet, /\{ key: 'custom_voice',/u);
+  // Prices and non-AI paid benefits untouched. Custom Voice is free and is no
+  // longer marketed as a subscription benefit.
+  assert.doesNotMatch(sheet, /\{ key: 'custom_voice',|cmp_custom_voice/u);
   assert.match(sheet, /\{ key: 'priority',/u);
   assert.match(sheet, /\{ key: 'transfer',/u);
 });
@@ -429,7 +430,7 @@ test('the generic "Monthly API requests" row is gone everywhere', () => {
   assert.doesNotMatch(read('src/lib/planLimits.ts'), /formatMonthlyApiLimit|MONTHLY_API_LIMITS/u);
 });
 
-test('the two voice rows are read from the rules the app enforces', () => {
+test('the AI Voice row is read from the rule the app enforces', () => {
   const sheet = read('src/components/ProSheet.tsx');
 
   // AI Voice: a cross for a tier without the feature, its count if metered, and
@@ -445,21 +446,14 @@ test('the two voice rows are read from the rules the app enforces', () => {
     /label: t\('cmp_ai_voice_hq'\),\s*basic: voiceCell\('basic'\),\s*premium: voiceCell\('premium'\),/u,
   );
 
-  // Custom Voice: any paid plan, from its own access rule.
-  assert.match(
-    sheet,
-    /const CUSTOM_VOICE = \{\s*basic: planUnlocksCustomVoice\('basic'\),\s*premium: planUnlocksCustomVoice\('premium'\),\s*\} as const;/u,
-  );
-  assert.match(
-    sheet,
-    /label: t\('cmp_custom_voice'\),\s*basic: CUSTOM_VOICE\.basic \? 'circle' : 'cross',\s*premium: CUSTOM_VOICE\.premium \? 'circle' : 'cross',/u,
-  );
-  assert.match(sheet, /\{ key: 'custom_voice',[^\n]*basic: CUSTOM_VOICE\.basic, premium: CUSTOM_VOICE\.premium/u);
+  // Custom Voice is local and free, so it has no paywall row, promo card, or
+  // entitlement import.
+  assert.doesNotMatch(sheet, /cmp_custom_voice|key: 'custom_voice'|planUnlocksCustomVoice/u);
 
   // Values come from the shared plan definitions, never literals.
   assert.doesNotMatch(sheet, /'100 \/ month'|'月100回'|'1,000 \/ month'|'200 \/ month'/u);
   assert.match(sheet, /import \{ formatVoiceMonthlyLimit \} from '\.\.\/lib\/planLimits';/u);
-  assert.match(sheet, /import \{ planUnlocksCustomVoice \} from '\.\.\/features\/voice\/customVoiceAccess';/u);
+  assert.doesNotMatch(sheet, /customVoiceAccess/u);
   assert.match(sheet, /import \{ planCanUseAI \} from '\.\.\/lib\/aiEntitlement';/u);
 
   // The AI Voice promo card carries the same rule, so its badge cannot keep
@@ -664,9 +658,11 @@ test('exactly the three visible Settings toggles use the compact control', () =>
   // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
 
-  // Nothing else in the app adopts it by accident.
+  // The Notification sheet deliberately adopts this exact Settings control for
+  // its two mutually-exclusive scope rows. One component call renders both.
   const notif = read('src/components/NotificationModal.tsx');
-  assert.doesNotMatch(notif, /CompactSwitch/u);
+  assert.equal((notif.match(/<CompactSwitch/gu) ?? []).length, 1);
+  assert.doesNotMatch(notif, /scaleX: 0\.8\b|scaleY: 0\.8\b/u);
 });
 
 test('the compact switch keeps a 44x44 target and does not shrink the text', () => {

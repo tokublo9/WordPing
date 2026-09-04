@@ -42,6 +42,12 @@ export interface BackupFolder {
   color?: string;
   notifIntervalSeconds?: number;
   notifDisplayOnlyWord?: boolean;
+  /**
+   * "Notify All Words" for this folder. Optional and additive: a backup written
+   * before the field existed omits it and imports as off — the candidate list
+   * applies — so the format version does not move.
+   */
+  notifNotifyAllWords?: boolean;
 }
 
 export interface BackupLabel {
@@ -59,6 +65,17 @@ export interface BackupWord {
   position: number;
   folderId?: string;
   createdAt?: number;
+  /**
+   * The word is on its folder's notification list.
+   *
+   * Replaces `notifOff`, which meant the opposite. A backup written before the
+   * change carries `notifOff` instead, and the importer converts it with the
+   * same rule the schema migration used — a word that was not muted becomes a
+   * candidate — so a restored file reproduces the reminders it was taken with.
+   * Both fields are accepted on the way in; only this one is written out.
+   */
+  notifCandidate?: boolean;
+  /** @deprecated Read for backwards compatibility only. Never written. */
   notifOff?: boolean;
   wordLang?: string;
   meaningLang?: string;

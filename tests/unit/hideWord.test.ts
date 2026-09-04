@@ -43,11 +43,13 @@ test('the column is added by an appended migration, not by editing an old one', 
   assert.ok((await columns(db, 'words')).includes('hide_word'));
   // A shipped device has already recorded versions 1 and 2 as applied, so the
   // column can only arrive as a new entry — which is what bumps the version.
-  assert.equal(CURRENT_SCHEMA_VERSION, 3);
+  // Migration 3 is this feature's; later entries belong to later features and
+  // are asserted by their own tests, so only its position is pinned here.
   const applied = await db.getAllAsync<{ version: number }>(
     'SELECT version FROM schema_migrations ORDER BY version',
   );
-  assert.deepEqual(applied.map(row => row.version), [1, 2, 3]);
+  assert.deepEqual(applied.map(row => row.version).slice(0, 3), [1, 2, 3]);
+  assert.equal(applied.length, CURRENT_SCHEMA_VERSION, 'every migration is recorded');
 });
 
 test('an existing word survives the upgrade and defaults to visible', async () => {
