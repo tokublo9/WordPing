@@ -172,7 +172,7 @@ export type TranslationKey =
   | 'show_full_card_info' | 'vertical_flip_info' | 'info_button_label'
   // AI data-sharing consent — see AIConsentKey, which makes these optional per
   // locale so every language falls back to the English wording.
-  | 'ai_consent_title' | 'ai_consent_body'
+  | 'ai_consent_title' | 'ai_consent_body' | 'ai_data_lead'
   | 'ai_consent_allow' | 'ai_consent_decline'
   | 'ai_consent_setting'
   | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
@@ -299,7 +299,7 @@ type TutorialImportKey =
   | 'promo_preview_unavailable';
 
 type AIConsentKey =
-  | 'ai_consent_title' | 'ai_consent_body'
+  | 'ai_consent_title' | 'ai_consent_body' | 'ai_data_lead'
   | 'ai_consent_allow' | 'ai_consent_decline'
   | 'ai_consent_setting'
   | 'ai_consent_status_granted' | 'ai_consent_status_declined' | 'ai_consent_status_unknown'
@@ -378,10 +378,12 @@ const enUS: Dict = {
 
   // ── AI data-sharing consent ───────────────────────────────────────────────
   ai_consent_title: 'Use AI Features?',
+  ai_data_lead: 'Only the text you choose to play is sent to the AI voice service.',
   ai_consent_body:
-    'To generate AI-powered content, WordCore will send the word or text you submit, along with the language and voice you selected, to OpenAI through WordCore’s own server.\n\n' +
+    'To generate AI-powered content, WordCore will send the word you submit, along with the language used and the voice model (Marin or Cedar), to OpenAI through WordCore’s own server.\n\n' +
+    'This data is used only to generate the content you requested.\n\n' +
     'That server also receives an anonymous installation ID and an anonymous subscription ID, used only to check your plan and prevent abuse. They are not sent to OpenAI.\n\n' +
-    'Your data is used only to generate the content you requested. WordCore will not send this data unless you give permission, and you can withdraw it at any time in Settings → Help → About AI Voice.',
+    'WordCore will not send this data unless you give permission, and you can withdraw it at any time in Settings → Help → About AI Voice.',
   ai_consent_allow: 'Allow and Continue',
   ai_consent_decline: 'Not Now',
   ai_consent_setting: 'AI Data Sharing',
@@ -845,7 +847,8 @@ const enUS: Dict = {
   // experiences, and naming a monthly limit is accurate because replayed audio
   // never reaches it (see VOICE_MONTHLY_LIMITS in lib/planLimits.ts).
   ai_voice_info_body:
-    '・Anything already played with AI Voice is saved on your device. Playing it again does not connect to the online AI voice service and does not count towards your monthly AI voice limit.\n'
+    '・Only the text you choose to play is sent. Your word list, your other words, your notes, your folders and your study history are never sent.\n'
+    + '・Anything already played with AI Voice is saved on your device. Playing it again does not connect to the online AI voice service and does not count towards your AI voice usage.\n'
     + '・Long text may take longer the first time it is played with AI Voice, because WordCore connects to the online AI voice service to create the audio.',
   backup:                'Backup & Restore',
   backup_desc:           'Export or restore your WordCore data.',
@@ -927,10 +930,12 @@ const ja: Dict = {
 
   // ── AI data-sharing consent ───────────────────────────────────────────────
   ai_consent_title: 'AI機能を使用しますか？',
+  ai_data_lead: '再生を選んだテキストだけが、AI音声サービスへ送信されます。',
   ai_consent_body:
-    'AIコンテンツを生成するため、WordCoreは、あなたが入力した単語またはテキストと、選択した言語および音声を、WordCoreのサーバーを経由してOpenAIへ送信します。\n\n' +
+    'AIコンテンツを生成するため、WordCoreは、あなたが入力した単語と、使用言語および音声モデル（MarinまたはCedar）を、WordCoreのサーバーを経由してOpenAIへ送信します。\n\n' +
+    'これらのデータは、リクエストされたコンテンツを生成するためにのみ使用されます。\n\n' +
     'WordCoreのサーバーは、ご利用プランの確認と不正利用の防止のみを目的として、匿名のインストールIDおよび匿名のサブスクリプションIDも受け取ります。これらがOpenAIへ送信されることはありません。\n\n' +
-    'これらのデータは、リクエストされたコンテンツを生成するためにのみ使用されます。許可なくデータが送信されることはありません。許可は「設定」→「ヘルプ」→「AI Voiceについて」からいつでも取り消せます。',
+    '許可なくデータが送信されることはありません。許可は「設定」→「ヘルプ」→「AI Voiceについて」からいつでも取り消せます。',
   ai_consent_allow: '許可して続ける',
   ai_consent_decline: '今は許可しない',
   ai_consent_setting: 'AIデータ共有',
@@ -1382,7 +1387,8 @@ const ja: Dict = {
   ai_voice_info_menu:  'AI Voiceについて',
   ai_voice_info_title: 'AI Voiceについて',
   ai_voice_info_body:
-    '・一度AI Voiceで再生した音声は端末内に保存されます。再生し直す際にオンラインのAI音声サービスへ接続することはなく、毎月のAI音声の利用回数も消費しません。\n'
+    '・送信されるのは、再生を選んだテキストだけです。単語リスト、ほかの単語、メモ、フォルダー、学習履歴が送信されることはありません。\n'
+    + '・一度AI Voiceで再生した音声は端末内に保存されます。再生し直す際にオンラインのAI音声サービスへ接続することはなく、AI音声の利用回数も消費しません。\n'
     + '・文章が長い場合、初回の再生では、WordCoreがオンラインのAI音声サービスへ接続して音声を作成するため、時間がかかることがあります。',
   backup:                'バックアップと復元',
   backup_desc:           'WordCoreのデータをエクスポートまたは復元できます。',

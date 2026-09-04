@@ -7,7 +7,7 @@ import type { ComponentProps } from 'react';
 
 import type { Appearance, Palette } from '../types';
 import { getToggleOffTrackColor } from '../constants';
-import { SUPPORTED_LANGUAGES, useLang } from '../i18n';
+import { SUPPORTED_LANGUAGES, useLang, type TranslationKey } from '../i18n';
 import { appStyles as s } from '../styles';
 import { LEGAL_URLS } from '../config/legalUrls';
 import { AdBannerPlaceholder } from './AdBannerPlaceholder';
@@ -576,6 +576,41 @@ export function SettingsModal({
   );
 }
 
+
+/**
+ * Which line a failed voice preview shows.
+ *
+ * Branches on `AIRequestError.kind`, the precise classification, rather than on
+ * the legacy `Error.message`. The old code compared `message === 'plan_required'`
+ * and fell back to "quota exceeded" for everything else, which had two
+ * consequences: any `subscription_required` — including one from the *server*,
+ * for a plan that is now entitled — read as "requires a Premium plan", and every
+ * genuine failure (offline, timeout, a service outage) was reported to the user
+ * as a quota they had not actually hit.
+ *
+ * A preview is a fixed, server-authored sentence on the sample route. It spends
+ * no lifetime voice credit, so no credit message belongs here.
+ */
+function previewFailureMessageKey(error: unknown): TranslationKey {
+  if (!isAIRequestError(error)) return 'err_generation_failed';
+  switch (error.kind) {
+    case 'offline':               return 'err_offline';
+    case 'timeout':               return 'err_timeout';
+    case 'cancelled':             return 'err_cancelled';
+    case 'rate_limited':          return 'err_rate_limited';
+    case 'usage_limited':         return 'err_usage_limited';
+    case 'not_configured':        return 'err_service_not_configured';
+    case 'entitlement_unverified': return 'err_entitlement_unverified';
+    case 'consent_required':      return 'ai_consent_required_msg';
+    // Reachable only from a plan that genuinely has no AI Voice at all. Basic
+    // and Premium both do, so for them this now means the *server* refused —
+    // which is a service problem, not something the user can fix by upgrading.
+    case 'subscription_required': return 'ai_service_unavailable_msg';
+    case 'generation_failed':     return 'err_generation_failed';
+    default:                      return 'ai_service_unavailable_msg';
+  }
+}
+
 // ── AI voice selection screen ────────────────────────────────────────────────
 function VoiceSelectionScreen({
   visible, onClose, selectedVoice, onSelect, pal, themeColor, language,
@@ -663,10 +698,7 @@ function VoiceSelectionScreen({
         showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
         return;
       }
-      const msg = error instanceof Error && error.message === 'plan_required'
-        ? t('err_plan_required_speech')
-        : t('quota_exceeded_msg');
-      Alert.alert(t('ai_voice_unavailable'), msg);
+      Alert.alert(t('ai_voice_unavailable'), t(previewFailureMessageKey(error)));
     } finally {
       if (previewSequence.current === sequence) {
         setPreviewingVoice(null);

@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
-import { DESTRUCTIVE_ACTION_COLOR } from '../constants';
 import { useAIConsent } from '../hooks/useAIConsent';
 import { setAIConsent } from '../lib/aiConsent';
 
@@ -104,17 +103,21 @@ export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props)
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
+            {/* The same sentence, with the same weight, as the consent dialog:
+                the answer to "what leaves my device" should not be quieter
+                here than it was when permission was asked for. */}
+            <Text style={[styles.lead, { color: pal.text }]}>{t('ai_data_lead')}</Text>
             <Text style={[styles.body, { color: pal.sub }]}>{t('ai_voice_info_body')}</Text>
 
             {consent === 'granted' ? (
               <TouchableOpacity
-                style={[styles.withdrawButton, { borderColor: DESTRUCTIVE_ACTION_COLOR }]}
+                style={[styles.withdrawButton, { borderColor: pal.border, backgroundColor: pal.input }]}
                 onPress={withdraw}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={t('ai_consent_withdraw')}
               >
-                <Text style={[styles.withdrawLabel, { color: DESTRUCTIVE_ACTION_COLOR }]}>
+                <Text style={[styles.withdrawLabel, { color: pal.sub }]}>
                   {t('ai_consent_withdraw')}
                 </Text>
               </TouchableOpacity>
@@ -164,6 +167,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '700', marginBottom: 10 },
   bodyScroll: { flexGrow: 0 },
   bodyContent: { paddingBottom: 4 },
+  lead: { fontSize: 16, fontWeight: '700', lineHeight: 23, marginBottom: 12 },
   body: { fontSize: 14, lineHeight: 21 },
   withdrawButton: {
     marginTop: 16,
@@ -174,7 +178,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  withdrawLabel: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  withdrawLabel: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
   status: { fontSize: 13, lineHeight: 18, marginTop: 14 },
   okButton: {
     marginTop: 18,
