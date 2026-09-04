@@ -20,6 +20,15 @@ export interface Env {
   /** Rate-limit counters, entitlement cache, kill switches, voice-sample cache. */
   WORDPING_KV: KVNamespace;
 
+  /**
+   * Basic's one-time AI Voice credit ledger, one object per subscriber.
+   *
+   * A Durable Object rather than another KV counter because this balance never
+   * resets, so it cannot tolerate the lost updates KV allows — see
+   * lifetimeCredits.ts.
+   */
+  VOICE_CREDITS: DurableObjectNamespace;
+
   ALLOWED_ORIGINS?: string;
   ENTITLEMENT_BASIC?: string;
   ENTITLEMENT_PREMIUM?: string;

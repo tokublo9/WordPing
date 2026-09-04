@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import type { Env } from '../src/env';
+import { applyLedgerOp, type LedgerOp, type LedgerState } from '../src/lifetimeCredits';
 import { APP_USER_ID_HEADER, INSTALL_ID_HEADER } from '../src/identity';
 
 /**
@@ -54,8 +55,58 @@ export class FakeKV {
   }
 }
 
-export function makeEnv(overrides: Partial<Env> = {}): Env & { WORDPING_KV: FakeKV } {
+
+/**
+ * In-memory stand-in for the VOICE_CREDITS Durable Object namespace.
+ *
+ * Drives the *real* ledger rules (`applyLedgerOp`) over a plain map, so the
+ * route-level tests exercise the same reserve/commit/release decisions the
+ * production object makes. Only the runtime is faked, not the logic — the
+ * ledger's own concurrency and persistence behaviour is covered directly in
+ * voiceCreditLedger.test.ts.
+ */
+export class FakeCreditLedger {
+  readonly states = new Map<string, LedgerState>();
+  constructor(private readonly grant = 200) {}
+
+  /** Seed a balance for a name, e.g. 0 to simulate an exhausted subscriber. */
+  seed(name: string, remaining: number): void {
+    this.states.set(name, { granted: true, remaining, reservations: {}, recentCommits: {} });
+  }
+
+  /** Unspent credits for a name, or the full grant if never touched. */
+  remaining(name: string): number {
+    return this.states.get(name)?.remaining ?? this.grant;
+  }
+
+  idFromName(name: string): string { return name; }
+
+  get(name: string) {
+    const states = this.states;
+    const grant = this.grant;
+    return {
+      fetch: async (url: string) => {
+        const parsed = new URL(url);
+        const op = parsed.pathname.slice(1) as LedgerOp;
+        const key = parsed.searchParams.get('key') ?? '';
+        const before = states.get(name) ?? {
+          granted: true, remaining: grant, reservations: {}, recentCommits: {},
+        };
+        const { next, result } = applyLedgerOp(before, op, key, Date.now());
+        states.set(name, next);
+        return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    };
+  }
+}
+
+export function makeEnv(
+  overrides: Partial<Env> = {},
+): Env & { WORDPING_KV: FakeKV; VOICE_CREDITS: FakeCreditLedger } {
   const kv = new FakeKV();
+  const credits = new FakeCreditLedger();
   return {
     OPENAI_API_KEY: 'sk-test-openai-key',
     REVENUECAT_SECRET_API_KEY: 'sk-test-revenuecat-key',
@@ -66,7 +117,8 @@ export function makeEnv(overrides: Partial<Env> = {}): Env & { WORDPING_KV: Fake
     DEV_BYPASS_ENTITLEMENTS: '0',
     ...overrides,
     WORDPING_KV: (overrides.WORDPING_KV as unknown as FakeKV) ?? kv,
-  } as unknown as Env & { WORDPING_KV: FakeKV };
+    VOICE_CREDITS: (overrides.VOICE_CREDITS as unknown as FakeCreditLedger) ?? credits,
+  } as unknown as Env & { WORDPING_KV: FakeKV; VOICE_CREDITS: FakeCreditLedger };
 }
 
 export function makeCtx(): ExecutionContext {

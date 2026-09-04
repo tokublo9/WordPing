@@ -32,9 +32,9 @@ export default function Header() {
         {/* Logo */}
         <a href="#" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label={t('home')}>
           <div className="overflow-hidden rounded-xl" style={{ width: 32, height: 32 }}>
-            <Image src="/icon.png" alt="WordPing" width={32} height={32} className="object-cover" />
+            <Image src="/icon.png" alt="WordCore" width={32} height={32} className="object-cover" />
           </div>
-          <span className="text-base font-bold" style={{ color: 'var(--text)' }}>WordPing</span>
+          <span className="text-base font-bold" style={{ color: 'var(--text)' }}>WordCore</span>
         </a>
 
         {/* Nav */}

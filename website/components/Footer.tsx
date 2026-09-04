@@ -11,9 +11,9 @@ export default function Footer() {
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <div className="flex items-center gap-2.5">
             <div className="overflow-hidden rounded-xl" style={{ width: 28, height: 28 }}>
-              <Image src="/icon.png" alt="WordPing" width={28} height={28} className="object-cover" />
+              <Image src="/icon.png" alt="WordCore" width={28} height={28} className="object-cover" />
             </div>
-            <span className="font-bold" style={{ color: 'var(--text)' }}>WordPing</span>
+            <span className="font-bold" style={{ color: 'var(--text)' }}>WordCore</span>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6">
@@ -25,6 +25,9 @@ export default function Footer() {
             </Link>
             <Link href="/licenses" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
               {t('licenses')}
+            </Link>
+            <Link href="/support" className="text-xs transition-colors hover:text-blue-500 dark:hover:text-blue-400" style={{ color: 'var(--text-sub)' }}>
+              {t('support')}
             </Link>
           </div>
 

@@ -96,9 +96,10 @@ test('no AI pronunciation is generated for a word that has a file', () => {
     /return options\.hasAIAccess && !options\.hasCustomAudio && options\.text\.trim\(\)\.length > 0;/u,
   );
 
-  // Both sweeps report it: the one-off on registration and the library pass.
+  // Every sweep reports it: registration, the library pass, a bulk import, and
+  // an edit. A path that forgot would regenerate audio the word never plays.
   const app = read('App.tsx');
-  assert.equal((app.match(/hasCustomAudio: Boolean\(card\.audioUri\),/gu) ?? []).length, 2);
+  assert.equal((app.match(/hasCustomAudio: Boolean\((card|change\.card)\.audioUri\),/gu) ?? []).length, 4);
 });
 
 // ── On the card ──────────────────────────────────────────────────────────────

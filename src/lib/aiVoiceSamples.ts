@@ -6,7 +6,10 @@ import {
 import { AI_VOICES, getAIVoiceLabel, type AIVoice } from './aiVoices';
 
 /** Increment whenever the fixed preview copy or its generation settings change. */
-export const AI_VOICE_SAMPLE_CONTENT_VERSION = 'natural-ai-voice-v1';
+// Bumped with the spoken copy: the app was renamed, and the shared sample
+// cache is keyed by this. Without the bump, previews would keep saying the
+// old name for the life of the cached clip.
+export const AI_VOICE_SAMPLE_CONTENT_VERSION = 'natural-ai-voice-v2';
 export const AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY = 2;
 
 export interface AIVoiceSample {
@@ -21,7 +24,7 @@ export interface AIVoiceSample {
 
 export const AI_VOICE_SAMPLES: readonly AIVoiceSample[] = AI_VOICES.map(voice => ({
   id: voice,
-  text: `Welcome to WordPing. This is the ${getAIVoiceLabel(voice)} voice.`,
+  text: `Welcome to WordCore. This is the ${getAIVoiceLabel(voice)} voice.`,
   voice,
   model: AI_SPEECH_MODEL,
   speed: AI_SPEECH_SPEED,

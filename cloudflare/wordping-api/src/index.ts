@@ -174,4 +174,9 @@ export default {
   fetch: handleRequest,
 } satisfies ExportedHandler<Env>;
 
+// The Durable Object class has to be exported from the entrypoint for the
+// runtime to instantiate it. It is never routed to directly — only
+// lifetimeCredits.ts holds a stub.
+export { VoiceCreditLedger } from './lifetimeCredits';
+
 export type { ErrorCode };

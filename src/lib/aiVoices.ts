@@ -1,37 +1,27 @@
 export const AI_VOICES = [
-  'cedar',
-  'fable',
-  'alloy',
-  'ash',
-  'coral',
-  'nova',
   'marin',
-  'shimmer',
+  'cedar',
 ] as const;
 
 export type AIVoice = typeof AI_VOICES[number];
 
 export const DEFAULT_AI_VOICE: AIVoice = 'marin';
 
-export const AI_VOICE_GROUPS: ReadonlyArray<{
-  title: string;
-  voices: readonly AIVoice[];
-}> = [
-  { title: 'Male · Cheerful', voices: ['cedar', 'fable'] },
-  { title: 'Male · Calm', voices: ['alloy', 'ash'] },
-  { title: 'Female · Cheerful', voices: ['coral', 'nova'] },
-  { title: 'Female · Calm', voices: ['marin', 'shimmer'] },
-];
+/**
+ * Voices the app used to offer.
+ *
+ * Kept as plain strings — they are deliberately not `AIVoice` any more. Two
+ * things still need to know them: `isAIVoice` rejects a stored one so an
+ * existing user falls back to the default, and the cache purge recognises the
+ * files they left behind. Nothing may offer them again.
+ */
+export const RETIRED_AI_VOICES: ReadonlySet<string> = new Set([
+  'fable', 'alloy', 'ash', 'coral', 'nova', 'shimmer',
+]);
 
 const AI_VOICE_DESCRIPTIONS: Record<AIVoice, string> = {
-  alloy: 'Balanced, clear, and versatile.',
-  ash: 'Calm, steady, and reassuring.',
   cedar: 'Confident, natural, and grounded.',
-  coral: 'Bright, friendly, and conversational.',
-  fable: 'Expressive, animated, and story-friendly.',
   marin: 'Warm, natural, and engaging.',
-  nova: 'Upbeat, polished, and energetic.',
-  shimmer: 'Light, cheerful, and lively.',
 };
 
 export function isAIVoice(value: unknown): value is AIVoice {

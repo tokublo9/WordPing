@@ -76,3 +76,46 @@ test('nothing about access depends on a product identifier', () => {
   const result = resolveThemeAccess(input);
   assert.ok(result.state === 'unlocked' && result.reason === 'subscription');
 });
+
+// ── Individual purchase ──────────────────────────────────────────────────────
+
+test('a theme bought outright is unlocked without any subscription', () => {
+  assert.deepEqual(
+    access({ price: 480, isSubscribed: false, isSubscriptionLoaded: true, ownedIndividually: true }),
+    { state: 'unlocked', reason: 'purchased' },
+  );
+});
+
+test('ownership does not wait for RevenueCat, and survives its failure', () => {
+  // A purchase is permanent. Re-locking it while an entitlement lookup is in
+  // flight — or after one fails — would take away something already paid for.
+  assert.deepEqual(
+    access({ price: 480, isSubscribed: false, isSubscriptionLoaded: false, ownedIndividually: true }),
+    { state: 'unlocked', reason: 'purchased' },
+  );
+});
+
+test('subscription behaviour is unchanged when nothing is owned', () => {
+  // The whole point of the optional flag: every previous caller keeps its
+  // previous answer, including the fail-closed one.
+  assert.deepEqual(
+    access({ price: 480, isSubscribed: true, isSubscriptionLoaded: true }),
+    { state: 'unlocked', reason: 'subscription' },
+  );
+  assert.deepEqual(
+    access({ price: 480, isSubscribed: true, isSubscriptionLoaded: false }),
+    { state: 'locked' },
+  );
+  assert.deepEqual(
+    access({ price: 480, isSubscribed: false, isSubscriptionLoaded: true }),
+    { state: 'locked' },
+  );
+});
+
+test('owning one theme never unlocks another', () => {
+  // The flag is per theme, resolved from that theme's own product identifier.
+  assert.deepEqual(
+    access({ price: 480, isSubscribed: false, isSubscriptionLoaded: true, ownedIndividually: false }),
+    { state: 'locked' },
+  );
+});

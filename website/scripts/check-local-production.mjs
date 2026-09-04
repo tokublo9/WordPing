@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 
 const origin = process.argv[2] ?? 'http://localhost:4317';
 const routes = [
-  ['/', 'WordPing — Vocabulary study that stays with you'],
-  ['/ja', 'WordPing — そばに置ける単語学習'],
+  ['/', 'WordCore — Vocabulary study that stays with you'],
+  ['/ja', 'WordCore — そばに置ける単語学習'],
   ['/privacy', 'Privacy Policy'],
   ['/terms', 'Terms of Service'],
   ['/licenses', 'Open Source Licences'],

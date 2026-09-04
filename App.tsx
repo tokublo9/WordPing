@@ -13,6 +13,7 @@ import { reloadLocalData, TIPS_FOLDER_ID, WELCOME_FOLDER_ID } from './src/lib/db
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, WordCard } from './src/types';
+import type { AIVoice } from './src/lib/aiVoices';
 import { FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY } from './src/constants';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
@@ -21,6 +22,7 @@ import { TopBanner } from './src/components/TopBanner';
 import { showTopBanner } from './src/lib/topBanner';
 import { reportSideEffectFailure } from './src/utils/reportSideEffectFailure';
 import { AIConsentDialog } from './src/components/AIConsentDialog';
+import { VoiceCreditsExhaustedDialog } from './src/components/VoiceCreditsExhaustedDialog';
 import { invalidateAIConsent } from './src/lib/aiConsent';
 import {
   hasEligibleAIEntitlement,
@@ -59,12 +61,16 @@ import { useFolderNotifications } from './src/features/notifications/useFolderNo
 import { useNotificationRescheduling } from './src/features/notifications/useNotificationRescheduling';
 import { useAppPersistence } from './src/app/useAppPersistence';
 import {
-  cancelAIPronunciationPreload,
   preloadAIPronunciation,
   preloadAIPronunciationLibrary,
+  purgeRetiredVoiceCaches,
+  releaseAIPronunciationCache,
   setAIVoicePreference,
   syncAIVoiceSamplePreloading,
 } from './src/lib/tts';
+import { normalizedTTSText } from './src/lib/ttsRequest';
+import { useThemePurchases } from './src/hooks/useThemePurchases';
+import { isThemeOwnedIndividually } from './src/features/themes/themeProducts';
 import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
 import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
 import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
@@ -73,9 +79,19 @@ import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
 // The underlying useCards state is intentionally retained for a future restoration.
 const SHOW_LEVEL_LABELS = true;
 
+/**
+ * The cache keys a set of cards still needs. Two words that normalize to the
+ * same text share one cached clip, so this is what stops one being deleted while
+ * the other still speaks it.
+ */
+function normalizedWordTexts(cards: readonly WordCard[]): Set<string> {
+  return new Set(cards.map(card => normalizedTTSText(card.word)));
+}
+
 export default function App() {
   const {
     plan,
+    planProducts,
     isSubscribed,
     isPremium,
     isLoaded: isSubscriptionLoaded,
@@ -94,6 +110,7 @@ export default function App() {
     skinId, setSkinId,
     language, setLanguage,
     aiVoice, setAIVoice,
+    preferDeviceVoice, setPreferDeviceVoice,
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
@@ -118,7 +135,7 @@ export default function App() {
     hasLoaded, cardsLoaded, loadFailed,
   } = useAppBootstrap({
     applySettings, markSettingsLoaded, setShowFullCard,
-    setVerticalFlip, setHideAiTools,
+    setVerticalFlip, setPreferDeviceVoice, setHideAiTools,
     setSyncTestResults: setSavedSyncTestResults,
     setStudyLog,
     setResultFilterTutorialSeen,
@@ -156,6 +173,11 @@ export default function App() {
       .catch(() => { if (active) setHasTextToSpeechHistory(false); });
     return () => { active = false; };
   }, []);
+
+  // Files for voices the app no longer offers, collected once per launch. It
+  // touches nothing reachable, so it needs no entitlement and no ordering
+  // against bootstrap — and it never awaits, so startup does not see it.
+  useEffect(() => { purgeRetiredVoiceCaches(); }, []);
 
   useEffect(() => {
     if (!isSubscriptionLoaded) return;
@@ -215,8 +237,22 @@ export default function App() {
   const canUseAI = hasEligibleAIEntitlement(aiEntitlement);
   // High-Quality AI Voice remains entitlement-gated. Custom Voice and Hide Word
   // are local features available on every plan and need no capability state.
-  const canUseAIVoice = canUseAI;
+  //
+  // The user's own fallback is the second half of the rule. Choosing the free
+  // device voice after Basic's credits ran out has to stop AI generation being
+  // attempted at all — otherwise every card would fetch, be refused, and raise
+  // the same dialog again. It withholds nothing they are entitled to: picking a
+  // voice again in Settings clears it.
+  const canUseAIVoice = canUseAI && !preferDeviceVoice;
   const discovery = useFeatureDiscovery({ plan, isSubscriptionLoaded });
+
+  // ── Individual theme purchases ──────────────────────────────────────────────
+  // Lives here rather than in the shop because three separate things need the
+  // same answer: the shop's prices, the access rule, and the downgrade
+  // enforcement below. A second copy could disagree with the first and take a
+  // theme away from someone who paid for it.
+  const themePurchases = useThemePurchases(isSubscriptionLoaded);
+  const ownedThemeEntitlementIds = themePurchases.ownedEntitlementIds;
 
   useEffect(() => {
     setAIEntitlementSnapshot(aiEntitlement);
@@ -324,8 +360,95 @@ export default function App() {
     });
   }, [aiVoice, canUseAIVoice, entitlementSource]);
 
-  const handleCardsDeleted = useCallback((ids: string[]) => {
-    ids.forEach(cancelAIPronunciationPreload);
+  /**
+   * An edit is two jobs: the old clip is now unreachable from this card, and the
+   * new text has none yet. Release runs first — it cancels this card's queued
+   * work, which would otherwise take the preload queued on the line below with it.
+   *
+   * A word whose normalized text did not move keeps everything: the cache key is
+   * unchanged, so there is nothing to generate and nothing that has gone stale.
+   */
+  const handleCardEdited = useCallback((change: {
+    card: WordCard;
+    previousWord: string;
+    remaining: readonly WordCard[];
+  }) => {
+    const previous = normalizedTTSText(change.previousWord);
+    if (previous === normalizedTTSText(change.card.word)) return;
+
+    releaseAIPronunciationCache({
+      entryIds: [change.card.id],
+      texts: [change.previousWord],
+      retainedTexts: normalizedWordTexts(change.remaining),
+    });
+    preloadAIPronunciation({
+      entryId: change.card.id,
+      text: change.card.word,
+      voice: aiVoice,
+      hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',
+      hasCustomAudio: Boolean(change.card.audioUri),
+    });
+  }, [aiVoice, canUseAIVoice, entitlementSource]);
+
+  /**
+   * Basic's grant is spent. The dialog owns the two ways forward.
+   *
+   * The replay is kept rather than called: "Use Free Voice" speaks the word the
+   * user actually asked for, while "Upgrade to Premium" must not start audio
+   * underneath the paywall.
+   */
+  const [voiceCreditsFallback, setVoiceCreditsFallback] = useState<(() => void) | null>(null);
+  const handleVoiceCreditsExhausted = useCallback((useFreeVoice: () => void) => {
+    setVoiceCreditsFallback(() => useFreeVoice);
+  }, []);
+  const handleUpgradeFromVoiceCredits = useCallback(() => {
+    setVoiceCreditsFallback(null);
+    setProSheetVisible(true);
+  }, []);
+  const handleUseFreeVoice = useCallback(() => {
+    // The preference first: it is what stops the next card raising this again.
+    setPreferDeviceVoice(true);
+    setVoiceCreditsFallback(current => {
+      current?.();
+      return null;
+    });
+  }, [setPreferDeviceVoice]);
+
+  /**
+   * Choosing a voice is how the user asks for Natural AI Voice again.
+   *
+   * Clearing the fallback here rather than in the picker keeps the two halves
+   * of the rule together: one place turns it on, one place turns it off.
+   */
+  const handlePickAIVoice = useCallback((voice: AIVoice) => {
+    setAIVoice(voice);
+    setPreferDeviceVoice(false);
+  }, [setAIVoice, setPreferDeviceVoice]);
+
+  const handleCardsImported = useCallback((imported: readonly WordCard[]) => {
+    preloadAIPronunciationLibrary({
+      entries: imported.map(card => ({
+        id: card.id,
+        text: card.word,
+        hasCustomAudio: Boolean(card.audioUri),
+      })),
+      voice: aiVoice,
+      hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',
+      triggerReason: 'bulk-import',
+    });
+  }, [aiVoice, canUseAIVoice, entitlementSource]);
+
+  // Releasing covers the cancellation the delete path always did, and adds the
+  // files: same call for one word and for a select-all, since both arrive here.
+  const handleCardsDeleted = useCallback((
+    removed: readonly WordCard[],
+    remaining: readonly WordCard[],
+  ) => {
+    releaseAIPronunciationCache({
+      entryIds: removed.map(card => card.id),
+      texts: removed.map(card => card.word),
+      retainedTexts: normalizedWordTexts(remaining),
+    });
   }, []);
 
   const {
@@ -363,6 +486,8 @@ export default function App() {
     language,
     setMenuVisible,
     onCardRegistered: handleCardRegistered,
+    onCardEdited: handleCardEdited,
+    onCardsImported: handleCardsImported,
     onCardsDeleted: handleCardsDeleted,
   });
 
@@ -502,12 +627,13 @@ export default function App() {
     themeColor,
     appearance,
     isSubscribed,
+    ownedEntitlementIds: ownedThemeEntitlementIds,
   });
 
   useAppPersistence({
     cards, folders, foldersRef,
     themeColor, appearance, skinId, language, aiVoice,
-    showFullCard, verticalFlip, hideAiTools,
+    showFullCard, verticalFlip, hideAiTools, preferDeviceVoice,
     syncTestResults: savedSyncTestResults,
     studyLog,
     resultFilterTutorialSeen, firstTestAnswerRecorded,
@@ -528,9 +654,19 @@ export default function App() {
   // to isSubscribed or themeColor — covers the downgrade case at runtime.
   useEffect(() => {
     if (!settingsLoaded || !isSubscriptionLoaded) return;
+    // Ownership has to be known before anything is reset. At launch the owned
+    // set is empty until RevenueCat answers, and acting on that emptiness
+    // would reset a purchased theme to blue *and persist it* — destroying the
+    // user's choice on every cold start.
+    if (!themePurchases.ownershipLoaded) return;
     if (!isSubscribed) {
-      // On downgrade: reset any premium skin back to blue.
-      if (skinId && !FREE_SKIN_IDS.has(skinId)) {
+      // Reset a paid skin to the default free theme — unless this exact theme
+      // was bought outright, which survives the subscription ending.
+      if (
+        skinId
+        && !FREE_SKIN_IDS.has(skinId)
+        && !isThemeOwnedIndividually(skinId, ownedThemeEntitlementIds)
+      ) {
         setSkinId('solid_blue');
       }
       // Legacy: if no skin is active and themeColor drifted to a paid color, reset it.
@@ -538,7 +674,10 @@ export default function App() {
         setThemeColor(FREE_THEME_COLOR);
       }
     }
-  }, [isSubscribed, isSubscriptionLoaded, settingsLoaded, skinId, themeColor]);
+  }, [
+    isSubscribed, isSubscriptionLoaded, ownedThemeEntitlementIds,
+    themePurchases.ownershipLoaded, settingsLoaded, skinId, themeColor,
+  ]);
 
   const pickAppearance = (mode: Appearance) => setAppearance(mode);
   const pickLanguage = (code: string) => setLanguage(code);
@@ -605,6 +744,7 @@ export default function App() {
       pal={pal}
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
+      onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
       explanationLang={nativeLang}
       verticalFlip={verticalFlip}
     />
@@ -657,6 +797,7 @@ export default function App() {
           isSubscribed={isSubscribed}
           isPremium={isPremium}
           canUseAIVoice={canUseAIVoice}
+          onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
           hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
@@ -731,6 +872,16 @@ export default function App() {
       )}
 
       {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
+
+      {/* Raised only by a refused generation, so it cannot appear while
+          credits remain and never appears for cached playback. */}
+      <VoiceCreditsExhaustedDialog
+        visible={voiceCreditsFallback !== null}
+        onUpgrade={handleUpgradeFromVoiceCredits}
+        onUseFreeVoice={handleUseFreeVoice}
+        pal={pal}
+        themeColor={activeThemeColor}
+      />
 
       <AppModals
         pal={pal}
@@ -832,7 +983,7 @@ export default function App() {
           language,
           onPickLanguage: pickLanguage,
           aiVoice,
-          onPickAIVoice: setAIVoice,
+          onPickAIVoice: handlePickAIVoice,
           cardViewMode,
           onChangeCardViewMode: handleCardViewModeChange,
           showFullCard,
@@ -844,6 +995,8 @@ export default function App() {
           canUseAI,
           discovery,
           onDataReplaced: reloadAfterImport,
+          themePurchases,
+          planProducts,
         }}
         paywallModal={{
           visible: paywallVisible,

@@ -1,6 +1,11 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { MAX_AI_INPUT_CHARS } from '../constants';
-import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
+import {
+  AI_VOICES,
+  DEFAULT_AI_VOICE,
+  RETIRED_AI_VOICES,
+  type AIVoice,
+} from './aiVoices';
 import { isLocalAiVoiceScenarioActive } from '../dev/localAiVoiceScenario';
 import { resolveCardVoiceSource } from '../features/voice/cardVoiceSource';
 
@@ -42,6 +47,7 @@ import {
   DeduplicatedRequestRegistry,
   isSupportedCachedWav,
   normalizeTTSRequest,
+  normalizedTTSText,
   serializeTTSCacheKey,
 } from './ttsRequest';
 import {
@@ -466,6 +472,140 @@ export function preloadAIPronunciationLibrary(
       hasCustomAudio: entry.hasCustomAudio,
     });
   }
+}
+
+/** Words released per event-loop turn, so a select-all delete cannot block a frame. */
+const CACHE_RELEASE_CHUNK = 8;
+
+export interface AIPronunciationCacheReleaseOptions {
+  /** Cards that no longer own their queued preload work. */
+  entryIds: readonly string[];
+  /** Raw word texts whose cached clips may now be unreachable. */
+  texts: readonly string[];
+  /**
+   * Normalized texts the library still contains. Two cards can normalize to the
+   * same text and therefore share one cache file, so a text still in here keeps
+   * its clips: deleting one of those cards must not silently cost the other a
+   * regeneration.
+   */
+  retainedTexts: ReadonlySet<string>;
+}
+
+/**
+ * Drop the clips a word owned once nothing else refers to them.
+ *
+ * Deliberately conservative in three ways. Queue ownership is released through
+ * the same `cancelOwner` the delete path always used, which never aborts a
+ * running request — manual playback may be sharing it. A key with a request in
+ * flight is skipped outright, as is one that is playing right now. And a text
+ * still present in `retainedTexts` is never touched. Over-retention costs disk;
+ * over-deletion costs a paid regeneration, so every ambiguous case keeps the file.
+ */
+export function releaseAIPronunciationCache(
+  options: AIPronunciationCacheReleaseOptions,
+): void {
+  for (const entryId of options.entryIds) cancelAIPronunciationPreload(entryId);
+
+  const obsolete = [...new Set(options.texts.map(normalizedTTSText))]
+    .filter(text => text.length > 0 && !options.retainedTexts.has(text));
+  if (obsolete.length === 0) return;
+
+  // Nothing awaits this: a release is bookkeeping behind a save or a delete that
+  // has already happened, and must never hold either of them up.
+  void releaseObsoleteClips(obsolete);
+}
+
+async function releaseObsoleteClips(texts: readonly string[]): Promise<void> {
+  let released = 0;
+  for (let index = 0; index < texts.length; index++) {
+    // The file APIs are synchronous, so a large delete is chunked back to the
+    // event loop rather than run as one long blocking sweep.
+    if (index > 0 && index % CACHE_RELEASE_CHUNK === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    for (const voice of AI_VOICES) released += deleteCachedPronunciation(texts[index], voice) ? 1 : 0;
+  }
+  if (__DEV__) console.log('[TTS cache] released', {
+    obsoleteTexts: texts.length,
+    filesReleased: released,
+  });
+}
+
+/**
+ * One text in one voice. Voice previews are keyed with a `contentVersion` and
+ * so hash differently — this can never reach them.
+ */
+function deleteCachedPronunciation(normalizedText: string, voice: AIVoice): boolean {
+  const request = normalizeTTSRequest(normalizedText, voice);
+  const key = serializeTTSCacheKey(request);
+  if (networkRequests.has(key)) return false;
+  if (isSpeakingCardText(voice, request.text)) return false;
+
+  fileUriIndex.delete(key);
+  const current = ttsCacheFile(key, voice);
+  const existed = current.exists;
+  invalidateCachedAudioFile(current);
+  // The pre-normalization file is the same clip under the old key, so it goes
+  // with it rather than being left behind as an orphan nothing can reach.
+  const legacy = legacyTTSCacheFile(request.text, voice);
+  const legacyExisted = legacy.exists;
+  invalidateCachedAudioFile(legacy);
+  return existed || legacyExisted;
+}
+
+/**
+ * Drop the clips left behind by voices the app no longer offers.
+ *
+ * Nothing can reach these files again: the voice is not in `AI_VOICES`, so it
+ * cannot be chosen, previewed, or fall out of `isAIVoice` as a stored value.
+ * Selection is by the voice segment of the filename against `RETIRED_AI_VOICES`
+ * — an allowlist of what may go, not a denylist of what must stay — so a Marin
+ * or Cedar clip cannot be deleted however the name is shaped.
+ */
+export function purgeRetiredVoiceCaches(): void {
+  void purgeRetiredVoiceCacheFiles();
+}
+
+async function purgeRetiredVoiceCacheFiles(): Promise<void> {
+  let removed = 0;
+  try {
+    const dir = new Directory(Paths.cache, TTS_CACHE_DIR);
+    if (!dir.exists) return;
+    const entries = dir.list();
+    for (let index = 0; index < entries.length; index++) {
+      if (index > 0 && index % CACHE_RELEASE_CHUNK === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      const entry = entries[index];
+      if (!isRetiredVoiceCacheName(entry.name)) continue;
+      try {
+        entry.delete();
+        removed++;
+      } catch {
+        // A file the OS is holding is not worth failing a cleanup over.
+      }
+    }
+  } catch {
+    // Best effort. A cache that cannot be tidied still plays.
+  }
+  if (__DEV__ && removed > 0) console.log('[TTS cache] retired voices purged', { removed });
+}
+
+/**
+ * `<cacheVersion>_<voice>_<hash>.wav`, and the `.timing.json` sidecar built from
+ * that name. The version segment is not checked, so files from an earlier cache
+ * version are collected too.
+ */
+function isRetiredVoiceCacheName(name: string): boolean {
+  const segments = name.split('_');
+  return segments.length >= 3 && RETIRED_AI_VOICES.has(segments[1]);
+}
+
+/** Is this exact clip the one playing right now? Its file must stay put. */
+function isSpeakingCardText(voice: AIVoice, normalizedText: string): boolean {
+  const prefix = `ai:${voice}:card:`;
+  if (activePlaybackKey === null || !activePlaybackKey.startsWith(prefix)) return false;
+  return normalizedTTSText(activePlaybackKey.slice(prefix.length)) === normalizedText;
 }
 
 /** Stop associating queued/running preload work with a deleted card. */

@@ -9,6 +9,7 @@ import {
   SHOW_FULL_CARD_KEY,
   STUDY_LOG_KEY,
   VERTICAL_FLIP_KEY,
+  PREFER_DEVICE_VOICE_KEY,
 } from '../constants';
 import {
   bootstrapData,
@@ -115,6 +116,7 @@ export interface UseAppBootstrapParams {
   markSettingsLoaded(): void;
   setShowFullCard(v: boolean): void;
   setVerticalFlip(v: boolean): void;
+  setPreferDeviceVoice(v: boolean): void;
   setHideAiTools(v: boolean): void;
   setSyncTestResults(v: boolean): void;
   setStudyLog(log: StudyLog): void;
@@ -152,6 +154,7 @@ export function useAppBootstrap({
   markSettingsLoaded,
   setShowFullCard,
   setVerticalFlip,
+  setPreferDeviceVoice,
   setHideAiTools,
   setSyncTestResults,
   setStudyLog,
@@ -228,6 +231,7 @@ export function useAppBootstrap({
       // ── Phase 2: UI preferences (parallel, non-critical) ──────────────────
       let rawShowFull: string | null = null;
       let rawVertFlip: string | null = null;
+      let rawDeviceVoice: string | null = null;
       let rawHideAi:  string | null = null;
       let rawSyncTest: string | null = null;
       let rawStudyLog: string | null = null;
@@ -239,6 +243,7 @@ export function useAppBootstrap({
         [
           rawShowFull, rawVertFlip, rawHideAi, rawSyncTest, rawStudyLog, obRaw,
           rawResultFilterTutorial, rawFirstTestAnswer, rawResultFilterMigrated,
+          rawDeviceVoice,
         ] = await Promise.all([
           AsyncStorage.getItem(SHOW_FULL_CARD_KEY),
           AsyncStorage.getItem(VERTICAL_FLIP_KEY),
@@ -249,6 +254,7 @@ export function useAppBootstrap({
           AsyncStorage.getItem(RESULT_FILTER_TUTORIAL_KEY),
           AsyncStorage.getItem(FIRST_TEST_ANSWER_KEY),
           AsyncStorage.getItem(RESULT_FILTER_MIGRATION_KEY),
+          AsyncStorage.getItem(PREFER_DEVICE_VOICE_KEY),
         ]);
       } catch (e) {
         if (__DEV__) {
@@ -304,6 +310,8 @@ export function useAppBootstrap({
       // Absent means off, which is the default for existing users.
       if (rawSyncTest === 'true') setSyncTestResults(true);
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
+      // Absent means the user never fell back, so Natural AI Voice applies.
+      if (rawDeviceVoice !== null) setPreferDeviceVoice(rawDeviceVoice === 'true');
       if (rawHideAi !== null) {
         setHideAiTools(rawHideAi === 'true');
       } else if (obRaw !== null) {

@@ -123,7 +123,7 @@ test('export of an empty database is still a valid backup', async () => {
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
-test('validation rejects files that are not WordPing backups', () => {
+test('validation rejects files that are not WordCore backups', () => {
   for (const input of [null, 42, 'a string', [], {}, { kind: 'other-app' }]) {
     assert.equal(validateBackup(input).ok, false);
   }

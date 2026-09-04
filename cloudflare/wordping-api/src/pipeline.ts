@@ -14,7 +14,13 @@ import { clientIp, privacyHash, readIdentity, type CallerIdentity } from './iden
 import { log } from './log';
 import { consume } from './ratelimit';
 import { reserveMonthlyQuota } from './monthlyQuota';
-import { isVoiceQuotaFeature } from './planLimits';
+import { VOICE_LIFETIME_CREDITS, isVoiceQuotaFeature } from './planLimits';
+import {
+  commitVoiceCredit,
+  isLifetimeCreditFeature,
+  releaseVoiceCredit,
+  reserveVoiceCredit,
+} from './lifetimeCredits';
 import {
   LOCAL_AI_VOICE_SCENARIO,
   type LocalAiVoiceTestScenario,
@@ -66,6 +72,25 @@ export interface ApprovedRequest<T> {
    * null when the request may proceed. Calling it twice charges twice.
    */
   reserveQuota(): Promise<Response | null>;
+  /**
+   * Turns this request's credit reservation into a spend.
+   *
+   * Called by the route *after* the generation succeeded — only the route
+   * knows that. A no-op on Premium and on routes outside
+   * LIFETIME_CREDIT_FEATURES. Returns false when the ledger could not be
+   * updated, which the route must not ignore.
+   *
+   * The credit was already claimed before OpenAI was called, so this cannot
+   * overdraw and cannot fail for lack of balance.
+   */
+  commitVoiceCredit(): Promise<boolean>;
+  /**
+   * Returns this request's reservation without spending it.
+   *
+   * For a generation that failed, was refused downstream, or was cancelled.
+   * Best effort — an unreleased reservation expires on its own.
+   */
+  releaseVoiceCredit(): Promise<void>;
 }
 
 export type GuardResult<T> =
@@ -269,6 +294,44 @@ async function approve<T>(
   // VOICE_QUOTA_FEATURES, so neither spends the Basic monthly allowance.
   // An anonymous route is never metered, so there is no App User ID to hash —
   // and none was received to hash in the first place.
+  // Basic's one-time credits are claimed here, after the abuse limits and
+  // strictly before OpenAI. A *reservation*, not a read: two simultaneous
+  // requests must not both observe the same balance and both proceed, so the
+  // credit is taken out of circulation now and only becomes a spend once the
+  // route reports success.
+  const spendsCredits = isLifetimeCreditFeature(spec.feature)
+    && identity !== null
+    && VOICE_LIFETIME_CREDITS[tier] !== null
+    && VOICE_LIFETIME_CREDITS[tier] !== 0;
+  const creditLedgerId = spendsCredits
+    ? await privacyHash(env, 'rcuser', identity!.appUserId)
+    : '';
+  // Derived from the request's own content, so a retry or a duplicate of the
+  // same generation reserves and commits the same claim rather than a second
+  // one. Hashed, so no user text reaches the ledger or its logs.
+  const idempotencyKey = spendsCredits
+    ? await privacyHash(env, 'voicereq', `${identity!.appUserId}\u0000${spec.billableText(body)}`)
+    : '';
+  if (spendsCredits) {
+    const reservation = await reserveVoiceCredit(
+      env, creditLedgerId, idempotencyKey, response.requestId,
+    );
+    // Fail closed on a ledger the Worker cannot reach. Letting the request
+    // through would make an outage the cheapest route to unmetered generation.
+    if (reservation === null) {
+      return reject('entitlement_verification_failed', 503, { reason: 'credit_ledger' }, {
+        'Retry-After': '30',
+      });
+    }
+    if (!reservation.ok) {
+      log('info', 'voice_credits_exhausted', response.requestId, { tier });
+      return reject('voice_credits_exhausted', 403, {
+        grant: VOICE_LIFETIME_CREDITS[tier] ?? 0,
+        remaining: reservation.remaining,
+      });
+    }
+  }
+
   const meteredForVoice = isVoiceQuotaFeature(spec.feature) && identity !== null;
   const hashedAppUserId = meteredForVoice
     ? await privacyHash(env, 'rcuser', identity!.appUserId)
@@ -296,8 +359,22 @@ async function approve<T>(
     if (exhausted) return { ok: false, response: exhausted };
   }
 
+  const commitCredit = async (): Promise<boolean> => {
+    if (!spendsCredits) return true;
+    return commitVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
+  };
+  const releaseCredit = async (): Promise<void> => {
+    if (!spendsCredits) return;
+    await releaseVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
+  };
+
   return {
     ok: true,
-    value: { body, tier, identity, limits, characters, reserveQuota },
+    value: {
+      body, tier, identity, limits, characters,
+      reserveQuota,
+      commitVoiceCredit: commitCredit,
+      releaseVoiceCredit: releaseCredit,
+    },
   };
 }

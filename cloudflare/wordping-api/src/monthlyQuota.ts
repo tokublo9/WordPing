@@ -11,9 +11,16 @@ import {
 /**
  * Monthly High-Quality AI Voice allowance.
  *
- * Applies to word-card voice generation only (see VOICE_QUOTA_FEATURES). Basic
- * gets 200 generations per UTC month; Premium has no monthly product quota;
- * Free cannot reach the metered route at all.
+ * NOTHING USES THIS TODAY. VOICE_QUOTA_FEATURES is empty: Basic's allowance is a
+ * one-time grant that never refills, which lives in lifetimeCredits.ts, and
+ * Premium has no monthly product ceiling. This module is retained for a future
+ * feature that genuinely renews monthly.
+ *
+ * It previously read "Basic gets 200 generations per UTC month", which was
+ * already untrue — VOICE_MONTHLY_LIMITS had Basic at zero — and is the sentence
+ * that made the benefit look monthly. Basic's 200 are a lifetime grant. Do not
+ * borrow `monthKey` or `monthResetsAt` for that balance: a lifetime credit that
+ * quietly reset at a month boundary would be unlimited credits.
  *
  * Counted per RevenueCat App User ID, not per install: the allowance belongs to
  * the subscription, so reinstalling or adding a second device must not hand out

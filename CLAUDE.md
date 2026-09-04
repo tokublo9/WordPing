@@ -210,8 +210,8 @@ A stateless AI proxy. It stores no user data. See its README for routes and oper
 
 | Route | Requires |
 |---|---|
-| `POST /v1/voice/card` | Premium |
-| `POST /v1/voice/sample` | Premium |
+| `POST /v1/voice/card` | Basic (spends a lifetime credit) or Premium |
+| `POST /v1/voice/sample` | Basic or Premium — server-authored text, KV-cached, spends nothing |
 | `POST /v1/voice/promo` | Nothing — the only free route. Two fixed promo clips, no client text |
 | `POST /v1/voice/custom` | Premium |
 | `POST /v1/meaning`, `/v1/breakdown`, `/v1/translate`, `/v1/examples` | Premium |
@@ -301,18 +301,47 @@ The app's plan state is for **UI only**. Access to a billable AI feature is deci
 | TTS plays | 10 (`FREE_VOICE_LIMIT`) | Unlimited | Unlimited |
 | Theme colors | Blue only | All | All |
 | Skins | `solid_blue` only | All | All |
+| Individual theme purchase | ✓ (any plan) | ✓ | ✓ |
 | Custom Voice for Words | ✗ | ✓ | ✓ |
-| High-Quality AI Voice | ✗ | ✗ | ✓ |
+| High-Quality AI Voice | ✗ | 200 one-time credits | ✓ Unlimited |
 | Hide Word | ✗ | ✓ | ✗ |
 
 **Each paid feature has exactly one rule, and none is derived from another.**
 
 | Feature | Rule | Module |
 |---|---|---|
-| High-Quality AI Voice | Premium | `planCanUseAI` — `lib/aiEntitlement.ts`, from `VOICE_MONTHLY_LIMITS` |
+| High-Quality AI Voice | Premium, or Basic while its one-time credits last | `planCanUseAI` — `lib/aiEntitlement.ts`, from `VOICE_MONTHLY_LIMITS` + `VOICE_LIFETIME_CREDITS` |
 | Custom Voice for Words | Any paid plan | `planUnlocksCustomVoice` — `features/voice/customVoiceAccess.ts` |
 | Hide Word | **Basic only** | `planUnlocksHideWord` — `features/cards/hideWordAccess.ts` |
 | Backup / Restore | Premium | `planUnlocksBackup` — `features/backup/backupAccess.ts` |
+
+### Basic's one-time AI Voice credits
+
+Basic includes **200 High-Quality AI Voice generations, granted once and never
+refilled** — not monthly, not on renewal, cancellation, resubscription, restore,
+reinstall, or a new device. The balance lives in a Cloudflare **Durable Object**
+(`cloudflare/wordping-api/src/lifetimeCredits.ts`) keyed by the salted hash of the
+RevenueCat App User ID, so it belongs to the subscription rather than the install
+and local data can never reissue it. A Durable Object rather than KV because KV
+has no atomic read-modify-write and this balance never resets, so an overshoot
+would be permanent.
+
+- **A credit is spent only after a generation succeeds** — `handleVoiceCard`
+  calls `consumeVoiceCredit()` after the upstream response. Cache hits, client
+  deduplicated requests, cancellations, failures, voice previews and promo clips
+  all cost nothing, because none of them reaches that line.
+- **The app never holds a credit count.** Exhaustion is the Worker's answer
+  (`voice_credits_exhausted`), which raises `VoiceCreditsExhaustedDialog`. A
+  mirrored count would either block a user who still has credits or promise ones
+  that are gone.
+- **"Use Free Voice" sets `PREFER_DEVICE_VOICE_KEY`**, which makes
+  `canUseAIVoice` false so no further generation is attempted — that is what
+  stops the dialog reappearing on every card. Picking a voice in Settings clears
+  it. It is a preference, never an entitlement.
+- **Do not use `monthKey` / `monthResetsAt` for this balance.** A lifetime credit
+  that reset at a month boundary would be unlimited credits.
+  `VOICE_QUOTA_FEATURES` is now empty; the monthly machinery is retained for a
+  feature that genuinely renews.
 
 **Hide Word is not a ladder — Premium does not have it.** That is deliberate, so
 it can never be expressed as "any paid plan" or folded into Custom Voice's flag;
@@ -342,6 +371,29 @@ be corrected, so it stays legible and editable.
 **Words and folders are never gated.** No count check may block registration, and no
 Pro/paywall popup may be raised from adding a word or creating a folder on any plan.
 `PaywallModal` covers the AI voice limit only.
+
+### Individual theme purchases
+
+A paid theme is unlocked **two independent ways**: an active Basic/Premium
+subscription unlocks every paid theme while it lasts, and buying one outright
+unlocks that theme permanently. `resolveThemeAccess` answers both;
+`ownedIndividually` is checked **before** the subscription and without waiting
+for `isSubscriptionLoaded`, so a theme someone paid for never re-locks during
+an entitlement lookup.
+
+- **Prices are never computed here.** `ShopItem.price` is a paid/free flag with
+  no currency — it must never be rendered. Every displayed price is
+  `StoreProduct.priceString` from StoreKit, already localized for the account's
+  storefront. No formatter, no currency symbol, no `toLocaleString`.
+- **An unresolved product shows nothing**, never a fallback: an unconfigured
+  product and an unreachable one are indistinguishable on the device.
+  `resolveThemePrice` returns `unavailable` and both surfaces draw no line.
+- **`THEME_PRODUCT_IDS` in `features/themes/themeProducts.ts` is the only place
+  identifiers live**, and must contain the exact App Store Connect product ids.
+  It is empty until those are created; prices stay hidden until then.
+- **Ownership is receipt-backed**, read from RevenueCat's customer info by
+  `useThemePurchases` — never AsyncStorage or SQLite, which would be a claim
+  the device makes about itself.
 
 ### Skins
 

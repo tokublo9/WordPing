@@ -8,6 +8,7 @@ import {
   SYNC_TEST_RESULTS_KEY,
   SHOW_FULL_CARD_KEY,
   VERTICAL_FLIP_KEY,
+  PREFER_DEVICE_VOICE_KEY,
 } from '../constants';
 import {
   FIRST_TEST_ANSWER_KEY,
@@ -30,6 +31,7 @@ export interface UseAppPersistenceParams {
   aiVoice: AIVoice;
   showFullCard: boolean;
   verticalFlip: boolean;
+  preferDeviceVoice: boolean;
   hideAiTools: boolean;
   syncTestResults: boolean;
   studyLog: StudyLog;
@@ -50,6 +52,7 @@ export function useAppPersistence({
   aiVoice,
   showFullCard,
   verticalFlip,
+  preferDeviceVoice,
   hideAiTools,
   syncTestResults,
   studyLog,
@@ -86,6 +89,12 @@ export function useAppPersistence({
     AsyncStorage.setItem(VERTICAL_FLIP_KEY, verticalFlip ? 'true' : 'false')
       .catch(e => reportSideEffectFailure('setVerticalFlip', e));
   }, [verticalFlip]);
+
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    AsyncStorage.setItem(PREFER_DEVICE_VOICE_KEY, preferDeviceVoice ? 'true' : 'false')
+      .catch(e => reportSideEffectFailure('setPreferDeviceVoice', e));
+  }, [preferDeviceVoice]);
 
   useEffect(() => {
     if (!hasLoaded.current) return;

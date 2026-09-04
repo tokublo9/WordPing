@@ -22,12 +22,15 @@ export interface AppSettingsState {
   verticalFlip: boolean;
   setVerticalFlip: Dispatch<SetStateAction<boolean>>;
   hideAiTools: boolean;
+  /** The user fell back to the device voice; no AI generation is attempted. */
+  preferDeviceVoice: boolean;
   syncTestResults: boolean;
   setSyncTestResults: Dispatch<SetStateAction<boolean>>;
   /** Answers per local day, the only record of what was studied when. */
   studyLog: StudyLog;
   setStudyLog: Dispatch<SetStateAction<StudyLog>>;
   setHideAiTools: Dispatch<SetStateAction<boolean>>;
+  setPreferDeviceVoice: Dispatch<SetStateAction<boolean>>;
   /** One-time tutorial. False until the stored flag says otherwise. */
   resultFilterTutorialSeen: boolean;
   setResultFilterTutorialSeen: Dispatch<SetStateAction<boolean>>;
@@ -49,6 +52,7 @@ export function useAppSettings(): AppSettingsState {
   const [showFullCard, setShowFullCard] = useState(false);
   const [verticalFlip, setVerticalFlip] = useState(false);
   const [hideAiTools, setHideAiTools]   = useState(false);
+  const [preferDeviceVoice, setPreferDeviceVoice] = useState(false);
   // Dormant saved preference retained for a possible future UI restoration.
   // Test Mode currently uses SYNC_WITH_TEST_RESULTS_ENABLED instead.
   const [syncTestResults, setSyncTestResults] = useState(false);
@@ -76,6 +80,7 @@ export function useAppSettings(): AppSettingsState {
     showFullCard, setShowFullCard,
     verticalFlip, setVerticalFlip,
     hideAiTools, setHideAiTools,
+    preferDeviceVoice, setPreferDeviceVoice,
     syncTestResults, setSyncTestResults,
     studyLog, setStudyLog,
     resultFilterTutorialSeen, setResultFilterTutorialSeen,

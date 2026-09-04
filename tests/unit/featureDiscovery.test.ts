@@ -23,9 +23,18 @@ const ALL = Object.values(FEATURE_MARKERS);
 const BASIC_SET = [
   FEATURE_MARKERS.themeShop,
   FEATURE_MARKERS.customAudio,
+  FEATURE_MARKERS.naturalAIVoice,
+  FEATURE_MARKERS.aboutAIVoice,
 ];
-/** What only Premium unlocks: the two AI Voice surfaces. */
-const PREMIUM_ONLY = [
+/**
+ * The two AI Voice surfaces.
+ *
+ * Basic reaches them now, through its one-time credit grant, so they are no
+ * longer Premium-only. The marker rule was never restated in terms of a plan
+ * name — it reads `planCanUseAI` — so it followed the entitlement here without
+ * being edited, which is the property this file exists to protect.
+ */
+const AI_VOICE_MARKERS = [
   FEATURE_MARKERS.naturalAIVoice,
   FEATURE_MARKERS.aboutAIVoice,
 ];
@@ -44,11 +53,11 @@ test('21. nothing is marked while the subscription state is unknown', () => {
   assert.deepEqual(visible('premium', [], false), []);
 });
 
-test('15. Basic receives the Theme Shop and the custom-audio control', () => {
+test('15. Basic receives the Theme Shop, custom audio and the AI Voice surfaces', () => {
   assert.deepEqual(visible('basic').sort(), [...BASIC_SET].sort());
-  // The two AI Voice surfaces are Premium and must not be offered to Basic.
-  for (const marker of PREMIUM_ONLY) {
-    assert.equal(visible('basic').includes(marker), false, `${marker} is Premium`);
+  // Free still reaches neither AI Voice surface — that boundary did not move.
+  for (const marker of AI_VOICE_MARKERS) {
+    assert.equal(visible('free').includes(marker), false, `${marker} is not Free`);
   }
 });
 
@@ -63,9 +72,9 @@ test('the plan requirement comes from each feature rule, not a tier list', () =>
   assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'free'), false);
   assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'basic'), true);
   assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'premium'), true);
-  for (const marker of PREMIUM_ONLY) {
+  for (const marker of AI_VOICE_MARKERS) {
     assert.equal(planUnlocksFeature(marker, 'free'), false);
-    assert.equal(planUnlocksFeature(marker, 'basic'), false, `${marker} follows AI Voice`);
+    assert.equal(planUnlocksFeature(marker, 'basic'), true, `${marker} follows AI Voice`);
     assert.equal(planUnlocksFeature(marker, 'premium'), true);
   }
 });
@@ -74,7 +83,7 @@ test('18. each marker dismisses independently', () => {
   const afterThemeShop = visible('premium', [FEATURE_MARKERS.themeShop]);
   assert.deepEqual(
     afterThemeShop.sort(),
-    [...PREMIUM_ONLY, FEATURE_MARKERS.customAudio].sort(),
+    [...AI_VOICE_MARKERS, FEATURE_MARKERS.customAudio].sort(),
     'opening one feature must not clear the others',
   );
   assert.deepEqual(visible('premium', [FEATURE_MARKERS.aboutAIVoice]).length, 3);
@@ -89,17 +98,31 @@ test('19. custom audio is one marker, so Add and Edit share its dismissal', () =
     ALL.length,
     'ids are unique, and there is exactly one for the custom-audio control',
   );
-  assert.deepEqual(
-    visible('basic', [FEATURE_MARKERS.customAudio]),
-    [FEATURE_MARKERS.themeShop],
-  );
+  // Asserted as an invariant rather than a fixed list: dismissing the control
+  // removes that one marker and disturbs no other, whatever else the plan
+  // happens to unlock. A literal list here would go stale every time a plan's
+  // entitlements move, which is exactly what it did when Basic gained AI Voice.
+  for (const plan of ['free', 'basic', 'premium'] as const) {
+    const before = visible(plan);
+    const after = visible(plan, [FEATURE_MARKERS.customAudio]);
+    assert.equal(after.includes(FEATURE_MARKERS.customAudio), false, plan);
+    assert.deepEqual(
+      after.sort(),
+      before.filter(marker => marker !== FEATURE_MARKERS.customAudio).sort(),
+      `${plan}: dismissing custom audio must clear that marker and nothing else`,
+    );
+  }
 });
 
 test('17. a Basic user upgrading to Premium keeps what they already found', () => {
-  // They dismissed both Basic markers while on Basic.
-  const afterUpgrade = visible('premium', BASIC_SET);
-  assert.deepEqual(afterUpgrade.sort(), [...PREMIUM_ONLY].sort(),
-    'only the newly unlocked AI Voice surfaces are marked');
+  // Basic already reaches every marker, so an upgrade reveals nothing new —
+  // and, more to the point, does not bring back anything already dismissed.
+  assert.deepEqual(visible('premium', BASIC_SET), []);
+  // A marker not yet found is still marked after the upgrade.
+  assert.deepEqual(
+    visible('premium', [FEATURE_MARKERS.themeShop, FEATURE_MARKERS.customAudio]).sort(),
+    [...AI_VOICE_MARKERS].sort(),
+  );
 });
 
 test('22. a downgrade hides inaccessible markers without erasing history', () => {
@@ -110,9 +133,19 @@ test('22. a downgrade hides inaccessible markers without erasing history', () =>
 });
 
 test('23. resubscribing does not restore a dismissed marker', () => {
+  // The property that matters: a dismissed marker never comes back, on any
+  // plan and through any cancel/resubscribe path. Stated over every marker and
+  // every plan so it cannot be satisfied by a coincidence of one plan's set.
+  for (const plan of ['free', 'basic', 'premium'] as const) {
+    assert.deepEqual(visible(plan, ALL), [], `${plan}: everything dismissed stays dismissed`);
+    for (const marker of ALL) {
+      assert.equal(visible(plan, [marker]).includes(marker), false, `${plan}/${marker}`);
+    }
+  }
+  // And a marker never found is still offered after the plan changes, so the
+  // rule hides by entitlement rather than by forgetting what was seen.
   const seen = [FEATURE_MARKERS.customAudio, FEATURE_MARKERS.themeShop];
-  assert.deepEqual(visible('basic', seen), []);
-  assert.deepEqual(visible('premium', seen).sort(), [...PREMIUM_ONLY].sort());
+  assert.deepEqual(visible('premium', seen).sort(), [...AI_VOICE_MARKERS].sort());
 });
 
 test('the ids are versioned, so a future feature can be marked again', () => {

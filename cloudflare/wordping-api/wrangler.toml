@@ -35,6 +35,19 @@ binding = "WORDPING_KV"
 id = "a2e62680a8d9438db17c0480206c42c0"
 preview_id = "REPLACE_WITH_KV_PREVIEW_NAMESPACE_ID"
 
+# Basic's one-time AI Voice credits. A Durable Object, not KV: the balance never
+# resets, so a lost update would permanently give away credits or double-grant.
+# See src/lifetimeCredits.ts.
+[[durable_objects.bindings]]
+name = "VOICE_CREDITS"
+class_name = "VoiceCreditLedger"
+
+# SQLite-backed, which is the storage class available on every Workers plan.
+# Append new migrations; never edit this one — it has already been applied.
+[[migrations]]
+tag = "v1-voice-credits"
+new_sqlite_classes = ["VoiceCreditLedger"]
+
 [observability]
 enabled = true
 

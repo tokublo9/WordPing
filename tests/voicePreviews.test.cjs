@@ -69,12 +69,12 @@ test('the app and the Worker speak exactly the same words', () => {
 test('the promo route is the only free feature, and it is free by config', () => {
   const config = read(WORKER_CONFIG);
   assert.match(config, /voice_promo: 'free',/u);
-  // Every other route still demands an entitlement, and every AI Voice route now
-  // demands Premium: the picker preview moves with the feature it previews.
-  assert.match(config, /voice_card: 'premium',/u);
-  assert.match(config, /voice_sample: 'premium',/u);
+  // Every other route still demands an entitlement. The AI Voice routes admit
+  // Basic, whose one-time credits then decide; the picker preview moves with
+  // the feature it previews. Free reaches neither.
+  assert.match(config, /voice_card: 'basic',/u);
+  assert.match(config, /voice_sample: 'basic',/u);
   assert.match(config, /voice_custom: 'premium',/u);
-  assert.doesNotMatch(config, /voice_\w+: 'basic',/u, 'no voice route is sold to Basic');
   for (const feature of ['meaning', 'breakdown', 'translation', 'example']) {
     assert.match(config, new RegExp(`${feature}: 'premium',`, 'u'));
   }
@@ -141,11 +141,16 @@ test('an unapproved sample id is rejected by the schema', () => {
   assert.match(config, /return PROMO_SAMPLE_TEXT\.spontaneous\[base\] !== undefined \? base : 'en';/u);
 });
 
-test('promo playback never spends the Basic monthly voice allowance', () => {
+test('promo playback spends neither a monthly allowance nor a lifetime credit', () => {
   const limits = read('cloudflare/wordping-api/src/planLimits.ts');
-  assert.match(limits, /export const VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\];/u);
+  assert.match(limits, /export const VOICE_QUOTA_FEATURES: readonly Feature\[\] = \[\];/u);
   assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
   assert.doesNotMatch(limits, /voice_promo/u);
+
+  // The credit ledger meters word-card generation and nothing else.
+  const credits = read('cloudflare/wordping-api/src/lifetimeCredits.ts');
+  assert.match(credits, /export const LIFETIME_CREDIT_FEATURES = \['voice_card'\] as const;/u);
+  assert.doesNotMatch(credits, /LIFETIME_CREDIT_FEATURES[^;]*voice_promo/u);
 });
 
 test('the promo route stays rate limited and cached', () => {
@@ -204,27 +209,30 @@ test('each sample has its own loading state and starting one stops the other', (
   assert.match(handler, /const sequence = \+\+demoSequence\.current;\s*stopPlayback\(\);/u);
 });
 
-test('an offline preview says so; any other failure says the preview is unavailable', () => {
+test('a promo failure names its cause instead of collapsing into one line', () => {
   const sheet = read('src/components/ProSheet.tsx');
-  assert.match(sheet, /error instanceof AIRequestError && error\.kind === 'offline'/u);
-  // The AI branch gets its own copy: a fixed promo clip that will not load is a
-  // preview problem, not a failed generation of the user's own content.
-  assert.match(
-    sheet,
-    /t\(offline \? 'err_offline' : isAI \? 'promo_preview_unavailable' : 'err_generation_failed'\)/u,
-  );
+  // Branching on `kind`, like every other AI surface. Offline and a missing
+  // base URL are the two with a real cause, and both used to read as an outage.
+  assert.match(sheet, /case 'offline':\s*return 'err_offline';/u);
+  assert.match(sheet, /case 'not_configured': return 'err_service_not_configured';/u);
+  assert.match(sheet, /serverCode === 'api_not_configured'/u);
+  // A genuine outage still says the preview is unavailable.
+  assert.match(sheet, /isAI \? 'promo_preview_unavailable' : 'err_generation_failed'/u);
 });
 
-test('word-card AI voice is still gated for everyone below Premium', () => {
+test('word-card AI voice is still gated by capability, never by the promo route', () => {
   // The preview route is additive: nothing about the paid path changed.
   const tts = read('src/lib/tts.ts');
   // The engine is chosen by the AI Voice *capability*, not by "is subscribed" —
-  // which is what puts Basic on the device engine alongside Free.
+  // which is what puts Free on the device engine, and anyone who chose the free
+  // voice after their credits ran out.
   assert.match(tts, /export function speak\(\s*text: string,\s*canUseAIVoice: boolean,/u);
   assert.match(tts, /if \(canUseAIVoice\) return speakWithAI\(text, activeAIVoice, options\);\s*return speakFree\(/u);
   assert.doesNotMatch(tts, /\bisPro\b/u);
-  // And the Worker still refuses /v1/voice/card without a Premium entitlement.
-  assert.match(read(WORKER_CONFIG), /voice_card: 'premium',/u);
+  // And the Worker still refuses /v1/voice/card without a paid entitlement:
+  // the promo route grants nothing here, and Free reaches neither.
+  assert.match(read(WORKER_CONFIG), /voice_card: 'basic',/u);
+  assert.doesNotMatch(read(WORKER_CONFIG), /voice_card: 'free',/u);
   assert.match(
     read('cloudflare/wordping-api/src/pipeline.ts'),
     /if \(!tierSatisfies\(tier, requiredTier\)\) \{\s*return reject\('subscription_required', 403/u,

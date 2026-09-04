@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generatedFrom": [
     {
-      "project": "WordPing iOS App",
+      "project": "WordCore iOS App",
       "lockfile": "package-lock.json"
     },
     {
@@ -10,7 +10,7 @@
       "lockfile": "cloudflare/wordping-api/package-lock.json"
     },
     {
-      "project": "WordPing Website",
+      "project": "WordCore Website",
       "lockfile": "website/package-lock.json"
     }
   ],
@@ -23,7 +23,7 @@
       "repository": "https://github.com/0no-co/graphql.web",
       "npm": "https://www.npmjs.com/package/@0no-co/graphql.web/v/1.3.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "079ed870790c1258"
@@ -37,7 +37,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/code-frame/v/7.10.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -51,7 +51,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/code-frame/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -65,7 +65,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/compat-data/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -79,7 +79,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/core/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -93,7 +93,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/generator/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -107,7 +107,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-annotate-as-pure/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -121,7 +121,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-compilation-targets/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -135,7 +135,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-create-class-features-plugin/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -149,7 +149,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-create-regexp-features-plugin/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -163,7 +163,7 @@
       "repository": "https://github.com/babel/babel-polyfills",
       "npm": "https://www.npmjs.com/package/@babel/helper-define-polyfill-provider/v/0.6.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "98e9453367c88aa1"
@@ -177,7 +177,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-globals/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -191,7 +191,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-member-expression-to-functions/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -205,7 +205,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-module-imports/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -219,7 +219,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-module-transforms/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -233,7 +233,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-optimise-call-expression/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -247,7 +247,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-plugin-utils/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -261,7 +261,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-remap-async-to-generator/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -275,7 +275,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-replace-supers/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -289,7 +289,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-skip-transparent-expression-wrappers/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -303,7 +303,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-string-parser/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -317,7 +317,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-validator-identifier/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -331,7 +331,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-validator-option/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -345,7 +345,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helper-wrap-function/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -359,7 +359,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/helpers/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4218cdef25d1564b"
@@ -373,7 +373,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/highlight/v/7.25.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -387,7 +387,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/parser/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5937a76954e9322b"
@@ -401,7 +401,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-proposal-decorators/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -415,7 +415,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-proposal-export-default-from/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -429,7 +429,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-async-generators",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-async-generators/v/7.8.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -443,7 +443,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-bigint",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-bigint/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -457,7 +457,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-class-properties/v/7.12.13",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -471,7 +471,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-class-static-block/v/7.14.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -485,7 +485,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-decorators/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -499,7 +499,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-dynamic-import",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-dynamic-import/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -513,7 +513,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-export-default-from/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -527,7 +527,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-flow/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -541,7 +541,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-import-attributes/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -555,7 +555,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-import-meta/v/7.10.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -569,7 +569,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-json-strings",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-json-strings/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -583,7 +583,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-jsx/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -597,7 +597,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-logical-assignment-operators/v/7.10.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -611,7 +611,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-nullish-coalescing-operator",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-nullish-coalescing-operator/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -625,7 +625,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-numeric-separator/v/7.10.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -639,7 +639,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-object-rest-spread",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-object-rest-spread/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -653,7 +653,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-optional-catch-binding",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-optional-catch-binding/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -667,7 +667,7 @@
       "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-optional-chaining",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-optional-chaining/v/7.8.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -681,7 +681,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-private-property-in-object/v/7.14.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -695,7 +695,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-top-level-await/v/7.14.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -709,7 +709,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-syntax-typescript/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -723,7 +723,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-arrow-functions/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -737,7 +737,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-async-generator-functions/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -751,7 +751,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-async-to-generator/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -765,7 +765,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-block-scoping/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -779,7 +779,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-class-properties/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -793,7 +793,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-class-static-block/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -807,7 +807,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-classes/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -821,7 +821,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-computed-properties/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -835,7 +835,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-destructuring/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -849,7 +849,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-export-namespace-from/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -863,7 +863,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-flow-strip-types/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -877,7 +877,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-for-of/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -891,7 +891,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-function-name/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -905,7 +905,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-literals/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -919,7 +919,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-logical-assignment-operators/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -933,7 +933,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-modules-commonjs/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -947,7 +947,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-named-capturing-groups-regex/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -961,7 +961,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-nullish-coalescing-operator/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -975,7 +975,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-numeric-separator/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -989,7 +989,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-object-rest-spread/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1003,7 +1003,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-optional-catch-binding/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1017,7 +1017,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-optional-chaining/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1031,7 +1031,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-parameters/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1045,7 +1045,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-private-methods/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1059,7 +1059,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-private-property-in-object/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1073,7 +1073,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-react-display-name/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1087,7 +1087,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-react-jsx/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1101,7 +1101,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-react-jsx-development/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1115,7 +1115,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-react-jsx-self/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1129,7 +1129,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-react-jsx-source/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1143,7 +1143,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-react-pure-annotations/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1157,7 +1157,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-regenerator/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "680f46ba8a1222b0"
@@ -1171,7 +1171,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-runtime/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1185,7 +1185,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-shorthand-properties/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1199,7 +1199,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-spread/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1213,7 +1213,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-sticky-regex/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1227,7 +1227,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-typescript/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1241,7 +1241,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/plugin-transform-unicode-regex/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1255,7 +1255,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/preset-react/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1269,7 +1269,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/preset-typescript/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1283,7 +1283,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/runtime/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1297,7 +1297,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/template/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1311,7 +1311,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/traverse/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1325,7 +1325,7 @@
       "repository": "https://github.com/babel/babel",
       "npm": "https://www.npmjs.com/package/@babel/types/v/7.29.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f08c824b2bb54ed"
@@ -1339,7 +1339,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@emnapi/runtime/v/1.11.2",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1351,7 +1351,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/cli/v/54.0.27",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -1363,7 +1363,7 @@
       "repository": "https://github.com/expo/code-signing-certificates",
       "npm": "https://www.npmjs.com/package/@expo/code-signing-certificates/v/0.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d9c137aa37cd764c"
@@ -1377,7 +1377,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/config/v/12.0.14",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1391,7 +1391,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/config-plugins/v/54.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1405,7 +1405,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/config-types/v/54.0.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d9c137aa37cd764c"
@@ -1419,7 +1419,7 @@
       "repository": "https://github.com/expo/devcert",
       "npm": "https://www.npmjs.com/package/@expo/devcert/v/1.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -1431,7 +1431,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/devtools/v/0.1.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1445,7 +1445,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/env/v/2.0.12",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cdc121f5b8f33d2d"
@@ -1459,7 +1459,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/fingerprint/v/0.15.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1473,7 +1473,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/image-utils/v/0.8.14",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1487,7 +1487,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/json-file/v/10.0.16",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1501,7 +1501,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/json-file/v/11.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1515,7 +1515,7 @@
       "repository": "https://github.com/expo/expo-metro",
       "npm": "https://www.npmjs.com/package/@expo/metro/v/54.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7077ac1bb3799b84"
@@ -1529,7 +1529,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/metro-config/v/54.0.17",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1543,7 +1543,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/osascript/v/2.7.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1557,7 +1557,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/package-manager/v/1.13.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1571,7 +1571,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/plist/v/0.4.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -1583,7 +1583,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/prebuild-config/v/54.0.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "371567d5d8999eef"
@@ -1597,7 +1597,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/require-utils/v/55.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "27b393e63ff14790"
@@ -1611,7 +1611,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/@expo/schema-utils/v/0.1.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "27b393e63ff14790"
@@ -1625,7 +1625,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@expo/sdk-runtime-versions/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -1637,7 +1637,7 @@
       "repository": "https://github.com/expo/spawn-async",
       "npm": "https://www.npmjs.com/package/@expo/spawn-async/v/1.8.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a1c08f867cff39f5"
@@ -1651,7 +1651,7 @@
       "repository": "https://github.com/expo/sudo-prompt",
       "npm": "https://www.npmjs.com/package/@expo/sudo-prompt/v/9.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fcea6769fa05ea5f"
@@ -1665,7 +1665,7 @@
       "repository": "https://github.com/expo/vector-icons",
       "npm": "https://www.npmjs.com/package/@expo/vector-icons/v/15.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8584e65f9a86b30f"
@@ -1679,7 +1679,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@expo/ws-tunnel/v/1.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -1691,7 +1691,7 @@
       "repository": "https://github.com/expo/expo-cli",
       "npm": "https://www.npmjs.com/package/@expo/xcpretty/v/4.4.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -1703,7 +1703,7 @@
       "repository": "git@github.com:formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/@formatjs/ecma402-abstract/v/2.3.6",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "e632b7c5b70a3d48"
@@ -1717,7 +1717,7 @@
       "repository": "formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/@formatjs/fast-memoize/v/2.2.7",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "e632b7c5b70a3d48"
@@ -1731,7 +1731,7 @@
       "repository": "https://github.com/formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/@formatjs/icu-messageformat-parser/v/2.11.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "e632b7c5b70a3d48"
@@ -1745,7 +1745,7 @@
       "repository": "https://github.com/formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/@formatjs/icu-skeleton-parser/v/1.8.16",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "e632b7c5b70a3d48"
@@ -1759,7 +1759,7 @@
       "repository": "https://github.com/formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/@formatjs/intl-localematcher/v/0.5.10",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "e632b7c5b70a3d48"
@@ -1773,7 +1773,7 @@
       "repository": "formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/@formatjs/intl-localematcher/v/0.6.2",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "e632b7c5b70a3d48"
@@ -1787,7 +1787,7 @@
       "repository": "https://github.com/ide/backoff",
       "npm": "https://www.npmjs.com/package/@ide/backoff/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d579e45e4490ba38"
@@ -1801,7 +1801,7 @@
       "repository": "https://github.com/lovell/colour",
       "npm": "https://www.npmjs.com/package/@img/colour/v/1.1.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "da3044f63e02b6d6"
@@ -1815,7 +1815,7 @@
       "repository": "https://github.com/lovell/sharp",
       "npm": "https://www.npmjs.com/package/@img/sharp-darwin-arm64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "9ff562631a04b8cb"
@@ -1829,7 +1829,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-darwin-x64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1841,7 +1841,7 @@
       "repository": "https://github.com/lovell/sharp-libvips",
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-darwin-arm64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1853,7 +1853,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-darwin-x64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1865,7 +1865,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linux-arm/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1877,7 +1877,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linux-arm64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1889,7 +1889,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linux-ppc64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1901,7 +1901,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linux-riscv64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1913,7 +1913,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linux-s390x/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1925,7 +1925,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linux-x64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1937,7 +1937,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linuxmusl-arm64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1949,7 +1949,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-libvips-linuxmusl-x64/v/1.2.4",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1961,7 +1961,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linux-arm/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1973,7 +1973,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linux-arm64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1985,7 +1985,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linux-ppc64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -1997,7 +1997,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linux-riscv64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2009,7 +2009,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linux-s390x/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2021,7 +2021,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linux-x64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2033,7 +2033,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linuxmusl-arm64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2045,7 +2045,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-linuxmusl-x64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2057,7 +2057,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-wasm32/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2069,7 +2069,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-win32-arm64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2081,7 +2081,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-win32-ia32/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2093,7 +2093,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@img/sharp-win32-x64/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2105,7 +2105,7 @@
       "repository": "https://github.com/npm/fs-minipass",
       "npm": "https://www.npmjs.com/package/@isaacs/fs-minipass/v/4.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -2119,7 +2119,7 @@
       "repository": "https://github.com/isaacs/ttlcache",
       "npm": "https://www.npmjs.com/package/@isaacs/ttlcache/v/1.4.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "05d056f2c070bb04"
@@ -2133,7 +2133,7 @@
       "repository": "https://github.com/istanbuljs/load-nyc-config",
       "npm": "https://www.npmjs.com/package/@istanbuljs/load-nyc-config/v/1.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c95db6f6f2435cc9"
@@ -2147,7 +2147,7 @@
       "repository": "https://github.com/istanbuljs/schema",
       "npm": "https://www.npmjs.com/package/@istanbuljs/schema/v/0.1.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fc744218d0b80b46"
@@ -2161,7 +2161,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/@jest/create-cache-key-function/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -2175,7 +2175,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/@jest/environment/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -2189,7 +2189,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/@jest/fake-timers/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -2203,7 +2203,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/@jest/schemas/v/29.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -2217,7 +2217,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/@jest/transform/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -2231,7 +2231,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/@jest/types/v/29.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -2245,7 +2245,7 @@
       "repository": "https://github.com/jridgewell/sourcemaps",
       "npm": "https://www.npmjs.com/package/@jridgewell/gen-mapping/v/0.3.13",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928e59141142e3b9"
@@ -2259,7 +2259,7 @@
       "repository": "https://github.com/jridgewell/sourcemaps",
       "npm": "https://www.npmjs.com/package/@jridgewell/remapping/v/2.3.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928e59141142e3b9"
@@ -2273,7 +2273,7 @@
       "repository": "https://github.com/jridgewell/resolve-uri",
       "npm": "https://www.npmjs.com/package/@jridgewell/resolve-uri/v/3.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b8778b155bfde5a2"
@@ -2287,7 +2287,7 @@
       "repository": "https://github.com/jridgewell/sourcemaps",
       "npm": "https://www.npmjs.com/package/@jridgewell/source-map/v/0.3.11",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928e59141142e3b9"
@@ -2301,7 +2301,7 @@
       "repository": "https://github.com/jridgewell/sourcemaps",
       "npm": "https://www.npmjs.com/package/@jridgewell/sourcemap-codec/v/1.5.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928e59141142e3b9"
@@ -2315,7 +2315,7 @@
       "repository": "https://github.com/jridgewell/sourcemaps",
       "npm": "https://www.npmjs.com/package/@jridgewell/trace-mapping/v/0.3.31",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928e59141142e3b9"
@@ -2329,7 +2329,7 @@
       "repository": "https://github.com/vercel/next.js",
       "npm": "https://www.npmjs.com/package/@next/env/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2341,7 +2341,7 @@
       "repository": "https://github.com/vercel/next.js",
       "npm": "https://www.npmjs.com/package/@next/swc-darwin-arm64/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2353,7 +2353,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-darwin-x64/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2365,7 +2365,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-linux-arm64-gnu/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2377,7 +2377,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-linux-arm64-musl/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2389,7 +2389,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-linux-x64-gnu/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2401,7 +2401,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-linux-x64-musl/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2413,7 +2413,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-win32-arm64-msvc/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2425,7 +2425,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/@next/swc-win32-x64-msvc/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -2437,7 +2437,7 @@
       "repository": "https://github.com/react-native-async-storage/async-storage",
       "npm": "https://www.npmjs.com/package/@react-native-async-storage/async-storage/v/2.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "212dbf14b1137593"
@@ -2451,7 +2451,7 @@
       "repository": "https://github.com/react-native-community/datetimepicker",
       "npm": "https://www.npmjs.com/package/@react-native-community/datetimepicker/v/8.4.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0f866a4a22fe8174"
@@ -2465,7 +2465,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/assets-registry/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2477,7 +2477,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/babel-plugin-codegen/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2489,7 +2489,7 @@
       "repository": "ssh://git@github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/babel-preset/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2501,7 +2501,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/codegen/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2513,7 +2513,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/community-cli-plugin/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2525,7 +2525,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/debugger-frontend/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2537,7 +2537,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/dev-middleware/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2549,7 +2549,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/gradle-plugin/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2561,7 +2561,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/js-polyfills/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2573,7 +2573,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/normalize-colors/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2585,7 +2585,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/@react-native/virtualized-lists/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2597,7 +2597,7 @@
       "repository": "https://github.com/RevenueCat/purchases-js",
       "npm": "https://www.npmjs.com/package/@revenuecat/purchases-js/v/1.47.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "875b11256a7673aa"
@@ -2611,7 +2611,7 @@
       "repository": "https://github.com/RevenueCat/purchases-hybrid-common",
       "npm": "https://www.npmjs.com/package/@revenuecat/purchases-js-hybrid-mappings/v/18.22.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2623,7 +2623,7 @@
       "repository": "https://github.com/RevenueCat/purchases-hybrid-common",
       "npm": "https://www.npmjs.com/package/@revenuecat/purchases-typescript-internal/v/18.22.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -2635,7 +2635,7 @@
       "repository": "https://github.com/sinclairzx81/typebox-legacy",
       "npm": "https://www.npmjs.com/package/@sinclair/typebox/v/0.27.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "32fb6556bc84c192"
@@ -2649,7 +2649,7 @@
       "repository": "https://github.com/sinonjs/commons",
       "npm": "https://www.npmjs.com/package/@sinonjs/commons/v/3.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5fe5599c080ef8e9"
@@ -2663,7 +2663,7 @@
       "repository": "https://github.com/sinonjs/fake-timers",
       "npm": "https://www.npmjs.com/package/@sinonjs/fake-timers/v/10.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2dcf14d7d8fa982"
@@ -2677,7 +2677,7 @@
       "repository": "https://github.com/swc-project/swc",
       "npm": "https://www.npmjs.com/package/@swc/helpers/v/0.5.15",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "565427e6ed70fd16"
@@ -2691,7 +2691,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/babel__core/v/7.20.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2705,7 +2705,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/babel__generator/v/7.27.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2719,7 +2719,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/babel__template/v/7.4.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2733,7 +2733,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/babel__traverse/v/7.28.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2747,7 +2747,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/graceful-fs/v/4.1.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2761,7 +2761,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/istanbul-lib-coverage/v/2.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2775,7 +2775,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/istanbul-lib-report/v/3.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2789,7 +2789,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/istanbul-reports/v/3.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2803,7 +2803,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/node/v/26.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2817,7 +2817,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/stack-utils/v/2.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2831,7 +2831,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/yargs/v/17.0.35",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2845,7 +2845,7 @@
       "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
       "npm": "https://www.npmjs.com/package/@types/yargs-parser/v/21.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff82c90f84945c60"
@@ -2859,7 +2859,7 @@
       "repository": "https://github.com/ungap/structured-clone",
       "npm": "https://www.npmjs.com/package/@ungap/structured-clone/v/1.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "22fc2b0e60ba1aba"
@@ -2873,7 +2873,7 @@
       "repository": "https://github.com/urql-graphql/urql",
       "npm": "https://www.npmjs.com/package/@urql/core/v/5.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "58ea22f8509b020c"
@@ -2887,7 +2887,7 @@
       "repository": "https://github.com/urql-graphql/urql",
       "npm": "https://www.npmjs.com/package/@urql/exchange-retry/v/1.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "58ea22f8509b020c"
@@ -2901,7 +2901,7 @@
       "repository": "https://github.com/xmldom/xmldom",
       "npm": "https://www.npmjs.com/package/@xmldom/xmldom/v/0.8.14",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "61057b4f2bed7f24"
@@ -2915,7 +2915,7 @@
       "repository": "https://github.com/xmldom/xmldom",
       "npm": "https://www.npmjs.com/package/@xmldom/xmldom/v/0.9.11",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "61057b4f2bed7f24"
@@ -2929,7 +2929,7 @@
       "repository": "https://github.com/mysticatea/abort-controller",
       "npm": "https://www.npmjs.com/package/abort-controller/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "47a7783b604324a5"
@@ -2943,7 +2943,7 @@
       "repository": "jshttp/accepts",
       "npm": "https://www.npmjs.com/package/accepts/v/1.3.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a3fb4c94aaf6d3f8"
@@ -2957,7 +2957,7 @@
       "repository": "https://github.com/acornjs/acorn",
       "npm": "https://www.npmjs.com/package/acorn/v/8.17.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cdf8603d8d39b5e6"
@@ -2971,7 +2971,7 @@
       "repository": "https://github.com/TooTallNate/proxy-agents",
       "npm": "https://www.npmjs.com/package/agent-base/v/7.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8d8c55319c7729d5"
@@ -2985,7 +2985,7 @@
       "repository": "https://github.com/expo/agent-cli-detector",
       "npm": "https://www.npmjs.com/package/agent-cli-detector/v/0.1.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8b26e7095f4280b2"
@@ -2999,7 +2999,7 @@
       "repository": "ajv-validator/ajv",
       "npm": "https://www.npmjs.com/package/ajv/v/8.20.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f2fde84e6c1f1776"
@@ -3013,7 +3013,7 @@
       "repository": "https://github.com/IonicaBizau/anser",
       "npm": "https://www.npmjs.com/package/anser/v/1.4.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8ae1fe61129ce6fb"
@@ -3027,7 +3027,7 @@
       "repository": "sindresorhus/ansi-escapes",
       "npm": "https://www.npmjs.com/package/ansi-escapes/v/4.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -3041,7 +3041,7 @@
       "repository": "chalk/ansi-regex",
       "npm": "https://www.npmjs.com/package/ansi-regex/v/4.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3055,7 +3055,7 @@
       "repository": "chalk/ansi-regex",
       "npm": "https://www.npmjs.com/package/ansi-regex/v/5.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3069,7 +3069,7 @@
       "repository": "chalk/ansi-styles",
       "npm": "https://www.npmjs.com/package/ansi-styles/v/3.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3083,7 +3083,7 @@
       "repository": "chalk/ansi-styles",
       "npm": "https://www.npmjs.com/package/ansi-styles/v/4.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3097,7 +3097,7 @@
       "repository": "chalk/ansi-styles",
       "npm": "https://www.npmjs.com/package/ansi-styles/v/5.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3111,7 +3111,7 @@
       "repository": "https://github.com/kevinbeaty/any-promise",
       "npm": "https://www.npmjs.com/package/any-promise/v/1.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7b3e0db83c0043ae"
@@ -3125,7 +3125,7 @@
       "repository": "https://github.com/micromatch/anymatch",
       "npm": "https://www.npmjs.com/package/anymatch/v/3.1.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0cea2ed0ac9de08d"
@@ -3139,7 +3139,7 @@
       "repository": "vercel/arg",
       "npm": "https://www.npmjs.com/package/arg/v/5.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bce93741cc2c519c"
@@ -3153,7 +3153,7 @@
       "repository": "nodeca/argparse",
       "npm": "https://www.npmjs.com/package/argparse/v/1.0.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6450e9ff0d33a15b"
@@ -3167,7 +3167,7 @@
       "repository": "nodeca/argparse",
       "npm": "https://www.npmjs.com/package/argparse/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8cb1adb54549bbff"
@@ -3181,7 +3181,7 @@
       "repository": "https://github.com/kriskowal/asap",
       "npm": "https://www.npmjs.com/package/asap/v/2.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "575cd4bc0f4b0b83"
@@ -3195,7 +3195,7 @@
       "repository": "browserify/commonjs-assert",
       "npm": "https://www.npmjs.com/package/assert/v/2.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1d0c8d5954184cfd"
@@ -3209,7 +3209,7 @@
       "repository": "https://github.com/strml/async-limiter",
       "npm": "https://www.npmjs.com/package/async-limiter/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3dbf4fc5933d7a1b"
@@ -3223,7 +3223,7 @@
       "repository": "https://github.com/inspect-js/available-typed-arrays",
       "npm": "https://www.npmjs.com/package/available-typed-arrays/v/1.0.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7f8e45f57c2b7eb5"
@@ -3237,7 +3237,7 @@
       "repository": "https://github.com/ide/await-lock",
       "npm": "https://www.npmjs.com/package/await-lock/v/2.2.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4a7d78b484e93a87"
@@ -3251,7 +3251,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/babel-jest/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -3265,7 +3265,7 @@
       "repository": "https://github.com/istanbuljs/babel-plugin-istanbul",
       "npm": "https://www.npmjs.com/package/babel-plugin-istanbul/v/6.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c89cc82ae888bb52"
@@ -3279,7 +3279,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/babel-plugin-jest-hoist/v/29.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -3293,7 +3293,7 @@
       "repository": "https://github.com/babel/babel-polyfills",
       "npm": "https://www.npmjs.com/package/babel-plugin-polyfill-corejs2/v/0.4.17",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "98e9453367c88aa1"
@@ -3307,7 +3307,7 @@
       "repository": "https://github.com/babel/babel-polyfills",
       "npm": "https://www.npmjs.com/package/babel-plugin-polyfill-corejs3/v/0.13.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "98e9453367c88aa1"
@@ -3321,7 +3321,7 @@
       "repository": "https://github.com/babel/babel-polyfills",
       "npm": "https://www.npmjs.com/package/babel-plugin-polyfill-regenerator/v/0.6.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "98e9453367c88aa1"
@@ -3335,7 +3335,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/babel-plugin-react-compiler/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -3347,7 +3347,7 @@
       "repository": "https://github.com/necolas/react-native-web",
       "npm": "https://www.npmjs.com/package/babel-plugin-react-native-web/v/0.21.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "35bd0a505440bc77"
@@ -3361,7 +3361,7 @@
       "repository": "git@github.com:facebook/hermes",
       "npm": "https://www.npmjs.com/package/babel-plugin-syntax-hermes-parser/v/0.29.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -3375,7 +3375,7 @@
       "repository": "https://github.com/facebook/flow",
       "npm": "https://www.npmjs.com/package/babel-plugin-transform-flow-enums/v/0.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a80c79b8f80e824c"
@@ -3389,7 +3389,7 @@
       "repository": "https://github.com/nicolo-ribaudo/babel-preset-current-node-syntax",
       "npm": "https://www.npmjs.com/package/babel-preset-current-node-syntax/v/1.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1a096f2718fd2930"
@@ -3403,7 +3403,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/babel-preset-expo/v/54.0.12",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -3415,7 +3415,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/babel-preset-jest/v/29.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -3429,7 +3429,7 @@
       "repository": "https://github.com/jaulz/badgin",
       "npm": "https://www.npmjs.com/package/badgin/v/1.2.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -3441,7 +3441,7 @@
       "repository": "https://github.com/juliangruber/balanced-match",
       "npm": "https://www.npmjs.com/package/balanced-match/v/1.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3a7c107a9e6227f8"
@@ -3455,7 +3455,7 @@
       "repository": "https://github.com/juliangruber/balanced-match",
       "npm": "https://www.npmjs.com/package/balanced-match/v/4.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "23b57495a1f9bfc3"
@@ -3469,7 +3469,7 @@
       "repository": "https://github.com/beatgammit/base64-js",
       "npm": "https://www.npmjs.com/package/base64-js/v/1.5.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ce471b4b8188bf22"
@@ -3483,7 +3483,7 @@
       "repository": "https://github.com/web-platform-dx/baseline-browser-mapping",
       "npm": "https://www.npmjs.com/package/baseline-browser-mapping/v/2.10.38",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "283ea6cc2997a1a7"
@@ -3497,7 +3497,7 @@
       "repository": "https://github.com/ExiaSR/better-opn",
       "npm": "https://www.npmjs.com/package/better-opn/v/3.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ee44288149712b6c"
@@ -3511,7 +3511,7 @@
       "repository": "git@github.com:peterolson/BigInteger.js",
       "npm": "https://www.npmjs.com/package/big-integer/v/1.6.52",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bc4c710e3829994e"
@@ -3525,7 +3525,7 @@
       "repository": "https://github.com/nearinfinity/node-bplist-creator",
       "npm": "https://www.npmjs.com/package/bplist-creator/v/0.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2ec86158413d8f2e"
@@ -3539,7 +3539,7 @@
       "repository": "https://github.com/nearinfinity/node-bplist-parser",
       "npm": "https://www.npmjs.com/package/bplist-parser/v/0.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -3551,7 +3551,7 @@
       "repository": "https://github.com/juliangruber/brace-expansion",
       "npm": "https://www.npmjs.com/package/brace-expansion/v/1.1.18",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cfe46dde9d4b5f4c"
@@ -3565,7 +3565,7 @@
       "repository": "https://github.com/juliangruber/brace-expansion",
       "npm": "https://www.npmjs.com/package/brace-expansion/v/2.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cfe46dde9d4b5f4c"
@@ -3579,7 +3579,7 @@
       "repository": "https://github.com/juliangruber/brace-expansion",
       "npm": "https://www.npmjs.com/package/brace-expansion/v/5.0.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f36e2da26df2488b"
@@ -3593,7 +3593,7 @@
       "repository": "micromatch/braces",
       "npm": "https://www.npmjs.com/package/braces/v/3.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d99bf3271ffd7561"
@@ -3607,7 +3607,7 @@
       "repository": "browserslist/browserslist",
       "npm": "https://www.npmjs.com/package/browserslist/v/4.28.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bccca04141ded40"
@@ -3621,7 +3621,7 @@
       "repository": "https://github.com/facebook/watchman",
       "npm": "https://www.npmjs.com/package/bser/v/2.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -3633,7 +3633,7 @@
       "repository": "https://github.com/feross/buffer",
       "npm": "https://www.npmjs.com/package/buffer/v/5.7.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "caf96060dc6de2af"
@@ -3647,7 +3647,7 @@
       "repository": "LinusU/buffer-from",
       "npm": "https://www.npmjs.com/package/buffer-from/v/1.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "46b1051c617c1cb9"
@@ -3661,7 +3661,7 @@
       "repository": "visionmedia/bytes.js",
       "npm": "https://www.npmjs.com/package/bytes/v/3.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "811223f2d33910a9"
@@ -3675,7 +3675,7 @@
       "repository": "https://github.com/ljharb/call-bind",
       "npm": "https://www.npmjs.com/package/call-bind/v/1.0.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "006a2e42087fe238"
@@ -3689,7 +3689,7 @@
       "repository": "https://github.com/ljharb/call-bind-apply-helpers",
       "npm": "https://www.npmjs.com/package/call-bind-apply-helpers/v/1.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3df72862fb6dc141"
@@ -3703,7 +3703,7 @@
       "repository": "https://github.com/ljharb/call-bound",
       "npm": "https://www.npmjs.com/package/call-bound/v/1.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3df72862fb6dc141"
@@ -3717,7 +3717,7 @@
       "repository": "sindresorhus/camelcase",
       "npm": "https://www.npmjs.com/package/camelcase/v/5.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3731,7 +3731,7 @@
       "repository": "sindresorhus/camelcase",
       "npm": "https://www.npmjs.com/package/camelcase/v/6.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -3745,7 +3745,7 @@
       "repository": "browserslist/caniuse-lite",
       "npm": "https://www.npmjs.com/package/caniuse-lite/v/1.0.30001799",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7183ef9749eb9b75"
@@ -3759,7 +3759,7 @@
       "repository": "browserslist/caniuse-lite",
       "npm": "https://www.npmjs.com/package/caniuse-lite/v/1.0.30001800",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "7183ef9749eb9b75"
@@ -3773,7 +3773,7 @@
       "repository": "chalk/chalk",
       "npm": "https://www.npmjs.com/package/chalk/v/2.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3787,7 +3787,7 @@
       "repository": "chalk/chalk",
       "npm": "https://www.npmjs.com/package/chalk/v/4.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -3801,7 +3801,7 @@
       "repository": "https://github.com/isaacs/chownr",
       "npm": "https://www.npmjs.com/package/chownr/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e80af3fc41092353"
@@ -3815,7 +3815,7 @@
       "repository": "https://github.com/GoogleChrome/chrome-launcher/",
       "npm": "https://www.npmjs.com/package/chrome-launcher/v/0.15.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "832514b1a88a4969"
@@ -3829,7 +3829,7 @@
       "repository": "https://github.com/cezaraugusto/chromium-edge-launcher/",
       "npm": "https://www.npmjs.com/package/chromium-edge-launcher/v/0.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "832514b1a88a4969"
@@ -3843,7 +3843,7 @@
       "repository": "https://github.com/watson/ci-info",
       "npm": "https://www.npmjs.com/package/ci-info/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a34b140615e91166"
@@ -3857,7 +3857,7 @@
       "repository": "https://github.com/watson/ci-info",
       "npm": "https://www.npmjs.com/package/ci-info/v/3.9.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "31ef3fce9a3777b1"
@@ -3871,7 +3871,7 @@
       "repository": "sindresorhus/cli-cursor",
       "npm": "https://www.npmjs.com/package/cli-cursor/v/2.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -3885,7 +3885,7 @@
       "repository": "sindresorhus/cli-spinners",
       "npm": "https://www.npmjs.com/package/cli-spinners/v/2.9.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -3899,7 +3899,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/client-only/v/0.0.1",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -3911,7 +3911,7 @@
       "repository": "yargs/cliui",
       "npm": "https://www.npmjs.com/package/cliui/v/8.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a6eaa92256a77944"
@@ -3925,7 +3925,7 @@
       "repository": "https://github.com/pvorb/node-clone",
       "npm": "https://www.npmjs.com/package/clone/v/1.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "057dc8c81f47bd8a"
@@ -3939,7 +3939,7 @@
       "repository": "lukeed/clsx",
       "npm": "https://www.npmjs.com/package/clsx/v/2.1.1",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "3d5b63706380c8c7"
@@ -3953,7 +3953,7 @@
       "repository": "Qix-/color-convert",
       "npm": "https://www.npmjs.com/package/color-convert/v/1.9.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4dfe9982abdf1489"
@@ -3967,7 +3967,7 @@
       "repository": "Qix-/color-convert",
       "npm": "https://www.npmjs.com/package/color-convert/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4dfe9982abdf1489"
@@ -3981,7 +3981,7 @@
       "repository": "git@github.com:dfcreative/color-name",
       "npm": "https://www.npmjs.com/package/color-name/v/1.1.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c064f7a3e353bc1b"
@@ -3995,7 +3995,7 @@
       "repository": "git@github.com:colorjs/color-name",
       "npm": "https://www.npmjs.com/package/color-name/v/1.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c064f7a3e353bc1b"
@@ -4009,7 +4009,7 @@
       "repository": "https://github.com/tj/commander.js",
       "npm": "https://www.npmjs.com/package/commander/v/12.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4cc9c2af4eb0056c"
@@ -4023,7 +4023,7 @@
       "repository": "https://github.com/tj/commander.js",
       "npm": "https://www.npmjs.com/package/commander/v/2.20.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4cc9c2af4eb0056c"
@@ -4037,7 +4037,7 @@
       "repository": "https://github.com/tj/commander.js",
       "npm": "https://www.npmjs.com/package/commander/v/4.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4cc9c2af4eb0056c"
@@ -4051,7 +4051,7 @@
       "repository": "https://github.com/tj/commander.js",
       "npm": "https://www.npmjs.com/package/commander/v/7.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4cc9c2af4eb0056c"
@@ -4065,7 +4065,7 @@
       "repository": "jshttp/compressible",
       "npm": "https://www.npmjs.com/package/compressible/v/2.0.18",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "76f2a48c3fac2436"
@@ -4079,7 +4079,7 @@
       "repository": "expressjs/compression",
       "npm": "https://www.npmjs.com/package/compression/v/1.8.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7cb4d976f1c892a7"
@@ -4093,7 +4093,7 @@
       "repository": "https://github.com/substack/node-concat-map",
       "npm": "https://www.npmjs.com/package/concat-map/v/0.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2cd23e64d69941c7"
@@ -4107,7 +4107,7 @@
       "repository": "senchalabs/connect",
       "npm": "https://www.npmjs.com/package/connect/v/3.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8c0dcd258c8ab1ab"
@@ -4121,7 +4121,7 @@
       "repository": "https://github.com/thlorenz/convert-source-map",
       "npm": "https://www.npmjs.com/package/convert-source-map/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "055ae8302677e9c7"
@@ -4135,7 +4135,7 @@
       "repository": "https://github.com/zloirock/core-js",
       "npm": "https://www.npmjs.com/package/core-js-compat/v/3.49.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "826192089a5a1058"
@@ -4149,7 +4149,7 @@
       "repository": "git@github.com:moxystudio/node-cross-spawn",
       "npm": "https://www.npmjs.com/package/cross-spawn/v/7.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5e7b89989b946961"
@@ -4163,7 +4163,7 @@
       "repository": "https://github.com/visionmedia/debug",
       "npm": "https://www.npmjs.com/package/debug/v/2.6.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e670c0fae2fde30a"
@@ -4177,7 +4177,7 @@
       "repository": "https://github.com/visionmedia/debug",
       "npm": "https://www.npmjs.com/package/debug/v/3.2.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e670c0fae2fde30a"
@@ -4191,7 +4191,7 @@
       "repository": "https://github.com/debug-js/debug",
       "npm": "https://www.npmjs.com/package/debug/v/4.4.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d9e5aa2747f30eae"
@@ -4205,7 +4205,7 @@
       "repository": "https://github.com/MikeMcl/decimal.js",
       "npm": "https://www.npmjs.com/package/decimal.js/v/10.6.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "63499afde0df9666"
@@ -4219,7 +4219,7 @@
       "repository": "https://github.com/unclechu/node-deep-extend",
       "npm": "https://www.npmjs.com/package/deep-extend/v/0.6.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a3fdf0e3cd421b6c"
@@ -4233,7 +4233,7 @@
       "repository": "https://github.com/TehShrike/deepmerge",
       "npm": "https://www.npmjs.com/package/deepmerge/v/4.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b23418f8823ead32"
@@ -4247,7 +4247,7 @@
       "repository": "https://github.com/sindresorhus/node-defaults",
       "npm": "https://www.npmjs.com/package/defaults/v/1.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b8adcb2c4abdc04a"
@@ -4261,7 +4261,7 @@
       "repository": "https://github.com/ljharb/define-data-property",
       "npm": "https://www.npmjs.com/package/define-data-property/v/1.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0c50d65d5ea016b4"
@@ -4275,7 +4275,7 @@
       "repository": "sindresorhus/define-lazy-prop",
       "npm": "https://www.npmjs.com/package/define-lazy-prop/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -4289,7 +4289,7 @@
       "repository": "https://github.com/ljharb/define-properties",
       "npm": "https://www.npmjs.com/package/define-properties/v/1.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "00d402c2bbe7c673"
@@ -4303,7 +4303,7 @@
       "repository": "dougwilson/nodejs-depd",
       "npm": "https://www.npmjs.com/package/depd/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f889cb863a1fba9a"
@@ -4317,7 +4317,7 @@
       "repository": "stream-utils/destroy",
       "npm": "https://www.npmjs.com/package/destroy/v/1.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "27cdce821e23588d"
@@ -4331,8 +4331,8 @@
       "repository": "https://github.com/lovell/detect-libc",
       "npm": "https://www.npmjs.com/package/detect-libc/v/2.1.2",
       "usedBy": [
-        "WordPing Website",
-        "WordPing iOS App"
+        "WordCore Website",
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6dc0e068dcf3a5bc"
@@ -4346,7 +4346,7 @@
       "repository": "https://github.com/motdotla/dotenv",
       "npm": "https://www.npmjs.com/package/dotenv/v/16.4.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f02e65819ea320eb"
@@ -4360,7 +4360,7 @@
       "repository": "https://github.com/motdotla/dotenv-expand",
       "npm": "https://www.npmjs.com/package/dotenv-expand/v/11.0.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "150a338fb66baddb"
@@ -4374,7 +4374,7 @@
       "repository": "https://github.com/es-shims/dunder-proto",
       "npm": "https://www.npmjs.com/package/dunder-proto/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "42fbee6b9cc2d44b"
@@ -4388,7 +4388,7 @@
       "repository": "jonathanong/ee-first",
       "npm": "https://www.npmjs.com/package/ee-first/v/1.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d68cfda21300d012"
@@ -4402,7 +4402,7 @@
       "repository": "https://github.com/Kilian/electron-to-chromium",
       "npm": "https://www.npmjs.com/package/electron-to-chromium/v/1.5.378",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "94e2d6f90264f1e3"
@@ -4416,7 +4416,7 @@
       "repository": "https://github.com/mathiasbynens/emoji-regex",
       "npm": "https://www.npmjs.com/package/emoji-regex/v/8.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4428,7 +4428,7 @@
       "repository": "pillarjs/encodeurl",
       "npm": "https://www.npmjs.com/package/encodeurl/v/1.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b4d257dd0d1cd522"
@@ -4442,7 +4442,7 @@
       "repository": "pillarjs/encodeurl",
       "npm": "https://www.npmjs.com/package/encodeurl/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b4d257dd0d1cd522"
@@ -4456,7 +4456,7 @@
       "repository": "sindresorhus/env-editor",
       "npm": "https://www.npmjs.com/package/env-editor/v/0.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -4470,7 +4470,7 @@
       "repository": "https://github.com/stacktracejs/error-stack-parser",
       "npm": "https://www.npmjs.com/package/error-stack-parser/v/2.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8b7768b338ad6bdb"
@@ -4484,7 +4484,7 @@
       "repository": "https://github.com/ljharb/es-define-property",
       "npm": "https://www.npmjs.com/package/es-define-property/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3df72862fb6dc141"
@@ -4498,7 +4498,7 @@
       "repository": "https://github.com/ljharb/es-errors",
       "npm": "https://www.npmjs.com/package/es-errors/v/1.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3df72862fb6dc141"
@@ -4512,7 +4512,7 @@
       "repository": "https://github.com/ljharb/es-object-atoms",
       "npm": "https://www.npmjs.com/package/es-object-atoms/v/1.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3df72862fb6dc141"
@@ -4526,7 +4526,7 @@
       "repository": "lukeed/escalade",
       "npm": "https://www.npmjs.com/package/escalade/v/3.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3d5b63706380c8c7"
@@ -4540,7 +4540,7 @@
       "repository": "component/escape-html",
       "npm": "https://www.npmjs.com/package/escape-html/v/1.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b2bf1d8ed89e2f6d"
@@ -4554,7 +4554,7 @@
       "repository": "sindresorhus/escape-string-regexp",
       "npm": "https://www.npmjs.com/package/escape-string-regexp/v/1.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -4568,7 +4568,7 @@
       "repository": "sindresorhus/escape-string-regexp",
       "npm": "https://www.npmjs.com/package/escape-string-regexp/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -4582,7 +4582,7 @@
       "repository": "sindresorhus/escape-string-regexp",
       "npm": "https://www.npmjs.com/package/escape-string-regexp/v/4.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -4596,7 +4596,7 @@
       "repository": "https://github.com/jquery/esprima",
       "npm": "https://www.npmjs.com/package/esprima/v/4.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2cca9d62545047a"
@@ -4610,7 +4610,7 @@
       "repository": "jshttp/etag",
       "npm": "https://www.npmjs.com/package/etag/v/1.8.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "49fa72ab1de52693"
@@ -4624,7 +4624,7 @@
       "repository": "https://github.com/mysticatea/event-target-shim",
       "npm": "https://www.npmjs.com/package/event-target-shim/v/5.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "633e14a004996857"
@@ -4638,7 +4638,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo/v/54.0.37",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4650,7 +4650,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-application/v/7.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4662,7 +4662,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-asset/v/12.0.13",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4674,7 +4674,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-audio/v/1.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4686,7 +4686,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-blur/v/15.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4698,7 +4698,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-build-properties/v/1.0.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4710,7 +4710,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-clipboard/v/8.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4722,7 +4722,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-constants/v/18.0.14",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4734,7 +4734,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-dev-client/v/6.0.21",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4746,7 +4746,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-dev-launcher/v/6.0.21",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4758,7 +4758,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-dev-menu/v/7.0.19",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4770,7 +4770,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-dev-menu-interface/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4782,7 +4782,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-device/v/8.0.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4794,7 +4794,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-document-picker/v/14.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4806,7 +4806,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-file-system/v/19.0.24",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4818,7 +4818,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-font/v/14.0.12",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4830,7 +4830,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-json-utils/v/0.15.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4842,7 +4842,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-keep-awake/v/15.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4854,7 +4854,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-linear-gradient/v/15.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4866,7 +4866,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-manifests/v/1.0.11",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4878,7 +4878,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-modules-autolinking/v/3.0.27",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4890,7 +4890,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-modules-core/v/3.0.30",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4902,7 +4902,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-notifications/v/0.32.17",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4914,7 +4914,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-secure-store/v/15.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4926,7 +4926,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-server/v/1.0.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4938,7 +4938,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-sharing/v/14.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4950,7 +4950,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-speech/v/14.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4962,7 +4962,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-sqlite/v/16.0.10",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4974,7 +4974,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-status-bar/v/3.0.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4986,7 +4986,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-updates-interface/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -4998,7 +4998,7 @@
       "repository": "https://github.com/expo/expo",
       "npm": "https://www.npmjs.com/package/expo-video/v/3.0.16",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -5010,7 +5010,7 @@
       "repository": "https://github.com/coveooss/exponential-backoff",
       "npm": "https://www.npmjs.com/package/exponential-backoff/v/3.1.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6564a162ecc521c2"
@@ -5024,7 +5024,7 @@
       "repository": "https://github.com/epoberezkin/fast-deep-equal",
       "npm": "https://www.npmjs.com/package/fast-deep-equal/v/3.1.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "aa407ee69b3f6462"
@@ -5038,7 +5038,7 @@
       "repository": "https://github.com/epoberezkin/fast-json-stable-stringify",
       "npm": "https://www.npmjs.com/package/fast-json-stable-stringify/v/2.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ba91ee0b29131762"
@@ -5052,7 +5052,7 @@
       "repository": "https://github.com/fastify/fast-uri",
       "npm": "https://www.npmjs.com/package/fast-uri/v/3.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b010b0dfdfdb23d7"
@@ -5066,7 +5066,7 @@
       "repository": "git@github.com:facebook/watchman",
       "npm": "https://www.npmjs.com/package/fb-watchman/v/2.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -5078,7 +5078,7 @@
       "repository": "https://github.com/thecodrr/fdir",
       "npm": "https://www.npmjs.com/package/fdir/v/6.5.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "15e7786c7e686826"
@@ -5092,7 +5092,7 @@
       "repository": "jonschlinkert/fill-range",
       "npm": "https://www.npmjs.com/package/fill-range/v/7.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d99bf3271ffd7561"
@@ -5106,7 +5106,7 @@
       "repository": "pillarjs/finalhandler",
       "npm": "https://www.npmjs.com/package/finalhandler/v/1.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f529b2a0a7e86f2"
@@ -5120,7 +5120,7 @@
       "repository": "sindresorhus/find-up",
       "npm": "https://www.npmjs.com/package/find-up/v/4.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -5134,7 +5134,7 @@
       "repository": "https://github.com/facebook/flow",
       "npm": "https://www.npmjs.com/package/flow-enums-runtime/v/0.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a80c79b8f80e824c"
@@ -5148,7 +5148,7 @@
       "repository": "https://github.com/bramstein/fontfaceobserver",
       "npm": "https://www.npmjs.com/package/fontfaceobserver/v/2.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "260eba93cd83d838"
@@ -5162,7 +5162,7 @@
       "repository": "https://github.com/Raynos/for-each",
       "npm": "https://www.npmjs.com/package/for-each/v/0.3.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c3814d33b127c703"
@@ -5176,7 +5176,7 @@
       "repository": "https://github.com/motiondivision/motion/",
       "npm": "https://www.npmjs.com/package/framer-motion/v/12.42.2",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "aac842346e3368e0"
@@ -5190,7 +5190,7 @@
       "repository": "https://github.com/expo/freeport-async",
       "npm": "https://www.npmjs.com/package/freeport-async/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a1c08f867cff39f5"
@@ -5204,7 +5204,7 @@
       "repository": "jshttp/fresh",
       "npm": "https://www.npmjs.com/package/fresh/v/0.5.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "72bb6356e9efb494"
@@ -5218,7 +5218,7 @@
       "repository": "https://github.com/isaacs/fs.realpath",
       "npm": "https://www.npmjs.com/package/fs.realpath/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f3d11cfcc878ed0b"
@@ -5232,7 +5232,7 @@
       "repository": "https://github.com/fsevents/fsevents",
       "npm": "https://www.npmjs.com/package/fsevents/v/2.3.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4cdb9a53bdd8ef82"
@@ -5246,7 +5246,7 @@
       "repository": "https://github.com/Raynos/function-bind",
       "npm": "https://www.npmjs.com/package/function-bind/v/1.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "741668cc22140f4a"
@@ -5260,7 +5260,7 @@
       "repository": "https://github.com/TimothyGu/generator-function",
       "npm": "https://www.npmjs.com/package/generator-function/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "958da652273a95ad"
@@ -5274,7 +5274,7 @@
       "repository": "https://github.com/loganfsmyth/gensync",
       "npm": "https://www.npmjs.com/package/gensync/v/1.0.0-beta.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3773506139d97ae1"
@@ -5288,7 +5288,7 @@
       "repository": "https://github.com/stefanpenner/get-caller-file",
       "npm": "https://www.npmjs.com/package/get-caller-file/v/2.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bd9ddf4af1ab8c17"
@@ -5302,7 +5302,7 @@
       "repository": "https://github.com/ljharb/get-intrinsic",
       "npm": "https://www.npmjs.com/package/get-intrinsic/v/1.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "006a2e42087fe238"
@@ -5316,7 +5316,7 @@
       "repository": "https://github.com/cfware/get-package-type",
       "npm": "https://www.npmjs.com/package/get-package-type/v/0.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0e0577ea7ca03de2"
@@ -5330,7 +5330,7 @@
       "repository": "https://github.com/ljharb/get-proto",
       "npm": "https://www.npmjs.com/package/get-proto/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c09860913a77771e"
@@ -5344,7 +5344,7 @@
       "repository": "https://github.com/ctavan/node-getenv",
       "npm": "https://www.npmjs.com/package/getenv/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8f32613c896d3787"
@@ -5358,7 +5358,7 @@
       "repository": "git@github.com:isaacs/node-glob",
       "npm": "https://www.npmjs.com/package/glob/v/13.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e80af3fc41092353"
@@ -5372,7 +5372,7 @@
       "repository": "https://github.com/isaacs/node-glob",
       "npm": "https://www.npmjs.com/package/glob/v/7.2.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a1da13118b4626cd"
@@ -5386,7 +5386,7 @@
       "repository": "https://github.com/ljharb/gopd",
       "npm": "https://www.npmjs.com/package/gopd/v/1.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3f7cd27a6e506293"
@@ -5400,7 +5400,7 @@
       "repository": "https://github.com/isaacs/node-graceful-fs",
       "npm": "https://www.npmjs.com/package/graceful-fs/v/4.2.11",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "740bb4e91297defa"
@@ -5414,7 +5414,7 @@
       "repository": "https://github.com/greensock/GSAP",
       "npm": "https://www.npmjs.com/package/gsap/v/3.15.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": []
     },
@@ -5426,7 +5426,7 @@
       "repository": "sindresorhus/has-flag",
       "npm": "https://www.npmjs.com/package/has-flag/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -5440,7 +5440,7 @@
       "repository": "sindresorhus/has-flag",
       "npm": "https://www.npmjs.com/package/has-flag/v/4.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -5454,7 +5454,7 @@
       "repository": "https://github.com/inspect-js/has-property-descriptors",
       "npm": "https://www.npmjs.com/package/has-property-descriptors/v/1.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2284934c546b14ee"
@@ -5468,7 +5468,7 @@
       "repository": "https://github.com/inspect-js/has-symbols",
       "npm": "https://www.npmjs.com/package/has-symbols/v/1.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fdb3f0dc5ffa977d"
@@ -5482,7 +5482,7 @@
       "repository": "https://github.com/inspect-js/has-tostringtag",
       "npm": "https://www.npmjs.com/package/has-tostringtag/v/1.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6ef75f191ca693dd"
@@ -5496,7 +5496,7 @@
       "repository": "https://github.com/inspect-js/hasOwn",
       "npm": "https://www.npmjs.com/package/hasown/v/2.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928a86b1d2984fd8"
@@ -5510,7 +5510,7 @@
       "repository": "git@github.com:facebook/hermes",
       "npm": "https://www.npmjs.com/package/hermes-estree/v/0.29.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5524,7 +5524,7 @@
       "repository": "git@github.com:facebook/hermes",
       "npm": "https://www.npmjs.com/package/hermes-estree/v/0.32.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5538,7 +5538,7 @@
       "repository": "git@github.com:facebook/hermes",
       "npm": "https://www.npmjs.com/package/hermes-parser/v/0.29.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5552,7 +5552,7 @@
       "repository": "git@github.com:facebook/hermes",
       "npm": "https://www.npmjs.com/package/hermes-parser/v/0.32.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5566,7 +5566,7 @@
       "repository": "https://github.com/npm/hosted-git-info",
       "npm": "https://www.npmjs.com/package/hosted-git-info/v/7.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d28e1b882eccb157"
@@ -5580,7 +5580,7 @@
       "repository": "jshttp/http-errors",
       "npm": "https://www.npmjs.com/package/http-errors/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b279be1458cd102a"
@@ -5594,7 +5594,7 @@
       "repository": "https://github.com/TooTallNate/proxy-agents",
       "npm": "https://www.npmjs.com/package/https-proxy-agent/v/7.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8d8c55319c7729d5"
@@ -5608,7 +5608,7 @@
       "repository": "https://github.com/feross/ieee754",
       "npm": "https://www.npmjs.com/package/ieee754/v/1.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9d78a7400453b7f1"
@@ -5622,7 +5622,7 @@
       "repository": "git@github.com:kaelzhang/node-ignore",
       "npm": "https://www.npmjs.com/package/ignore/v/5.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -5634,7 +5634,7 @@
       "repository": "https://github.com/image-size/image-size",
       "npm": "https://www.npmjs.com/package/image-size/v/1.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "69fc4e74bce4a282"
@@ -5648,7 +5648,7 @@
       "repository": "https://github.com/jensyt/imurmurhash-js",
       "npm": "https://www.npmjs.com/package/imurmurhash/v/0.1.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -5660,7 +5660,7 @@
       "repository": "https://github.com/npm/inflight",
       "npm": "https://www.npmjs.com/package/inflight/v/1.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2f7487c1915045ed"
@@ -5674,7 +5674,7 @@
       "repository": "https://github.com/isaacs/inherits",
       "npm": "https://www.npmjs.com/package/inherits/v/2.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3a395674c5c917a5"
@@ -5688,7 +5688,7 @@
       "repository": "https://github.com/isaacs/ini",
       "npm": "https://www.npmjs.com/package/ini/v/1.3.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -5702,7 +5702,7 @@
       "repository": "git@github.com:formatjs/formatjs",
       "npm": "https://www.npmjs.com/package/intl-messageformat/v/10.7.18",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "74ad53cfe5ea394a"
@@ -5716,7 +5716,7 @@
       "repository": "https://github.com/zertosh/invariant",
       "npm": "https://www.npmjs.com/package/invariant/v/2.2.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2a4be07005467fe5"
@@ -5730,7 +5730,7 @@
       "repository": "https://github.com/inspect-js/is-arguments",
       "npm": "https://www.npmjs.com/package/is-arguments/v/1.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2b2d3479124a170"
@@ -5744,7 +5744,7 @@
       "repository": "https://github.com/inspect-js/is-callable",
       "npm": "https://www.npmjs.com/package/is-callable/v/1.2.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "07d333ca37861bd5"
@@ -5758,7 +5758,7 @@
       "repository": "https://github.com/inspect-js/is-core-module",
       "npm": "https://www.npmjs.com/package/is-core-module/v/2.16.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5c496ce5ae47eb8e"
@@ -5772,7 +5772,7 @@
       "repository": "sindresorhus/is-docker",
       "npm": "https://www.npmjs.com/package/is-docker/v/2.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -5786,7 +5786,7 @@
       "repository": "sindresorhus/is-fullwidth-code-point",
       "npm": "https://www.npmjs.com/package/is-fullwidth-code-point/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -5800,7 +5800,7 @@
       "repository": "https://github.com/inspect-js/is-generator-function",
       "npm": "https://www.npmjs.com/package/is-generator-function/v/1.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2b2d3479124a170"
@@ -5814,7 +5814,7 @@
       "repository": "https://github.com/es-shims/is-nan",
       "npm": "https://www.npmjs.com/package/is-nan/v/1.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2b2d3479124a170"
@@ -5828,7 +5828,7 @@
       "repository": "jonschlinkert/is-number",
       "npm": "https://www.npmjs.com/package/is-number/v/7.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d99bf3271ffd7561"
@@ -5842,7 +5842,7 @@
       "repository": "sindresorhus/is-plain-obj",
       "npm": "https://www.npmjs.com/package/is-plain-obj/v/2.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -5856,7 +5856,7 @@
       "repository": "https://github.com/inspect-js/is-regex",
       "npm": "https://www.npmjs.com/package/is-regex/v/1.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2b2d3479124a170"
@@ -5870,7 +5870,7 @@
       "repository": "https://github.com/inspect-js/is-typed-array",
       "npm": "https://www.npmjs.com/package/is-typed-array/v/1.1.15",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "07d333ca37861bd5"
@@ -5884,7 +5884,7 @@
       "repository": "sindresorhus/is-wsl",
       "npm": "https://www.npmjs.com/package/is-wsl/v/2.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -5898,7 +5898,7 @@
       "repository": "https://github.com/isaacs/isexe",
       "npm": "https://www.npmjs.com/package/isexe/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -5912,7 +5912,7 @@
       "repository": "ssh://git@github.com/istanbuljs/istanbuljs",
       "npm": "https://www.npmjs.com/package/istanbul-lib-coverage/v/3.2.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "90c71d6bc9653341"
@@ -5926,7 +5926,7 @@
       "repository": "ssh://git@github.com/istanbuljs/istanbuljs",
       "npm": "https://www.npmjs.com/package/istanbul-lib-instrument/v/5.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "90c71d6bc9653341"
@@ -5940,7 +5940,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-environment-node/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5954,7 +5954,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-get-type/v/29.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5968,7 +5968,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-haste-map/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5982,7 +5982,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-message-util/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -5996,7 +5996,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-mock/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -6010,7 +6010,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-regex-util/v/29.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -6024,7 +6024,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-util/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -6038,7 +6038,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-validate/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -6052,7 +6052,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/jest-worker/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -6066,7 +6066,7 @@
       "repository": "nuxt-community/jimp-compact",
       "npm": "https://www.npmjs.com/package/jimp-compact/v/0.16.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6078,7 +6078,7 @@
       "repository": "lydell/js-tokens",
       "npm": "https://www.npmjs.com/package/js-tokens/v/4.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7e02e9c37c884928"
@@ -6092,7 +6092,7 @@
       "repository": "nodeca/js-yaml",
       "npm": "https://www.npmjs.com/package/js-yaml/v/3.15.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bd470a9114ffb0c1"
@@ -6106,7 +6106,7 @@
       "repository": "nodeca/js-yaml",
       "npm": "https://www.npmjs.com/package/js-yaml/v/4.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bd470a9114ffb0c1"
@@ -6120,7 +6120,7 @@
       "repository": "https://github.com/robhogan/jsc-safe-url",
       "npm": "https://www.npmjs.com/package/jsc-safe-url/v/0.2.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "096ff3c9ceea6df4"
@@ -6134,7 +6134,7 @@
       "repository": "https://github.com/mathiasbynens/jsesc",
       "npm": "https://www.npmjs.com/package/jsesc/v/3.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6146,7 +6146,7 @@
       "repository": "https://github.com/epoberezkin/json-schema-traverse",
       "npm": "https://www.npmjs.com/package/json-schema-traverse/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "aa407ee69b3f6462"
@@ -6160,7 +6160,7 @@
       "repository": "https://github.com/json5/json5",
       "npm": "https://www.npmjs.com/package/json5/v/2.2.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5b43c9cb06b2f11a"
@@ -6174,7 +6174,7 @@
       "repository": "lukeed/kleur",
       "npm": "https://www.npmjs.com/package/kleur/v/3.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d0a8e5996a99e9ea"
@@ -6188,7 +6188,7 @@
       "repository": "https://github.com/kitten/lan-network",
       "npm": "https://www.npmjs.com/package/lan-network/v/0.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d41674fdfb153183"
@@ -6202,7 +6202,7 @@
       "repository": "sindresorhus/leven",
       "npm": "https://www.npmjs.com/package/leven/v/3.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -6216,7 +6216,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lighthouse-logger/v/1.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "832514b1a88a4969"
@@ -6230,7 +6230,7 @@
       "repository": "https://github.com/parcel-bundler/lightningcss",
       "npm": "https://www.npmjs.com/package/lightningcss/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5c8fb0796b67b431"
@@ -6244,7 +6244,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-android-arm64/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6256,7 +6256,7 @@
       "repository": "https://github.com/parcel-bundler/lightningcss",
       "npm": "https://www.npmjs.com/package/lightningcss-darwin-arm64/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5c8fb0796b67b431"
@@ -6270,7 +6270,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-darwin-x64/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6282,7 +6282,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-freebsd-x64/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6294,7 +6294,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-linux-arm-gnueabihf/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6306,7 +6306,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-linux-arm64-gnu/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6318,7 +6318,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-linux-arm64-musl/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6330,7 +6330,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-linux-x64-gnu/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6342,7 +6342,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-linux-x64-musl/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6354,7 +6354,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-win32-arm64-msvc/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6366,7 +6366,7 @@
       "repository": null,
       "npm": "https://www.npmjs.com/package/lightningcss-win32-x64-msvc/v/1.33.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6378,7 +6378,7 @@
       "repository": "https://github.com/eventualbuddha/lines-and-columns",
       "npm": "https://www.npmjs.com/package/lines-and-columns/v/1.2.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8ecd0fb4cd2c3b0d"
@@ -6392,7 +6392,7 @@
       "repository": "sindresorhus/locate-path",
       "npm": "https://www.npmjs.com/package/locate-path/v/5.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -6406,7 +6406,7 @@
       "repository": "lodash/lodash",
       "npm": "https://www.npmjs.com/package/lodash.debounce/v/4.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "95da58f9567fa875"
@@ -6420,7 +6420,7 @@
       "repository": "lodash/lodash",
       "npm": "https://www.npmjs.com/package/lodash.throttle/v/4.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "95da58f9567fa875"
@@ -6434,7 +6434,7 @@
       "repository": "sindresorhus/log-symbols",
       "npm": "https://www.npmjs.com/package/log-symbols/v/2.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -6448,7 +6448,7 @@
       "repository": "https://github.com/zertosh/loose-envify",
       "npm": "https://www.npmjs.com/package/loose-envify/v/1.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4b68ef983e0fd2b2"
@@ -6462,7 +6462,7 @@
       "repository": "https://github.com/isaacs/node-lru-cache",
       "npm": "https://www.npmjs.com/package/lru-cache/v/10.4.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9647e3a9f36678c1"
@@ -6476,7 +6476,7 @@
       "repository": "ssh://git@github.com/isaacs/node-lru-cache",
       "npm": "https://www.npmjs.com/package/lru-cache/v/11.5.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1a9975c75cfc205b"
@@ -6490,7 +6490,7 @@
       "repository": "https://github.com/isaacs/node-lru-cache",
       "npm": "https://www.npmjs.com/package/lru-cache/v/5.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -6504,7 +6504,7 @@
       "repository": "https://github.com/daaku/nodejs-makeerror",
       "npm": "https://www.npmjs.com/package/makeerror/v/1.0.12",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4163303e4cc6c483"
@@ -6518,7 +6518,7 @@
       "repository": "https://github.com/nolanlawson/marky",
       "npm": "https://www.npmjs.com/package/marky/v/1.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "16bfdde08e8af3ae"
@@ -6532,7 +6532,7 @@
       "repository": "https://github.com/es-shims/math-intrinsics",
       "npm": "https://www.npmjs.com/package/math-intrinsics/v/1.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "42fbee6b9cc2d44b"
@@ -6546,7 +6546,7 @@
       "repository": "https://github.com/alexreardon/memoize-one",
       "npm": "https://www.npmjs.com/package/memoize-one/v/5.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b1c501095de70182"
@@ -6560,7 +6560,7 @@
       "repository": "schnittstabil/merge-options",
       "npm": "https://www.npmjs.com/package/merge-options/v/3.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2365c64296118dea"
@@ -6574,7 +6574,7 @@
       "repository": "grncdr/merge-stream",
       "npm": "https://www.npmjs.com/package/merge-stream/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e9c49f7790ad63f2"
@@ -6588,7 +6588,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6600,7 +6600,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-babel-transformer/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6612,7 +6612,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-cache/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6624,7 +6624,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-cache-key/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6636,7 +6636,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-config/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6648,7 +6648,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-core/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6660,7 +6660,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-file-map/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6672,7 +6672,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-minify-terser/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6684,7 +6684,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-resolver/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6696,7 +6696,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-runtime/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6708,7 +6708,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-source-map/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6720,7 +6720,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-symbolicate/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6732,7 +6732,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-transform-plugins/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6744,7 +6744,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/metro-transform-worker/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -6756,7 +6756,7 @@
       "repository": "micromatch/micromatch",
       "npm": "https://www.npmjs.com/package/micromatch/v/4.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d99bf3271ffd7561"
@@ -6770,7 +6770,7 @@
       "repository": "https://github.com/broofa/node-mime",
       "npm": "https://www.npmjs.com/package/mime/v/1.6.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f0f81ce253975643"
@@ -6784,7 +6784,7 @@
       "repository": "jshttp/mime-db",
       "npm": "https://www.npmjs.com/package/mime-db/v/1.52.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9116bd6246349c54"
@@ -6798,7 +6798,7 @@
       "repository": "jshttp/mime-types",
       "npm": "https://www.npmjs.com/package/mime-types/v/2.1.35",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a3fb4c94aaf6d3f8"
@@ -6812,7 +6812,7 @@
       "repository": "sindresorhus/mimic-fn",
       "npm": "https://www.npmjs.com/package/mimic-fn/v/1.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -6826,7 +6826,7 @@
       "repository": "git@github.com:isaacs/minimatch",
       "npm": "https://www.npmjs.com/package/minimatch/v/10.2.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "aa4c6585f201d652"
@@ -6840,7 +6840,7 @@
       "repository": "https://github.com/isaacs/minimatch",
       "npm": "https://www.npmjs.com/package/minimatch/v/3.1.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -6854,7 +6854,7 @@
       "repository": "https://github.com/isaacs/minimatch",
       "npm": "https://www.npmjs.com/package/minimatch/v/9.0.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5ca1040a186f709f"
@@ -6868,7 +6868,7 @@
       "repository": "https://github.com/minimistjs/minimist",
       "npm": "https://www.npmjs.com/package/minimist/v/1.2.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2cd23e64d69941c7"
@@ -6882,7 +6882,7 @@
       "repository": "https://github.com/isaacs/minipass",
       "npm": "https://www.npmjs.com/package/minipass/v/7.1.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1a9975c75cfc205b"
@@ -6896,7 +6896,7 @@
       "repository": "https://github.com/isaacs/minizlib",
       "npm": "https://www.npmjs.com/package/minizlib/v/3.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ff06b8733171dcb5"
@@ -6910,7 +6910,7 @@
       "repository": "https://github.com/isaacs/node-mkdirp",
       "npm": "https://www.npmjs.com/package/mkdirp/v/1.0.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e53e96861afa8fc5"
@@ -6924,7 +6924,7 @@
       "repository": "https://github.com/motiondivision/motion",
       "npm": "https://www.npmjs.com/package/motion-dom/v/12.42.2",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "bb59eb35f694a158"
@@ -6938,7 +6938,7 @@
       "repository": "https://github.com/motiondivision/motion",
       "npm": "https://www.npmjs.com/package/motion-utils/v/12.39.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "bb59eb35f694a158"
@@ -6952,7 +6952,7 @@
       "repository": "zeit/ms",
       "npm": "https://www.npmjs.com/package/ms/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d2f44f572d99a725"
@@ -6966,7 +6966,7 @@
       "repository": "vercel/ms",
       "npm": "https://www.npmjs.com/package/ms/v/2.1.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e91069c31b4e4dae"
@@ -6980,7 +6980,7 @@
       "repository": "normalize/mz",
       "npm": "https://www.npmjs.com/package/mz/v/2.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ccfcc4794584f8c"
@@ -6994,7 +6994,7 @@
       "repository": "ai/nanoid",
       "npm": "https://www.npmjs.com/package/nanoid/v/3.3.15",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "33dc6a453e22e1f8"
@@ -7008,7 +7008,7 @@
       "repository": "ai/nanoid",
       "npm": "https://www.npmjs.com/package/nanoid/v/3.3.18",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "33dc6a453e22e1f8"
@@ -7022,7 +7022,7 @@
       "repository": "jshttp/negotiator",
       "npm": "https://www.npmjs.com/package/negotiator/v/0.6.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8a160f8ccc7b896c"
@@ -7036,7 +7036,7 @@
       "repository": "jshttp/negotiator",
       "npm": "https://www.npmjs.com/package/negotiator/v/0.6.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8a160f8ccc7b896c"
@@ -7050,7 +7050,7 @@
       "repository": "jshttp/negotiator",
       "npm": "https://www.npmjs.com/package/negotiator/v/1.0.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "8a160f8ccc7b896c"
@@ -7064,7 +7064,7 @@
       "repository": "https://github.com/mdlavin/nested-error-stacks",
       "npm": "https://www.npmjs.com/package/nested-error-stacks/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6ac17776d31ae395"
@@ -7078,7 +7078,7 @@
       "repository": "vercel/next.js",
       "npm": "https://www.npmjs.com/package/next/v/15.5.20",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "25afff58f46401f4"
@@ -7092,7 +7092,7 @@
       "repository": "https://github.com/amannn/next-intl",
       "npm": "https://www.npmjs.com/package/next-intl/v/3.26.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "3b438242e38b0d12"
@@ -7106,7 +7106,7 @@
       "repository": "https://github.com/digitalbazaar/forge",
       "npm": "https://www.npmjs.com/package/node-forge/v/1.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ef57d67a087b458f"
@@ -7120,7 +7120,7 @@
       "repository": "https://github.com/broofa/node-int64",
       "npm": "https://www.npmjs.com/package/node-int64/v/0.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6d5147568ce6bd95"
@@ -7134,7 +7134,7 @@
       "repository": "https://github.com/chicoxyzzy/node-releases",
       "npm": "https://www.npmjs.com/package/node-releases/v/2.0.50",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b02a61dfa2f1ba35"
@@ -7148,7 +7148,7 @@
       "repository": "jonschlinkert/normalize-path",
       "npm": "https://www.npmjs.com/package/normalize-path/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3d9abf2d92b07e68"
@@ -7162,7 +7162,7 @@
       "repository": "https://github.com/npm/npm-package-arg",
       "npm": "https://www.npmjs.com/package/npm-package-arg/v/11.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5630b181ac2e5f1a"
@@ -7176,7 +7176,7 @@
       "repository": "https://github.com/zertosh/nullthrows",
       "npm": "https://www.npmjs.com/package/nullthrows/v/1.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "63adefb9cd1cc754"
@@ -7190,7 +7190,7 @@
       "repository": "git@github.com:facebook/metro",
       "npm": "https://www.npmjs.com/package/ob1/v/0.83.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -7202,7 +7202,7 @@
       "repository": "sindresorhus/object-assign",
       "npm": "https://www.npmjs.com/package/object-assign/v/4.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -7216,7 +7216,7 @@
       "repository": "https://github.com/es-shims/object-is",
       "npm": "https://www.npmjs.com/package/object-is/v/1.1.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a2b2d3479124a170"
@@ -7230,7 +7230,7 @@
       "repository": "https://github.com/ljharb/object-keys",
       "npm": "https://www.npmjs.com/package/object-keys/v/1.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5640e5cbe2e9f57f"
@@ -7244,7 +7244,7 @@
       "repository": "https://github.com/ljharb/object.assign",
       "npm": "https://www.npmjs.com/package/object.assign/v/4.1.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a596744eec6b0568"
@@ -7258,7 +7258,7 @@
       "repository": "jshttp/on-finished",
       "npm": "https://www.npmjs.com/package/on-finished/v/2.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5de22a7021a0f929"
@@ -7272,7 +7272,7 @@
       "repository": "jshttp/on-finished",
       "npm": "https://www.npmjs.com/package/on-finished/v/2.4.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5de22a7021a0f929"
@@ -7286,7 +7286,7 @@
       "repository": "jshttp/on-headers",
       "npm": "https://www.npmjs.com/package/on-headers/v/1.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9b3c11c6f520637e"
@@ -7300,7 +7300,7 @@
       "repository": "https://github.com/isaacs/once",
       "npm": "https://www.npmjs.com/package/once/v/1.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -7314,7 +7314,7 @@
       "repository": "sindresorhus/onetime",
       "npm": "https://www.npmjs.com/package/onetime/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -7328,7 +7328,7 @@
       "repository": "sindresorhus/open",
       "npm": "https://www.npmjs.com/package/open/v/7.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -7342,7 +7342,7 @@
       "repository": "sindresorhus/open",
       "npm": "https://www.npmjs.com/package/open/v/8.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -7356,7 +7356,7 @@
       "repository": "sindresorhus/ora",
       "npm": "https://www.npmjs.com/package/ora/v/3.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -7370,7 +7370,7 @@
       "repository": "sindresorhus/p-limit",
       "npm": "https://www.npmjs.com/package/p-limit/v/2.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -7384,7 +7384,7 @@
       "repository": "sindresorhus/p-limit",
       "npm": "https://www.npmjs.com/package/p-limit/v/3.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -7398,7 +7398,7 @@
       "repository": "sindresorhus/p-locate",
       "npm": "https://www.npmjs.com/package/p-locate/v/4.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -7412,7 +7412,7 @@
       "repository": "sindresorhus/p-try",
       "npm": "https://www.npmjs.com/package/p-try/v/2.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -7426,7 +7426,7 @@
       "repository": "kevva/parse-png",
       "npm": "https://www.npmjs.com/package/parse-png/v/2.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1407925f61282a6b"
@@ -7440,7 +7440,7 @@
       "repository": "pillarjs/parseurl",
       "npm": "https://www.npmjs.com/package/parseurl/v/1.3.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9179082f29f0ea77"
@@ -7454,7 +7454,7 @@
       "repository": "sindresorhus/path-exists",
       "npm": "https://www.npmjs.com/package/path-exists/v/4.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -7468,7 +7468,7 @@
       "repository": "sindresorhus/path-is-absolute",
       "npm": "https://www.npmjs.com/package/path-is-absolute/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -7482,7 +7482,7 @@
       "repository": "sindresorhus/path-key",
       "npm": "https://www.npmjs.com/package/path-key/v/3.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -7496,7 +7496,7 @@
       "repository": "https://github.com/jbgutierrez/path-parse",
       "npm": "https://www.npmjs.com/package/path-parse/v/1.0.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "77bc892db218ea76"
@@ -7510,7 +7510,7 @@
       "repository": "https://github.com/isaacs/path-scurry",
       "npm": "https://www.npmjs.com/package/path-scurry/v/2.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1a9975c75cfc205b"
@@ -7524,8 +7524,8 @@
       "repository": "alexeyraspopov/picocolors",
       "npm": "https://www.npmjs.com/package/picocolors/v/1.1.1",
       "usedBy": [
-        "WordPing Website",
-        "WordPing iOS App"
+        "WordCore Website",
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fa11af88c78d3b5a"
@@ -7539,7 +7539,7 @@
       "repository": "micromatch/picomatch",
       "npm": "https://www.npmjs.com/package/picomatch/v/2.3.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9219a3ebed1d1e1b"
@@ -7553,7 +7553,7 @@
       "repository": "micromatch/picomatch",
       "npm": "https://www.npmjs.com/package/picomatch/v/4.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "9219a3ebed1d1e1b"
@@ -7567,7 +7567,7 @@
       "repository": "https://github.com/danez/pirates",
       "npm": "https://www.npmjs.com/package/pirates/v/4.0.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c0c5f371c09e4d19"
@@ -7581,7 +7581,7 @@
       "repository": "https://github.com/TooTallNate/node-plist",
       "npm": "https://www.npmjs.com/package/plist/v/3.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ce3cd057e952f7fb"
@@ -7595,7 +7595,7 @@
       "repository": "https://github.com/lukeapage/pngjs2",
       "npm": "https://www.npmjs.com/package/pngjs/v/3.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "87ddba564a59e4ef"
@@ -7609,7 +7609,7 @@
       "repository": "https://github.com/ljharb/possible-typed-array-names",
       "npm": "https://www.npmjs.com/package/possible-typed-array-names/v/1.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3df72862fb6dc141"
@@ -7623,7 +7623,7 @@
       "repository": "postcss/postcss",
       "npm": "https://www.npmjs.com/package/postcss/v/8.4.31",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "b02d6103a91d0da4"
@@ -7637,7 +7637,7 @@
       "repository": "postcss/postcss",
       "npm": "https://www.npmjs.com/package/postcss/v/8.4.49",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b02d6103a91d0da4"
@@ -7651,7 +7651,7 @@
       "repository": "sindresorhus/pretty-bytes",
       "npm": "https://www.npmjs.com/package/pretty-bytes/v/5.6.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -7665,7 +7665,7 @@
       "repository": "https://github.com/jestjs/jest",
       "npm": "https://www.npmjs.com/package/pretty-format/v/29.7.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -7679,7 +7679,7 @@
       "repository": "https://github.com/npm/proc-log",
       "npm": "https://www.npmjs.com/package/proc-log/v/4.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5773e68412c46353"
@@ -7693,7 +7693,7 @@
       "repository": "https://github.com/visionmedia/node-progress",
       "npm": "https://www.npmjs.com/package/progress/v/2.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b3d63451b0d32318"
@@ -7707,7 +7707,7 @@
       "repository": "https://github.com/then/promise",
       "npm": "https://www.npmjs.com/package/promise/v/8.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "44191656d296391e"
@@ -7721,7 +7721,7 @@
       "repository": "terkelg/prompts",
       "npm": "https://www.npmjs.com/package/prompts/v/2.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "434b9e711d9c0e4c"
@@ -7735,7 +7735,7 @@
       "repository": "https://github.com/mathiasbynens/punycode.js",
       "npm": "https://www.npmjs.com/package/punycode/v/2.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -7747,7 +7747,7 @@
       "repository": "https://github.com/gtanner/qrcode-terminal",
       "npm": "https://www.npmjs.com/package/qrcode-terminal/v/0.11.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "16db04c9d9c3b8e9"
@@ -7761,7 +7761,7 @@
       "repository": "https://github.com/jessetane/queue",
       "npm": "https://www.npmjs.com/package/queue/v/6.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d74f1787ee608e23"
@@ -7775,7 +7775,7 @@
       "repository": "jshttp/range-parser",
       "npm": "https://www.npmjs.com/package/range-parser/v/1.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "98a2c20072962eab"
@@ -7789,7 +7789,7 @@
       "repository": "https://github.com/dominictarr/rc",
       "npm": "https://www.npmjs.com/package/rc/v/1.2.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2c0047e1ff4de82f",
@@ -7805,7 +7805,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/react/v/19.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -7819,7 +7819,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/react/v/19.2.7",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -7833,7 +7833,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/react-devtools-core/v/6.1.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -7845,7 +7845,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/react-dom/v/19.2.7",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -7859,7 +7859,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/react-is/v/18.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a80c79b8f80e824c"
@@ -7873,7 +7873,7 @@
       "repository": "https://github.com/facebook/react-native",
       "npm": "https://www.npmjs.com/package/react-native/v/0.81.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -7887,7 +7887,7 @@
       "repository": "https://github.com/zoontek/react-native-edge-to-edge",
       "npm": "https://www.npmjs.com/package/react-native-is-edge-to-edge/v/1.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a59eb9e21803fd20"
@@ -7901,7 +7901,7 @@
       "repository": "https://github.com/revenuecat/react-native-purchases",
       "npm": "https://www.npmjs.com/package/react-native-purchases/v/10.4.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "875b11256a7673aa"
@@ -7915,7 +7915,7 @@
       "repository": "https://github.com/AppAndFlow/react-native-safe-area-context",
       "npm": "https://www.npmjs.com/package/react-native-safe-area-context/v/5.6.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cc30a121cf372467"
@@ -7929,7 +7929,7 @@
       "repository": "https://github.com/charpeni/react-native-url-polyfill",
       "npm": "https://www.npmjs.com/package/react-native-url-polyfill/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0742348a17017752"
@@ -7943,7 +7943,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/react-refresh/v/0.14.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "a80c79b8f80e824c"
@@ -7957,7 +7957,7 @@
       "repository": "https://github.com/mathiasbynens/regenerate",
       "npm": "https://www.npmjs.com/package/regenerate/v/1.4.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -7969,7 +7969,7 @@
       "repository": "https://github.com/mathiasbynens/regenerate-unicode-properties",
       "npm": "https://www.npmjs.com/package/regenerate-unicode-properties/v/10.2.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -7981,7 +7981,7 @@
       "repository": "https://github.com/facebook/regenerator/tree/main/packages/runtime",
       "npm": "https://www.npmjs.com/package/regenerator-runtime/v/0.13.11",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1bd3149b744f9c38"
@@ -7995,7 +7995,7 @@
       "repository": "https://github.com/mathiasbynens/regexpu-core",
       "npm": "https://www.npmjs.com/package/regexpu-core/v/6.4.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -8007,7 +8007,7 @@
       "repository": "https://github.com/bnjmnt4n/regjsgen",
       "npm": "https://www.npmjs.com/package/regjsgen/v/0.8.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -8019,7 +8019,7 @@
       "repository": "ssh://git@github.com/jviereck/regjsparser",
       "npm": "https://www.npmjs.com/package/regjsparser/v/0.13.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ded279fd2944767f"
@@ -8033,7 +8033,7 @@
       "repository": "https://github.com/troygoode/node-require-directory",
       "npm": "https://www.npmjs.com/package/require-directory/v/2.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c775538d3e7fb715"
@@ -8047,7 +8047,7 @@
       "repository": "floatdrop/require-from-string",
       "npm": "https://www.npmjs.com/package/require-from-string/v/2.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "937e8ea6d28e259c"
@@ -8061,7 +8061,7 @@
       "repository": "https://github.com/h2non/requireg",
       "npm": "https://www.npmjs.com/package/requireg/v/0.2.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0f4d543677a34508"
@@ -8075,7 +8075,7 @@
       "repository": "ssh://github.com/browserify/resolve",
       "npm": "https://www.npmjs.com/package/resolve/v/1.22.12",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c955faf4959d831d"
@@ -8089,7 +8089,7 @@
       "repository": "https://github.com/browserify/resolve",
       "npm": "https://www.npmjs.com/package/resolve/v/1.7.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2cd23e64d69941c7"
@@ -8103,7 +8103,7 @@
       "repository": "sindresorhus/resolve-from",
       "npm": "https://www.npmjs.com/package/resolve-from/v/5.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8117,7 +8117,7 @@
       "repository": "https://github.com/byCedric/resolve-workspace-root",
       "npm": "https://www.npmjs.com/package/resolve-workspace-root/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "08fc5c42b35ba30a"
@@ -8131,7 +8131,7 @@
       "repository": "lukeed/resolve.exports",
       "npm": "https://www.npmjs.com/package/resolve.exports/v/2.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d0a8e5996a99e9ea"
@@ -8145,7 +8145,7 @@
       "repository": "sindresorhus/restore-cursor",
       "npm": "https://www.npmjs.com/package/restore-cursor/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -8159,7 +8159,7 @@
       "repository": "https://github.com/isaacs/rimraf",
       "npm": "https://www.npmjs.com/package/rimraf/v/3.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -8173,7 +8173,7 @@
       "repository": "https://github.com/feross/safe-buffer",
       "npm": "https://www.npmjs.com/package/safe-buffer/v/5.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "dff1a84cb7036527"
@@ -8187,7 +8187,7 @@
       "repository": "https://github.com/ljharb/safe-regex-test",
       "npm": "https://www.npmjs.com/package/safe-regex-test/v/1.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "3f7cd27a6e506293"
@@ -8201,7 +8201,7 @@
       "repository": "ssh://git@github.com/isaacs/sax-js",
       "npm": "https://www.npmjs.com/package/sax/v/1.6.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1a9975c75cfc205b"
@@ -8215,7 +8215,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/scheduler/v/0.26.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -8229,7 +8229,7 @@
       "repository": "https://github.com/facebook/react",
       "npm": "https://www.npmjs.com/package/scheduler/v/0.27.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "cf9b17822d1fcd4f"
@@ -8243,7 +8243,7 @@
       "repository": "https://github.com/npm/node-semver",
       "npm": "https://www.npmjs.com/package/semver/v/6.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -8257,8 +8257,8 @@
       "repository": "https://github.com/npm/node-semver",
       "npm": "https://www.npmjs.com/package/semver/v/7.8.5",
       "usedBy": [
-        "WordPing Website",
-        "WordPing iOS App"
+        "WordCore Website",
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -8272,7 +8272,7 @@
       "repository": "pillarjs/send",
       "npm": "https://www.npmjs.com/package/send/v/0.19.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f4b733956caae262"
@@ -8286,7 +8286,7 @@
       "repository": "sindresorhus/serialize-error",
       "npm": "https://www.npmjs.com/package/serialize-error/v/2.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -8300,7 +8300,7 @@
       "repository": "expressjs/serve-static",
       "npm": "https://www.npmjs.com/package/serve-static/v/1.16.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d80ea12109c5d9ae"
@@ -8314,7 +8314,7 @@
       "repository": "https://github.com/ljharb/set-function-length",
       "npm": "https://www.npmjs.com/package/set-function-length/v/1.2.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "928a86b1d2984fd8"
@@ -8328,7 +8328,7 @@
       "repository": "https://github.com/wesleytodd/setprototypeof",
       "npm": "https://www.npmjs.com/package/setprototypeof/v/1.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "db05b3b0f72f996b"
@@ -8342,7 +8342,7 @@
       "repository": "https://github.com/lovell/sharp",
       "npm": "https://www.npmjs.com/package/sharp/v/0.34.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "9ff562631a04b8cb"
@@ -8356,7 +8356,7 @@
       "repository": "kevva/shebang-command",
       "npm": "https://www.npmjs.com/package/shebang-command/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1407925f61282a6b"
@@ -8370,7 +8370,7 @@
       "repository": "sindresorhus/shebang-regex",
       "npm": "https://www.npmjs.com/package/shebang-regex/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8384,7 +8384,7 @@
       "repository": "http://github.com/ljharb/shell-quote",
       "npm": "https://www.npmjs.com/package/shell-quote/v/1.9.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8bb16db1b047019e"
@@ -8398,7 +8398,7 @@
       "repository": "https://github.com/tapjs/signal-exit",
       "npm": "https://www.npmjs.com/package/signal-exit/v/3.0.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fc5c72a172de7743"
@@ -8412,7 +8412,7 @@
       "repository": "https://github.com/wollardj/simple-plist",
       "npm": "https://www.npmjs.com/package/simple-plist/v/1.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "feb34f74e3c5834d"
@@ -8426,7 +8426,7 @@
       "repository": "https://github.com/terkelg/sisteransi",
       "npm": "https://www.npmjs.com/package/sisteransi/v/1.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "434b9e711d9c0e4c"
@@ -8440,7 +8440,7 @@
       "repository": "sindresorhus/slash",
       "npm": "https://www.npmjs.com/package/slash/v/3.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8454,7 +8454,7 @@
       "repository": "https://github.com/simov/slugify",
       "npm": "https://www.npmjs.com/package/slugify/v/1.6.9",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "21a20dc0586d2445"
@@ -8468,7 +8468,7 @@
       "repository": "http://github.com/mozilla/source-map",
       "npm": "https://www.npmjs.com/package/source-map/v/0.5.7",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6ead954f96723337"
@@ -8482,7 +8482,7 @@
       "repository": "http://github.com/mozilla/source-map",
       "npm": "https://www.npmjs.com/package/source-map/v/0.6.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6ead954f96723337"
@@ -8496,8 +8496,8 @@
       "repository": "7rulnik/source-map-js",
       "npm": "https://www.npmjs.com/package/source-map-js/v/1.2.1",
       "usedBy": [
-        "WordPing Website",
-        "WordPing iOS App"
+        "WordCore Website",
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6ead954f96723337"
@@ -8511,7 +8511,7 @@
       "repository": "https://github.com/evanw/node-source-map-support",
       "npm": "https://www.npmjs.com/package/source-map-support/v/0.5.21",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e9441dd383ee65a8"
@@ -8525,7 +8525,7 @@
       "repository": "https://github.com/alexei/sprintf.js",
       "npm": "https://www.npmjs.com/package/sprintf-js/v/1.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8794504be407a851"
@@ -8539,7 +8539,7 @@
       "repository": "tapjs/stack-utils",
       "npm": "https://www.npmjs.com/package/stack-utils/v/2.0.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "ceb369ec02718ff4"
@@ -8553,7 +8553,7 @@
       "repository": "https://github.com/stacktracejs/stackframe",
       "npm": "https://www.npmjs.com/package/stackframe/v/1.3.4",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8b7768b338ad6bdb"
@@ -8567,7 +8567,7 @@
       "repository": "https://github.com/errwischt/stacktrace-parser",
       "npm": "https://www.npmjs.com/package/stacktrace-parser/v/0.1.11",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "df27f808e75066c5"
@@ -8581,7 +8581,7 @@
       "repository": "jshttp/statuses",
       "npm": "https://www.npmjs.com/package/statuses/v/1.5.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bc11a2b203c77ed6"
@@ -8595,7 +8595,7 @@
       "repository": "jshttp/statuses",
       "npm": "https://www.npmjs.com/package/statuses/v/2.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "bc11a2b203c77ed6"
@@ -8609,7 +8609,7 @@
       "repository": "https://github.com/samcday/node-stream-buffer",
       "npm": "https://www.npmjs.com/package/stream-buffers/v/2.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -8621,7 +8621,7 @@
       "repository": "sindresorhus/string-width",
       "npm": "https://www.npmjs.com/package/string-width/v/4.2.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8635,7 +8635,7 @@
       "repository": "chalk/strip-ansi",
       "npm": "https://www.npmjs.com/package/strip-ansi/v/5.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8649,7 +8649,7 @@
       "repository": "chalk/strip-ansi",
       "npm": "https://www.npmjs.com/package/strip-ansi/v/6.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8663,7 +8663,7 @@
       "repository": "sindresorhus/strip-json-comments",
       "npm": "https://www.npmjs.com/package/strip-json-comments/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2bc4beb49d4852de"
@@ -8677,7 +8677,7 @@
       "repository": "ssh://git@github.com/evert/structured-header",
       "npm": "https://www.npmjs.com/package/structured-headers/v/0.4.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -8689,7 +8689,7 @@
       "repository": "vercel/styled-jsx",
       "npm": "https://www.npmjs.com/package/styled-jsx/v/5.1.6",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "6b0bd3847ac0c883"
@@ -8703,7 +8703,7 @@
       "repository": "https://github.com/alangpierce/sucrase",
       "npm": "https://www.npmjs.com/package/sucrase/v/3.35.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1b31e7ac2b89e0b5"
@@ -8717,7 +8717,7 @@
       "repository": "chalk/supports-color",
       "npm": "https://www.npmjs.com/package/supports-color/v/5.5.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8731,7 +8731,7 @@
       "repository": "chalk/supports-color",
       "npm": "https://www.npmjs.com/package/supports-color/v/7.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8745,7 +8745,7 @@
       "repository": "chalk/supports-color",
       "npm": "https://www.npmjs.com/package/supports-color/v/8.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -8759,7 +8759,7 @@
       "repository": "jamestalmage/supports-hyperlinks",
       "npm": "https://www.npmjs.com/package/supports-hyperlinks/v/2.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "634682a6747978eb"
@@ -8773,7 +8773,7 @@
       "repository": "https://github.com/inspect-js/node-supports-preserve-symlinks-flag",
       "npm": "https://www.npmjs.com/package/supports-preserve-symlinks-flag/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2284934c546b14ee"
@@ -8787,7 +8787,7 @@
       "repository": "https://github.com/dcastil/tailwind-merge",
       "npm": "https://www.npmjs.com/package/tailwind-merge/v/3.6.0",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "b25c1d68b3530dcc"
@@ -8801,7 +8801,7 @@
       "repository": "https://github.com/isaacs/node-tar",
       "npm": "https://www.npmjs.com/package/tar/v/7.5.22",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1a9975c75cfc205b"
@@ -8815,7 +8815,7 @@
       "repository": "sindresorhus/terminal-link",
       "npm": "https://www.npmjs.com/package/terminal-link/v/2.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -8829,7 +8829,7 @@
       "repository": "https://github.com/terser/terser",
       "npm": "https://www.npmjs.com/package/terser/v/5.48.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "95a8c7e6d6ec878b"
@@ -8843,7 +8843,7 @@
       "repository": "https://github.com/istanbuljs/test-exclude",
       "npm": "https://www.npmjs.com/package/test-exclude/v/6.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "59f5ade0fa9a78b5"
@@ -8857,7 +8857,7 @@
       "repository": "thenables/thenify",
       "npm": "https://www.npmjs.com/package/thenify/v/3.3.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0371d7e49a54c726"
@@ -8871,7 +8871,7 @@
       "repository": "thenables/thenify-all",
       "npm": "https://www.npmjs.com/package/thenify-all/v/1.6.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "d68cfda21300d012"
@@ -8885,7 +8885,7 @@
       "repository": "https://github.com/ForbesLindesay/throat",
       "npm": "https://www.npmjs.com/package/throat/v/5.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e21b0992cd8a2e8b"
@@ -8899,7 +8899,7 @@
       "repository": "https://github.com/SuperchupuDev/tinyglobby",
       "npm": "https://www.npmjs.com/package/tinyglobby/v/0.2.17",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4918b99deb04bad7"
@@ -8913,7 +8913,7 @@
       "repository": "https://github.com/daaku/nodejs-tmpl",
       "npm": "https://www.npmjs.com/package/tmpl/v/1.0.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "4163303e4cc6c483"
@@ -8927,7 +8927,7 @@
       "repository": "micromatch/to-regex-range",
       "npm": "https://www.npmjs.com/package/to-regex-range/v/5.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f6355b305c682df8"
@@ -8941,7 +8941,7 @@
       "repository": "component/toidentifier",
       "npm": "https://www.npmjs.com/package/toidentifier/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "8d512baec1ac13c1"
@@ -8955,7 +8955,7 @@
       "repository": "https://github.com/gristlabs/ts-interface-checker",
       "npm": "https://www.npmjs.com/package/ts-interface-checker/v/0.1.13",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "6dc0e068dcf3a5bc"
@@ -8969,7 +8969,7 @@
       "repository": "https://github.com/Microsoft/tslib",
       "npm": "https://www.npmjs.com/package/tslib/v/2.8.1",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "210b19e543130388"
@@ -8983,7 +8983,7 @@
       "repository": "ssh://git@github.com/chaijs/type-detect",
       "npm": "https://www.npmjs.com/package/type-detect/v/4.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "dd785a967508b662"
@@ -8997,7 +8997,7 @@
       "repository": "sindresorhus/type-fest",
       "npm": "https://www.npmjs.com/package/type-fest/v/0.21.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c14bc7f11d1ce3f6"
@@ -9011,7 +9011,7 @@
       "repository": "sindresorhus/type-fest",
       "npm": "https://www.npmjs.com/package/type-fest/v/0.7.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c9808a775260db56"
@@ -9025,7 +9025,7 @@
       "repository": "https://github.com/faisalman/ua-parser-js",
       "npm": "https://www.npmjs.com/package/ua-parser-js/v/0.7.41",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "eae1996089608373"
@@ -9039,7 +9039,7 @@
       "repository": "https://github.com/nodejs/undici",
       "npm": "https://www.npmjs.com/package/undici/v/6.28.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fe64958bfaef10b1"
@@ -9053,7 +9053,7 @@
       "repository": "https://github.com/nodejs/undici",
       "npm": "https://www.npmjs.com/package/undici-types/v/8.3.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "fe64958bfaef10b1"
@@ -9067,7 +9067,7 @@
       "repository": "https://github.com/mathiasbynens/unicode-canonical-property-names-ecmascript",
       "npm": "https://www.npmjs.com/package/unicode-canonical-property-names-ecmascript/v/2.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -9079,7 +9079,7 @@
       "repository": "https://github.com/mathiasbynens/unicode-match-property-ecmascript",
       "npm": "https://www.npmjs.com/package/unicode-match-property-ecmascript/v/2.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -9091,7 +9091,7 @@
       "repository": "https://github.com/mathiasbynens/unicode-match-property-value-ecmascript",
       "npm": "https://www.npmjs.com/package/unicode-match-property-value-ecmascript/v/2.2.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -9103,7 +9103,7 @@
       "repository": "https://github.com/mathiasbynens/unicode-property-aliases-ecmascript",
       "npm": "https://www.npmjs.com/package/unicode-property-aliases-ecmascript/v/2.2.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": []
     },
@@ -9115,7 +9115,7 @@
       "repository": "stream-utils/unpipe",
       "npm": "https://www.npmjs.com/package/unpipe/v/1.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "072fb4ea37f0b4a7"
@@ -9129,7 +9129,7 @@
       "repository": "browserslist/update-db",
       "npm": "https://www.npmjs.com/package/update-browserslist-db/v/1.2.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "5615587b2b53bb0e"
@@ -9143,7 +9143,7 @@
       "repository": "https://github.com/amannn/next-intl/tree/main/packages/use-intl",
       "npm": "https://www.npmjs.com/package/use-intl/v/3.26.5",
       "usedBy": [
-        "WordPing Website"
+        "WordCore Website"
       ],
       "noticeIds": [
         "3b438242e38b0d12"
@@ -9157,7 +9157,7 @@
       "repository": "https://github.com/browserify/node-util",
       "npm": "https://www.npmjs.com/package/util/v/0.12.5",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1d0c8d5954184cfd"
@@ -9171,7 +9171,7 @@
       "repository": "https://github.com/jaredhanson/utils-merge",
       "npm": "https://www.npmjs.com/package/utils-merge/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b624cc2111280dbf"
@@ -9185,7 +9185,7 @@
       "repository": "https://github.com/uuidjs/uuid",
       "npm": "https://www.npmjs.com/package/uuid/v/7.0.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "008fd2206a7ee434"
@@ -9199,7 +9199,7 @@
       "repository": "https://github.com/npm/validate-npm-package-name",
       "npm": "https://www.npmjs.com/package/validate-npm-package-name/v/5.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b532ba8a201fbc5d"
@@ -9213,7 +9213,7 @@
       "repository": "jshttp/vary",
       "npm": "https://www.npmjs.com/package/vary/v/1.1.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0696190d4967590d"
@@ -9227,7 +9227,7 @@
       "repository": "https://github.com/Rich-Harris/vlq",
       "npm": "https://www.npmjs.com/package/vlq/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "c183063ec6f279d3"
@@ -9241,7 +9241,7 @@
       "repository": "https://github.com/daaku/nodejs-walker",
       "npm": "https://www.npmjs.com/package/walker/v/1.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "92a6441c77ca8754"
@@ -9255,7 +9255,7 @@
       "repository": "https://github.com/timoxley/wcwidth",
       "npm": "https://www.npmjs.com/package/wcwidth/v/1.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "064499c4e2ad49ed"
@@ -9269,7 +9269,7 @@
       "repository": "jsdom/webidl-conversions",
       "npm": "https://www.npmjs.com/package/webidl-conversions/v/5.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cc645a131c9430f0"
@@ -9283,7 +9283,7 @@
       "repository": "github/fetch",
       "npm": "https://www.npmjs.com/package/whatwg-fetch/v/3.6.20",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1ed818e4d07f06b3"
@@ -9297,7 +9297,7 @@
       "repository": "charpeni/whatwg-url",
       "npm": "https://www.npmjs.com/package/whatwg-url-without-unicode/v/8.0.0-3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "915aef69a2723237"
@@ -9311,7 +9311,7 @@
       "repository": "https://github.com/isaacs/node-which",
       "npm": "https://www.npmjs.com/package/which/v/2.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -9325,7 +9325,7 @@
       "repository": "https://github.com/inspect-js/which-typed-array",
       "npm": "https://www.npmjs.com/package/which-typed-array/v/1.1.22",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "07d333ca37861bd5"
@@ -9339,7 +9339,7 @@
       "repository": "https://github.com/0no-co/wonka",
       "npm": "https://www.npmjs.com/package/wonka/v/6.3.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "079ed870790c1258"
@@ -9353,7 +9353,7 @@
       "repository": "chalk/wrap-ansi",
       "npm": "https://www.npmjs.com/package/wrap-ansi/v/7.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"
@@ -9367,7 +9367,7 @@
       "repository": "https://github.com/npm/wrappy",
       "npm": "https://www.npmjs.com/package/wrappy/v/1.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -9381,7 +9381,7 @@
       "repository": "https://github.com/npm/write-file-atomic",
       "npm": "https://www.npmjs.com/package/write-file-atomic/v/4.0.2",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b6e179056c74bcb6"
@@ -9395,7 +9395,7 @@
       "repository": "websockets/ws",
       "npm": "https://www.npmjs.com/package/ws/v/6.2.6",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e7c353e4b5d5e4fb"
@@ -9409,7 +9409,7 @@
       "repository": "websockets/ws",
       "npm": "https://www.npmjs.com/package/ws/v/7.5.13",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e7c353e4b5d5e4fb"
@@ -9423,7 +9423,7 @@
       "repository": "https://github.com/websockets/ws",
       "npm": "https://www.npmjs.com/package/ws/v/8.21.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "7adebaeee45b60d9"
@@ -9437,7 +9437,7 @@
       "repository": "https://github.com/apache/cordova-node-xcode",
       "npm": "https://www.npmjs.com/package/xcode/v/3.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "20a69863f36b6340",
@@ -9452,7 +9452,7 @@
       "repository": "https://github.com/Leonidas-from-XIV/node-xml2js",
       "npm": "https://www.npmjs.com/package/xml2js/v/0.6.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "2c0d399ee1ac86f8"
@@ -9466,7 +9466,7 @@
       "repository": "https://github.com/oozcitak/xmlbuilder-js",
       "npm": "https://www.npmjs.com/package/xmlbuilder/v/11.0.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "186fa9e312ae7312"
@@ -9480,7 +9480,7 @@
       "repository": "https://github.com/oozcitak/xmlbuilder-js",
       "npm": "https://www.npmjs.com/package/xmlbuilder/v/15.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "186fa9e312ae7312"
@@ -9494,7 +9494,7 @@
       "repository": "yargs/y18n",
       "npm": "https://www.npmjs.com/package/y18n/v/5.0.8",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "b9cc78972af8e417"
@@ -9508,7 +9508,7 @@
       "repository": "https://github.com/isaacs/yallist",
       "npm": "https://www.npmjs.com/package/yallist/v/3.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "0ae52fe329ccfd23"
@@ -9522,7 +9522,7 @@
       "repository": "https://github.com/isaacs/yallist",
       "npm": "https://www.npmjs.com/package/yallist/v/5.0.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "e80af3fc41092353"
@@ -9536,7 +9536,7 @@
       "repository": "https://github.com/eemeli/yaml",
       "npm": "https://www.npmjs.com/package/yaml/v/2.9.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "cf12d35c36bad4b2"
@@ -9550,7 +9550,7 @@
       "repository": "https://github.com/yargs/yargs",
       "npm": "https://www.npmjs.com/package/yargs/v/17.7.3",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "f5b5e0e777c19c1c"
@@ -9564,7 +9564,7 @@
       "repository": "https://github.com/yargs/yargs-parser",
       "npm": "https://www.npmjs.com/package/yargs-parser/v/21.1.1",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "59f5ade0fa9a78b5"
@@ -9578,7 +9578,7 @@
       "repository": "sindresorhus/yocto-queue",
       "npm": "https://www.npmjs.com/package/yocto-queue/v/0.1.0",
       "usedBy": [
-        "WordPing iOS App"
+        "WordCore iOS App"
       ],
       "noticeIds": [
         "1529f88b36750950"

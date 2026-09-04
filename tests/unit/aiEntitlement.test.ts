@@ -27,7 +27,7 @@ import {
   dismissAIConsentPrompt,
 } from '../../src/lib/aiConsentPrompt';
 import { isAIRequestError } from '../../src/lib/api/errors';
-import { VOICE_MONTHLY_LIMITS } from '../../src/lib/planLimits';
+import { VOICE_LIFETIME_CREDITS, VOICE_MONTHLY_LIMITS } from '../../src/lib/planLimits';
 
 /**
  * Entitlement and consent together.
@@ -83,12 +83,17 @@ beforeEach(() => {
 // ── The rule comes from the existing entitlement configuration ───────────────
 
 test('eligibility is derived from the configured AI allowance, not a tier list', () => {
-  // A zero allowance is what makes a plan ineligible. Basic sits there with
-  // Free even though it is a paying plan.
+  // Zero in *both* tables is what makes a plan ineligible. Basic has no
+  // monthly allowance but does have a one-time grant, so it is eligible —
+  // eligibility is permission to ask, not a guarantee a credit remains.
   assert.equal(VOICE_MONTHLY_LIMITS.free, 0);
-  assert.equal(VOICE_MONTHLY_LIMITS.basic, 0);
+  assert.equal(VOICE_LIFETIME_CREDITS.free, 0);
   assert.equal(planCanUseAI('free'), false);
-  assert.equal(planCanUseAI('basic'), false);
+
+  assert.equal(VOICE_MONTHLY_LIMITS.basic, 0);
+  assert.equal(VOICE_LIFETIME_CREDITS.basic, 200);
+  assert.equal(planCanUseAI('basic'), true);
+
   assert.equal(planCanUseAI('premium'), true, 'null means included, not zero');
 });
 
@@ -97,9 +102,11 @@ test('2. nothing is eligible while the subscription state is still loading', () 
   assert.equal(hasEligibleAIEntitlement({ ...PREMIUM, isSubscriptionLoaded: false }), false);
 });
 
-test('1 & 3. only Premium is eligible; Free and Basic are not', () => {
+test('1 & 3. Basic and Premium are eligible; Free is not', () => {
   assert.equal(hasEligibleAIEntitlement(VERIFIED_FREE), false);
-  assert.equal(hasEligibleAIEntitlement(BASIC), false, 'Basic does not include AI Voice');
+  // Eligible means "may ask". Whether a credit remains is the Worker's answer
+  // — the device holds no balance and never predicts an exhausted one.
+  assert.equal(hasEligibleAIEntitlement(BASIC), true, 'Basic has a one-time grant');
   assert.equal(hasEligibleAIEntitlement(PREMIUM), true);
 });
 
@@ -239,10 +246,11 @@ test('12. a loading or unreachable state never invalidates consent', async () =>
   // Neither of these is a confirmed cancellation, so neither may revoke.
   assert.equal(isVerifiedAIIneligiblePlan(LOADING), false, 'still loading');
   assert.equal(isVerifiedAIIneligiblePlan(UNVERIFIED_FREE), false, 'RevenueCat unreachable');
-  // Premium is obviously not a loss of AI access. A verified Basic now is: it
-  // is a paying plan with no AI, so its stored permission is cleared too.
+  // Neither paid plan is a loss of AI access any more: Basic reaches the same
+  // AI Voice through its one-time grant, so its stored permission still has
+  // something to apply to and must not be revoked underneath it.
   assert.equal(isVerifiedAIIneligiblePlan(PREMIUM), false);
-  assert.equal(isVerifiedAIIneligiblePlan(BASIC), true, 'Basic has no AI to consent to');
+  assert.equal(isVerifiedAIIneligiblePlan(BASIC), false, 'Basic has AI to consent to');
 
   // The stored permission survives an outage untouched.
   setAIEntitlementSnapshot(UNVERIFIED_FREE);

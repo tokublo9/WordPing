@@ -25,7 +25,7 @@ function linkedText(text: string): ReactNode[] {
 
 interface Props {
   locale: LegalLocale;
-  slug: Extract<LegalSlug, 'privacy' | 'terms'>;
+  slug: Extract<LegalSlug, 'privacy' | 'terms' | 'support'>;
   document: LegalDocument;
   showServices?: boolean;
 }

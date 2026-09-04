@@ -17,8 +17,9 @@ import {
 /**
  * A first Premium purchase that has just completed, sheet closed.
  *
- * Premium because that is the plan the permission is *for*: it is the only one
- * with AI Voice, and therefore the only purchase that shares anything.
+ * Premium because it is the plan with unmetered AI Voice. Basic reaches the
+ * same feature through its one-time credit grant, so it is asked too — the
+ * rule reads the AI entitlement, never a tier list.
  */
 const AFTER_PURCHASE: SubscriptionConsentPromptInput = {
   plan: 'premium',
@@ -34,31 +35,26 @@ test('1. a first Premium purchase offers consent once the sheet has closed', () 
   assert.equal(shouldPromptConsentAfterSubscription(AFTER_PURCHASE), true);
 });
 
-test('2. a Basic purchase offers nothing, because Basic shares nothing', () => {
-  // Basic unlocks no server-backed AI feature, so a completed Basic purchase
-  // has no data sharing to permit and must not raise the dialog. Upgrading to
-  // Premium is what asks.
+test('2. a Basic purchase now offers consent, because Basic gained AI Voice', () => {
+  // Basic's one-time credit grant reaches the same Worker route Premium does,
+  // so a completed Basic purchase has real data sharing to permit. The rule
+  // reads `planCanUseAI` rather than a plan name, so it moved on its own.
   assert.equal(
     shouldPromptConsentAfterSubscription({ ...AFTER_PURCHASE, plan: 'basic' }),
-    false,
+    true,
   );
-  // Not even with everything else lined up: sheet closed, nothing else on
-  // screen, never prompted, no stored answer.
+  // And still nothing while the sheet is open, exactly as for Premium: gaining
+  // the feature changed who is asked, not when.
   assert.equal(
     shouldPromptConsentAfterSubscription({
-      ...AFTER_PURCHASE,
-      plan: 'basic',
-      consent: 'unknown',
-      alreadyPrompted: false,
-      isUpgradeSheetClosed: true,
-      isScreenBusy: false,
+      ...AFTER_PURCHASE, plan: 'basic', isUpgradeSheetClosed: false,
     }),
     false,
   );
 });
 
-test('2b. upgrading Basic to Premium is when the offer arrives', () => {
-  // The plan that gained AI Voice is the plan that is asked.
+test('2b. a Premium purchase offers consent too', () => {
+  // Both paid plans reach AI Voice, so both are asked.
   assert.equal(
     shouldPromptConsentAfterSubscription({ ...AFTER_PURCHASE, plan: 'premium' }),
     true,
@@ -99,15 +95,13 @@ test('a loading or unknown subscription state offers nothing', () => {
     shouldPromptConsentAfterSubscription({ ...AFTER_PURCHASE, isSubscriptionLoaded: false }),
     false,
   );
-  // Not a plan that can use AI, so there is nothing to permit. The rule is the
-  // AI one rather than a plan name, which is what puts Basic here with Free.
-  for (const plan of ['free', 'basic'] as const) {
-    assert.equal(
-      shouldPromptConsentAfterSubscription({ ...AFTER_PURCHASE, plan }),
-      false,
-      plan,
-    );
-  }
+  // Free cannot use AI, so it has nothing to permit. Basic no longer sits here:
+  // it gained AI Voice, and the rule followed the entitlement rather than a
+  // hardcoded tier list.
+  assert.equal(
+    shouldPromptConsentAfterSubscription({ ...AFTER_PURCHASE, plan: 'free' }),
+    false,
+  );
 });
 
 test('6. an existing granted permission is not asked for again', () => {

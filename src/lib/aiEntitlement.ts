@@ -1,14 +1,24 @@
 import { AIRequestError } from './api/errors';
-import { VOICE_MONTHLY_LIMITS, type PlanTier } from './planLimits';
+import {
+  VOICE_LIFETIME_CREDITS,
+  VOICE_MONTHLY_LIMITS,
+  type PlanTier,
+} from './planLimits';
 
 /**
  * Who may use the AI features, in one place.
  *
  * Eligibility is derived from the existing entitlement configuration rather
- * than restated: `VOICE_MONTHLY_LIMITS` already says Free and Basic get zero AI
- * voice generations and Premium is included outright. A plan added or repriced
- * there changes this rule automatically, and there is no second list of tier
- * names to fall out of step.
+ * than restated: between them, `VOICE_MONTHLY_LIMITS` and
+ * `VOICE_LIFETIME_CREDITS` already say that Premium is included outright, Basic
+ * has a one-time grant, and Free has nothing. A plan added or repriced there
+ * changes this rule automatically, and there is no second list of tier names to
+ * fall out of step.
+ *
+ * Eligibility is not the same as a balance. This says Basic may make the
+ * request; whether a credit remains is the server's answer, and an exhausted
+ * balance comes back as `voice_credits_exhausted` rather than being predicted
+ * here. The app never holds a credit count it could show wrongly.
  *
  * This is the AI rule alone. Custom Voice is a local feature available on every
  * plan and reaches no network, so it is intentionally unrelated to this gate.
@@ -20,9 +30,9 @@ import { VOICE_MONTHLY_LIMITS, type PlanTier } from './planLimits';
  * Pure — no react-native or expo import — so the rules are tested directly.
  */
 
-/** True when the plan's own configured AI allowance is anything but zero. */
+/** True when either of the plan's own configured AI allowances is non-zero. */
 export function planCanUseAI(plan: PlanTier): boolean {
-  return VOICE_MONTHLY_LIMITS[plan] !== 0;
+  return VOICE_MONTHLY_LIMITS[plan] !== 0 || VOICE_LIFETIME_CREDITS[plan] !== 0;
 }
 
 export interface AIEntitlementState {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LIMITS, FEATURE_TIER } from '../src/config';
+import { VOICE_LIFETIME_CREDITS, VOICE_QUOTA_FEATURES } from '../src/planLimits';
 import { privacyHash } from '../src/identity';
 import { handleRequest } from '../src/index';
 import { reserveMonthlyQuota } from '../src/monthlyQuota';
@@ -20,13 +21,15 @@ import {
  * Monthly High-Quality AI Voice allowance, enforced after RevenueCat
  * verification.
  *
- * NO TIER IS METERED TODAY. AI Voice is Premium (FEATURE_TIER), and Premium is
- * sold as included, so its limit is null. Free and Basic sit at 0 and are
- * refused at the entitlement gate long before the counter is consulted. The
- * machinery below is therefore dormant rather than deleted: it is what a future
- * metered plan would switch back on, and the tests here pin the two things that
- * still have to hold — that nothing opens a counter, and that a zero limit
- * refuses without spending anything.
+ * NO TIER IS METERED BY THE MONTH. Premium is sold as included, so its limit is
+ * null. Basic's 200 are a one-time lifetime grant with its own module and its
+ * own tests (lifetimeCredits) — deliberately not this counter, which resets
+ * every month. VOICE_QUOTA_FEATURES is empty, so nothing routes here at all.
+ *
+ * The machinery below is therefore dormant rather than deleted: it is what a
+ * future genuinely-monthly plan would switch back on, and the tests here pin
+ * the two things that still have to hold — that nothing opens a counter, and
+ * that a zero limit refuses without spending anything.
  *
  * A client-supplied plan or usage figure is still never read.
  */
@@ -68,10 +71,15 @@ async function call(env: ReturnType<typeof makeEnv>, path = '/v1/voice/card', bo
 
 describe('monthly limits are centrally defined', () => {
   it('gives no tier a monthly product quota', () => {
-    // 0 = the tier does not have AI Voice. null = it has it, uncapped.
+    // Zero here means "no *monthly* allowance", not "no feature": Basic's
+    // access is VOICE_LIFETIME_CREDITS, which this counter never sees.
     expect(VOICE_MONTHLY_LIMITS).toEqual({ free: 0, basic: 0, premium: null });
-    expect(FEATURE_TIER.voice_card).toBe('premium');
-    expect(FEATURE_TIER.voice_sample).toBe('premium');
+    expect(VOICE_LIFETIME_CREDITS).toEqual({ free: 0, basic: 200, premium: null });
+    // Basic may reach the route; the credit ledger decides whether it proceeds.
+    expect(FEATURE_TIER.voice_card).toBe('basic');
+    expect(FEATURE_TIER.voice_sample).toBe('basic');
+    // Nothing is routed through the monthly counter any more.
+    expect(VOICE_QUOTA_FEATURES).toEqual([]);
   });
 
   it('keeps Premium at the requested 20/minute and 300/day abuse limits', () => {

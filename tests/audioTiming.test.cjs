@@ -59,7 +59,7 @@ const {
 } = loadTypeScriptModule('src/lib/aiVoiceSamples.ts', {
   './ttsRequest': ttsRequestModule,
   './aiVoices': {
-    AI_VOICES: ['cedar', 'fable', 'alloy', 'ash', 'coral', 'nova', 'marin', 'shimmer'],
+    AI_VOICES: ['marin', 'cedar'],
     getAIVoiceLabel: voice => voice[0].toUpperCase() + voice.slice(1),
   },
 });
@@ -284,10 +284,10 @@ test('no OpenAI credential or upstream URL is reachable from the client bundle',
 });
 
 test('TTS cache identity normalizes text and includes every audio-generation parameter', () => {
-  const normalized = normalizeTTSRequest('  squalling\n  loudly  ', 'fable');
+  const normalized = normalizeTTSRequest('  squalling\n  loudly  ', 'cedar');
   assert.deepEqual(normalized, {
     text: 'squalling loudly',
-    voice: 'fable',
+    voice: 'cedar',
     speed: 1,
     model: 'gpt-4o-mini-tts',
     format: 'wav',
@@ -398,12 +398,14 @@ test('AI preload eligibility allows Basic and Premium access but excludes Free, 
   assert.equal(isAIPronunciationPreloadEligible({ ...eligible, hasAIAccess: true, hasCustomAudio: true }), false);
 });
 
-test('Natural AI Voice preload is entitlement-gated and contains exactly eight fixed samples', () => {
+test('Natural AI Voice preload is entitlement-gated and covers every offered voice', () => {
   assert.equal(isAIVoiceSamplePreloadEligible('basic'), true);
   assert.equal(isAIVoiceSamplePreloadEligible('premium'), true);
   assert.equal(isAIVoiceSamplePreloadEligible('free'), false);
-  assert.equal(AI_VOICE_SAMPLES.length, 8);
-  assert.equal(new Set(AI_VOICE_SAMPLES.map(sample => sample.voice)).size, 8);
+  // One sample per offered voice, derived from AI_VOICES rather than a second
+  // list — trimming the voices trimmed these without anyone editing them.
+  assert.equal(AI_VOICE_SAMPLES.length, 2);
+  assert.equal(new Set(AI_VOICE_SAMPLES.map(sample => sample.voice)).size, 2);
   assert.ok(AI_VOICE_SAMPLES.every(sample => sample.contentVersion === AI_VOICE_SAMPLE_CONTENT_VERSION));
 });
 
@@ -443,7 +445,7 @@ test('voice sample cache identity includes text, voice, model, speed, format, an
   const baseKey = serializeTTSCacheKey(base);
   for (const changed of [
     { ...base, text: `${base.text}!` },
-    { ...base, voice: 'fable' },
+    { ...base, voice: 'cedar' },
     { ...base, model: 'future-model' },
     { ...base, speed: 0.9 },
     { ...base, format: 'future-format' },

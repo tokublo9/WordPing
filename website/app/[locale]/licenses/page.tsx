@@ -30,9 +30,9 @@ interface Inventory {
 const inventory = inventoryJson as Inventory;
 
 const PRODUCT_GROUPS = [
-  { id: 'ios', label: 'WordPing iOS App' },
+  { id: 'ios', label: 'WordCore iOS App' },
   { id: 'worker', label: 'Cloudflare API Worker' },
-  { id: 'website', label: 'WordPing Website' },
+  { id: 'website', label: 'WordCore Website' },
 ] as const;
 
 type ProductGroupId = (typeof PRODUCT_GROUPS)[number]['id'];
@@ -53,51 +53,51 @@ const copy: Record<LegalLocale, {
 }> = {
   en: {
     title: 'Open Source Licences',
-    description: 'Third-party software notices for the WordPing iOS App, Cloudflare API Worker, and public website.',
+    description: 'Third-party software notices for the WordCore iOS App, Cloudflare API Worker, and public website.',
     intro: [
-      'WordPing uses open-source and source-available software. Each component remains subject to its own licence. Nothing on this page changes or restricts rights granted by an applicable third-party licence.',
-      'This inventory is generated from the production dependency graphs and checked-in lockfiles for the WordPing iOS App, Cloudflare API Worker, and WordPing Website. Build-only or optional packages can appear where they are part of a production lockfile graph.',
+      'WordCore uses open-source and source-available software. Each component remains subject to its own licence. Nothing on this page changes or restricts rights granted by an applicable third-party licence.',
+      'This inventory is generated from the production dependency graphs and checked-in lockfiles for the WordCore iOS App, Cloudflare API Worker, and WordCore Website. Build-only or optional packages can appear where they are part of a production lockfile graph.',
     ],
     packageHelp: 'Each record shows the installed version, declared licence, source link, products that reference it, and the associated notice text when included in the installed package.',
-    groupHelp: total => `The inventory contains ${total} unique package/version records. A package referenced by more than one product appears in each applicable group, so the group counts can overlap. Worker and Website packages run in their separately deployed environments and are not embedded in the WordPing iOS binary.`,
+    groupHelp: total => `The inventory contains ${total} unique package/version records. A package referenced by more than one product appears in each applicable group, so the group counts can overlap. Worker and Website packages run in their separately deployed environments and are not embedded in the WordCore iOS binary.`,
     groupDescriptions: {
-      ios: 'Packages referenced by the WordPing iOS App production dependency graph.',
+      ios: 'Packages referenced by the WordCore iOS App production dependency graph.',
       worker: 'Packages used by the separately deployed Cloudflare API Worker; these are not embedded in the iOS app.',
-      website: 'Packages used by the separately deployed WordPing Website; these are not embedded in the iOS app.',
+      website: 'Packages used by the separately deployed WordCore Website; these are not embedded in the iOS app.',
     },
     noticeHelp: 'Identical notice files are deduplicated. Expand a notice to read its complete text and see every package associated with it.',
     usedBy: 'Used by',
     source: 'Package source',
     noUnresolved: 'No unresolved licence metadata was found in the generated production inventory.',
     unresolvedWarning: 'These packages require manual licence resolution before deployment:',
-    proprietary: 'The WordPing name, original app content, screenshots, illustrations, icons, videos, and other proprietary assets are not licensed under the third-party licences listed here unless expressly stated otherwise.',
+    proprietary: 'The WordCore name, original app content, screenshots, illustrations, icons, videos, and other proprietary assets are not licensed under the third-party licences listed here unless expressly stated otherwise.',
   },
   ja: {
     title: 'オープンソースライセンス',
-    description: 'WordPing iOSアプリ、Cloudflare API Workerおよび公式ウェブサイトで使用する第三者ソフトウェアの表示事項です。',
+    description: 'WordCore iOSアプリ、Cloudflare API Workerおよび公式ウェブサイトで使用する第三者ソフトウェアの表示事項です。',
     intro: [
-      'WordPingは、オープンソースおよびソース利用可能なソフトウェアを使用しています。各コンポーネントには、それぞれのライセンスが適用されます。本ページは、第三者ライセンスにより付与される権利を変更または制限するものではありません。',
-      '本一覧は、WordPing iOS App、Cloudflare API WorkerおよびWordPing Websiteの本番依存関係グラフと固定済みロックファイルから生成されています。本番ロックファイルの依存関係に含まれる場合、ビルド専用または任意のパッケージが表示されることがあります。',
+      'WordCoreは、オープンソースおよびソース利用可能なソフトウェアを使用しています。各コンポーネントには、それぞれのライセンスが適用されます。本ページは、第三者ライセンスにより付与される権利を変更または制限するものではありません。',
+      '本一覧は、WordCore iOS App、Cloudflare API WorkerおよびWordCore Websiteの本番依存関係グラフと固定済みロックファイルから生成されています。本番ロックファイルの依存関係に含まれる場合、ビルド専用または任意のパッケージが表示されることがあります。',
     ],
-    packageHelp: '各項目には、導入バージョン、申告ライセンス、配布元、参照するWordPing製品、および導入パッケージに含まれる表示事項との対応を掲載しています。',
-    groupHelp: total => `本一覧には、${total}件の重複しないパッケージ・バージョンの組合せが含まれます。複数の製品から参照されるパッケージは該当する各グループに表示されるため、グループ件数には重複があります。WorkerおよびWebsiteのパッケージは、それぞれ別個にデプロイされる環境で動作し、WordPingのiOSバイナリには組み込まれません。`,
+    packageHelp: '各項目には、導入バージョン、申告ライセンス、配布元、参照するWordCore製品、および導入パッケージに含まれる表示事項との対応を掲載しています。',
+    groupHelp: total => `本一覧には、${total}件の重複しないパッケージ・バージョンの組合せが含まれます。複数の製品から参照されるパッケージは該当する各グループに表示されるため、グループ件数には重複があります。WorkerおよびWebsiteのパッケージは、それぞれ別個にデプロイされる環境で動作し、WordCoreのiOSバイナリには組み込まれません。`,
     groupDescriptions: {
-      ios: 'WordPing iOS Appの本番依存関係グラフから参照されるパッケージです。',
+      ios: 'WordCore iOS Appの本番依存関係グラフから参照されるパッケージです。',
       worker: '別個にデプロイされるCloudflare API Workerで使用するパッケージであり、iOSアプリには組み込まれません。',
-      website: '別個にデプロイされるWordPing Websiteで使用するパッケージであり、iOSアプリには組み込まれません。',
+      website: '別個にデプロイされるWordCore Websiteで使用するパッケージであり、iOSアプリには組み込まれません。',
     },
     noticeHelp: '同一内容の表示事項は重複を除いています。項目を開くと全文および対応するパッケージを確認できます。',
     usedBy: '参照元',
     source: 'パッケージ配布元',
     noUnresolved: '生成された本番依存関係一覧に、未解決のライセンス情報はありません。',
     unresolvedWarning: '次のパッケージは、公開前に手動でライセンスを確認する必要があります。',
-    proprietary: 'WordPingの名称、独自のアプリコンテンツ、スクリーンショット、イラスト、アイコン、動画その他の独自素材は、別途明示されない限り、本ページ記載の第三者ライセンスの対象ではありません。',
+    proprietary: 'WordCoreの名称、独自のアプリコンテンツ、スクリーンショット、イラスト、アイコン、動画その他の独自素材は、別途明示されない限り、本ページ記載の第三者ライセンスの対象ではありません。',
   },
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const locale = legalLocale((await params).locale);
-  return { title: `${copy[locale].title} | WordPing`, description: copy[locale].description };
+  return { title: `${copy[locale].title} | WordCore`, description: copy[locale].description };
 }
 
 export default async function LicensesPage({ params }: { params: Promise<{ locale: string }> }) {

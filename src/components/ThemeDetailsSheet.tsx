@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Image,
@@ -16,7 +17,11 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 
 import type { Palette, ThemeSkin } from '../types';
 import { type TranslationKey, useLang } from '../i18n';
-import { SKINS } from '../constants';
+import { SKINS, THEME_PRICE_COLOR } from '../constants';
+import type { ThemePriceDisplay } from '../features/themes/themeProducts';
+
+/** Shared instance, so an omitted price keeps a stable prop identity. */
+const UNPRICED: ThemePriceDisplay = { state: 'unavailable' };
 import { type ShopItem, PremiumSkinPreview, THEME_SCREENSHOTS, THEME_SCREENSHOTS_FLIP, THEME_VIDEOS, THEME_VIDEOS_FLIP } from './ThemeSkinPreview';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -348,10 +353,23 @@ interface Props {
   themeColor: string;
   /** Routes through the shop's access check: applies, or opens Upgrade Plan. */
   onApply: (item: ShopItem) => void;
+  /**
+   * What to draw under the name. `unavailable` draws nothing at all.
+   *
+   * Defaulted so a surface with no store data — the Upgrade sheet's theme
+   * carousel — shows no price rather than being made to supply one. Omitting
+   * it can only ever hide a price, never invent one.
+   */
+  priceDisplay?: ThemePriceDisplay;
+  /** Buys this theme outright. */
+  onBuy?: (item: ShopItem) => void;
+  /** A purchase of this theme is in flight; the button locks and spins. */
+  purchasing?: boolean;
 }
 
 export function ThemeDetailsSheet({
   item, onClose, effectiveSkinId, isUnlocked, pal, themeColor, onApply,
+  priceDisplay = UNPRICED, onBuy, purchasing = false,
 }: Props) {
   const t = useLang();
   const insets = useSafeAreaInsets();
@@ -423,8 +441,9 @@ export function ThemeDetailsSheet({
 
   // ── Action button config ────────────────────────────────────────────────────
   //
-  // Themes are not sold individually, so there is no Buy button and no price.
-  // A locked theme offers only the subscription that includes it.
+  // The primary button still applies the theme, or opens Upgrade Plan when the
+  // theme is locked. Buying is a separate, secondary action below it, so the
+  // subscription path is unchanged for anyone who does not want one theme.
   const actionDisabled = isApplied;
   const actionLabel = isApplied
     ? `✓  ${t('theme_details_applied')}`
@@ -440,9 +459,8 @@ export function ThemeDetailsSheet({
     handleClose();
   };
 
-  // Only "Free" is ever badged. There is no ownership state to show: a paid
-  // theme is either covered by the active plan or it is locked, and the action
-  // button already says which.
+  // Only "Free" is ever badged. Ownership is shown under the name instead, so
+  // the badge row keeps its single meaning.
   const statusBadge: { label: string; color: string } | null = isFreeItem
     ? { label: t('theme_details_free_badge'), color: '#22C55E' }
     : null;
@@ -477,7 +495,7 @@ export function ThemeDetailsSheet({
                 <>
                   <View style={[StyleSheet.absoluteFill, { backgroundColor: displayItem.previewBg }]} />
                   <View style={[StyleSheet.absoluteFill, s.heroCardCenter]}>
-                    <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordPing</Text>
+                    <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordCore</Text>
                   </View>
                 </>
               )}
@@ -492,6 +510,17 @@ export function ThemeDetailsSheet({
           {/* Info column */}
           <View style={s.heroInfo}>
             <Text style={[s.heroName, { color: pal.text }]} numberOfLines={2}>{t(displayItem.nameKey)}</Text>
+            {/* Directly under the name, and only when there is something true
+                to say: an unresolved product draws nothing rather than a
+                placeholder or a guessed price. */}
+            {priceDisplay.state === 'owned' ? (
+              <Text style={[s.heroPrice, { color: themeColor }]}>{t('theme_owned')}</Text>
+            ) : priceDisplay.state === 'priced' ? (
+              // The string is StoreKit's; only the colour is ours.
+              <Text style={[s.heroPrice, { color: THEME_PRICE_COLOR }]}>
+                {priceDisplay.priceString}
+              </Text>
+            ) : null}
 
             {statusBadge && (
               <View style={[s.badgeChip, { backgroundColor: statusBadge.color + '18', borderColor: statusBadge.color + '44' }]}>
@@ -524,9 +553,34 @@ export function ThemeDetailsSheet({
               </Text>
             </TouchableOpacity>
 
+            {/* Buying is offered only when there is a real, localized price to
+                charge. A theme already owned, already covered by the plan, or
+                whose product has not resolved shows no Buy button — the app
+                must never present a purchase it cannot price. */}
+            {priceDisplay.state === 'priced' && onBuy && (
+              <TouchableOpacity
+                style={[s.buyBtn, { borderColor: themeColor }, purchasing && s.buyBtnBusy]}
+                onPress={() => { if (!purchasing) onBuy(displayItem); }}
+                disabled={purchasing}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: purchasing, busy: purchasing }}
+                accessibilityLabel={`${t('theme_buy')} ${priceDisplay.priceString}`}
+              >
+                {purchasing ? (
+                  <ActivityIndicator size="small" color={themeColor} />
+                ) : (
+                  <Text style={[s.buyBtnText, { color: themeColor }]}>
+                    {`${t('theme_buy')}  ${priceDisplay.priceString}`}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+
             {!isUnlocked && (
-              // The one line of plan context a locked theme needs. No price:
-              // the theme is not for sale on its own.
+              // The plan context a locked theme needs. It sits alongside the
+              // Buy button rather than replacing it: the subscription and the
+              // one-off purchase are both real ways to get this theme.
               <Text style={[s.planIncludedText, { color: pal.sub }]}>
                 {t('theme_details_included_basic')}
               </Text>
@@ -603,6 +657,9 @@ const s = StyleSheet.create({
   heroInfo: { flex: 1, paddingTop: 2, paddingBottom: 2, minHeight: HERO_CARD_H },
 
   heroName: { fontSize: 22, fontWeight: '500', marginBottom: 8, lineHeight: 28 },
+  // The typography the individual-theme price had before: 17pt, regular
+  // weight, sitting directly under the name. Never bold.
+  heroPrice: { fontSize: 17, fontWeight: '400', marginBottom: 6 },
 
   badgeChip: {
     alignSelf: 'flex-start',
@@ -628,6 +685,18 @@ const s = StyleSheet.create({
   },
   actionBtnText: { fontSize: 14, fontWeight: '700' },
   planIncludedText: { fontSize: 11, lineHeight: 15, textAlign: 'center', marginTop: 5 },
+  buyBtn: {
+    marginTop: 10,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  buyBtnText: { fontSize: 14, fontWeight: '700' },
+  // Dimmed while the store sheet is up, so a second tap reads as ignored.
+  buyBtnBusy: { opacity: 0.6 },
 
   // Sections
   divider:      { height: StyleSheet.hairlineWidth, marginVertical: 20 },

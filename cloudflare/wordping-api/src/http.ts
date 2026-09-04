@@ -17,6 +17,8 @@ export const ERROR_CODES = [
   'rate_limit_exceeded',
   'usage_limit_exceeded',
   'monthly_api_limit_reached',
+  /** Basic's one-time AI Voice grant is spent. Premium is the only way on. */
+  'voice_credits_exhausted',
   'quota_exceeded',
   'feature_disabled',
   'entitlement_verification_failed',

@@ -67,14 +67,14 @@ function normalizeFilename(value: string, fallbackExtension: 'wav' | 'mp3' = 'mp
     .replace(/^\.+|\.+$/g, '')
     .trim()
     .slice(0, 80);
-  return `${safeBase || 'WordPing Speech'}.${extension}`;
+  return `${safeBase || 'WordCore Speech'}.${extension}`;
 }
 
 export function createPrototypeSpeechFilename(timestamp = Date.now(), extension: 'wav' | 'mp3' = 'mp3'): string {
   const date = new Date(timestamp);
   const pad = (value: number) => String(value).padStart(2, '0');
   return normalizeFilename(
-    `WordPing Speech ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`,
+    `WordCore Speech ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`,
     extension,
   );
 }

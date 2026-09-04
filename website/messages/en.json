@@ -1,8 +1,8 @@
 {
   "meta": {
-    "title": "WordPing — Vocabulary study that stays with you",
+    "title": "WordCore — Vocabulary study that stays with you",
     "description": "Build and review vocabulary with Word List, Flip Mode, Test Mode, local reminders, themes and High-Quality AI Voice. Your vocabulary stays on your device; no account required.",
-    "imageAlt": "WordPing app icon"
+    "imageAlt": "WordCore app icon"
   },
   "nav": {
     "features": "Features",
@@ -10,12 +10,12 @@
     "plans": "Plans",
     "download": "App Store",
     "language": "Choose language",
-    "home": "WordPing home",
+    "home": "WordCore home",
     "lightMode": "Switch to light mode",
     "darkMode": "Switch to dark mode"
   },
   "hero": {
-    "badge": "WordPing for iOS",
+    "badge": "WordCore for iOS",
     "titleLine1": "Build vocabulary.",
     "titleHighlight": "Keep it close.",
     "subtitle": "Your vocabulary stays on your device. Study with Word List, Flip Mode and Test Mode, organize results clearly, and keep learning without creating an account.",
@@ -53,7 +53,7 @@
     "cards": {
       "local": {
         "title": "Stored on your device",
-        "desc": "Vocabulary is kept locally in WordPing. There is no account and no automatic cloud vocabulary backup."
+        "desc": "Vocabulary is kept locally in WordCore. There is no account and no automatic cloud vocabulary backup."
       },
       "modes": {
         "title": "Three ways to study",
@@ -87,7 +87,7 @@
   },
   "gallery": {
     "badge": "App preview",
-    "title": "See WordPing in action",
+    "title": "See WordCore in action",
     "subtitle": "Current iOS screens for organizing, reviewing, testing and editing your vocabulary.",
     "dialogLabel": "Screenshot preview",
     "open": "Open {name} screenshot",
@@ -106,8 +106,8 @@
   "themes": {
     "badge": "Themes",
     "title": "Make your study space feel like yours",
-    "subtitle": "WordPing includes free themes for everyone. An active Basic or Premium subscription unlocks the paid themes; themes are not sold individually.",
-    "shopAlt": "WordPing theme selection screen",
+    "subtitle": "WordCore includes free themes for everyone. An active Basic or Premium subscription unlocks the paid themes; themes are not sold individually.",
+    "shopAlt": "WordCore theme selection screen",
     "access": {
       "title": "Simple plan access",
       "desc": "Free themes stay available on Free. Paid themes are included with both Basic and Premium."
@@ -120,16 +120,28 @@
       "title": "Change it whenever you like",
       "desc": "Theme choices affect presentation only; your vocabulary and test results remain intact."
     },
-    "galleryLabel": "A selection of WordPing themes"
+    "galleryLabel": "A selection of WordCore themes"
   },
   "how": {
     "badge": "How it works",
     "title": "From a new word to focused review",
     "steps": {
-      "1": { "title": "Add and organize", "desc": "Save a word, meaning, sentence or note, then place it in a folder and add labels." },
-      "2": { "title": "Review in your preferred mode", "desc": "Use Word List for an overview or Flip Mode for focused card-by-card study." },
-      "3": { "title": "Check recall in Test Mode", "desc": "Rate what you remember and let WordPing organize the remaining cards by result." },
-      "4": { "title": "Return at the right time", "desc": "Use result filters and local reminders to find the vocabulary you want to revisit." }
+      "1": {
+        "title": "Add and organize",
+        "desc": "Save a word, meaning, sentence or note, then place it in a folder and add labels."
+      },
+      "2": {
+        "title": "Review in your preferred mode",
+        "desc": "Use Word List for an overview or Flip Mode for focused card-by-card study."
+      },
+      "3": {
+        "title": "Check recall in Test Mode",
+        "desc": "Rate what you remember and let WordCore organize the remaining cards by result."
+      },
+      "4": {
+        "title": "Return at the right time",
+        "desc": "Use result filters and local reminders to find the vocabulary you want to revisit."
+      }
     }
   },
   "plans": {
@@ -186,15 +198,16 @@
   },
   "cta": {
     "title": "Keep your vocabulary close.",
-    "subtitle": "WordPing is being prepared for iPhone and iPad. App Store release information will appear here when available.",
+    "subtitle": "WordCore is being prepared for iPhone and iPad. App Store release information will appear here when available.",
     "button": "App Store release coming soon",
     "note": "Free download · Optional subscriptions"
   },
   "footer": {
     "tagline": "Vocabulary study, kept close.",
-    "rights": "© 2026 WordPing. All rights reserved.",
+    "rights": "© 2026 WordCore. All rights reserved.",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
-    "licenses": "Open Source Licences"
+    "licenses": "Open Source Licences",
+    "support": "Support"
   }
 }

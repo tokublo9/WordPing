@@ -127,6 +127,8 @@ export interface WordListScreenProps {
   isPremium?: boolean;
   /** The plan includes High-Quality AI Voice — Premium only. */
   canUseAIVoice?: boolean;
+  /** Basic's one-time AI Voice grant is spent; App raises the dialog. */
+  onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
   hasTextToSpeechHistory?: boolean;
 
   // Deep Sea skin scroll animation
@@ -197,6 +199,7 @@ export interface WordListScreenProps {
 export function WordListScreen({
   pal, themeColor, isSubscribed, isPremium = false,
   canUseAIVoice = false,
+  onVoiceCreditsExhausted,
   hasTextToSpeechHistory = false,
   scrollY, deepSeaSkin,
   currentFolder, allFolderCards, visibleFolderCards,
@@ -725,6 +728,7 @@ export function WordListScreen({
         pal={pal}
         voiceLocked={false}
         canUseAIVoice={canUseAIVoice}
+        onVoiceCreditsExhausted={onVoiceCreditsExhausted}
         onFlip={() => currentActions.onFlip(item.id)}
         onEdit={() => currentActions.onEdit(item)}
         onDelete={() => currentActions.onDelete(item.id)}
@@ -753,6 +757,7 @@ export function WordListScreen({
     handleVerticalGestureLock,
     isFastScrollGesture,
     canUseAIVoice,
+    onVoiceCreditsExhausted,
     isVerticalGestureLocked,
     pal,
     selection.active,
@@ -1242,6 +1247,7 @@ export function WordListScreen({
         pal={pal}
         themeColor={themeColor}
         canUseAIVoice={canUseAIVoice}
+        onVoiceCreditsExhausted={onVoiceCreditsExhausted}
         onEdit={handleFlipEdit}
         onDelete={handleFlipDelete}
         onMove={handleFlipMove}
@@ -1553,7 +1559,10 @@ const selStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
-  barLabel: { fontSize: 11, fontWeight: '600' },
+  // `alignItems` centres the label as a block, which is enough while it fits on
+  // one line. The two notification labels wrap, and a wrapped block still lays
+  // its lines out from the left unless the text itself is centred.
+  barLabel: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
   barDivider: { width: StyleSheet.hairlineWidth },
 });
 

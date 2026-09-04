@@ -69,7 +69,7 @@ test('the Basic allowance alert does not describe rate-limited Premium as unlimi
   const i18n = fs.readFileSync('src/i18n.ts', 'utf8');
   assert.match(
     i18n,
-    /Premium has no monthly quota, but normal service limits apply\./u,
+    /Premium has no such ceiling, but normal service limits apply\./u,
   );
   assert.match(
     i18n,

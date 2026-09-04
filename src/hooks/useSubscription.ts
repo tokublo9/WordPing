@@ -12,6 +12,7 @@ import { parseRequestDate, shouldApplyCustomerInfo } from '../lib/entitlementOrd
 import {
   activeExpirationDateFromCustomerInfo,
   configureRevenueCat,
+  describeRevenueCatKey,
   logActiveRevenueCatEntitlements,
   planFromCustomerInfo,
   PACKAGE_IDS,
@@ -21,6 +22,14 @@ import {
   LOCAL_AI_VOICE_SCENARIO,
   getLocalAiVoiceTestScenario,
 } from '../dev/localAiVoiceScenario';
+import {
+  PLAN_PACKAGE_IDS,
+  PLAN_PRODUCT_IDS,
+  describePlanPriceProblem,
+  type PlanStoreProduct,
+  type PlanStoreProducts,
+  type SubscriptionPlanId,
+} from '../lib/planPricing';
 
 export type Plan = 'free' | 'basic' | 'premium';
 export type RevenueCatEntitlementSource =
@@ -78,6 +87,72 @@ function logOfferings(source: string, offerings: PurchasesOfferings): void {
   if (!offerings.current) {
     console.warn('[RC] No current offering. Either none is marked current in the RevenueCat dashboard, or it has no products attached.');
   }
+}
+
+
+/**
+ * The Basic and Premium products, read from the offering that will be purchased.
+ *
+ * Resolved from `offerings.current` — the same offering and the same package
+ * identifiers `purchasePlan` buys from — so the paywall can never quote a price
+ * from one package while charging another.
+ *
+ * Nothing is computed here: the price string, currency and period are the
+ * product's own, so a price changed in App Store Connect appears in the app once
+ * Apple and RevenueCat caches refresh, with no app update.
+ */
+function readPlanProducts(offerings: PurchasesOfferings | null): PlanStoreProducts {
+  const packages = offerings?.current?.availablePackages ?? [];
+  const products: Partial<Record<SubscriptionPlanId, PlanStoreProduct>> = {};
+
+  for (const plan of ['basic', 'premium'] as const) {
+    const pkg = packages.find(candidate => candidate.identifier === PLAN_PACKAGE_IDS[plan]);
+    if (!pkg) continue;
+    products[plan] = {
+      packageId: pkg.identifier,
+      productId: pkg.product.identifier,
+      priceString: pkg.product.priceString,
+      currencyCode: pkg.product.currencyCode ?? null,
+      // Field name differs across SDK majors; neither is invented by us.
+      period: (pkg.product as { subscriptionPeriod?: string }).subscriptionPeriod ?? null,
+    };
+  }
+  return products;
+}
+
+/**
+ * What the store actually returned for the two subscriptions, in dev only.
+ *
+ * A missing subscription price is silent — the button simply shows no price —
+ * so without this there is no way to tell a package-id mismatch from a Test
+ * Store key from a product that has no price in App Store Connect. Stripped
+ * from release builds by `__DEV__`.
+ */
+function logPlanPriceDiagnostics(offerings: PurchasesOfferings | null): void {
+  if (!__DEV__) return;
+
+  const products = readPlanProducts(offerings);
+  const returnedPackageIds = offerings?.current?.availablePackages.map(pkg => pkg.identifier) ?? [];
+
+  console.info('[plans] subscription price diagnostics', {
+    revenueCat: describeRevenueCatKey(),
+    // An App Store product cannot be served by the Test Store, so a `test_` key
+    // here explains a missing price on its own.
+    storeMismatchLikely: describeRevenueCatKey().store === 'test-store',
+    currentOfferingId: offerings?.current?.identifier ?? null,
+    allOfferingIds: Object.keys(offerings?.all ?? {}),
+    returnedPackageIds,
+    basic: products.basic ?? null,
+    premium: products.premium ?? null,
+    expected: {
+      basic: { packageId: PLAN_PACKAGE_IDS.basic, productId: PLAN_PRODUCT_IDS.basic },
+      premium: { packageId: PLAN_PACKAGE_IDS.premium, productId: PLAN_PRODUCT_IDS.premium },
+    },
+    problems: {
+      basic: describePlanPriceProblem(products, 'basic', returnedPackageIds),
+      premium: describePlanPriceProblem(products, 'premium', returnedPackageIds),
+    },
+  });
 }
 
 async function fetchOfferings(source: string): Promise<PurchasesOfferings> {
@@ -212,6 +287,7 @@ export function useSubscription() {
         if (active) {
           applyVerifiedCustomerInfo('after-configure-refresh', customerInfo);
           setOfferings(nextOfferings);
+          logPlanPriceDiagnostics(nextOfferings);
         }
 
         // These keys are migration cleanup only and never grant subscription access.
@@ -251,6 +327,7 @@ export function useSubscription() {
         // the initial offerings request or use a stale package object.
         const latestOfferings = await fetchOfferings(`before-purchase:${packageIdentifier}`);
         setOfferings(latestOfferings);
+        logPlanPriceDiagnostics(latestOfferings);
         const pkg = latestOfferings.current?.availablePackages.find(
           candidate => candidate.identifier === packageIdentifier,
         );
@@ -366,8 +443,13 @@ export function useSubscription() {
     }
   };
 
+  // Derived, not stored: the products follow whatever offerings state holds,
+  // so a refresh after a purchase or a restore updates the paywall too.
+  const planProducts = readPlanProducts(offerings);
+
   return {
     plan,
+    planProducts,
     isSubscribed: plan !== 'free',
     isPremium: plan === 'premium',
     isLoaded,

@@ -437,7 +437,7 @@ describe('voice sample cache', () => {
     );
     const speechCall = calls.find(call => call.url.includes('/audio/speech'));
     const sent = JSON.parse(String(speechCall?.init.body)) as { input: string };
-    expect(sent.input).toBe('Welcome to WordPing. This is the Nova voice.');
+    expect(sent.input).toBe('Welcome to WordCore. This is the Nova voice.');
   });
 
   it('rejects a voice that has no sample sentence', async () => {

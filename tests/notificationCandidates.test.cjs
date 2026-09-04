@@ -135,39 +135,38 @@ test('an empty list schedules nothing rather than everything', () => {
 
 // ── The Notification sheet ───────────────────────────────────────────────────
 
-test('the sheet presents one informational scope row and one selectable toggle', () => {
+test('the sheet presents every preference as one selectable toggle row', () => {
   const sheet = read('src/components/NotificationModal.tsx');
-  assert.match(sheet, /label=\{t\('notif_selected_words'\)\}/u);
   assert.match(sheet, /label=\{t\('notif_all_words'\)\}/u);
   assert.match(sheet, /value=\{notifyAllWords\}\s*onValueChange=\{onToggleNotifyAllWords\}/u);
   assert.doesNotMatch(sheet, /selected=\{!notifyAllWords\}|onToggleNotifyAllWords\(false\)/u);
-  assert.match(
-    sheet,
-    /if \(\s*value === undefined[\s\S]*?return \(\s*<View style=\{styles\.scopeRow\}>/u,
-  );
+
+  // "Notify Only Selected Words" is gone from the sheet and from the copy: it
+  // described the default Off state and could not be acted on.
+  assert.doesNotMatch(sheet, /notif_selected_words/u);
+  assert.doesNotMatch(read('src/i18n.ts'), /notif_selected_words/u);
+
+  // No row is informational-only any more, so there is no switchless branch.
+  assert.doesNotMatch(sheet, /value === undefined/u);
   assert.match(sheet, /const handleToggle = \(\) => onValueChange\(!value\)/u);
   assert.match(sheet, /<CompactSwitch/u);
   assert.match(sheet, /accessibilityRole="switch"/u);
-  const scopeRow = sheet.slice(
-    sheet.indexOf('function NotificationScopeRow'),
+  const toggleRow = sheet.slice(
+    sheet.indexOf('function NotificationToggleRow'),
     sheet.indexOf('const styles = StyleSheet.create'),
   );
-  assert.doesNotMatch(scopeRow, /accessibilityRole="radio"/u);
+  assert.doesNotMatch(toggleRow, /accessibilityRole="radio"/u);
 
-  // Explanations live only in the two Info popups, never as text below a row.
+  // Explanations live only in the Info popups, never as text below a row.
   assert.ok((sheet.match(/name="information-circle-outline"/gu) ?? []).length >= 1);
   assert.match(sheet, /event\.stopPropagation\(\);\s*onShowInfo\(\{ title: label, body: info \}\)/u);
-  assert.match(sheet, /<SettingsInfoPopup/u);
-  assert.doesNotMatch(sheet, /<Text[^>]*>\s*\{t\('notif_(?:selected_words|all_words)_desc'\)\}/u);
+  assert.doesNotMatch(sheet, /<Text[^>]*>\s*\{t\('(?:notif_all_words|display_only_word)_desc'\)\}/u);
 
-  const i18n = read('src/i18n.ts');
-  const selectedInfo = i18n.slice(
-    i18n.indexOf("notif_selected_words_desc:\n    'This"),
-    i18n.indexOf("notif_all_words:", i18n.indexOf("notif_selected_words_desc:\n    'This")),
-  );
-  assert.match(selectedInfo, /default behavior/u);
-  assert.match(selectedInfo, /“Notify All Words” is off/u);
-  assert.match(selectedInfo, /manually added/u);
+  // The popup is a Modal of its own: as a sibling of the sheet's Modal it would
+  // never present on iOS, which is what left the Info buttons doing nothing.
+  const popupAt = sheet.indexOf('<SettingsInfoPopup');
+  assert.ok(popupAt !== -1);
+  assert.ok(popupAt < sheet.indexOf('</Modal>'), 'the popup renders inside the sheet Modal');
 
   // Empty candidate feedback and the rest of the sheet stay intact.
   assert.match(sheet, /\{noNotifiableWords && \(/u);

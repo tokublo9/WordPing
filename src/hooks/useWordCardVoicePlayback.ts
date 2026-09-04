@@ -22,10 +22,12 @@ export type WordCardVoiceState = {
 interface Options {
   item?: WordCard | null;
   /**
-   * The plan includes High-Quality AI Voice — Premium only.
+   * This card may use High-Quality AI Voice right now.
    *
-   * False falls back to device TTS. Attached Custom Voice audio is local and
-   * available on every plan, so it does not participate in this entitlement.
+   * Premium, or Basic while its one-time credits last — and false either way
+   * once the user has chosen the free device voice. False falls back to device
+   * TTS. Attached Custom Voice audio is local and available on every plan, so
+   * it does not participate in this entitlement.
    */
   canUseAIVoice: boolean;
   /** BCP-47 tag, for the quota message's number and date formatting. */
@@ -34,6 +36,15 @@ interface Options {
   onUpgrade?: () => void;
   /** The shared RevenueCat restore handler, offered when verification fails. */
   onRestorePurchases?: () => Promise<void> | void;
+  /**
+   * Basic's one-time AI Voice grant is spent.
+   *
+   * Its own handler rather than an alert, because the answer is a choice
+   * between two plans, and because whichever the user makes has to survive the
+   * dialog closing. Called only for a generation the Worker actually refused —
+   * cached audio never gets here.
+   */
+  onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
 }
 
 /** Shared playback state used by list cards and the Flip screen. */
@@ -43,6 +54,7 @@ export function useWordCardVoicePlayback({
   language = 'en-US',
   onUpgrade,
   onRestorePurchases,
+  onVoiceCreditsExhausted,
 }: Options) {
   const t = useLang();
   const [voiceState, setVoiceStateValue] = useState<WordCardVoiceState | null>(null);
@@ -101,6 +113,33 @@ export function useWordCardVoicePlayback({
     spokenItemIdRef.current = itemId;
     abandonPlayback();
   }, [itemId, abandonPlayback]);
+
+  /**
+   * Speak the last requested side with device TTS, ignoring the plan.
+   *
+   * The fallback offered when Basic's credits run out. It reaches no network,
+   * so it needs no entitlement and no consent, and it is exactly what a Free
+   * user's voice button already does.
+   */
+  const speakOnDevice = useCallback(async () => {
+    const target = lastTargetRef.current;
+    if (!item || target === null) return;
+    const sequence = ++sequenceRef.current;
+    setVoiceState({ target, phase: 'checking-cache' });
+    const playbackOptions = {
+      onPhaseChange: (phase: TTSPlaybackPhase) => {
+        if (sequenceRef.current !== sequence) return;
+        setVoiceState(phase === 'idle' ? null : { target, phase });
+      },
+    };
+    try {
+      if (target === 'word') await speakWordCard(item, false, playbackOptions);
+      else await speak(item.meaning, false, item.meaningLang, playbackOptions);
+    } catch {
+      // Device TTS failing is not worth a second dialog on top of the first.
+    }
+    if (sequenceRef.current === sequence) setVoiceState(null);
+  }, [item, setVoiceState]);
 
   /**
    * Turns a failed voice request into the right message.
@@ -176,6 +215,14 @@ export function useWordCardVoicePlayback({
         Alert.alert(title, t('err_service_not_configured'));
         return;
 
+      case 'voice_credits_exhausted':
+        // Not an outage and not something to retry: the grant is spent and
+        // does not come back. The dialog owns both ways forward, and is handed
+        // the replay so that choosing the free voice speaks the word the user
+        // actually asked for rather than only changing a setting.
+        onVoiceCreditsExhausted?.(() => { void speakOnDevice(); });
+        return;
+
       case 'consent_required':
         // The prompt above normally means this never surfaces. If it does, the
         // request was refused on the device and nothing was sent, so say that
@@ -214,7 +261,7 @@ export function useWordCardVoicePlayback({
       default:
         Alert.alert(title, t('ai_service_unavailable_msg'));
     }
-  }, [language, onRestorePurchases, onUpgrade, t]);
+  }, [language, onRestorePurchases, onUpgrade, onVoiceCreditsExhausted, speakOnDevice, t]);
 
   const play = useCallback(async (target: WordCardVoiceTarget) => {
     if (!item) return;
@@ -238,8 +285,9 @@ export function useWordCardVoicePlayback({
 
     // Only the AI-Voice path reaches OpenAI. Device TTS is expo-speech on the
     // device and a card's attached audio is a local file, so neither asks for
-    // anything: a non-AI feature must keep working without consent. Basic is on
-    // the device path now, exactly as Free is.
+    // anything: a non-AI feature must keep working without consent. Basic now
+    // reaches the AI path while its one-time credits last, and returns to the
+    // device path if the user chooses the free voice when they run out.
     const usesAI = canUseAIVoice && !(target === 'word' && Boolean(item.audioUri));
     if (usesAI && !await ensureAIConsentForUserAction()) return;
     if (sequenceRef.current !== sequence) return;

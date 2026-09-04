@@ -75,9 +75,9 @@ describe('entitlement enforcement', () => {
     expect(calls.some(call => call.url.includes('openai.com'))).toBe(false);
   });
 
-  it('denies a basic user the word-card voice endpoint', async () => {
-    // High-Quality AI Voice is Premium. Basic's voice feature is Custom Voice for
-    // Words — the user's own audio file, which never reaches this Worker.
+  it('allows a basic user the word-card voice endpoint while credits remain', async () => {
+    // Basic reaches AI Voice through its one-time grant. The tier gate lets it
+    // knock; the credit ledger is what decides whether it proceeds.
     const { calls } = mockFetch([
       { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
@@ -87,27 +87,26 @@ describe('entitlement enforcement', () => {
       makeEnv(),
       makeCtx(),
     );
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'subscription_required',
-      requiredTier: 'premium',
-    });
-    expect(calls.some(call => call.url.includes('openai.com'))).toBe(false);
+    expect(response.status).toBe(200);
+    expect(calls.some(call => call.url.includes('openai.com'))).toBe(true);
   });
 
-  it('denies a basic user the voice-picker preview', async () => {
+  it('allows a basic user the voice-picker preview, which spends no credit', async () => {
     // The picker previews the voice AI Voice would use, so it moves with it.
-    const { calls } = mockFetch([
+    // Its audio is server-authored and KV-cached, so it costs one generation
+    // for everyone rather than one credit per subscriber.
+    mockFetch([
       { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
+    const env = makeEnv();
     const response = await handleRequest(
       makeRequest('/v1/voice/sample', { body: { voice: 'marin' } }),
-      makeEnv(),
+      env,
       makeCtx(),
     );
-    expect(response.status).toBe(403);
-    expect(calls.some(call => call.url.includes('openai.com'))).toBe(false);
+    expect(response.status).toBe(200);
+    expect([...env.VOICE_CREDITS.states.values()]).toEqual([]);
   });
 
   it('allows a premium user the word-card voice endpoint', async () => {

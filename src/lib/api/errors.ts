@@ -24,6 +24,14 @@ export type AIErrorKind =
   | 'service_unavailable'
   | 'generation_failed'
   | 'monthly_limit_reached'
+  /**
+   * Basic's one-time AI Voice grant is spent.
+   *
+   * Distinct from `monthly_limit_reached`, which waits for a month boundary,
+   * and from `subscription_required`, which the plan could satisfy. Nothing
+   * returns this balance: the only ways on are Premium or the device voice.
+   */
+  | 'voice_credits_exhausted'
   /** Purchase status could not be verified. Offer Retry + Restore Purchases. */
   | 'entitlement_unverified'
   /** The speech service itself is misconfigured. Not the user's problem. */
@@ -48,6 +56,7 @@ export type LegacyErrorCode =
   | 'input_empty'
   | 'service_unavailable'
   | 'monthly_api_limit_reached'
+  | 'voice_credits_exhausted'
   | 'entitlement_unverified'
   | 'not_configured'
   | 'consent_required';
@@ -63,6 +72,7 @@ const LEGACY_BY_KIND: Readonly<Record<AIErrorKind, LegacyErrorCode>> = {
   service_unavailable: 'service_unavailable',
   generation_failed: 'service_unavailable',
   monthly_limit_reached: 'monthly_api_limit_reached',
+  voice_credits_exhausted: 'voice_credits_exhausted',
   entitlement_unverified: 'entitlement_unverified',
   not_configured: 'not_configured',
   consent_required: 'consent_required',
@@ -89,6 +99,14 @@ export interface AIRequestErrorOptions {
   limitWindow?: RateLimitWindow;
   /** The raw code the Worker returned, for diagnostics. Never user-facing. */
   serverCode?: string;
+  /**
+   * The HTTP status, for diagnostics.
+   *
+   * Kept because the status and the code answer different questions: a 400
+   * `missing_install_id` means the deployed Worker disagrees with this build
+   * about what a route requires, which no amount of reading the repo can show.
+   */
+  httpStatus?: number;
   /** Monthly quota figures, present only on monthly_api_limit_reached. */
   quota?: MonthlyQuotaInfo;
   /**
@@ -104,6 +122,7 @@ export class AIRequestError extends Error {
   readonly retryAfterSeconds?: number;
   readonly limitWindow?: RateLimitWindow;
   readonly serverCode?: string;
+  readonly httpStatus?: number;
   readonly quota?: MonthlyQuotaInfo;
 
   constructor(kind: AIErrorKind, options: AIRequestErrorOptions = {}) {
@@ -114,6 +133,7 @@ export class AIRequestError extends Error {
     if (options.retryAfterSeconds !== undefined) this.retryAfterSeconds = options.retryAfterSeconds;
     if (options.limitWindow !== undefined) this.limitWindow = options.limitWindow;
     if (options.serverCode !== undefined) this.serverCode = options.serverCode;
+    if (options.httpStatus !== undefined) this.httpStatus = options.httpStatus;
     if (options.quota !== undefined) this.quota = options.quota;
   }
 }
@@ -130,6 +150,7 @@ const KIND_BY_SERVER_CODE: Readonly<Record<string, AIErrorKind>> = {
   rate_limit_exceeded: 'rate_limited',
   usage_limit_exceeded: 'usage_limited',
   monthly_api_limit_reached: 'monthly_limit_reached',
+  voice_credits_exhausted: 'voice_credits_exhausted',
   quota_exceeded: 'rate_limited',
   feature_disabled: 'service_unavailable',
   // These two used to collapse into a generic outage message, which is what
@@ -197,6 +218,7 @@ export function errorFromWorkerResponse(input: WorkerErrorInput): AIRequestError
     ...(input.retryAfterSeconds !== undefined ? { retryAfterSeconds: input.retryAfterSeconds } : {}),
     ...(input.limitWindow !== undefined ? { limitWindow: input.limitWindow } : {}),
     ...(input.code !== undefined ? { serverCode: input.code } : {}),
+    httpStatus: input.status,
     // The UI turns this one into "shorten your text" rather than a generic
     // validation message, so it keeps its own legacy code.
     ...(input.code === 'input_too_long' ? { legacyCode: 'input_too_long' as const } : {}),
@@ -232,6 +254,9 @@ export const MESSAGE_KEY_BY_KIND: Readonly<Record<AIErrorKind, string>> = {
   service_unavailable: 'ai_service_unavailable_msg',
   generation_failed: 'err_generation_failed',
   monthly_limit_reached: 'err_voice_limit_basic',
+  // The dialog carries the real copy; this is the fallback for any surface
+  // that only knows how to show a line of text.
+  voice_credits_exhausted: 'voice_credits_body',
   entitlement_unverified: 'err_entitlement_unverified',
   not_configured: 'err_service_not_configured',
   consent_required: 'ai_consent_required_msg',

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "title": "WordPing — そばに置ける単語学習",
+    "title": "WordCore — そばに置ける単語学習",
     "description": "単語リスト・フリップモード・テストモード、端末内の通知、テーマ、高品質AI音声で語彙を学習。単語データは端末内に保存され、アカウント登録は不要です。",
-    "imageAlt": "WordPingアプリアイコン"
+    "imageAlt": "WordCoreアプリアイコン"
   },
   "nav": {
     "features": "機能",
@@ -10,12 +10,12 @@
     "plans": "プラン",
     "download": "App Store",
     "language": "言語を選択",
-    "home": "WordPing ホーム",
+    "home": "WordCore ホーム",
     "lightMode": "ライトモードに切り替える",
     "darkMode": "ダークモードに切り替える"
   },
   "hero": {
-    "badge": "iOS版 WordPing",
+    "badge": "iOS版 WordCore",
     "titleLine1": "単語をためる。",
     "titleHighlight": "学びを続ける。",
     "subtitle": "単語データは端末内に保存。単語リスト・フリップモード・テストモードで学習し、結果を分かりやすく整理できます。アカウント登録は不要です。",
@@ -53,7 +53,7 @@
     "cards": {
       "local": {
         "title": "単語データは端末内に保存",
-        "desc": "語彙はWordPing内にローカル保存されます。アカウント登録や自動クラウドバックアップはありません。"
+        "desc": "語彙はWordCore内にローカル保存されます。アカウント登録や自動クラウドバックアップはありません。"
       },
       "modes": {
         "title": "3つの学習方法",
@@ -87,7 +87,7 @@
   },
   "gallery": {
     "badge": "アプリ画面",
-    "title": "WordPingの使い方を見る",
+    "title": "WordCoreの使い方を見る",
     "subtitle": "語彙の整理・復習・テスト・編集に使う現在のiOS画面です。",
     "dialogLabel": "スクリーンショットのプレビュー",
     "open": "{name}のスクリーンショットを開く",
@@ -107,7 +107,7 @@
     "badge": "テーマ",
     "title": "自分らしい学習空間に",
     "subtitle": "無料テーマはすべてのユーザーが利用できます。BasicまたはPremiumの有効なサブスクリプションで有料テーマが解放され、テーマの個別販売はありません。",
-    "shopAlt": "WordPingのテーマ選択画面",
+    "shopAlt": "WordCoreのテーマ選択画面",
     "access": {
       "title": "分かりやすいプラン特典",
       "desc": "Freeでは無料テーマを利用でき、有料テーマはBasicとPremiumの両方に含まれます。"
@@ -120,16 +120,28 @@
       "title": "いつでも変更可能",
       "desc": "テーマは見た目だけを変更し、単語データやテスト結果には影響しません。"
     },
-    "galleryLabel": "WordPingテーマの一例"
+    "galleryLabel": "WordCoreテーマの一例"
   },
   "how": {
     "badge": "使い方",
     "title": "単語の追加から復習まで",
     "steps": {
-      "1": { "title": "追加して整理", "desc": "単語、意味、文、メモを保存し、フォルダやラベルで整理します。" },
-      "2": { "title": "好きなモードで復習", "desc": "全体を見る単語リストと、1枚ずつ集中できるフリップモードを使い分けます。" },
-      "3": { "title": "テストモードで確認", "desc": "覚え具合を評価すると、残ったカードが結果別に整理されます。" },
-      "4": { "title": "必要な時にもう一度", "desc": "結果フィルターと端末内の通知で、復習したい語彙を見つけられます。" }
+      "1": {
+        "title": "追加して整理",
+        "desc": "単語、意味、文、メモを保存し、フォルダやラベルで整理します。"
+      },
+      "2": {
+        "title": "好きなモードで復習",
+        "desc": "全体を見る単語リストと、1枚ずつ集中できるフリップモードを使い分けます。"
+      },
+      "3": {
+        "title": "テストモードで確認",
+        "desc": "覚え具合を評価すると、残ったカードが結果別に整理されます。"
+      },
+      "4": {
+        "title": "必要な時にもう一度",
+        "desc": "結果フィルターと端末内の通知で、復習したい語彙を見つけられます。"
+      }
     }
   },
   "plans": {
@@ -186,15 +198,16 @@
   },
   "cta": {
     "title": "単語を、いつもそばに。",
-    "subtitle": "WordPingはiPhoneとiPad向けにリリース準備中です。App Storeの公開情報が利用可能になり次第、こちらに掲載します。",
+    "subtitle": "WordCoreはiPhoneとiPad向けにリリース準備中です。App Storeの公開情報が利用可能になり次第、こちらに掲載します。",
     "button": "App Storeで近日公開",
     "note": "無料ダウンロード・任意のサブスクリプション"
   },
   "footer": {
     "tagline": "そばに置ける単語学習。",
-    "rights": "© 2026 WordPing. All rights reserved.",
+    "rights": "© 2026 WordCore. All rights reserved.",
     "privacy": "プライバシーポリシー",
     "terms": "利用規約",
-    "licenses": "オープンソースライセンス"
+    "licenses": "オープンソースライセンス",
+    "support": "サポート"
   }
 }

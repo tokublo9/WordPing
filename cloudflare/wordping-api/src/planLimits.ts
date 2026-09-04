@@ -12,14 +12,20 @@ import type { Feature, Tier } from './config';
  */
 
 /**
- * Features covered by the monthly High-Quality AI Voice allowance.
+ * Features covered by the *monthly* High-Quality AI Voice allowance.
  *
- * Only word-card High-Quality AI Voice generation is charged. Voice-picker
- * previews (`voice_sample`) are deliberately free of monthly quota, whether
- * served from cache or newly generated. Also excludes promotional previews,
- * standalone Text-to-Speech and the four AI text routes.
+ * Empty, and correctly so. Basic's allowance is a one-time grant that never
+ * refills, which is a different thing with different rules and its own module
+ * (lifetimeCredits.ts); Premium has never had a monthly product ceiling. So no
+ * route is metered by the month today.
+ *
+ * The machinery is kept rather than deleted because it is the right shape for
+ * any future feature that genuinely renews monthly, and because `monthKey` /
+ * `monthResetsAt` must not be borrowed for the lifetime balance — a balance
+ * that silently reset at a month boundary would hand out unlimited credits.
+ * Listing a feature here re-arms it; nothing else needs to change.
  */
-export const VOICE_QUOTA_FEATURES: readonly Feature[] = ['voice_card'];
+export const VOICE_QUOTA_FEATURES: readonly Feature[] = [];
 
 export function isVoiceQuotaFeature(feature: Feature): boolean {
   return VOICE_QUOTA_FEATURES.includes(feature);
@@ -33,14 +39,28 @@ export function isVoiceQuotaFeature(feature: Feature): boolean {
  * entitlement verification, the per-minute and per-day abuse limits in
  * ratelimit.ts, the kill switches, and the OpenAI project budget.
  *
- * `0` means the tier does not have the feature. Free and Basic both sit there:
- * AI Voice is Premium. Nothing reaches the quota check on those tiers anyway —
- * FEATURE_TIER rejects them at the entitlement guard first — but the zero is
- * what the app's mirrored copy reads to know the feature is not included.
+ * `0` here no longer means "does not have the feature". Basic sits at zero
+ * because it has no *monthly* allowance — its access is the one-time credit
+ * grant in VOICE_LIFETIME_CREDITS. Read the two together; the app mirrors both
+ * and derives eligibility from the pair.
  */
 export const VOICE_MONTHLY_LIMITS: Readonly<Record<Tier, number | null>> = {
   free: 0,
   basic: 0,
+  premium: null,
+};
+
+/**
+ * One-time High-Quality AI Voice credits, granted once per subscriber identity.
+ *
+ * `null` means the tier is unmetered (Premium). `0` means the tier does not
+ * have the feature at all (Free). Basic's number is the grant, issued the first
+ * time that subscriber generates and never reissued — see lifetimeCredits.ts,
+ * which owns the balance and is the only place it is spent.
+ */
+export const VOICE_LIFETIME_CREDITS: Readonly<Record<Tier, number | null>> = {
+  free: 0,
+  basic: 200,
   premium: null,
 };
 

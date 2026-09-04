@@ -33,7 +33,7 @@ import { planUnlocksBackup } from '../features/backup/backupAccess';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
 import { planCanUseAI } from '../lib/aiEntitlement';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { formatPrice } from '../lib/pricing';
+import { resolvePlanPrice, type PlanStoreProducts } from '../lib/planPricing';
 import { fillTemplate } from '../lib/fillTemplate';
 import {
   formatSubscriptionDate,
@@ -107,6 +107,56 @@ const DEMO_SAMPLES: Record<string, DemoContent> = Object.fromEntries(
     sentence: PROMO_SAMPLE_TEXT.morning_light[lang] as string,
   }]),
 );
+
+/**
+ * Which line the promo alert shows.
+ *
+ * The failures with a cause someone can act on get their own message; only a
+ * genuine outage keeps the generic one. `not_configured`, and a
+ * `service_unavailable` carrying `api_not_configured`, are the same fault seen
+ * from either side of the wire — no Worker URL in the build, or no key in the
+ * Worker — and saying "try again later" for that is simply wrong: it never
+ * comes back on its own.
+ */
+/**
+ * Development-only failure detail, appended to the alert body.
+ *
+ * Exists because the four fields that identify a promo failure are invisible on
+ * a physical device: the alert says the same sentence whether the base URL is
+ * unset, the route is missing, or — as happened here — the deployed Worker and
+ * this build disagree about whether the route takes an install id. `__DEV__`
+ * means it is stripped from every release bundle, so no user ever sees a
+ * request id. It carries codes and identifiers only, never text or a key.
+ */
+function promoFailureDiagnostics(error: unknown): string {
+  if (!__DEV__) return '';
+  const detail = error instanceof AIRequestError
+    ? [
+      `kind: ${error.kind}`,
+      `serverCode: ${error.serverCode ?? '—'}`,
+      `status: ${error.httpStatus ?? '—'}`,
+      `requestId: ${error.requestId ?? '—'}`,
+    ]
+    : [`error: ${error instanceof Error ? error.message : 'unknown_error'}`];
+  return `\n\n[dev] ${detail.join('\n[dev] ')}`;
+}
+
+function promoFailureMessageKey(error: unknown, isAI: boolean): TranslationKey {
+  const fallback: TranslationKey = isAI ? 'promo_preview_unavailable' : 'err_generation_failed';
+  if (!(error instanceof AIRequestError)) return fallback;
+  switch (error.kind) {
+    case 'offline':        return 'err_offline';
+    case 'timeout':        return 'err_timeout';
+    case 'rate_limited':
+    case 'usage_limited':  return 'err_rate_limited';
+    case 'not_configured': return 'err_service_not_configured';
+    case 'service_unavailable':
+      return error.serverCode === 'api_not_configured'
+        ? 'err_service_not_configured'
+        : fallback;
+    default:               return fallback;
+  }
+}
 
 /** Which fixed promo clip each AI demo button plays. */
 const PROMO_SAMPLE_BY_DEMO: Readonly<Record<'word_ai' | 'sentence_ai', PromoSampleId>> = {
@@ -1013,12 +1063,19 @@ interface FixedPurchaseBarProps {
   onSubscribePremium: () => void;
   onManageSubscription?: () => void;
   onMeasure: (h: number) => void;
+  /** The two subscription products as the store returned them. */
+  planProducts: PlanStoreProducts;
 }
 
 const FixedPurchaseBar = React.memo(({
   pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, expirationDate, language,
   onSubscribeBasic, onSubscribePremium, onManageSubscription, onMeasure,
+  planProducts,
 }: FixedPurchaseBarProps) => {
+  // Straight from the store. No amount, symbol or conversion is computed here;
+  // an unresolved product shows the plan without a price rather than a guess.
+  const basicPrice   = resolvePlanPrice(planProducts, 'basic');
+  const premiumPrice = resolvePlanPrice(planProducts, 'premium');
   const basicLoading   = loadingPlan === 'basic';
   const premiumLoading = loadingPlan === 'premium';
   const anyLoading     = loadingPlan !== null;
@@ -1067,7 +1124,13 @@ const FixedPurchaseBar = React.memo(({
           onPress={basicOwned ? onManageSubscription : onSubscribeBasic}
           disabled={basicDisabled}
           activeOpacity={0.9}
-          accessibilityLabel={basicOwned ? t('theme_details_owned_badge') : t('subscribe_price')}
+          // VoiceOver hears the same price the button shows, or just the plan
+          // name when the store has not returned one.
+          accessibilityLabel={basicOwned
+            ? t('theme_details_owned_badge')
+            : basicPrice.state === 'priced'
+              ? `${t('subscribe')} · ${basicPrice.priceString}${t('per_month')}`
+              : t('subscribe')}
           accessibilityState={{ selected: basicOwned, disabled: basicDisabled }}
         >
           <LinearGradient
@@ -1089,7 +1152,11 @@ const FixedPurchaseBar = React.memo(({
                   <Text style={bar.btnName} numberOfLines={1}>{t('basic_plan_name')}</Text>
                 </View>
                 <Text style={[bar.btnSub, !basicOwned && bar.btnPrice]} numberOfLines={1} adjustsFontSizeToFit>
-                  {basicOwned ? t('theme_details_owned_badge') : `${formatPrice(320)}${t('per_month')}`}
+                  {basicOwned
+                    ? t('theme_details_owned_badge')
+                    : basicPrice.state === 'priced'
+                      ? `${basicPrice.priceString}${t('per_month')}`
+                      : ''}
                 </Text>
               </>
             )}
@@ -1134,7 +1201,11 @@ const FixedPurchaseBar = React.memo(({
                   numberOfLines={1}
                   adjustsFontSizeToFit
                 >
-                  {premiumOwned ? t('theme_details_owned_badge') : `${formatPrice(600)}${t('per_month')}`}
+                  {premiumOwned
+                    ? t('theme_details_owned_badge')
+                    : premiumPrice.state === 'priced'
+                      ? `${premiumPrice.priceString}${t('per_month')}`
+                      : ''}
                 </Text>
               </>
             )}
@@ -1173,6 +1244,8 @@ interface Props {
   pal: Palette;
   isSubscribed?: boolean;
   isPremium?: boolean;
+  /** The two subscription products as the store returned them. */
+  planProducts?: PlanStoreProducts;
   /**
    * ISO-8601 expiry of the active entitlement, from useSubscription. Drives the
    * deferred-start notice on a downgrade; absent for free and lifetime plans,
@@ -1198,6 +1271,7 @@ export function ProSheet({
   pal,
   isSubscribed = false,
   isPremium = false,
+  planProducts = {},
   expirationDate = null,
   learningLang,
   nativeLang = 'en-US',
@@ -1324,14 +1398,23 @@ export function ProSheet({
       }
     } catch (error) {
       if (demoSequence.current !== sequence) return;
-      // The preview simply did not load. Offline is the one failure the user can
-      // act on, so it keeps its own message; anything else says the preview is
-      // unavailable. Nothing here retries against a different route — a failed
-      // promo never becomes a user-content request.
-      const offline = error instanceof AIRequestError && error.kind === 'offline';
+      // Nothing here retries against a different route — a failed promo never
+      // becomes a user-content request.
+      //
+      // Branch on `kind`, like every other AI surface. Collapsing the whole
+      // failure space into one line made the two failures with a real cause —
+      // an unset base URL and a rate limit — indistinguishable from an outage,
+      // which is what made this path impossible to diagnose from the device.
+      if (__DEV__ && isAI) {
+        // Codes and the Worker's request id only, never the body. This is the
+        // identifier to search the Worker logs with.
+        console.warn('[promo preview] failed', error instanceof AIRequestError
+          ? { kind: error.kind, serverCode: error.serverCode, requestId: error.requestId }
+          : { message: error instanceof Error ? error.message : 'unknown_error' });
+      }
       Alert.alert(
         t('cmp_ai_voice_hq'),
-        t(offline ? 'err_offline' : isAI ? 'promo_preview_unavailable' : 'err_generation_failed'),
+        t(promoFailureMessageKey(error, isAI)) + promoFailureDiagnostics(error),
       );
     } finally {
       if (demoSequence.current === sequence) {
@@ -1466,6 +1549,7 @@ export function ProSheet({
           onSubscribePremium={handleSubscribePremium}
           onManageSubscription={onManageSubscription}
           onMeasure={setBarHeight}
+          planProducts={planProducts}
         />
 
       </Animated.View>

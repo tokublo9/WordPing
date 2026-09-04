@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
+import { resolvePlanPrice, type PlanStoreProducts } from '../lib/planPricing';
 import { appStyles as s } from '../styles';
 
 interface Props {
@@ -19,12 +20,21 @@ interface Props {
   onSubscribe: () => Promise<void>;
   pal: Palette;
   themeColor: string;
+  /** The two subscription products as the store returned them. */
+  planProducts?: PlanStoreProducts;
 }
 
 export function PaywallModal({
-  visible, onClose, onSubscribe, pal, themeColor,
+  visible, onClose, onSubscribe, pal, themeColor, planProducts = {},
 }: Props) {
   const t = useLang();
+  // The price is the store's, appended to the plain label. `subscribe_price`
+  // used to carry an amount per locale — which is how it came to say ¥450
+  // while the Upgrade sheet said ¥320 — so no key holds a number any more.
+  const basicPrice = resolvePlanPrice(planProducts, 'basic');
+  const subscribeLabel = basicPrice.state === 'priced'
+    ? `${t('subscribe')} · ${basicPrice.priceString}${t('per_month')}`
+    : t('subscribe');
   const [busy, setBusy] = useState(false);
 
   const run = async (fn: () => Promise<void>) => {
@@ -79,7 +89,7 @@ export function PaywallModal({
           >
             {busy
               ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.subscribeBtnText}>{t('subscribe_price')}</Text>
+              : <Text style={styles.subscribeBtnText}>{subscribeLabel}</Text>
             }
           </TouchableOpacity>
           {/* Restore Purchases now lives in Settings → App Info → Purchases, so

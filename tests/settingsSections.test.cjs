@@ -76,7 +76,7 @@ test('Restore Purchases stays visible to Free users and outside the backup gate'
 
 // ── How to Use removal ───────────────────────────────────────────────────────
 
-test('"How to use WordPing" is gone, along with its dead code', () => {
+test('"How to use WordCore" is gone, along with its dead code', () => {
   const settings = read('src/components/SettingsModal.tsx');
   assert.doesNotMatch(settings, /how_to_use|TutorialModal|tutorialVisible/u);
 
@@ -128,9 +128,9 @@ test('the empty state copy is shown when there are no announcements', () => {
 
   const i18n = read('src/i18n.ts');
   assert.match(i18n, /announcements_empty_title: 'No announcements yet'/u);
-  assert.match(i18n, /announcements_empty_desc:  'Updates and important information from WordPing will appear here\.'/u);
+  assert.match(i18n, /announcements_empty_desc:  'Updates and important information from WordCore will appear here\.'/u);
   assert.match(i18n, /announcements_empty_title: 'お知らせはまだありません'/u);
-  assert.match(i18n, /announcements_empty_desc:  'WordPingのアップデートや重要なお知らせがここに表示されます。'/u);
+  assert.match(i18n, /announcements_empty_desc:  'WordCoreのアップデートや重要なお知らせがここに表示されます。'/u);
 });
 
 test('the screen renders supplied announcements instead of the empty state', () => {
@@ -147,10 +147,10 @@ test('the screen renders supplied announcements instead of the empty state', () 
 test('backup and announcement copy is translated in English and Japanese', () => {
   const i18n = read('src/i18n.ts');
   assert.match(i18n, /backup:                'Backup & Restore',/u);
-  assert.match(i18n, /backup_desc:           'Export or restore your WordPing data\.',/u);
+  assert.match(i18n, /backup_desc:           'Export or restore your WordCore data\.',/u);
 
   assert.match(i18n, /backup:                'バックアップと復元',/u);
-  assert.match(i18n, /backup_desc:           'WordPingのデータをエクスポートまたは復元できます。',/u);
+  assert.match(i18n, /backup_desc:           'WordCoreのデータをエクスポートまたは復元できます。',/u);
   // The locked-state copy was removed with the locked UI: Free users see no
   // Backup section at all now, so there is nothing to describe.
   assert.doesNotMatch(i18n, /backup_locked_desc|backup_locked_badge/u);
@@ -336,30 +336,50 @@ test('Purchases copy is translated in English and Japanese', () => {
 
 // ── Themes are subscription-only ─────────────────────────────────────────────
 
-test('no individual-theme purchase code remains anywhere', () => {
-  const fs = require('node:fs');
-  assert.equal(fs.existsSync('src/features/themes/themeProducts.ts'), false);
-  assert.equal(fs.existsSync('src/lib/themePurchases.ts'), false);
+test('the theme offering is fetched by id, never as the current one', () => {
+  const hook = read('src/hooks/useThemePurchases.ts');
+  const products = read('src/features/themes/themeProducts.ts');
 
-  for (const path of [
-    'App.tsx',
-    'src/app/AppModals.tsx',
-    'src/components/KisekaeShopSheet.tsx',
-    'src/components/ThemeDetailsSheet.tsx',
-    'src/components/SettingsModal.tsx',
-    'src/features/themes/themeAccess.ts',
-    'src/hooks/useSubscription.ts',
-    'src/lib/releasePreflight.ts',
-    'scripts/releasePreflight.cjs',
-  ]) {
-    assert.doesNotMatch(
-      read(path),
-      /themeProducts|buyTheme|purchasingThemeId|ownedProductIds|purchaseStoreProduct|THEME_PRODUCTS_CONFIGURED|checkThemeProducts/u,
-      `${path} still references individual theme purchasing`,
-    );
-  }
-  // No proposed per-theme product identifier survives in any form.
+  assert.match(products, /export const THEME_OFFERING_ID = 'theme_store';/u);
+  assert.match(hook, /offerings\.all\[THEME_OFFERING_ID\]/u);
+  // `current` is whichever offering the dashboard marks default — the
+  // subscription one here — so relying on it would empty the shop. Matched
+  // against uses, not the comment that explains why.
+  assert.doesNotMatch(hook, /=\s*offerings\.current|offerings\.current[.?[]/u);
+
+  // Bought as a package from that offering, and ownership read back from the
+  // entitlement in the returned receipt rather than assumed from the call.
+  assert.match(hook, /Purchases\.purchasePackage\(pkg\)/u);
+  assert.match(hook, /customerInfo\.entitlements\.active\?\.\[refs\.entitlementId\] \? 'purchased' : 'unavailable'/u);
+  assert.match(hook, /Object\.keys\(info\.entitlements\.active \?\? \{\}\)/u);
+
+  // A second tap cannot open a second sheet: the guard is a ref, because
+  // state would still read stale within the same frame.
+  assert.match(hook, /if \(purchaseInFlight\.current\) return 'unavailable';/u);
+  assert.match(hook, /purchaseInFlight\.current = true;/u);
+
+  // Restore and cross-device purchases arrive through the same listener.
+  assert.match(hook, /Purchases\.addCustomerInfoUpdateListener\(listener\)/u);
+  assert.match(hook, /Purchases\.removeCustomerInfoUpdateListener\(listener\)/u);
+});
+
+test('every theme identifier is written out, never derived', () => {
+  const products = read('src/features/themes/themeProducts.ts');
+
+  // Product identifiers are the App Store's, not ours to compute. A rule that
+  // stripped prefixes would turn `skin_paw` into `skinpaw`, while the product
+  // it is actually sold as is `…theme.animals`.
+  // No string surgery and no interpolation anywhere in the module: every
+  // identifier is a literal that can be diffed against the dashboard by eye.
+  assert.doesNotMatch(products, /replace\(|\.split\(|\$\{/u, 'no id is assembled');
+  assert.equal((products.match(/productId: 'com\.wordping\.theme\.[a-z]+'/gu) ?? []).length, 23);
+  assert.equal((products.match(/packageId: 'theme_[a-z]+'/gu) ?? []).length, 23);
+  assert.equal((products.match(/entitlementId: 'theme_[a-z]+'/gu) ?? []).length, 23);
+
+  // The shop never carries an identifier of its own; the registry is the one
+  // place they live, so there is nothing to fall out of step with.
   assert.doesNotMatch(read('src/components/KisekaeShopSheet.tsx'), /wordping\.theme/u);
+  assert.doesNotMatch(read('src/components/ThemeDetailsSheet.tsx'), /wordping\.theme/u);
 });
 
 test('subscription purchasing and Restore Purchases are untouched', () => {
@@ -374,13 +394,21 @@ test('subscription purchasing and Restore Purchases are untouched', () => {
   assert.match(read('src/components/SettingsModal.tsx'), /t\('restore_purchases'\)/u);
 });
 
-test('theme access is decided only by price and subscription', () => {
+test('theme access is price, then outright purchase, then subscription', () => {
   const access = read('src/features/themes/themeAccess.ts');
   assert.match(access, /if \(price <= 0\) return \{ state: 'unlocked', reason: 'free' \};/u);
   assert.match(access, /if \(isSubscriptionLoaded && isSubscribed\) return \{ state: 'unlocked', reason: 'subscription' \};/u);
   assert.match(access, /return \{ state: 'locked' \};/u);
-  // The purchasable / unavailable states are gone with the Buy button.
-  assert.doesNotMatch(access, /purchasable|unavailable|reason: 'purchased'/u);
+  // Ownership is answered before the subscription and without waiting for it:
+  // a theme someone bought must not re-lock during an entitlement lookup.
+  assert.match(
+    access,
+    /if \(ownedIndividually\) return \{ state: 'unlocked', reason: 'purchased' \};\s*\n\s*if \(isSubscriptionLoaded && isSubscribed\)/u,
+  );
+  // Still no local ownership record — the flag comes from the receipt. Checked
+  // against imports and calls, since the module's own comment says the words.
+  assert.doesNotMatch(access, /^import\s/mu, 'the rule stays a pure module');
+  assert.doesNotMatch(access, /AsyncStorage\.|getItem\(|db\./u);
 });
 
 test('a free user tapping a paid theme opens Upgrade Plan and applies nothing', () => {
@@ -390,17 +418,38 @@ test('a free user tapping a paid theme opens Upgrade Plan and applies nothing', 
     shop,
     /if \(accessFor\(item\)\.state === 'unlocked'\) \{[\s\S]{0,220}onPickSkin\(exists \? item\.id : null\);[\s\S]{0,40}return;\s*\}\s*\/\/[\s\S]{0,320}onUpgrade\?\.\(\);/u,
   );
-  // No purchase alert path survives.
-  assert.doesNotMatch(shop, /Alert\.alert/u);
+  // Exactly one alert, and only for a purchase that genuinely failed. A
+  // cancelled purchase is silent: backing out is an ordinary choice.
+  // Two call sites, one message: a store failure and an unsellable theme are
+  // the same thing to the user, and neither is a cancelled purchase.
+  assert.equal((shop.match(/Alert\.alert\(t\('theme_buy_failed'\)\)/gu) ?? []).length, 2);
+  assert.doesNotMatch(shop, /Alert\.alert\((?!t\('theme_buy_failed'\))/u);
+  assert.match(shop, /if \(result === 'cancelled'\) return;/u);
+  assert.match(shop, /if \(result === 'unavailable'\) \{ Alert\.alert\(t\('theme_buy_failed'\)\); return; \}/u);
+  // A completed purchase applies the theme through the same call the shop
+  // already uses, so nothing bypasses the access check.
+  assert.match(shop, /onPickSkin\(exists \? item\.id : null\);\s*\n\s*setDetailsItem\(null\);/u);
 });
 
 test('an expired subscription falls back to a free theme without losing the preference', () => {
   const controller = read('src/features/themes/useThemeController.ts');
   // A paid skin resolves to null (default palette) the moment isSubscribed is
-  // false — it is never applied without an entitlement, and never crashes.
+  // false — unless it was bought outright, which is what makes that purchase
+  // permanent rather than merely a way to unlock it while subscribed.
   assert.match(
     controller,
-    /SKINS\.find\(s => s\.id === skinId && \(isSubscribed \|\| FREE_SKIN_IDS\.has\(s\.id\)\)\) \?\? null;/u,
+    /isSubscribed\s*\|\| FREE_SKIN_IDS\.has\(s\.id\)\s*\|\| \(ownedEntitlementIds !== undefined && isThemeOwnedIndividually\(s\.id, ownedEntitlementIds\)\)/u,
+  );
+  // And the downgrade effect must not undo a purchase either.
+  assert.match(
+    read('App.tsx'),
+    /&& !isThemeOwnedIndividually\(skinId, ownedThemeEntitlementIds\)/u,
+  );
+  // And it must not run before ownership is known: acting on the empty set at
+  // launch would reset a purchased theme to blue and persist that.
+  assert.match(
+    read('App.tsx'),
+    /if \(!themePurchases\.ownershipLoaded\) return;/u,
   );
   // skinId itself is untouched, so resubscribing restores the chosen theme.
   assert.doesNotMatch(controller, /setSkinId|onPickSkin/u);
@@ -503,10 +552,11 @@ test('the four hidden AI rows remain absent from the table', () => {
 
 test('the voice limit copy is translated in English and Japanese', () => {
   const i18n = read('src/i18n.ts');
-  assert.match(i18n, /err_voice_limit_title:     'Monthly voice limit reached',/u);
-  assert.match(i18n, /err_voice_limit_title:     '月間音声生成上限に達しました',/u);
-  assert.match(i18n, /You’ve used all \{limit\} High-Quality AI Voice generations for this month\. Premium has no monthly quota, but normal service limits apply\./u);
-  assert.match(i18n, /今月の高品質AI音声生成を\{limit\}回使用しました。Premiumには月間上限はありませんが、通常のサービス利用制限が適用されます。/u);
+  assert.match(i18n, /err_voice_limit_title:     '[^']+',/u);
+  // Not "for this month": Basic's allowance is a one-time grant, and calling
+  // it monthly would promise a reset that never comes.
+  assert.match(i18n, /You’ve used all \{limit\} High-Quality AI Voice generations available to you\./u);
+  assert.doesNotMatch(i18n, /generations for this month/u);
   assert.doesNotMatch(i18n, /Premium for unlimited access|Premiumにアップグレードすると無制限/u);
 
   // The old generic-API and Premium-limit messages are gone.
@@ -520,8 +570,10 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   const pipeline = read('cloudflare/wordping-api/src/pipeline.ts');
   const limits = read('cloudflare/wordping-api/src/planLimits.ts');
 
-  // Only the High-Quality AI Voice generation routes are metered.
-  assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\]/u);
+  // Nothing is metered by the month any more: Basic's grant is a lifetime
+  // balance with its own module, and Premium never had a monthly ceiling.
+  assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \[\]/u);
+  assert.match(limits, /VOICE_LIFETIME_CREDITS[\s\S]{0,200}basic: 200,/u);
   assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
   // An anonymous route has no App User ID to meter against, and is not a voice
   // quota feature in the first place.
@@ -549,19 +601,44 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   assert.match(pipeline, /runtime\.disabledFeatures\.has\(spec\.feature\)/u);
 });
 
-// ── Theme cards carry no price or purchase state ─────────────────────────────
+// ── Theme prices come from StoreKit, or are not shown ────────────────────────
 
-test('no theme card shows a price, an Owned badge or a Buy button', () => {
+test('a theme price is never assembled by the app', () => {
   const shop = read('src/components/KisekaeShopSheet.tsx');
-  assert.doesNotMatch(shop, /formatPrice|shop_owned|shop_included_in_plan|theme_details_buy/u);
-  // No placeholder and no reserved vertical space below the name.
-  assert.doesNotMatch(shop, /cardPrice/u);
-  assert.doesNotMatch(shop, /<Text style=\{styles\.cardPrice\}>\{' '\}<\/Text>/u);
-  // The card renders exactly the preview, the name and one badge.
-  assert.match(shop, /<Text style=\{\[styles\.cardName[\s\S]{0,120}<\/Text>\s*<\/TouchableOpacity>/u);
-
   const details = read('src/components/ThemeDetailsSheet.tsx');
-  assert.doesNotMatch(details, /formatPrice|theme_details_buy|theme_details_owned_badge|priceText/u);
+  const products = read('src/features/themes/themeProducts.ts');
+
+  // No formatter, no currency symbol, and no use of the shop's integer as a
+  // price: the only thing rendered is the string StoreKit returned.
+  for (const source of [shop, details]) {
+    assert.doesNotMatch(source, /formatPrice|toLocaleString/u);
+    assert.doesNotMatch(source, /[¥€]|\$\{?\d/u, 'no currency symbol is written by the app');
+    assert.match(source, /priceDisplay\.priceString/u);
+    assert.doesNotMatch(source, /item\.price\}|\{item\.price/u, 'the flag integer is not a price');
+  }
+
+  // Both surfaces draw nothing at all when the product has not resolved.
+  assert.match(shop, /priceDisplay\.state === 'priced' \? \(/u);
+  assert.match(shop, /\) : null\}/u);
+  assert.match(details, /priceDisplay\.state === 'priced' \? \(/u);
+  assert.match(products, /if \(!product \|\| product\.priceString\.trim\(\) === ''\) return \{ state: 'unavailable' \};/u);
+});
+
+test('Owned replaces the price, and Buy is offered only at a real price', () => {
+  const shop = read('src/components/KisekaeShopSheet.tsx');
+  const details = read('src/components/ThemeDetailsSheet.tsx');
+  const products = read('src/features/themes/themeProducts.ts');
+
+  for (const source of [shop, details]) {
+    assert.match(source, /priceDisplay\.state === 'owned'[\s\S]{0,220}t\('theme_owned'\)/u);
+  }
+  // Ownership is checked before price, so a bought theme is never re-priced.
+  assert.match(
+    products,
+    /if \(ownedEntitlementIds\.has\(refs\.entitlementId\)\) return \{ state: 'owned' \};\s*\n\s*const product = products\.get\(refs\.packageId\);/u,
+  );
+  // A purchase is never offered without a price to charge.
+  assert.match(details, /\{priceDisplay\.state === 'priced' && onBuy && \(/u);
 });
 
 test('a locked card shows a lock and an accessible label instead of a price', () => {
@@ -573,15 +650,17 @@ test('a locked card shows a lock and an accessible label instead of a price', ()
   assert.doesNotMatch(shop, /isSubscribed \? null/u);
 });
 
-test('the theme detail action is Apply or Upgrade, never Buy', () => {
+test('the primary detail action is still Apply or Upgrade; Buy is secondary', () => {
   const details = read('src/components/ThemeDetailsSheet.tsx');
+  // Unchanged: the subscription path is exactly what it was, and buying one
+  // theme is an additional button rather than a replacement for it.
   assert.match(
     details,
     /const actionLabel = isApplied[\s\S]{0,200}isUnlocked\s*\?\s*t\('theme_details_apply'\)\s*:\s*t\('theme_details_upgrade'\)/u,
   );
-  // Only "Free" is badged; there is no ownership state left to show.
+  assert.match(details, /\{t\('theme_details_included_basic'\)\}/u);
+  // Only "Free" is badged; ownership is shown under the name instead.
   assert.match(details, /isFreeItem\s*\?\s*\{ label: t\('theme_details_free_badge'\)/u);
-  assert.match(details, /:\s*null;/u);
 });
 
 // ── Priority Support ─────────────────────────────────────────────────────────
@@ -659,7 +738,7 @@ test('exactly the three visible Settings toggles use the compact control', () =>
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
 
   // The Notification sheet deliberately adopts this exact Settings control for
-  // its two mutually-exclusive scope rows. One component call renders both.
+  // both of its preference rows. One component call renders both.
   const notif = read('src/components/NotificationModal.tsx');
   assert.equal((notif.match(/<CompactSwitch/gu) ?? []).length, 1);
   assert.doesNotMatch(notif, /scaleX: 0\.8\b|scaleY: 0\.8\b/u);

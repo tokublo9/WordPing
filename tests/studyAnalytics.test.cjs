@@ -96,6 +96,21 @@ test('the analytics screen reads the log and writes nothing', () => {
   assert.match(analytics, /count > 0 \? themeColor \+ '66' : pal\.border/u);
   assert.match(analytics, /Math\.max\(BAR_MIN_HEIGHT,/u);
 
+  // Each bar carries its own count, and a day with none carries nothing.
+  assert.match(analytics, /\{count > 0 && \(\s*<Text/u);
+  assert.match(analytics, /style=\{\[styles\.barCount, \{ color: isToday \? themeColor : pal\.sub \}\]\}/u);
+  // In flow above its own bar, in a bottom-aligned column: the number rides on
+  // the bar's top edge instead of being placed at a shared height.
+  assert.match(analytics, /barSlot: \{ flex: 1, justifyContent: 'flex-end' \}/u);
+  assert.doesNotMatch(analytics, /position: 'absolute'/u);
+  // Never wider than its slot, so two numbers cannot run together.
+  assert.match(analytics, /barCount: \{\s*width: '100%',\s*marginBottom: BAR_LABEL_GAP,\s*textAlign: 'center',/u);
+  // The chart grew by exactly the label band and its gap, so no bar moved.
+  assert.match(
+    analytics,
+    /height: CHART_HEIGHT \+ BAR_LABEL_HEIGHT \+ BAR_LABEL_GAP \+ CHART_BOTTOM_PADDING,/u,
+  );
+
   const i18n = read('src/i18n.ts');
   assert.match(i18n, /study_streak:\s*'\{n\}-day streak',/u);
   assert.match(i18n, /study_streak:\s*'\{n\}日連続',/u);

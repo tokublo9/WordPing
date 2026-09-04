@@ -13,6 +13,19 @@ export interface NormalizedTTSRequest {
   contentVersion?: string;
 }
 
+/**
+ * The text half of a cache key, on its own.
+ *
+ * Exported because three separate decisions have to agree on it: which file a
+ * clip is cached as, whether an edit actually changed the spoken word, and
+ * whether another card still needs a clip before it can be deleted. If any of
+ * them normalized differently, an edit would either regenerate audio the cache
+ * already had or delete audio another card was still using.
+ */
+export function normalizedTTSText(text: string): string {
+  return text.trim().replace(/\s+/gu, ' ');
+}
+
 /** Keep local cache and server request identity aligned without retaining raw text in logs. */
 export function normalizeTTSRequest(
   text: string,
@@ -20,7 +33,7 @@ export function normalizeTTSRequest(
   contentVersion?: string,
 ): NormalizedTTSRequest {
   return {
-    text: text.trim().replace(/\s+/gu, ' '),
+    text: normalizedTTSText(text),
     voice,
     speed: AI_SPEECH_SPEED,
     model: AI_SPEECH_MODEL,
@@ -105,6 +118,11 @@ export class DeduplicatedRequestRegistry<T> {
       if (this.pending.get(key) === entry) this.pending.delete(key);
     }).catch(() => {});
     return { ...entry, deduplicated: false };
+  }
+
+  /** Is work for this key already in the air? Cache eviction must leave it alone. */
+  has(key: string): boolean {
+    return this.pending.has(key);
   }
 
   cancel(controller: AbortController): void {

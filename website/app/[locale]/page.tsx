@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       url: path,
       title: t('title'),
       description: t('description'),
-      siteName: 'WordPing',
+      siteName: 'WordCore',
       locale: locale === 'ja' ? 'ja_JP' : 'en_US',
       images: [{ url: '/icon.png', width: 1254, height: 1254, alt: t('imageAlt') }],
     },

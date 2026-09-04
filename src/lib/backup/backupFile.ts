@@ -57,7 +57,7 @@ export async function shareBackupFile(uri: string): Promise<boolean> {
   if (!(await Sharing.isAvailableAsync())) return false;
   await Sharing.shareAsync(uri, {
     mimeType: 'application/json',
-    dialogTitle: 'Save your WordPing backup',
+    dialogTitle: 'Save your WordCore backup',
     UTI: 'public.json',
   });
   return true;

@@ -277,11 +277,13 @@ interface Props {
   themeColor: string;
   /** The plan includes High-Quality AI Voice — Premium only. */
   canUseAIVoice: boolean;
+  /** Basic's one-time AI Voice grant is spent; App raises the dialog. */
+  onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
   explanationLang: string;
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, pal, themeColor, canUseAIVoice, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, pal, themeColor, canUseAIVoice, onVoiceCreditsExhausted, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
 
   // The same rule the grey chip counts with, so the number on that chip is the
@@ -341,6 +343,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   const { voiceState, playWord, playMeaning, stopVoice, wordVoiceSource } = useWordCardVoicePlayback({
     item: card,
     canUseAIVoice,
+    onVoiceCreditsExhausted,
   });
 
   // ── Auto-play word when a new card (or new session) becomes active ────────
@@ -594,7 +597,11 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
         /* ── Card area ─────────────────────────────────────────────────── */
         <View style={s.cardArea}>
 
-          {/* Toolbar: always visible above the card during the test */}
+          {/* Toolbar: always visible above the card during the test.
+              Analytics, Shuffle and Mute share the Info control's `pal.sub`
+              grey so the row reads as one set of secondary actions. Mute keeps
+              `themeColor` while it is on — that is its state, not its
+              resting colour, so muting still looks distinct. */}
           <View style={s.toolbar}>
             <TouchableOpacity
               style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
@@ -602,15 +609,15 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
               accessibilityRole="button"
               accessibilityLabel={t('study_analytics_title')}
             >
-              <Ionicons name="stats-chart-outline" size={15} color={pal.text} />
-              <Text style={[s.toolBtnText, { color: pal.text }]}>{t('study_analytics_title')}</Text>
+              <Ionicons name="stats-chart-outline" size={15} color={pal.sub} />
+              <Text style={[s.toolBtnText, { color: pal.sub }]}>{t('study_analytics_title')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.toolBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
               onPress={handleShuffle}
             >
-              <Ionicons name="shuffle" size={15} color={pal.text} />
-              <Text style={[s.toolBtnText, { color: pal.text }]}>{t('test_shuffle')}</Text>
+              <Ionicons name="shuffle" size={15} color={pal.sub} />
+              <Text style={[s.toolBtnText, { color: pal.sub }]}>{t('test_shuffle')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -628,7 +635,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
               <Ionicons
                 name="volume-mute-outline"
                 size={15}
-                color={muted ? themeColor : pal.text}
+                color={muted ? themeColor : pal.sub}
               />
             </TouchableOpacity>
             <TouchableOpacity

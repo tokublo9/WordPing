@@ -33,7 +33,19 @@ export interface UseCardsParams {
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
   onCardRegistered?(card: WordCard): void;
-  onCardsDeleted?(ids: string[]): void;
+  /**
+   * An existing word was saved. Carries what it used to say and the library as
+   * it now stands, which is what the AI-voice cache needs to decide whether the
+   * old clip is still reachable from any other card.
+   */
+  onCardEdited?(change: {
+    card: WordCard;
+    previousWord: string;
+    remaining: readonly WordCard[];
+  }): void;
+  onCardsImported?(cards: readonly WordCard[]): void;
+  /** The removed cards themselves, and what is left — not just the ids. */
+  onCardsDeleted?(removed: readonly WordCard[], remaining: readonly WordCard[]): void;
 }
 
 export interface UseCardsReturn {
@@ -135,6 +147,8 @@ export function useCards({
   language,
   setMenuVisible,
   onCardRegistered,
+  onCardEdited,
+  onCardsImported,
   onCardsDeleted,
 }: UseCardsParams): UseCardsReturn {
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
@@ -301,13 +315,17 @@ export function useCards({
   const deleteCards = (ids: readonly string[]) => {
     if (ids.length === 0) return;
     const doomed = new Set(ids);
+    // Split before the state update so the listener is told exactly which words
+    // went and which remain — a word still holding the same text keeps its audio.
+    const removed = cards.filter(c => doomed.has(c.id));
+    const remaining = cards.filter(c => !doomed.has(c.id));
     setCards(prev => prev.filter(c => !doomed.has(c.id)));
     setFlipped(prev => {
       const next = new Set(prev);
       doomed.forEach(id => next.delete(id));
       return next;
     });
-    onCardsDeleted?.([...ids]);
+    onCardsDeleted?.(removed, remaining);
   };
 
   const deleteSelected = () => {
@@ -457,30 +475,38 @@ export function useCards({
 
     // Words are unlimited on every plan — no count check gates registration.
     if (editingCard) {
-      setCards(prev => prev.map(c =>
-        c.id === editingCard.id
-          ? {
-              ...c,
-              word: word.trim(),
-              meaning: meaning.trim(),
-              note: note.trim(),
-              wordLang: wordFieldLang,
-              meaningLang: meaningFieldLang,
-              hideWord: wordHideWord,
-              audioUri: wordAudioUri,
-              audioSpeed: wordAudioSpeed,
-              audioVolume: wordAudioVolume,
-              reviewHistory,
-              ...(testClearPending ? {
-                testLevel: undefined,
-                testNextReview: undefined,
-                testMastered: undefined,
-                // Clearing the grade has to clear the hide it produced.
-                ...CLEAR_HIDE,
-              } : {}),
-            }
-          : c
-      ));
+      // Spread onto the card as the state holds it, never onto `editingCard`:
+      // the sheet's own notification action writes through while it is open, and
+      // rebuilding from the opening snapshot would undo it.
+      const edits = {
+        word: word.trim(),
+        meaning: meaning.trim(),
+        note: note.trim(),
+        wordLang: wordFieldLang,
+        meaningLang: meaningFieldLang,
+        hideWord: wordHideWord,
+        audioUri: wordAudioUri,
+        audioSpeed: wordAudioSpeed,
+        audioVolume: wordAudioVolume,
+        reviewHistory,
+        ...(testClearPending ? {
+          testLevel: undefined,
+          testNextReview: undefined,
+          testMastered: undefined,
+          // Clearing the grade has to clear the hide it produced.
+          ...CLEAR_HIDE,
+        } : {}),
+      };
+      const applyEdits = (c: WordCard): WordCard =>
+        c.id === editingCard.id ? { ...c, ...edits } : c;
+      setCards(prev => prev.map(applyEdits));
+      // After the save and never awaited, exactly like registration: whatever
+      // this triggers must not delay the write or hold the sheet open.
+      onCardEdited?.({
+        card: { ...editingCard, ...edits },
+        previousWord: editingCard.word,
+        remaining: cards.map(applyEdits),
+      });
     } else {
       const registeredCard: WordCard = {
         id: createId('card'),
@@ -520,8 +546,12 @@ export function useCards({
         createId: () => createId('card'),
       });
       // One state update feeds the existing snapshot persistence path.
-      // Bulk imports intentionally do not auto-preload AI audio.
       setCards(prev => [...prev, ...batch.cards]);
+      // Queued after the import is accepted, and only for the words it actually
+      // created — duplicates were skipped and already have whatever audio they
+      // had. The listener hands these to the same one-at-a-time preload queue a
+      // single registration uses, so an import cannot burst the API.
+      if (batch.cards.length > 0) onCardsImported?.(batch.cards);
       return {
         added: batch.cards.length,
         duplicatesSkipped: batch.duplicatesSkipped,

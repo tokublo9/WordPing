@@ -76,9 +76,9 @@ if (!Array.isArray(inventory.unresolved) || inventory.unresolved.length > 0) {
 
 const licensePageSource = readFileSync(path.join(websiteRoot, 'app/[locale]/licenses/page.tsx'), 'utf8');
 const requiredProductGroups = [
-  'WordPing iOS App',
+  'WordCore iOS App',
   'Cloudflare API Worker',
-  'WordPing Website',
+  'WordCore Website',
 ];
 const groupCounts = {};
 for (const group of requiredProductGroups) {
@@ -97,7 +97,7 @@ if (unexpectedGroups.length > 0) {
 if (!licensePageSource.includes('item.usedBy.includes(group.label)')) {
   throw new Error('Licence page is not grouping packages by their product references.');
 }
-if (!licensePageSource.includes('are not embedded in the WordPing iOS binary')) {
+if (!licensePageSource.includes('are not embedded in the WordCore iOS binary')) {
   throw new Error('Licence page must distinguish separately deployed dependencies from the iOS binary.');
 }
 

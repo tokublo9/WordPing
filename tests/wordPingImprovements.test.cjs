@@ -260,8 +260,12 @@ test('the network boundary requires both entitlement and consent', () => {
 
 test('eligibility is read from the existing plan configuration', () => {
   const rule = read('src/lib/aiEntitlement.ts');
-  assert.match(rule, /import \{ VOICE_MONTHLY_LIMITS, type PlanTier \} from '\.\/planLimits';/u);
-  assert.match(rule, /return VOICE_MONTHLY_LIMITS\[plan\] !== 0;/u);
+  assert.match(rule, /VOICE_LIFETIME_CREDITS,\s*VOICE_MONTHLY_LIMITS,\s*type PlanTier,\s*\} from '\.\/planLimits';/u);
+  // Both allowances, so a plan with either is eligible and neither is restated.
+  assert.match(
+    rule,
+    /return VOICE_MONTHLY_LIMITS\[plan\] !== 0 \|\| VOICE_LIFETIME_CREDITS\[plan\] !== 0;/u,
+  );
   // No second list of tier names anywhere in the rule.
   assert.doesNotMatch(rule, /'basic' \|\| |=== 'premium'|isSubscribed/u);
 });
@@ -295,8 +299,8 @@ test('consent is published and invalidated from one place', () => {
 test('18. on-device speech needs no entitlement and no consent', () => {
   const playback = read('src/hooks/useWordCardVoicePlayback.ts');
   // Only the AI Voice path asks; device speech and attached audio do not. The
-  // flag is the capability, so Basic — which has no AI Voice — is on the device
-  // engine with Free and is never prompted.
+  // flag is the capability, so Free is on the device engine and is never
+  // prompted — as is anyone who chose the free voice after their credits ran out.
   assert.match(
     playback,
     /const usesAI = canUseAIVoice && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
@@ -435,8 +439,9 @@ test('2 & 10. user-content requests are unchanged and still doubly gated', () =>
 test('15. a failed promo never falls back to a user-content route', () => {
   const sheet = read('src/components/ProSheet.tsx');
   const handler = sheet.slice(sheet.indexOf('const handlePlayDemo'), sheet.indexOf('const handleSubscribeBasic'));
-  // One request, one catch, a message — no retry against another endpoint.
-  assert.match(handler, /promo_preview_unavailable/u);
+  // One request, one catch, a message — no retry against another endpoint. The
+  // message is chosen by promoFailureMessageKey, which cannot reach a route.
+  assert.match(handler, /promoFailureMessageKey\(error, isAI\)/u);
   assert.doesNotMatch(handler, /speakWordCard|previewAIVoice|requestAIText|generateMeaning/u);
   assert.equal((handler.match(/speakPromoSample/gu) ?? []).length, 1);
 });

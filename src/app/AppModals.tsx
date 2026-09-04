@@ -3,6 +3,8 @@ import type { Appearance, Folder, OnboardingChoices, Palette, ReviewEntry, WordC
 import { WordModal } from '../components/WordModal';
 import { NotificationModal } from '../components/NotificationModal';
 import { SettingsModal } from '../components/SettingsModal';
+import type { ThemePurchasesState } from '../hooks/useThemePurchases';
+import type { PlanStoreProducts } from '../lib/planPricing';
 import { PaywallModal } from '../components/PaywallModal';
 import { ProSheet } from '../components/ProSheet';
 import { FolderCustomizeModal } from '../components/FolderCustomizeModal';
@@ -129,6 +131,10 @@ export interface AppModalsProps {
     /** Per-feature "!" markers for a newly unlocked plan. */
     discovery: FeatureDiscovery;
     onDataReplaced(): void;
+    /** Theme prices, ownership and the buy action. Resolved once, by App. */
+    themePurchases: ThemePurchasesState;
+    /** The two subscription products as the store returned them. */
+    planProducts: PlanStoreProducts;
   };
 
   // PaywallModal
@@ -302,6 +308,8 @@ export function AppModals({
         canUseAI={settingsModal.canUseAI}
         discovery={settingsModal.discovery}
         onDataReplaced={settingsModal.onDataReplaced}
+        themePurchases={settingsModal.themePurchases}
+        planProducts={settingsModal.planProducts}
       />
 
       <PaywallModal
@@ -310,6 +318,7 @@ export function AppModals({
         onSubscribe={subscribe}
         pal={pal}
         themeColor={rawThemeColor}
+        planProducts={settingsModal.planProducts}
       />
 
       <ProSheet
@@ -328,6 +337,7 @@ export function AppModals({
         nativeLang={proSheet.nativeLang}
         skinId={proSheet.skinId}
         onPickSkin={proSheet.onPickSkin}
+        planProducts={settingsModal.planProducts}
       />
 
       <FolderCustomizeModal

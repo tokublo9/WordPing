@@ -121,6 +121,19 @@ const LEGACY_SKINS: ThemeSkin[] = [
 // Skins free users may activate (no subscription required).
 export const FREE_SKIN_IDS = new Set(['solid_blue', 'solid_gray']);
 
+/**
+ * The individual-theme price colour, on the shop card and the detail screen.
+ *
+ * A fixed red rather than a palette entry: it marked the one-off price before
+ * and has to read the same against every skin's background. It colours the
+ * price text only — never a theme name, and never a subscription price.
+ *
+ * Lives here rather than in either screen because KisekaeShopSheet imports
+ * ThemeDetailsSheet; exporting it from one and importing into the other would
+ * close an import cycle.
+ */
+export const THEME_PRICE_COLOR = '#EF4444';
+
 export const SOLID_SKINS: ThemeSkin[] = [
   {
     id: 'solid_blue', name: 'Blue', emoji: '💙',
@@ -460,6 +473,15 @@ export const MAX_AI_INPUT_CHARS = 500;
 
 export const SHOW_FULL_CARD_KEY  = 'card_show_full';
 export const VERTICAL_FLIP_KEY   = 'card_vertical_flip';
+/**
+ * The user chose the free device voice over Natural AI Voice.
+ *
+ * Set only by "Use Free Voice" in the exhausted-credits dialog, and cleared
+ * only by picking a voice again in Settings. It is what stops that dialog
+ * reappearing on every card: with this on, no AI generation is attempted, so
+ * there is nothing to be refused. It never grants or removes an entitlement.
+ */
+export const PREFER_DEVICE_VOICE_KEY = 'prefer_device_voice';
 export const HIDE_AI_TOOLS_KEY   = 'wordping_hide_ai_tools';
 export const SYNC_TEST_RESULTS_KEY = 'wordping_sync_test_results';
 // Answers per local day. Written on every graded card, so it must stay small.

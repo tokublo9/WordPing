@@ -2,7 +2,6 @@ import {
   Animated,
   Modal,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -92,7 +91,6 @@ export function NotificationModal({
   }, []);
 
   return (
-    <>
     <Modal visible={visible} animationType="none" transparent onRequestClose={handleClose}>
       {/* Backdrop — fades in place, does not slide */}
       <Animated.View
@@ -177,55 +175,27 @@ export function NotificationModal({
               })}
             </View>
 
-            {/* Content preference — deliberately separate from schedule choices. */}
+            {/* Content and scope preferences — deliberately separate from the
+                schedule choices above. */}
             <View style={styles.contentSeparator}>
               <View style={[styles.separatorLine, { backgroundColor: pal.border }]} />
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.contentCard,
-                {
-                  backgroundColor: displayOnlyWord ? themeColor + '10' : pal.card,
-                  borderColor: displayOnlyWord ? themeColor + '80' : pal.border,
-                },
-              ]}
-              onPress={() => onToggleDisplayOnlyWord(!displayOnlyWord)}
-              activeOpacity={0.78}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: displayOnlyWord }}
-            >
-              <View style={styles.contentTextWrap}>
-                <Text style={[styles.contentTitle, { color: displayOnlyWord ? themeColor : pal.text }]}>
-                  {t('display_only_word')}
-                </Text>
-                <Text style={[styles.contentDescription, { color: pal.sub }]}>
-                  {t('display_only_word_desc')}
-                </Text>
-              </View>
-              <Switch
+            {/* Two independent stored booleans, each with one control and one
+                explanation behind its Info button. "Notify All Words" off is
+                the default: the folder draws from its candidate list. */}
+            <View>
+              <NotificationToggleRow
+                label={t('display_only_word')}
+                info={t('display_only_word_desc')}
                 value={displayOnlyWord}
                 onValueChange={onToggleDisplayOnlyWord}
-                trackColor={{ false: offTrackColor, true: themeColor }}
-                thumbColor="#fff"
-                ios_backgroundColor={offTrackColor}
-                accessible={false}
-                pointerEvents="none"
-                style={styles.contentSwitch}
-              />
-            </TouchableOpacity>
-
-            {/* One stored boolean with one control. Off is the default
-                selected-words behavior; On expands the pool to the folder. */}
-            <View style={styles.scopeRows}>
-              <NotificationScopeRow
-                label={t('notif_selected_words')}
-                info={t('notif_selected_words_desc')}
                 onShowInfo={showInfoPopup}
                 pal={pal}
+                themeColor={themeColor}
+                offTrackColor={offTrackColor}
               />
-              <View style={[styles.scopeDivider, { backgroundColor: pal.border }]} />
-              <NotificationScopeRow
+              <NotificationToggleRow
                 label={t('notif_all_words')}
                 info={t('notif_all_words_desc')}
                 value={notifyAllWords}
@@ -252,30 +222,37 @@ export function NotificationModal({
 
         </TouchableOpacity>
       </Animated.View>
+
+      {/* Rendered inside this Modal, and last, so it stacks above the sheet on
+          iOS. As a sibling of the Modal it would never present at all. */}
+      <SettingsInfoPopup
+        visible={infoPopupVisible}
+        content={infoContent}
+        onClose={closeInfoPopup}
+        onDismiss={dismissInfoPopup}
+        pal={pal}
+        themeColor={themeColor}
+      />
     </Modal>
-    <SettingsInfoPopup
-      visible={infoPopupVisible}
-      content={infoContent}
-      onClose={closeInfoPopup}
-      onDismiss={dismissInfoPopup}
-      pal={pal}
-      themeColor={themeColor}
-    />
-    </>
   );
 }
 
-function NotificationScopeRow({
+/**
+ * One notification preference: its title, an Info button carrying the whole
+ * explanation, and its switch on the right. The same row design the Settings
+ * screen uses, so no preference here is described by text under the row.
+ */
+function NotificationToggleRow({
   label, info, value, onValueChange, onShowInfo, pal, themeColor, offTrackColor,
 }: {
   label: string;
   info: string;
-  value?: boolean;
-  onValueChange?(value: boolean): void;
+  value: boolean;
+  onValueChange(value: boolean): void;
   onShowInfo(content: SettingsInfoContent): void;
   pal: Palette;
-  themeColor?: string;
-  offTrackColor?: string;
+  themeColor: string;
+  offTrackColor: string;
 }) {
   const t = useLang();
   const handleInfoPress = (event: GestureResponderEvent) => {
@@ -283,41 +260,10 @@ function NotificationScopeRow({
     onShowInfo({ title: label, body: info });
   };
 
-  // This row describes the default Off state. Its Info button is intentionally
-  // its only interaction; it cannot change the stored notification scope.
-  if (
-    value === undefined
-    || onValueChange === undefined
-    || themeColor === undefined
-    || offTrackColor === undefined
-  ) {
-    return (
-      <View style={styles.scopeRow}>
-        <View style={styles.scopeTitleAndInfo}>
-          <Text style={[styles.scopeLabel, { color: pal.text }]}>{label}</Text>
-          <TouchableOpacity
-            style={styles.infoButton}
-            onPress={handleInfoPress}
-            activeOpacity={0.6}
-            accessibilityRole="button"
-            accessibilityLabel={[label, t('info_button_label')].join(': ')}
-          >
-            <Ionicons
-              name="information-circle-outline"
-              size={20}
-              color={pal.sub}
-              style={styles.subtleInfoIcon}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   const handleToggle = () => onValueChange(!value);
   return (
     <TouchableOpacity
-      style={styles.scopeRow}
+      style={styles.toggleRow}
       onPress={handleToggle}
       activeOpacity={0.7}
       accessibilityRole="switch"
@@ -325,8 +271,8 @@ function NotificationScopeRow({
       accessibilityLabel={label}
       accessibilityHint={info}
     >
-      <View style={styles.scopeTitleAndInfo}>
-        <Text style={[styles.scopeLabel, { color: pal.text }]}>{label}</Text>
+      <View style={styles.titleAndInfo}>
+        <Text style={[styles.toggleLabel, { color: pal.text }]}>{label}</Text>
         <TouchableOpacity
           style={styles.infoButton}
           onPress={handleInfoPress}
@@ -399,40 +345,28 @@ const styles = StyleSheet.create({
   },
   intervalText: { width: '100%', fontSize: 14.5, fontWeight: '500' },
   intervalTextSelected: { fontWeight: '700' },
+  // The gap under the line is owned here alone — the row group adds none of its
+  // own, so this one number is the whole distance to the first row.
   contentSeparator: {
     height: 1,
     marginTop: 20,
-    marginBottom: 18,
+    marginBottom: 8,
   },
   separatorLine: { height: StyleSheet.hairlineWidth },
-  contentCard: {
-    minHeight: 86,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  contentTextWrap: { flex: 1, paddingRight: 12 },
-  contentTitle: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
-  contentDescription: { fontSize: 12, lineHeight: 17, marginTop: 5 },
-  contentSwitch: { transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] },
-  scopeRows: { marginTop: 10 },
-  scopeRow: {
+  toggleRow: {
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 4,
     gap: 8,
   },
-  scopeTitleAndInfo: {
+  titleAndInfo: {
     flex: 1,
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  scopeLabel: { fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' },
+  toggleLabel: { fontSize: 15, lineHeight: 20, flexShrink: 1, flexWrap: 'wrap' },
   infoButton: {
     width: INFO_BUTTON_TARGET,
     height: INFO_BUTTON_TARGET,
@@ -440,7 +374,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   subtleInfoIcon: { opacity: INFO_ICON_OPACITY },
-  scopeDivider: { height: StyleSheet.hairlineWidth },
   warning: {
     flexDirection: 'row',
     alignItems: 'flex-start',

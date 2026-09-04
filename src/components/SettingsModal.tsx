@@ -18,13 +18,15 @@ import {
 } from '../features/flags';
 import { canUseBackup } from '../features/backup/backupAccess';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
+import type { ThemePurchasesState } from '../hooks/useThemePurchases';
+import type { PlanStoreProducts } from '../lib/planPricing';
 import { LanguageModal } from './LanguageModal';
 import { ProSheet } from './ProSheet';
 import { AnnouncementsSheet } from './AnnouncementsSheet';
 import { CompactSwitch } from './CompactSwitch';
 import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
 import {
-  AI_VOICE_GROUPS,
+  AI_VOICES,
   getAIVoiceDescription,
   getAIVoiceLabel,
   type AIVoice,
@@ -110,6 +112,10 @@ interface Props {
   discovery: FeatureDiscovery;
   /** Re-read cards and folders after a backup import replaced them. */
   onDataReplaced: () => void;
+  /** Theme prices, ownership and the buy action. Resolved once, by App. */
+  themePurchases: ThemePurchasesState;
+  /** The two subscription products as the store returned them. */
+  planProducts: PlanStoreProducts;
 }
 
 export function SettingsModal({
@@ -126,6 +132,8 @@ export function SettingsModal({
   canUseAI,
   discovery,
   onDataReplaced,
+  themePurchases,
+  planProducts,
 }: Props) {
   void _onUpgrade; // kept in Props API for caller convenience; shop uses proSheetVisible directly
   const insets = useSafeAreaInsets();
@@ -327,6 +335,29 @@ export function SettingsModal({
               <CardBehaviorIcon name="mic-outline" color={pal.sub} />
               <View style={styles.titleAndInfo}>
                 <Text style={[styles.toggleLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
+                {/* Belongs to the label, not to the row's right edge: its own
+                    44x44 target, and a separate touchable, so a tap on it can
+                    never open the picker underneath it. */}
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={event => {
+                    event.stopPropagation();
+                    showInfoPopup({
+                      title: t('voice_pick_info_title'),
+                      body: t('voice_pick_info_body'),
+                    });
+                  }}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('feature_ai_voice')}: ${t('info_button_label')}`}
+                >
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color={pal.sub}
+                    style={styles.subtleInfoIcon}
+                  />
+                </TouchableOpacity>
                 <NewFeatureBadge
                   visible={discovery.isNew(FEATURE_MARKERS.naturalAIVoice)}
                   themeColor={themeColor}
@@ -442,6 +473,7 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           onUpgrade={() => setProSheetVisible(true)}
+          themePurchases={themePurchases}
         />
 
         <SettingsInfoPopup
@@ -468,6 +500,7 @@ export function SettingsModal({
           isPremium={isPremium}
           skinId={skinId}
           onPickSkin={onPickSkin}
+          planProducts={planProducts}
         />
 
         <AnnouncementsSheet
@@ -509,7 +542,6 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           language={language}
-          onShowInfo={showInfoPopup}
         />
 
         {/* Appearance-disabled hint toast — slides in below the header */}
@@ -546,7 +578,7 @@ export function SettingsModal({
 
 // ── AI voice selection screen ────────────────────────────────────────────────
 function VoiceSelectionScreen({
-  visible, onClose, selectedVoice, onSelect, pal, themeColor, language, onShowInfo,
+  visible, onClose, selectedVoice, onSelect, pal, themeColor, language,
 }: {
   visible: boolean;
   onClose(): void;
@@ -556,12 +588,6 @@ function VoiceSelectionScreen({
   themeColor: string;
   /** BCP-47 tag, for the usage-limit banner's date and time formatting. */
   language: string;
-  /**
-   * Settings' own info popup. Shared rather than duplicated so only one
-   * explanation can be open at a time, and the app keeps a single pattern for
-   * short informational dialogs.
-   */
-  onShowInfo(content: SettingsInfoContent): void;
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
@@ -575,9 +601,10 @@ function VoiceSelectionScreen({
    *
    * Saving on every row tap looked free but was not: the TTS cache is keyed by
    * voice, so App's preload effect re-generates the whole word library each time
-   * `aiVoice` changes. Comparing five voices meant five full sweeps, four of
-   * them for voices the user did not keep. Holding the choice locally means the
-   * sweep runs once, for the voice actually chosen.
+   * `aiVoice` changes. Every comparison the user made cost a full sweep for a
+   * voice they did not keep. Holding the choice locally means the sweep runs
+   * once, for the voice actually chosen — and not at all if they land back on
+   * the one they arrived with.
    */
   const [draftVoice, setDraftVoice] = useState<AIVoice>(selectedVoice);
 
@@ -654,96 +681,124 @@ function VoiceSelectionScreen({
     stopPlayback();
   }, []);
 
-  if (!visible) return null;
-
   return (
-    <View style={[StyleSheet.absoluteFillObject, styles.voiceScreen, { backgroundColor: pal.bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={[styles.header, { borderBottomColor: pal.border }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={close} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="chevron-back" size={24} color={pal.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
-        {/* Takes the slot the centring spacer already occupied, so the title
-            stays centred and the header keeps its existing geometry. */}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      // The backdrop, the Done button and Android back all land on close(), so
+      // no way out of the popup can skip publishing the draft.
+      onRequestClose={close}
+      statusBarTranslucent
+    >
+      <View style={styles.voiceBackdrop}>
         <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => onShowInfo({ title: t('voice_pick_info_title'), body: t('voice_pick_info_body') })}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.6}
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={close}
           accessibilityRole="button"
-          accessibilityLabel={`${t('feature_ai_voice')}: ${t('info_button_label')}`}
+          accessibilityLabel={t('close')}
+        />
+        <View
+          style={[
+            styles.voiceDialog,
+            {
+              backgroundColor: pal.dialog,
+              borderColor: pal.border,
+              // Centred, but it can still grow with Dynamic Type, so it keeps
+              // clear of a notch and a home bar.
+              marginTop: insets.top + 24,
+              marginBottom: insets.bottom + 24,
+            },
+          ]}
+          accessibilityViewIsModal
         >
-          <Ionicons name="information-circle-outline" size={20} color={pal.sub} />
-        </TouchableOpacity>
-      </View>
+          <Text
+            style={[styles.voiceDialogTitle, { color: pal.text }]}
+            accessibilityRole="header"
+          >
+            {t('feature_ai_voice')}
+          </Text>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.voiceList}>
-        {AI_VOICE_GROUPS.map(group => (
-          <View key={group.title} style={styles.voiceCategory}>
-            <Text style={[styles.voiceCategoryTitle, { color: pal.sub }]}>{group.title}</Text>
-            <View style={styles.voiceCategoryRows}>
-              {group.voices.map(voice => {
-                // The highlight follows the draft, so the screen reflects what
-                // the user is considering rather than what is saved.
-                const selected = voice === draftVoice;
-                const previewing = voice === previewingVoice;
-                const loading = voice === loadingVoice;
-                const label = getAIVoiceLabel(voice);
-                const description = getAIVoiceDescription(voice);
-                return (
+          {/* Two voices, listed flat. The old category headings described a set
+              of eight; over two they only named each row twice. */}
+          <ScrollView
+            style={styles.voiceDialogScroll}
+            contentContainerStyle={styles.voiceCategoryRows}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            {AI_VOICES.map(voice => {
+              // The highlight follows the draft, so the popup reflects what
+              // the user is considering rather than what is saved.
+              const selected = voice === draftVoice;
+              const previewing = voice === previewingVoice;
+              const loading = voice === loadingVoice;
+              const label = getAIVoiceLabel(voice);
+              const description = getAIVoiceDescription(voice);
+              return (
+                <TouchableOpacity
+                  key={voice}
+                  style={[
+                    styles.voiceRow,
+                    {
+                      backgroundColor: selected ? themeColor + '0D' : pal.card,
+                      borderColor: selected ? themeColor : pal.border,
+                    },
+                  ]}
+                  // Selection only — never onSelect, and never a generation.
+                  // The choice is published once, by close().
+                  onPress={() => {
+                    previewSequence.current++;
+                    stopPlayback();
+                    setPreviewingVoice(null);
+                    setLoadingVoice(null);
+                    setActivePreviewVoice(null);
+                    setDraftVoice(voice);
+                  }}
+                  activeOpacity={0.75}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${label}. ${description}`}
+                >
+                  <View style={styles.voiceText}>
+                    <Text style={[styles.voiceName, { color: selected ? themeColor : pal.text }]}>{label}</Text>
+                    <Text style={[styles.voiceDescription, { color: pal.sub }]}>{description}</Text>
+                  </View>
                   <TouchableOpacity
-                    key={voice}
-                    style={[
-                      styles.voiceRow,
-                      {
-                        backgroundColor: selected ? themeColor + '0D' : pal.card,
-                        borderColor: selected ? themeColor : pal.border,
-                      },
-                    ]}
-                    // Selection only — never onSelect, and never a generation.
-                    // The choice is published once, by close().
-                    onPress={() => {
-                      previewSequence.current++;
-                      stopPlayback();
-                      setPreviewingVoice(null);
-                      setLoadingVoice(null);
-                      setActivePreviewVoice(null);
-                      setDraftVoice(voice);
-                    }}
-                    activeOpacity={0.75}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`${group.title}. ${label}. ${description}`}
+                    style={[styles.previewButton, { backgroundColor: previewing ? themeColor : pal.chip }]}
+                    onPress={() => preview(voice)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessibilityLabel={loading ? 'Loading audio' : `Preview ${label}`}
+                    accessibilityState={{ busy: loading }}
                   >
-                    <View style={styles.voiceText}>
-                      <Text style={[styles.voiceName, { color: selected ? themeColor : pal.text }]}>{label}</Text>
-                      <Text style={[styles.voiceDescription, { color: pal.sub }]}>{description}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.previewButton, { backgroundColor: previewing ? themeColor : pal.chip }]}
-                      onPress={() => preview(voice)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      accessibilityLabel={loading ? 'Loading audio' : `Preview ${label}`}
-                      accessibilityState={{ busy: loading }}
-                    >
-                      {loading ? (
-                        <ActivityIndicator size="small" color={pal.sub} />
-                      ) : (
-                        <Ionicons
-                          name={previewing ? 'stop' : 'play'}
-                          size={14}
-                          color={previewing ? '#fff' : pal.sub}
-                        />
-                      )}
-                    </TouchableOpacity>
+                    {loading ? (
+                      <ActivityIndicator size="small" color={pal.sub} />
+                    ) : (
+                      <Ionicons
+                        name={previewing ? 'stop' : 'play'}
+                        size={14}
+                        color={previewing ? '#fff' : pal.sub}
+                      />
+                    )}
                   </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <TouchableOpacity
+            style={[styles.voiceDoneButton, { backgroundColor: themeColor }]}
+            onPress={close}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('close')}
+          >
+            <Text style={styles.voiceDoneLabel}>{t('close')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1002,10 +1057,35 @@ const styles = StyleSheet.create({
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 14 },
 
-  voiceScreen: { zIndex: 150 },
-  voiceList: { paddingHorizontal: 20, paddingVertical: 20, paddingBottom: 48, gap: 22 },
-  voiceCategory: { gap: 9 },
-  voiceCategoryTitle: { paddingHorizontal: 2, fontSize: 14, fontWeight: '700' },
+  voiceBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  voiceDialog: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  voiceDialogTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
+  // Scrolls rather than clips if the largest Dynamic Type sizes make two rows
+  // taller than the dialog.
+  voiceDialogScroll: { flexGrow: 0 },
+  voiceDoneButton: {
+    marginTop: 18,
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  voiceDoneLabel: { color: '#fff', fontSize: 15, fontWeight: '700' },
   voiceCategoryRows: { gap: 10 },
   voiceRow: {
     minHeight: 72,

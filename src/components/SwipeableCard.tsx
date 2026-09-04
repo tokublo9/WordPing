@@ -42,6 +42,8 @@ interface Props {
   voiceLocked: boolean;
   /** The plan includes High-Quality AI Voice — Premium only. */
   canUseAIVoice: boolean;
+  /** Basic's one-time AI Voice grant is spent; App raises the dialog. */
+  onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
   onFlip: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -73,6 +75,7 @@ interface Props {
 
 export function SwipeableCard({
   item, isFlipped, themeColor, pal, voiceLocked, canUseAIVoice,
+  onVoiceCreditsExhausted,
   onFlip, onEdit, onDelete, onToggleHideWord, onVoiceLocked, onOpen, openCardRef,
   selectionMode = false, selected = false, onToggleSelect,
   onHorizontalSwipeLockChange,
@@ -270,6 +273,7 @@ export function SwipeableCard({
     useWordCardVoicePlayback({
       item,
       canUseAIVoice,
+      onVoiceCreditsExhausted,
     });
 
   // ── Render ───────────────────────────────────────────────────────────────────

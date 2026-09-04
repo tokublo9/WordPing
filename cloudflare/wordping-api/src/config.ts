@@ -77,13 +77,18 @@ export type Tier = 'free' | 'basic' | 'premium';
 export const ANONYMOUS_FEATURES: ReadonlySet<Feature> = new Set<Feature>(['voice_promo']);
 
 export const FEATURE_TIER: Readonly<Record<Feature, Tier>> = {
-  // High-Quality AI Voice is Premium, and so is its voice-picker preview: a
-  // picker for a voice the tier cannot use would only advertise a locked
-  // feature and spend a generation doing it. Basic's voice feature is Custom
-  // Voice for Words — the user's own audio file, which never reaches this
-  // Worker and therefore has no entry here.
-  voice_card: 'premium',
-  voice_sample: 'premium',
+  // High-Quality AI Voice is reachable on Basic and Premium, but on very
+  // different terms, and this table only says who may knock. Premium is
+  // unmetered. Basic spends a one-time grant of credits that never refills, and
+  // an exhausted balance is refused in `approve` — see lifetimeCredits.ts. Free
+  // cannot reach the route at all.
+  //
+  // The picker preview follows the card, because a plan that can use the voices
+  // has to be able to hear them. It costs nothing extra: the sample sentence is
+  // server-authored and the audio is cached in KV, so it is generated once for
+  // everyone rather than once per subscriber, and it spends no credit.
+  voice_card: 'basic',
+  voice_sample: 'basic',
   voice_promo: 'free',
   voice_custom: 'premium',
   meaning: 'premium',
@@ -118,14 +123,19 @@ const NO_ACCESS: FeatureLimits = {
  * Voice generation is the expensive path and keeps the tightest limits.
  */
 export const DEFAULT_LIMITS: LimitTable = {
+  // Basic carries the same short-term abuse limits as Premium, deliberately.
+  // What bounds Basic's cost is its one-time credit balance, not these. A tier
+  // that may reach a route must have real limits here: NO_ACCESS means
+  // `maxCharsPerRequest: 0`, which rejects every request as `input_too_long`
+  // long before the credit ledger is consulted.
   voice_card: {
     free: NO_ACCESS,
-    basic: NO_ACCESS,
+    basic: { maxCharsPerRequest: 500, maxRequestsPerMinute: 20, maxRequestsPerDay: 300, maxCharsPerDay: 50_000 },
     premium: { maxCharsPerRequest: 500, maxRequestsPerMinute: 20, maxRequestsPerDay: 300, maxCharsPerDay: 50_000 },
   },
   voice_sample: {
     free: NO_ACCESS,
-    basic: NO_ACCESS,
+    basic: { maxCharsPerRequest: 120, maxRequestsPerMinute: 8, maxRequestsPerDay: 40, maxCharsPerDay: 4_000 },
     premium: { maxCharsPerRequest: 120, maxRequestsPerMinute: 8, maxRequestsPerDay: 40, maxCharsPerDay: 4_000 },
   },
   // Free by design; the tight per-minute and per-day caps are what stop the
@@ -166,18 +176,18 @@ export const ENTITLEMENT_CACHE_TTL_SECONDS = 300;
 export const ENTITLEMENT_NEGATIVE_CACHE_TTL_SECONDS = 30;
 
 /** Shared, non-personal voice previews. Cached server-side across all users. */
-export const VOICE_SAMPLE_VERSION = 'natural-ai-voice-v1';
+export const VOICE_SAMPLE_VERSION = 'natural-ai-voice-v2';
 export const VOICE_SAMPLE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export const VOICE_SAMPLE_TEXT: Readonly<Partial<Record<Voice, string>>> = {
-  cedar: 'Welcome to WordPing. This is the Cedar voice.',
-  fable: 'Welcome to WordPing. This is the Fable voice.',
-  alloy: 'Welcome to WordPing. This is the Alloy voice.',
-  ash: 'Welcome to WordPing. This is the Ash voice.',
-  coral: 'Welcome to WordPing. This is the Coral voice.',
-  nova: 'Welcome to WordPing. This is the Nova voice.',
-  marin: 'Welcome to WordPing. This is the Marin voice.',
-  shimmer: 'Welcome to WordPing. This is the Shimmer voice.',
+  cedar: 'Welcome to WordCore. This is the Cedar voice.',
+  fable: 'Welcome to WordCore. This is the Fable voice.',
+  alloy: 'Welcome to WordCore. This is the Alloy voice.',
+  ash: 'Welcome to WordCore. This is the Ash voice.',
+  coral: 'Welcome to WordCore. This is the Coral voice.',
+  nova: 'Welcome to WordCore. This is the Nova voice.',
+  marin: 'Welcome to WordCore. This is the Marin voice.',
+  shimmer: 'Welcome to WordCore. This is the Shimmer voice.',
 };
 
 /** Longest langCode we will even look at, so the map lookup cannot be abused. */

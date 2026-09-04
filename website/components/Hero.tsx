@@ -24,7 +24,7 @@ function HeroDemo({ step }: { step: HeroStep }) {
           <div className="flex items-center gap-3">
             <Image src="/icon.png" alt="" width={42} height={42} className="rounded-xl" priority />
             <div>
-              <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>WordPing</p>
+              <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>WordCore</p>
               <p className="text-xs" style={{ color: 'var(--text-sub)' }}>{t('folder')}</p>
             </div>
           </div>

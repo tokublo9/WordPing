@@ -205,6 +205,28 @@ curl -s https://wordping-api.<subdomain>.workers.dev/v1/health
 # {"ok":true,...,"openAIKeyConfigured":true,"revenueCatKeyConfigured":true,"rateLimitSaltConfigured":true}
 ```
 
+Check that `version` matches `WORKER_VERSION` in `src/version.ts`. **Bump that
+constant in the same commit as any behaviour change** — the promo previews were
+broken for weeks because a deployed build and the repo reported the same version
+while disagreeing about whether `/v1/voice/promo` needs an install id, and the
+health endpoint had no way to say so.
+
+Then confirm the one route that must work with **no identity headers at all**,
+because that is exactly what the app sends for a promo preview:
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' \
+  -X POST https://wordping-api.<subdomain>.workers.dev/v1/voice/promo \
+  -H 'Content-Type: application/json' \
+  -d '{"sample":"spontaneous","langCode":"en"}'
+# 200 audio/wav
+```
+
+A `400 missing_install_id` here means the deployed Worker predates
+`ANONYMOUS_FEATURES` and every Upgrade-sheet preview is failing, on every plan.
+The app cannot work around it: it deliberately sends no install id for a promo,
+so that playing one cannot mint a persistent identifier.
+
 `RATE_LIMIT_SALT` is optional but should always be set in production: without it
 the identity hashes used as KV keys are unsalted and therefore brute-forceable
 by anyone who can read the namespace.

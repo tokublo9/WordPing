@@ -75,6 +75,30 @@ export function logActiveRevenueCatEntitlements(source: string, info: CustomerIn
   });
 }
 
+/**
+ * Which RevenueCat store the running build is talking to.
+ *
+ * The prefix is the whole answer: a `test_` key configures the SDK against
+ * RevenueCat's Test Store, which serves its own catalogue and cannot return
+ * App Store products. An offering whose packages are attached to App Store
+ * products therefore comes back empty — or missing — with no error, which is
+ * indistinguishable from a misconfigured offering unless you look here.
+ *
+ * Only a short prefix is exposed. The key is public, but there is no reason to
+ * put the whole thing in a log line.
+ */
+export function describeRevenueCatKey(): {
+  store: 'app-store' | 'test-store' | 'unset' | 'unrecognised';
+  keyPrefix: string;
+} {
+  const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '';
+  if (!apiKey) return { store: 'unset', keyPrefix: '' };
+  const keyPrefix = `${apiKey.slice(0, 6)}…`;
+  if (apiKey.startsWith('appl_')) return { store: 'app-store', keyPrefix };
+  if (apiKey.startsWith('test_')) return { store: 'test-store', keyPrefix };
+  return { store: 'unrecognised', keyPrefix };
+}
+
 export function configureRevenueCat(): Promise<boolean> {
   if (Platform.OS !== 'ios') return Promise.resolve(false);
   if (configurationRequest) return configurationRequest;

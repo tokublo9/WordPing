@@ -1,4 +1,5 @@
 import {
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -17,9 +18,15 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
-import { SKINS } from '../constants';
+import { SKINS, THEME_PRICE_COLOR } from '../constants';
 import { resolveThemeAccess } from '../features/themes/themeAccess';
 import { type ShopItem, PremiumSkinPreview } from './ThemeSkinPreview';
+import {
+  isThemeOwnedIndividually,
+  resolveThemePrice,
+  type ThemePriceDisplay,
+} from '../features/themes/themeProducts';
+import type { ThemePurchasesState } from '../hooks/useThemePurchases';
 import { ThemeDetailsSheet } from './ThemeDetailsSheet';
 
 // All bundled wallpaper images used by the shop preview cards. Preloaded once so
@@ -98,10 +105,14 @@ const TABS: TabKey[] = ['premium', 'free'];  // Premium LEFT, Free RIGHT
 // IDs available on the Free tab (blue + gray)
 const FREE_TAB_IDS = new Set(['solid_blue', 'solid_gray']);
 
+// One shared instance, so a card with no resolved product keeps a stable prop.
+const UNAVAILABLE_PRICE: ThemePriceDisplay = { state: 'unavailable' };
+
+
 // ── SkinCard ──────────────────────────────────────────────────────────────────
 
 const SkinCard = memo(function SkinCard({
-  item, isSelected, isLocked, onPress, themeColor, pal,
+  item, isSelected, isLocked, onPress, themeColor, pal, priceDisplay,
 }: {
   item: ShopItem;
   isSelected: boolean;
@@ -110,14 +121,15 @@ const SkinCard = memo(function SkinCard({
   onPress: () => void;
   themeColor: string;
   pal: Palette;
+  /** What to draw under the name. `unavailable` draws nothing at all. */
+  priceDisplay: ThemePriceDisplay;
 }) {
   const t = useLang();
 
-  // Themes are not sold individually, so a card carries no price, no ownership
-  // badge and no purchase state — only the preview, the name, the selected
-  // marker and, for users without a subscription, a lock. Nothing is rendered
-  // below the name and no placeholder reserves space for it, so every card in
-  // the grid is exactly as tall as its preview plus its name.
+  // A card shows its own price under the name, or "Owned" once it has been
+  // bought outright. It shows neither when the product has not resolved: no
+  // placeholder and no reserved space, so a shop with no configured products
+  // looks exactly as it did before rather than showing a row of blank lines.
 
   // Stable reference: item.id never changes (comes from the module-level constant).
   const skinData = useMemo(() => SKINS.find(s => s.id === item.id), [item.id]);
@@ -153,7 +165,7 @@ const SkinCard = memo(function SkinCard({
             <>
               <View style={[StyleSheet.absoluteFill, { backgroundColor: item.previewBg }]} />
               <View style={[StyleSheet.absoluteFill, styles.wordPingCenter]}>
-                <Text style={[styles.cardWordPing, { color: item.previewAccent }]}>WordPing</Text>
+                <Text style={[styles.cardWordPing, { color: item.previewAccent }]}>WordCore</Text>
               </View>
             </>
           )}
@@ -169,6 +181,18 @@ const SkinCard = memo(function SkinCard({
         ) : null}
       </View>
       <Text style={[styles.cardName, { color: pal.text }]} numberOfLines={2}>{t(item.nameKey)}</Text>
+      {priceDisplay.state === 'owned' ? (
+        <Text style={[styles.cardPrice, { color: themeColor }]} numberOfLines={1}>
+          {t('theme_owned')}
+        </Text>
+      ) : priceDisplay.state === 'priced' ? (
+        // StoreKit's own formatting, never assembled here: the currency and
+        // its placement belong to the shopper's storefront. Only the colour is
+        // ours, and it is the same red the individual price always used.
+        <Text style={[styles.cardPrice, { color: THEME_PRICE_COLOR }]} numberOfLines={1}>
+          {priceDisplay.priceString}
+        </Text>
+      ) : null}
     </TouchableOpacity>
   );
 });
@@ -234,11 +258,13 @@ interface Props {
   onUpgrade?: () => void;
   /** False until RevenueCat has answered. Paid themes stay locked until it has. */
   isSubscriptionLoaded?: boolean;
+  /** Prices, ownership and the buy action. Owned by App — see useThemePurchases. */
+  themePurchases: ThemePurchasesState;
 }
 
 export function KisekaeShopSheet({
   visible, onClose, skinId, onPickSkin, isSubscribed, pal, themeColor, onUpgrade,
-  isSubscriptionLoaded = true,
+  isSubscriptionLoaded = true, themePurchases,
 }: Props) {
   const insets  = useSafeAreaInsets();
   const t       = useLang();
@@ -285,11 +311,45 @@ export function KisekaeShopSheet({
 
   // Access comes from features/themes/themeAccess.ts: free for everyone, or
   // included in an active Basic/Premium subscription. Nothing is sold per theme.
+  // Prices and ownership come from StoreKit, never from `item.price` — that
+  // integer is a paid/free flag with no currency attached to it. Supplied by
+  // App rather than fetched here: the same ownership decides whether a theme
+  // stays applied after a subscription ends, and two lookups could disagree.
+  const { products, ownedEntitlementIds, purchasingThemeId, purchaseTheme } = themePurchases;
+
+  /**
+   * Resolved once per store update, not once per render.
+   *
+   * SkinCard is memoized, and a freshly built object for every card on every
+   * render would defeat that across the whole grid. Holding the results in a
+   * map keeps each card's prop identity stable until StoreKit actually says
+   * something different.
+   */
+  const priceByThemeId = useMemo(() => {
+    const resolved = new Map<string, ThemePriceDisplay>();
+    for (const item of SHOP_ITEMS) {
+      resolved.set(item.id, resolveThemePrice({
+        themeId: item.id,
+        price: FREE_TAB_IDS.has(item.id) ? 0 : item.price,
+        products,
+        ownedEntitlementIds,
+      }));
+    }
+    return resolved;
+  }, [ownedEntitlementIds, products]);
+
+  const priceFor = useCallback(
+    (item: ShopItem): ThemePriceDisplay =>
+      priceByThemeId.get(item.id) ?? UNAVAILABLE_PRICE,
+    [priceByThemeId],
+  );
+
   const accessFor = useCallback((item: ShopItem) => resolveThemeAccess({
     price: FREE_TAB_IDS.has(item.id) ? 0 : item.price,
     isSubscribed,
     isSubscriptionLoaded,
-  }), [isSubscribed, isSubscriptionLoaded]);
+    ownedIndividually: isThemeOwnedIndividually(item.id, ownedEntitlementIds),
+  }), [isSubscribed, isSubscriptionLoaded, ownedEntitlementIds]);
 
   const isUnlocked = useCallback(
     (item: ShopItem): boolean => accessFor(item).state === 'unlocked',
@@ -321,6 +381,35 @@ export function KisekaeShopSheet({
     [activeTab, search, t],
   );
 
+  /**
+   * Buy one theme outright.
+   *
+   * Ownership is not recorded here: `useThemePurchases` re-reads it from the
+   * receipt, so what unlocks the theme is what Apple confirmed, not what this
+   * screen believes happened. A cancelled purchase is silent — backing out of
+   * the sheet is an ordinary choice, not an error worth an alert.
+   */
+  const handleBuyTheme = useCallback((item: ShopItem) => {
+    void (async () => {
+      try {
+        const result = await purchaseTheme(item.id);
+        // Cancelling is silent. Only a genuine failure is reported, and a
+        // second tap while one is in flight resolves 'unavailable' without
+        // ever reaching the store — see the ref guard in useThemePurchases.
+        if (result === 'cancelled') return;
+        if (result === 'unavailable') { Alert.alert(t('theme_buy_failed')); return; }
+        // Bought: apply it at once. `onPickSkin` is the same call the shop
+        // already makes for an unlocked theme, so nothing bypasses the
+        // access check — the theme is genuinely unlocked by now.
+        const exists = SKINS.some(skin => skin.id === item.id);
+        onPickSkin(exists ? item.id : null);
+        setDetailsItem(null);
+      } catch {
+        Alert.alert(t('theme_buy_failed'));
+      }
+    })();
+  }, [onPickSkin, purchaseTheme, t]);
+
   const renderItem = useCallback(({ item }: { item: ShopItem }) => (
     <SkinCard
       item={item}
@@ -329,8 +418,9 @@ export function KisekaeShopSheet({
       onPress={() => setDetailsItem(item)}
       themeColor={themeColor}
       pal={pal}
+      priceDisplay={priceFor(item)}
     />
-  ), [effectiveSkinId, isUnlocked, themeColor, pal]);
+  ), [effectiveSkinId, isUnlocked, priceFor, themeColor, pal]);
 
   // Keep mounted even when hidden so wallpaper images stay in memory.
   // Pointer events are blocked and the sheet is off-screen when !visible.
@@ -415,6 +505,9 @@ export function KisekaeShopSheet({
         pal={pal}
         themeColor={themeColor}
         onApply={handleTap}
+        priceDisplay={detailsItem ? priceFor(detailsItem) : UNAVAILABLE_PRICE}
+        onBuy={handleBuyTheme}
+        purchasing={detailsItem !== null && purchasingThemeId === detailsItem.id}
       />
     </Animated.View>
   );
@@ -480,9 +573,15 @@ const styles = StyleSheet.create({
   },
   wordPingCenter: { alignItems: 'center', justifyContent: 'center' },
   cardWordPing:   { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  // Nothing renders below the name, so no price row and no placeholder: card
-  // height is preview + name for every tile on every plan.
+  // The price line under the name is rendered only when there is a real,
+  // localized price or an owned theme — never a placeholder — so a card with
+  // no resolved product is exactly as tall as preview + name, as before.
   cardName:       { fontSize: 13, lineHeight: 16, fontWeight: '400', marginBottom: 0, textAlign: 'center' },
+  // The typography the individual-theme price had before: 12.5pt, regular
+  // weight. Never bold — the price sits under the name and must not compete
+  // with it. `marginTop` replaces the blank spacer the old layout used, since
+  // an unresolved price now renders nothing at all.
+  cardPrice:      { fontSize: 12.5, fontWeight: '400', marginTop: 2, textAlign: 'center' },
 
   empty:     { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: 14 },

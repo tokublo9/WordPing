@@ -26,6 +26,11 @@ import {
 
 const CHART_HEIGHT = 64;
 const BAR_MIN_HEIGHT = 2;
+/** The band above the tallest bar that the count labels are drawn into. */
+const BAR_LABEL_HEIGHT = 11;
+/** The gap between a count and the top of its own bar. */
+const BAR_LABEL_GAP = 2;
+const CHART_BOTTOM_PADDING = 2;
 
 interface Props {
   log: StudyLog;
@@ -90,6 +95,25 @@ export function StudyAnalytics({ log, now, pal, themeColor }: Props) {
         >
           {activity.map(({ day, count, isToday }) => (
             <View key={day} style={styles.barSlot}>
+              {/* The day's answer count, sitting on top of its own bar. A day
+                  with none is left blank: a row of thirty zeroes would be the
+                  loudest thing in the chart and the least worth reading. */}
+              {count > 0 && (
+                <Text
+                  style={[styles.barCount, { color: isToday ? themeColor : pal.sub }]}
+                  numberOfLines={1}
+                  // A slot is about two digits wide. A larger count shrinks to
+                  // fit rather than truncating or spilling onto its neighbour.
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                  // The label is sized to the bar it belongs to, not to the
+                  // body text. Nothing is lost: the chart is one accessibility
+                  // element and its label already carries the totals.
+                  allowFontScaling={false}
+                >
+                  {count}
+                </Text>
+              )}
               <View
                 style={[
                   styles.bar,
@@ -174,13 +198,29 @@ const styles = StyleSheet.create({
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    height: CHART_HEIGHT,
+    // Bars are still measured against CHART_HEIGHT; the extra band is what the
+    // tallest bar's label and its gap sit in, so adding labels moved no bar.
+    height: CHART_HEIGHT + BAR_LABEL_HEIGHT + BAR_LABEL_GAP + CHART_BOTTOM_PADDING,
     gap: 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingBottom: 2,
+    paddingBottom: CHART_BOTTOM_PADDING,
   },
+  // The label and its bar are one bottom-aligned column, so the label rides on
+  // top of the bar at whatever height that bar happens to be. The bar carries an
+  // explicit height and RN does not shrink flex children by default, so stacking
+  // the label above it takes nothing away from it.
   barSlot: { flex: 1, justifyContent: 'flex-end' },
   bar: { width: '100%', borderRadius: 2 },
+  // Confined to its own slot — never wider — so a number can only ever sit over
+  // the bar it belongs to, and `marginBottom` is the whole gap down to the bar.
+  barCount: {
+    width: '100%',
+    marginBottom: BAR_LABEL_GAP,
+    textAlign: 'center',
+    fontSize: 8,
+    lineHeight: BAR_LABEL_HEIGHT,
+    fontWeight: '600',
+  },
   axis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
   axisLabel: { fontSize: 11 },
 });

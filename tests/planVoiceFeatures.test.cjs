@@ -8,22 +8,31 @@ const read = relative => fs.readFileSync(relative, 'utf8');
 
 // ── The entitlement checks ───────────────────────────────────────────────────
 
-test('the Worker sells no voice generation to Basic', () => {
+test('the Worker sells Basic the metered voice routes and nothing more', () => {
   const config = read('cloudflare/wordping-api/src/config.ts');
-  assert.match(config, /voice_card: 'premium',/u);
-  assert.match(config, /voice_sample: 'premium',/u);
+  // Standalone Text-to-Speech takes arbitrary user text and is not credit
+  // metered, so it does not follow AI Voice down to Basic.
   assert.match(config, /voice_custom: 'premium',/u);
-  // The rate-limit table agrees, so a mis-set tier cannot leak a budget.
+  // The two voice routes Basic can reach say so, and Free still cannot.
+  assert.match(config, /voice_card: 'basic',/u);
+  assert.match(config, /voice_sample: 'basic',/u);
   const limits = config.slice(config.indexOf('export const DEFAULT_LIMITS'), config.indexOf('MAX_REQUEST_BODY_BYTES'));
-  assert.match(limits, /voice_card: \{\s*free: NO_ACCESS,\s*basic: NO_ACCESS,/u);
-  assert.match(limits, /voice_sample: \{\s*free: NO_ACCESS,\s*basic: NO_ACCESS,/u);
+  assert.match(limits, /voice_card: \{\s*free: NO_ACCESS,/u);
 
-  // And the monthly allowance the app mirrors says the same thing.
+  // Basic's access is the one-time grant, not a monthly allowance, and both
+  // copies of both tables have to agree or the app promises what the server
+  // will not honour.
   for (const path of ['src/lib/planLimits.ts', 'cloudflare/wordping-api/src/planLimits.ts']) {
+    const source = read(path);
     assert.match(
-      read(path),
-      /VOICE_MONTHLY_LIMITS[\s\S]{0,200}free: 0,\s*basic: 0,\s*premium: null,/u,
-      `${path} must give Basic no AI voice allowance`,
+      source,
+      /VOICE_MONTHLY_LIMITS[\s\S]{0,400}free: 0,\s*basic: 0,\s*premium: null,/u,
+      `${path} must give Basic no *monthly* allowance`,
+    );
+    assert.match(
+      source,
+      /VOICE_LIFETIME_CREDITS[\s\S]{0,400}free: 0,\s*basic: 200,\s*premium: null,/u,
+      `${path} must give Basic the one-time grant`,
     );
   }
 });
@@ -66,9 +75,10 @@ test('every voice surface receives only the AI capability', () => {
     );
   }
 
-  // The only voice capability comes from the AI entitlement rule.
+  // The only voice capability comes from the AI entitlement rule, and the
+  // user's own fallback. No plan name and no second rule appears here.
   const app = read('App.tsx');
-  assert.match(app, /const canUseAIVoice = canUseAI;/u);
+  assert.match(app, /const canUseAIVoice = canUseAI && !preferDeviceVoice;/u);
   assert.doesNotMatch(app, /planAllowsCustomVoice|canUseCustomVoice|showVoiceLockBanner/u);
 });
 
@@ -96,18 +106,17 @@ test('Custom Voice has no locked-plan copy while AI Voice still names Premium', 
   assert.match(i18n, /err_plan_required_speech: 'High-Quality AI Voice requires a Premium plan\./u);
 });
 
-test('a Basic purchase raises no AI consent dialog', () => {
+test('a paid purchase raises the AI consent dialog from the AI rule alone', () => {
   const onboarding = read('src/features/onboarding/subscriptionOnboarding.ts');
-  // The post-purchase offer is gated on the AI rule, not on `plan !== 'free'`.
-  // Basic unlocks no server-backed AI feature, so its purchase shares nothing
-  // and has nothing to permit.
+  // Gated on the AI rule, not on `plan !== 'free'`. Basic now unlocks AI Voice
+  // through its one-time grant, so it does have something to permit — and the
+  // gate followed it there without being restated.
   assert.match(onboarding, /if \(!planCanUseAI\(input\.plan\)\) return false;/u);
   assert.doesNotMatch(onboarding, /input\.plan === 'free'/u);
   assert.match(onboarding, /import \{ planCanUseAI \} from '\.\.\/\.\.\/lib\/aiEntitlement';/u);
 
-  // It is the only place that can raise the dialog outside a point of use, and
-  // the point-of-use prompt is unreachable on Basic anyway: `usesAI` is false,
-  // and the network guard refuses an ineligible plan before any request.
+  // It is the only place that can raise the dialog outside a point of use. The
+  // point-of-use prompt still guards every AI request, on either paid plan.
   const playback = read('src/hooks/useWordCardVoicePlayback.ts');
   assert.match(playback, /if \(usesAI && !await ensureAIConsentForUserAction\(\)\) return;/u);
   assert.match(

@@ -115,18 +115,29 @@ describe('health reports the truth about the key', () => {
 });
 
 describe('paid users still work once the key is valid', () => {
-  it('a Basic user is refused voice, like a Free one', async () => {
-    // High-Quality AI Voice is Premium. Basic pays for Custom Voice for Words,
-    // which is a local audio file and never reaches this Worker.
+  it('a Basic user can generate voice, spending a lifetime credit', async () => {
+    // Basic reaches AI Voice through its one-time grant. The tier gate lets it
+    // knock; the credit ledger decides whether it proceeds, and an exhausted
+    // balance is refused with `voice_credits_exhausted` rather than 403.
     mockFetch([
       { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    expect((await voiceCall(makeEnv())).status).toBe(200);
+  });
+
+  it('a Free user is still refused voice outright', async () => {
+    // The boundary that did not move: Free has no credits and no plan, so it
+    // never reaches the ledger at all.
+    mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({}) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
     const response = await voiceCall(makeEnv());
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
       error: 'subscription_required',
-      requiredTier: 'premium',
+      requiredTier: 'basic',
     });
   });
 

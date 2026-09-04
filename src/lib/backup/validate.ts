@@ -269,7 +269,7 @@ export function validateBackup(value: unknown): ValidationResult {
 
   if (!isRecord(value)) return { ok: false, errors: ['The file is not a JSON object.'] };
   if (value.kind !== BACKUP_FILE_KIND) {
-    return { ok: false, errors: ['This is not a WordPing backup file.'] };
+    return { ok: false, errors: ['This is not a WordCore backup file.'] };
   }
   if (!finiteNumber(value.formatVersion)) {
     return { ok: false, errors: ['The backup does not declare a format version.'] };
@@ -278,7 +278,7 @@ export function validateBackup(value: unknown): ValidationResult {
     return {
       ok: false,
       errors: [
-        `Backup format version ${value.formatVersion} is not supported by this version of WordPing ` +
+        `Backup format version ${value.formatVersion} is not supported by this version of WordCore ` +
         `(supported: ${SUPPORTED_FORMAT_VERSIONS.join(', ')}).`,
       ],
     };

@@ -20,7 +20,7 @@ export async function requestPermission(): Promise<boolean> {
   if (!Device.isDevice) return false;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'WordPing reminders',
+      name: 'WordCore reminders',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
     });

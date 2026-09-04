@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     openGraph: {
       title: t('title'),
       description: t('description'),
-      siteName: 'WordPing',
+      siteName: 'WordCore',
     },
     icons: {
       icon: [{ url: '/icon.png', type: 'image/png', sizes: '1254x1254' }],

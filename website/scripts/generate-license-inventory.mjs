@@ -8,9 +8,9 @@ const repositoryRoot = path.resolve(websiteRoot, '..');
 const outputPath = path.join(websiteRoot, 'lib', 'generatedLicenseInventory.json');
 
 const projects = [
-  { label: 'WordPing iOS App', root: repositoryRoot },
+  { label: 'WordCore iOS App', root: repositoryRoot },
   { label: 'Cloudflare API Worker', root: path.join(repositoryRoot, 'cloudflare', 'wordping-api') },
-  { label: 'WordPing Website', root: websiteRoot },
+  { label: 'WordCore Website', root: websiteRoot },
 ];
 
 function packageNameFromPath(packagePath) {

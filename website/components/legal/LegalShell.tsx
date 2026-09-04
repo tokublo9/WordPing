@@ -26,11 +26,11 @@ export default function LegalShell({ locale, slug, title, description, children 
         }}
       >
         <div className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8">
-          <Link href="/" locale={locale} className="flex items-center gap-2.5" aria-label={`${nav.home} — WordPing`}>
+          <Link href="/" locale={locale} className="flex items-center gap-2.5" aria-label={`${nav.home} — WordCore`}>
             <span className="overflow-hidden rounded-xl" style={{ width: 34, height: 34 }}>
               <Image src="/icon.png" alt="" width={34} height={34} className="object-cover" />
             </span>
-            <span className="font-bold">WordPing</span>
+            <span className="font-bold">WordCore</span>
           </Link>
           <nav className="order-3 flex w-full items-center justify-center gap-5 text-sm sm:order-2 sm:w-auto" aria-label="Legal">
             <Link href="/privacy" locale={locale} className={slug === 'privacy' ? 'font-bold text-blue-500' : 'text-sub hover:text-blue-500'}>
@@ -41,6 +41,9 @@ export default function LegalShell({ locale, slug, title, description, children 
             </Link>
             <Link href="/licenses" locale={locale} className={slug === 'licenses' ? 'font-bold text-blue-500' : 'text-sub hover:text-blue-500'}>
               {nav.licenses}
+            </Link>
+            <Link href="/support" locale={locale} className={slug === 'support' ? 'font-bold text-blue-500' : 'text-sub hover:text-blue-500'}>
+              {nav.support}
             </Link>
           </nav>
           <div className="order-2 flex items-center gap-2 sm:order-3">
@@ -68,7 +71,7 @@ export default function LegalShell({ locale, slug, title, description, children 
 
       <div className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
         <div className="mb-10 max-w-3xl">
-          <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-blue-500">WordPing Legal</p>
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-blue-500">WordCore Legal</p>
           <h1 className="text-balance text-4xl font-black tracking-tight sm:text-5xl">{title}</h1>
           <p className="mt-4 text-base leading-7 text-sub sm:text-lg">{description}</p>
         </div>
@@ -77,7 +80,7 @@ export default function LegalShell({ locale, slug, title, description, children 
 
       <footer className="border-t border-theme bg-alt">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-8 text-sm text-sub sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <p>© 2026 WordPing. All rights reserved.</p>
+          <p>© 2026 WordCore. All rights reserved.</p>
           <p>{locale === 'ja' ? '運営者：Daiki Tokumoto' : 'Operator: Daiki Tokumoto'}</p>
         </div>
       </footer>

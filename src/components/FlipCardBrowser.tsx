@@ -66,6 +66,8 @@ interface Props {
   themeColor: string;
   /** The plan includes High-Quality AI Voice — Premium only. */
   canUseAIVoice: boolean;
+  /** Basic's one-time AI Voice grant is spent; App raises the dialog. */
+  onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
   onEdit: (card: WordCard) => void;
   onDelete: (id: string) => void;
   onMove: (card: WordCard) => void;
@@ -82,7 +84,8 @@ function getSlots(curr: number) {
 
 function FlipCardBrowserComponent({
   cards, currentWordId, onCurrentWordChange, preparing, onPositionPrepared, active,
-  pal, themeColor, canUseAIVoice, onEdit, onDelete, onMove, onToggleNotif,
+  pal, themeColor, canUseAIVoice, onVoiceCreditsExhausted,
+  onEdit, onDelete, onMove, onToggleNotif,
   verticalFlip = false,
 }: Props) {
   const t = useLang();
@@ -139,6 +142,7 @@ function FlipCardBrowserComponent({
   } = useWordCardVoicePlayback({
     item: activeVoiceCard,
     canUseAIVoice,
+    onVoiceCreditsExhausted,
   });
 
   const flipAnim = useRef(new Animated.Value(0)).current;

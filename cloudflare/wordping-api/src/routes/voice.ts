@@ -65,20 +65,48 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
   const voice = resolveVoice(body.voice) ?? DEFAULT_VOICE;
   const format: AudioFormat = body.format ?? 'wav';
 
-  const upstream = await requestSpeech(
-    {
-      apiKey: context.env.OPENAI_API_KEY,
-      text: body.text,
-      voice,
-      format,
-      timeoutMs: context.resolved.speechTimeoutMs,
-      localMock: context.localAiVoiceTestScenario !== null,
-    },
-    context.response.requestId,
-  );
+  // A credit is already reserved at this point. Every exit below either
+  // commits it (audio delivered) or releases it (nothing delivered) — an
+  // unreleased reservation would still expire, but only after holding the
+  // credit hostage for minutes.
+  let upstream: Response;
+  try {
+    upstream = await requestSpeech(
+      {
+        apiKey: context.env.OPENAI_API_KEY,
+        text: body.text,
+        voice,
+        format,
+        timeoutMs: context.resolved.speechTimeoutMs,
+        localMock: context.localAiVoiceTestScenario !== null,
+      },
+      context.response.requestId,
+    );
+  } catch (error) {
+    // A failed or timed-out generation costs nothing. Rethrown so the caller
+    // still maps it to the right status.
+    await result.value.releaseVoiceCredit();
+    throw error;
+  }
+
   if (tooLarge(upstream)) {
     await upstream.body?.cancel();
+    // Nothing is relayed, so nothing is charged.
+    await result.value.releaseVoiceCredit();
     return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_too_large' });
+  }
+
+  // The generation succeeded. This is the only place a credit becomes a spend,
+  // and it is a no-op on Premium and for anything that never reserved one.
+  //
+  // A commit that fails is not swallowed: the audio would be delivered
+  // uncharged, and the reservation would then expire and return the credit. The
+  // request is failed instead, and the reservation released, so the user can
+  // retry rather than being silently given a free generation.
+  if (!await result.value.commitVoiceCredit()) {
+    await upstream.body?.cancel();
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'upstream_failed', 503, { reason: 'credit_ledger' });
   }
 
   log('info', 'voice_card_ok', context.response.requestId, { voice, format, characters });
