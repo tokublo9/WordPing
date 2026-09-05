@@ -39,7 +39,7 @@ reads a model name, an upstream URL, or a plan flag out of a request.
 
 ### High-Quality AI Voice allowance
 
-- Free: the two fixed Upgrade Plan samples only; arbitrary word-card voice is blocked.
+- Free: the fixed Upgrade Plan samples only; arbitrary word-card voice is blocked.
 - Basic: 200 new word-card generations per UTC month.
 - Premium: no monthly quota; 20/minute and 300/day abuse limits apply.
 - Cached playback never counts.

@@ -867,7 +867,9 @@ test('the informational Card Behavior rows use the compact shared layout and ali
     ['show_full_card', 'reader-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
   ]);
-  assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\} \/>/u);
+  // Same shared icon column; the badge prop is the new-feature marker, which is
+  // pinned to this icon rather than dropped beside the label.
+  assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\}\s*badge=\{\{/u);
   assert.doesNotMatch(settings, /icon="eye-off-outline"/u);
 
   assert.match(settings, /export const CARD_BEHAVIOR_ICON_SIZE = 18;/u);

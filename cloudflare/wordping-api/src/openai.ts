@@ -139,7 +139,10 @@ const SYSTEM_PROMPTS: Readonly<Record<string, (language: string) => string>> = {
 export type TextAction = keyof typeof SYSTEM_PROMPTS;
 
 export function languageName(langCode: string | undefined): string {
-  return (langCode !== undefined ? LANGUAGE_NAMES[langCode] : undefined) ?? 'English';
+  if (langCode === undefined) return 'English';
+  const normalized = langCode.trim();
+  const base = normalized.split(/[-_]/u)[0]?.toLowerCase() ?? '';
+  return LANGUAGE_NAMES[normalized] ?? LANGUAGE_NAMES[base] ?? 'English';
 }
 
 export interface TextRequest {

@@ -1,5 +1,5 @@
 /**
- * The two promotional voice samples shown in the Upgrade Plan sheet.
+ * The promotional voice samples shown in the Upgrade Plan sheet.
  *
  * Free users can play these; they are the only speech the app produces without
  * a subscription. That is safe because the Worker owns the words: the app sends
@@ -14,7 +14,7 @@
  * Pure module: no react-native or expo imports, so it is unit-tested directly.
  */
 
-export const PROMO_SAMPLE_IDS = ['spontaneous', 'morning_light'] as const;
+export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
 
 /** Bump together with the Worker's PROMO_SAMPLE_VERSION when the copy changes. */
@@ -42,6 +42,50 @@ export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<s
     pl: 'Spontaniczny',
     el: 'Αυθόρμητος',
     sv: 'Spontan',
+  },
+  vertical: {
+    en: 'Vertical',
+    ja: '垂直の',
+    ko: '수직의',
+    zh: '垂直的',
+    es: 'Vertical',
+    fr: 'Vertical',
+    de: 'Vertikal',
+    it: 'Verticale',
+    pt: 'Vertical',
+    ru: 'Вертикальный',
+    ar: 'عمودي',
+    hi: 'लंबवत',
+    tr: 'Dikey',
+    nl: 'Verticaal',
+    vi: 'Thẳng đứng',
+    th: 'แนวตั้ง',
+    id: 'Vertikal',
+    pl: 'Pionowy',
+    el: 'Κατακόρυφος',
+    sv: 'Vertikal',
+  },
+  merely: {
+    en: 'Merely',
+    ja: '単に',
+    ko: '단지',
+    zh: '仅仅',
+    es: 'Simplemente',
+    fr: 'Simplement',
+    de: 'Lediglich',
+    it: 'Semplicemente',
+    pt: 'Apenas',
+    ru: 'Всего лишь',
+    ar: 'مجرد',
+    hi: 'मात्र',
+    tr: 'Yalnızca',
+    nl: 'Slechts',
+    vi: 'Chỉ đơn thuần',
+    th: 'เพียง',
+    id: 'Hanya',
+    pl: 'Jedynie',
+    el: 'Απλώς',
+    sv: 'Enbart',
   },
   morning_light: {
     en: 'The morning light filtered through the trees.',

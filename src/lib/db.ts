@@ -73,24 +73,23 @@ const DEFAULT_FOLDERS: Folder[] = [
 ];
 
 /**
- * The gestures card, seeded last.
+ * The eight tutorial cards, seeded in English on a genuine first launch.
  *
- * Deliberately fixed English on the front and Japanese on the back rather than
- * localized like the four cards above: it is a sample card as much as an
- * instruction, so it also demonstrates what a two-language entry looks like.
- *
- * It is not in `WELCOME_CARD_IDS`, which is the list onboarding rebuilds — so
- * completing onboarding leaves it untouched, and deleting it is permanent.
+ * Placeholders only: every id here is in `WELCOME_CARD_IDS`, so completing
+ * onboarding removes all eight and rebuilds them in the user's languages — as
+ * eight cards for Language Learning, or four for Vocabulary & Terms. The text
+ * is kept in step with `WELCOME_CARD_TEXTS['en-US']` in
+ * `features/onboarding/welcomeContent.ts`, which is where it is translated.
  */
-export const GESTURES_CARD_ID = 'wp-w5';
-
-// English placeholders — replaced with localized content when onboarding completes.
 const DEFAULT_CARDS: WordCard[] = [
-  { id: 'wp-w1', createdAt: 1, word: 'Tap the card to reveal its meaning.',                               meaning: 'Tap the card to reveal its meaning.',                               note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
-  { id: 'wp-w2', createdAt: 2, word: 'Switch between List Mode and Flip Mode in Settings.', meaning: 'Switch between List Mode and Flip Mode in Settings.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
-  { id: 'wp-w3', createdAt: 3, word: 'Tap the graduation cap icon to test yourself.',                      meaning: 'Tap the graduation cap icon to test yourself.',                      note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
-  { id: 'wp-w4', createdAt: 4, word: 'Set up notifications to review your words automatically.',           meaning: 'Set up notifications to review your words automatically.',           note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
-  { id: GESTURES_CARD_ID, createdAt: 5, word: 'You can swipe or long-press words and folders.', meaning: '単語やフォルダは、スワイプまたは長押しで操作できます。', note: '', wordLang: 'en-US', meaningLang: 'ja-JP', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w1', createdAt: 1, word: 'Test your words using the graduation-cap icon in the top-right corner.',    meaning: 'Test your words using the graduation-cap icon in the top-right corner.',    note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w2', createdAt: 2, word: 'Tap a card to check its meaning.',                                          meaning: 'Tap a card to check its meaning.',                                          note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w3', createdAt: 3, word: 'You can hide the word on the front from the word-editing screen.',           meaning: 'You can hide the word on the front from the word-editing screen.',           note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w4', createdAt: 4, word: 'You can also register custom audio.',                                       meaning: 'You can also register custom audio.',                                       note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w5', createdAt: 5, word: 'Set notifications using the notification icon to review words automatically.', meaning: 'Set notifications using the notification icon to review words automatically.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w6', createdAt: 6, word: 'Word cards and folders can be edited by swiping or long-pressing them.',     meaning: 'Word cards and folders can be edited by swiping or long-pressing them.',     note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w7', createdAt: 7, word: 'Upgrade your plan to access more than 20 themes and high-quality AI voices.', meaning: 'Upgrade your plan to access more than 20 themes and high-quality AI voices.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
+  { id: 'wp-w8', createdAt: 8, word: 'Tap the three-dot icon in the top-right corner to reorder or delete cards.', meaning: 'Tap the three-dot icon in the top-right corner to reorder or delete cards.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID },
 ];
 
 export interface Settings {
@@ -216,6 +215,8 @@ let pendingFolders: Folder[] | null = null;
 let pendingSettings: Map<string, string> | null = null;
 let flushScheduled = false;
 let flushActive = false;
+let flushFailureRevision = 0;
+let lastFlushError: unknown = null;
 /**
  * Set while an exclusive database task (a backup import) is running.
  *
@@ -263,6 +264,8 @@ async function flush(): Promise<void> {
       }
     }
   } catch (error) {
+    lastFlushError = error;
+    flushFailureRevision += 1;
     reportSideEffectFailure('persist:sqlite', error);
   } finally {
     flushActive = false;
@@ -320,6 +323,16 @@ export function persist(data: AppData): void {
   scheduleFlush();
 }
 
+/**
+ * Commits a card snapshot before an external side effect is allowed to start.
+ * The ordinary persistence effect may coalesce into this same transaction.
+ */
+export async function persistCardsAndWait(cards: WordCard[]): Promise<void> {
+  pendingCards = cards;
+  scheduleFlush();
+  await flushPendingWrites();
+}
+
 export async function readFolders(): Promise<Folder[]> {
   const db = await getDatabase();
   return readFoldersFromDb(db);
@@ -352,9 +365,11 @@ export function persistFolders(folders: Folder[]): void {
   scheduleFlush();
 }
 
-/** Test hook: waits for any queued write to reach the database. */
+/** Waits for any queued write to reach the database, and surfaces a failed flush. */
 export async function flushPendingWrites(): Promise<void> {
+  const failureRevisionAtStart = flushFailureRevision;
   while (flushScheduled || flushActive || pendingCards !== null || pendingFolders !== null || pendingSettings !== null) {
     await new Promise(resolve => setTimeout(resolve, 5));
   }
+  if (flushFailureRevision !== failureRevisionAtStart) throw lastFlushError;
 }

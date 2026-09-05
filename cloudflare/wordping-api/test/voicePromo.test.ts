@@ -15,11 +15,11 @@ import {
 } from './helpers';
 
 /**
- * POST /v1/voice/promo — the two promotional clips in the Upgrade Plan sheet.
+ * POST /v1/voice/promo — fixed promotional clips in the Upgrade Plan sheet.
  *
  * The only speech route reachable with no entitlement. These tests exist to
  * prove that "no entitlement" did not become "no protection": the body cannot
- * carry text, the sample id is a two-value allowlist, the rate limits still
+ * carry text, the sample id is a fixed allowlist, the rate limits still
  * apply, and none of it touches the Basic monthly voice allowance.
  */
 

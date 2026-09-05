@@ -43,6 +43,7 @@
     "src/features/cards/fileImport.ts",
     "src/features/cards/bulkImport.ts",
     "src/features/onboarding/tutorialState.ts",
+    "src/features/onboarding/spotlight.ts",
     "src/features/onboarding/featureDiscovery.ts",
     "src/features/onboarding/subscriptionOnboarding.ts",
     "src/features/cards/grading.ts",

@@ -100,7 +100,7 @@ test('every user-initiated AI surface asks before it acts', () => {
     );
   }
 
-  // The Upgrade sheet is deliberately absent: its two promotional clips are
+  // The Upgrade sheet is deliberately absent: its fixed promotional clips are
   // fixed WordPing copy sent with no identifiers, so there is nothing to
   // consent to. They go through `postPromoSpeech`, not the guarded path.
   const sheet = read('src/components/ProSheet.tsx');

@@ -100,10 +100,34 @@ test('the AI voice picker follows AI Voice into Premium', () => {
 
 // ── Plan descriptions ────────────────────────────────────────────────────────
 
-test('Custom Voice has no locked-plan copy while AI Voice still names Premium', () => {
+test('Custom Voice has no locked-plan copy, and AI Voice names both paid plans', () => {
   const i18n = read('src/i18n.ts');
   assert.doesNotMatch(i18n, /custom_voice_locked_msg|basic_voice_limit|cmp_custom_voice|feat_custom_voice/u);
-  assert.match(i18n, /err_plan_required_speech: 'High-Quality AI Voice requires a Premium plan\./u);
+  // Basic includes AI Voice through its one-time credits, so naming Premium
+  // alone told a Free user to buy the more expensive of the two plans that have
+  // it — and told a Basic subscriber to buy a plan they did not need.
+  assert.match(
+    i18n,
+    /err_plan_required_speech: 'High-Quality AI Voice requires a Basic or Premium plan\./u,
+  );
+});
+
+test('a server refusal is never sold as an upgrade to an entitled plan', () => {
+  const playback = read('src/hooks/useWordCardVoicePlayback.ts');
+  const branch = /case 'subscription_required':([\s\S]*?)case 'monthly_limit_reached':/u.exec(playback)?.[1];
+  assert.ok(branch, 'subscription_required presentation branch not found');
+
+  // The app's own rule decides which of the two this is. `canUseAIVoice` is what
+  // let the request leave the device, so a refusal on top of it is the server
+  // disagreeing — Restore and Retry — not a plan boundary to sell past.
+  assert.match(branch, /if \(canUseAIVoice\) \{\s*showEntitlementUnverified\(\);\s*return;\s*\}/u);
+  assert.match(branch, /Alert\.alert\(title, t\('err_plan_required_speech'\), upgradeAction\);/u);
+
+  // One alert, shared with the entitlement_unverified branch, so the two cannot
+  // drift apart.
+  assert.match(playback, /const showEntitlementUnverified = \(\) => \{[\s\S]*?t\('err_entitlement_unverified'\)/u);
+  assert.match(playback, /case 'entitlement_unverified':\s*showEntitlementUnverified\(\);/u);
+  assert.match(playback, /\}, \[canUseAIVoice, language, onRestorePurchases/u);
 });
 
 test('a paid purchase raises the AI consent dialog from the AI rule alone', () => {
@@ -127,7 +151,12 @@ test('a paid purchase raises the AI consent dialog from the AI rule alone', () =
 
 test('the discovery markers follow their own features', () => {
   const markers = read('src/features/onboarding/featureDiscovery.ts');
-  assert.match(markers, /case FEATURE_MARKERS\.customAudio:\s*return true;/u);
+  // The ungated group: everything that works on Free, so no plan check. Upgrade
+  // Plan is in it deliberately — gating that one would hide it from Free.
+  assert.match(
+    markers,
+    /case FEATURE_MARKERS\.hideWord:\s*case FEATURE_MARKERS\.notifyWord:\s*case FEATURE_MARKERS\.bulkImport:\s*case FEATURE_MARKERS\.upgradePlan:\s*case FEATURE_MARKERS\.testIcon:\s*case FEATURE_MARKERS\.notificationIcon:\s*case FEATURE_MARKERS\.sendTest:\s*case FEATURE_MARKERS\.firstTestExited:\s*case FEATURE_MARKERS\.customAudio:\s*return true;/u,
+  );
   assert.match(markers, /case FEATURE_MARKERS\.themeShop:\s*return planIsSubscribed\(plan\);/u);
   assert.match(markers, /default:\s*return planCanUseAI\(plan\);/u);
 });

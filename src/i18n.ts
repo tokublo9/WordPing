@@ -181,6 +181,7 @@ export type TranslationKey =
   | 'help_section'
   | 'result_filter_title' | 'result_filter_intro'
   | 'result_filter_perfect_note' | 'result_filter_got_it'
+  | 'test_intro_tap_card' | 'test_intro_results' | 'test_intro_got_it'
   | 'study_streak' | 'study_streak_none' | 'study_today'
   | 'study_progress_title' | 'study_analytics_title' | 'study_back_to_test'
   | 'study_answered_today' | 'study_today_a11y'
@@ -280,6 +281,7 @@ type TutorialImportKey =
   | 'help_section'
   | 'result_filter_title' | 'result_filter_intro'
   | 'result_filter_perfect_note' | 'result_filter_got_it'
+  | 'test_intro_tap_card' | 'test_intro_results' | 'test_intro_got_it'
   | 'study_streak' | 'study_streak_none' | 'study_today'
   | 'study_progress_title' | 'study_analytics_title' | 'study_back_to_test'
   | 'study_answered_today' | 'study_today_a11y'
@@ -562,6 +564,11 @@ const enUS: Dict = {
   test_reset:            'Reset',
   test_reset_confirm:    'All progress will be cleared.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Tap the card to test your understanding of its meaning.',
+  test_intro_results:
+    '{perfect} words are removed from review. {good}, {slightly}, and {unknown} words are sorted into the colored sections at the top-left and temporarily disappear from the main word list.',
+  test_intro_got_it:     'Got it',
   test_info_title:       'How test results work',
   test_info_caption:     'The forgetting curve shows how memory fades over time. Reviewing at the right time helps you remember longer.',
   test_info_section:     'REVIEW OPTIONS',
@@ -816,7 +823,7 @@ const enUS: Dict = {
   cmp_val_all_skins:  '15+ skins',
   plan_usage_title: 'Unlock More with Basic',
   plan_usage_desc:  'Upgrade to Basic for unlimited word cards and Natural AI Voice — no limits on your learning.',
-  err_plan_required_speech: 'High-Quality AI Voice requires a Premium plan. Please upgrade to continue.',
+  err_plan_required_speech: 'High-Quality AI Voice requires a Basic or Premium plan. Please upgrade to continue.',
   err_plan_required_text:   'AI text features require a Premium plan. Please upgrade to continue.',
   err_offline:           'No internet connection. Your words are all still here — only AI features need to be online.',
   err_timeout:           'That took too long. Please try again.',
@@ -1114,6 +1121,11 @@ const ja: Dict = {
   test_reset:            'リセット',
   test_reset_confirm:    'すべての進捗がリセットされます。',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'カードをタップして、意味を理解できているかテストしましょう。',
+  test_intro_results:
+    '{perfect}の単語は復習対象から削除されます。{good}、{slightly}、{unknown}の単語は左上の色別セクションに仕分けされ、メインの単語帳には一時的に表示されなくなります。',
+  test_intro_got_it:     'わかりました',
   test_info_title:       'テスト結果の仕組み',
   test_info_caption:     '忘却曲線は、時間とともに記憶が薄れていく様子を示します。適切なタイミングで復習すると、記憶が定着しやすくなります。',
   test_info_section:     '復習オプション',
@@ -1543,6 +1555,11 @@ const ko: Dict = {
   test_reset:            '초기화',
   test_reset_confirm:    '모든 진행 상황이 초기화됩니다.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   '카드를 탭해서 뜻을 제대로 이해했는지 테스트해 보세요.',
+  test_intro_results:
+    '{perfect} 단어는 복습 대상에서 제외됩니다. {good}, {slightly}, {unknown} 단어는 왼쪽 위의 색상별 섹션으로 분류되어 메인 단어 목록에서 일시적으로 사라집니다.',
+  test_intro_got_it:     '확인',
   test_info_title:       '망각 곡선에 기반한 테스트 방법',
   test_info_caption:     '망각 곡선은 시간이 지나며 기억이 약해지는 과정을 보여 줍니다. 적절한 시점에 복습하면 기억을 더 오래 유지할 수 있습니다.',
   test_info_section:     '복습 옵션',
@@ -1869,6 +1886,11 @@ const zhCN: Dict = {
   test_reset:            '重置',
   test_reset_confirm:    '所有进度将被清除。',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   '点击卡片，测试一下你是否理解它的含义。',
+  test_intro_results:
+    '标记为 {perfect} 的单词会从复习中移除。标记为 {good}、{slightly} 和 {unknown} 的单词会被归入左上角的彩色分类中，并暂时从主单词列表中消失。',
+  test_intro_got_it:     '知道了',
   test_info_title:       '基于遗忘曲线的测试方法',
   test_info_caption:     '遗忘曲线展示记忆如何随时间减弱。及时复习有助于加深并延长记忆。',
   test_info_section:     '复习选项',
@@ -2195,6 +2217,11 @@ const es: Dict = {
   test_reset:            'Reiniciar',
   test_reset_confirm:    'Se borrará todo el progreso.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Toca la tarjeta para comprobar si entiendes su significado.',
+  test_intro_results:
+    'Las palabras marcadas como {perfect} se eliminan del repaso. Las de {good}, {slightly} y {unknown} se clasifican en las secciones de colores de la esquina superior izquierda y desaparecen temporalmente de la lista principal.',
+  test_intro_got_it:     'Entendido',
   test_info_title:       'Un método de prueba basado en la curva del olvido',
   test_info_caption:     'La curva del olvido muestra cómo la memoria se debilita con el tiempo. Repasar en el momento adecuado ayuda a retenerla por más tiempo.',
   test_info_section:     'OPCIONES DE REPASO',
@@ -2521,6 +2548,11 @@ const fr: Dict = {
   test_reset:            'Réinitialiser',
   test_reset_confirm:    'Toute progression sera effacée.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Appuyez sur la carte pour vérifier que vous en comprenez le sens.',
+  test_intro_results:
+    'Les mots marqués {perfect} sont retirés des révisions. Les mots {good}, {slightly} et {unknown} sont classés dans les sections colorées en haut à gauche et disparaissent temporairement de la liste principale.',
+  test_intro_got_it:     'Compris',
   test_info_title:       'Une méthode de test basée sur la courbe de l’oubli',
   test_info_caption:     'La courbe de l’oubli montre comment la mémoire s’estompe avec le temps. Réviser au bon moment aide à la renforcer durablement.',
   test_info_section:     'OPTIONS DE RÉVISION',
@@ -2847,6 +2879,11 @@ const de: Dict = {
   test_reset:            'Zurücksetzen',
   test_reset_confirm:    'Alle Fortschritte werden gelöscht.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Tippe auf die Karte, um zu prüfen, ob du ihre Bedeutung verstanden hast.',
+  test_intro_results:
+    'Wörter mit {perfect} werden aus der Wiederholung entfernt. Wörter mit {good}, {slightly} und {unknown} werden in die farbigen Bereiche oben links einsortiert und verschwinden vorübergehend aus der Hauptliste.',
+  test_intro_got_it:     'Verstanden',
   test_info_title:       'Eine Testmethode basierend auf der Vergessenskurve',
   test_info_caption:     'Die Vergessenskurve zeigt, wie Erinnerungen mit der Zeit verblassen. Wiederholen zum richtigen Zeitpunkt stärkt die langfristige Merkfähigkeit.',
   test_info_section:     'WIEDERHOLUNGSOPTIONEN',
@@ -3173,6 +3210,11 @@ const it: Dict = {
   test_reset:            'Reimposta',
   test_reset_confirm:    'Tutti i progressi verranno azzerati.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Tocca la carta per verificare se ne hai capito il significato.',
+  test_intro_results:
+    'Le parole segnate come {perfect} vengono rimosse dal ripasso. Quelle {good}, {slightly} e {unknown} finiscono nelle sezioni colorate in alto a sinistra e spariscono temporaneamente dall’elenco principale.',
+  test_intro_got_it:     'Ho capito',
   test_info_title:       'Un metodo di test basato sulla curva dell’oblio',
   test_info_caption:     'La curva dell’oblio mostra come la memoria si indebolisce nel tempo. Ripassare al momento giusto aiuta a ricordare più a lungo.',
   test_info_section:     'OPZIONI DI RIPASSO',
@@ -3499,6 +3541,11 @@ const ptBR: Dict = {
   test_reset:            'Redefinir',
   test_reset_confirm:    'Todo o progresso será apagado.',
 
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Toque no cartão para testar se você entendeu o significado.',
+  test_intro_results:
+    'As palavras marcadas como {perfect} saem da revisão. As de {good}, {slightly} e {unknown} são organizadas nas seções coloridas no canto superior esquerdo e desaparecem temporariamente da lista principal.',
+  test_intro_got_it:     'Entendi',
   test_info_title:       'Um método de teste baseado na curva do esquecimento',
   test_info_caption:     'A curva do esquecimento mostra como a memória enfraquece com o tempo. Revisar no momento certo ajuda a reter o conteúdo por mais tempo.',
   test_info_section:     'OPÇÕES DE REVISÃO',
@@ -3750,6 +3797,11 @@ const ru: Dict = {
   test_complete_title: 'Сессия завершена!', test_complete_hint: 'Вернитесь позже для повторения.',
   test_start: 'Начать', test_shuffle: 'Перемешать', test_reset: 'Сбросить',
   test_reset_confirm: 'Весь прогресс будет удалён.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Нажмите на карточку, чтобы проверить, поняли ли вы её значение.',
+  test_intro_results:
+    'Слова с результатом {perfect} убираются из повторения. Слова {good}, {slightly} и {unknown} попадают в цветные разделы в левом верхнем углу и временно исчезают из основного списка.',
+  test_intro_got_it:     'Понятно',
   test_info_title: 'Метод тестирования на основе кривой забывания', test_info_caption: 'Кривая забывания показывает, как память ослабевает со временем. Своевременное повторение помогает дольше сохранять знания.',
   test_info_section: 'ВАРИАНТЫ ПОВТОРЕНИЯ', test_info_perfect_exp: 'Удалено из повторений',
   test_info_good_exp: 'Через 3 дня', test_info_slightly_exp: 'Завтра', test_info_unknown_exp: 'Через 1 час', test_info_footer: '',
@@ -3940,6 +3992,11 @@ const ar: Dict = {
   test_complete_title: 'اكتملت الجلسة!', test_complete_hint: 'عد لاحقاً لمراجعة المزيد.',
   test_start: 'بدء', test_shuffle: 'خلط', test_reset: 'إعادة ضبط',
   test_reset_confirm: 'سيتم حذف كل التقدم.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'اضغط على البطاقة لتختبر مدى فهمك لمعناها.',
+  test_intro_results:
+    'تُزال الكلمات المصنفة {perfect} من المراجعة. أما كلمات {good} و{slightly} و{unknown} فتُصنَّف في الأقسام الملوّنة أعلى اليسار وتختفي مؤقتاً من قائمة الكلمات الرئيسية.',
+  test_intro_got_it:     'حسناً',
   test_info_title: 'طريقة اختبار تستند إلى منحنى النسيان', test_info_caption: 'يوضح منحنى النسيان كيف تضعف الذاكرة بمرور الوقت. تساعد المراجعة في الوقت المناسب على تثبيت المعلومات لمدة أطول.',
   test_info_section: 'خيارات المراجعة', test_info_perfect_exp: 'تمت إزالتها من المراجعة',
   test_info_good_exp: 'مراجعة خلال 3 أيام', test_info_slightly_exp: 'مراجعة غداً',
@@ -4131,6 +4188,11 @@ const hi: Dict = {
   test_complete_title: 'सेशन पूरा!', test_complete_hint: 'अधिक शब्द दोहराने के लिए बाद में आएं।',
   test_start: 'शुरू करें', test_shuffle: 'फेरबदल करें', test_reset: 'रीसेट',
   test_reset_confirm: 'सारी प्रगति हट जाएगी।',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'कार्ड पर टैप करके जाँचें कि आप उसका अर्थ समझ पाए हैं या नहीं।',
+  test_intro_results:
+    '{perfect} वाले शब्द दोहराने से हटा दिए जाते हैं। {good}, {slightly} और {unknown} वाले शब्द ऊपर बाईं ओर के रंगीन सेक्शन में चले जाते हैं और मुख्य शब्द सूची से कुछ समय के लिए हट जाते हैं।',
+  test_intro_got_it:     'समझ गया',
   test_info_title: 'विस्मरण वक्र पर आधारित परीक्षण विधि', test_info_caption: 'विस्मरण वक्र दिखाता है कि समय के साथ याददाश्त कैसे कम होती है। सही समय पर दोहराने से जानकारी अधिक समय तक याद रहती है।',
   test_info_section: 'समीक्षा विकल्प', test_info_perfect_exp: 'समीक्षा से हटाया गया',
   test_info_good_exp: '3 दिन में दोहराएं', test_info_slightly_exp: 'कल दोहराएं',
@@ -4322,6 +4384,11 @@ const tr: Dict = {
   test_complete_title: 'Oturum Tamamlandı!', test_complete_hint: 'Daha fazla kelime tekrarlamak için geri dön.',
   test_start: 'Başlat', test_shuffle: 'Karıştır', test_reset: 'Sıfırla',
   test_reset_confirm: 'Tüm ilerleme silinecek.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Anlamını anlayıp anlamadığınızı test etmek için karta dokunun.',
+  test_intro_results:
+    '{perfect} olarak işaretlenen kelimeler tekrardan çıkarılır. {good}, {slightly} ve {unknown} kelimeleri sol üstteki renkli bölümlere ayrılır ve ana kelime listesinden geçici olarak kaybolur.',
+  test_intro_got_it:     'Anladım',
   test_info_title: 'Unutma Eğrisine Dayalı Bir Test Yöntemi', test_info_caption: 'Unutma eğrisi, belleğin zamanla nasıl zayıfladığını gösterir. Doğru zamanda tekrar yapmak bilginin daha uzun süre kalmasını sağlar.',
   test_info_section: 'TEKRARl SEÇENEKLER', test_info_perfect_exp: 'Tekrardan kaldırıldı',
   test_info_good_exp: '3 günde tekrar', test_info_slightly_exp: 'Yarın tekrar',
@@ -4513,6 +4580,11 @@ const nl: Dict = {
   test_complete_title: 'Sessie voltooid!', test_complete_hint: 'Kom later terug voor meer woorden.',
   test_start: 'Starten', test_shuffle: 'Schudden', test_reset: 'Resetten',
   test_reset_confirm: 'Alle voortgang wordt gewist.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Tik op de kaart om te testen of je de betekenis begrijpt.',
+  test_intro_results:
+    'Woorden met {perfect} verdwijnen uit de herhaling. Woorden met {good}, {slightly} en {unknown} worden gesorteerd in de gekleurde secties linksboven en verdwijnen tijdelijk uit de hoofdlijst.',
+  test_intro_got_it:     'Begrepen',
   test_info_title: 'Een testmethode gebaseerd op de vergeetcurve', test_info_caption: 'De vergeetcurve laat zien hoe herinneringen na verloop van tijd vervagen. Op het juiste moment herhalen helpt om ze langer te onthouden.',
   test_info_section: 'HERHALINGSOPTIES', test_info_perfect_exp: 'Verwijderd uit herhaling',
   test_info_good_exp: 'Over 3 dagen herhalen', test_info_slightly_exp: 'Morgen herhalen',
@@ -4704,6 +4776,11 @@ const vi: Dict = {
   test_complete_title: 'Hoàn thành!', test_complete_hint: 'Quay lại sau để ôn thêm.',
   test_start: 'Bắt đầu', test_shuffle: 'Xáo trộn', test_reset: 'Đặt lại',
   test_reset_confirm: 'Tất cả tiến trình sẽ bị xóa.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Nhấn vào thẻ để kiểm tra xem bạn đã hiểu nghĩa của nó chưa.',
+  test_intro_results:
+    'Những từ đánh dấu {perfect} sẽ bị loại khỏi phần ôn tập. Từ {good}, {slightly} và {unknown} được xếp vào các mục màu ở góc trên bên trái và tạm thời biến mất khỏi danh sách từ chính.',
+  test_intro_got_it:     'Đã hiểu',
   test_info_title: 'Phương pháp kiểm tra dựa trên đường cong lãng quên', test_info_caption: 'Đường cong lãng quên cho thấy trí nhớ suy giảm theo thời gian. Ôn tập đúng lúc giúp ghi nhớ lâu hơn.',
   test_info_section: 'CÁC TÙY CHỌN ÔN', test_info_perfect_exp: 'Loại khỏi danh sách ôn',
   test_info_good_exp: 'Ôn sau 3 ngày', test_info_slightly_exp: 'Ôn ngày mai',
@@ -4894,6 +4971,11 @@ const th: Dict = {
   test_complete_title: 'เสร็จสิ้นแล้ว!', test_complete_hint: 'กลับมาทบทวนอีกครั้งในภายหลัง',
   test_start: 'เริ่ม', test_shuffle: 'สุ่ม', test_reset: 'รีเซ็ต',
   test_reset_confirm: 'ความคืบหน้าทั้งหมดจะถูกลบ',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'แตะที่การ์ดเพื่อทดสอบว่าคุณเข้าใจความหมายของมันหรือไม่',
+  test_intro_results:
+    'คำที่ตอบ {perfect} จะถูกนำออกจากการทบทวน ส่วนคำที่ตอบ {good}, {slightly} และ {unknown} จะถูกจัดไว้ในหมวดสีที่มุมซ้ายบน และหายไปจากรายการคำศัพท์หลักชั่วคราว',
+  test_intro_got_it:     'เข้าใจแล้ว',
   test_info_title: 'วิธีทดสอบตามเส้นโค้งการลืม', test_info_caption: 'เส้นโค้งการลืมแสดงให้เห็นว่าความจำลดลงตามเวลา การทบทวนในเวลาที่เหมาะสมช่วยให้จำได้นานขึ้น',
   test_info_section: 'ตัวเลือกการทบทวน', test_info_perfect_exp: 'ลบออกจากการทบทวน',
   test_info_good_exp: 'ทบทวนใน 3 วัน', test_info_slightly_exp: 'ทบทวนพรุ่งนี้',
@@ -5084,6 +5166,11 @@ const id: Dict = {
   test_complete_title: 'Sesi Selesai!', test_complete_hint: 'Kembali lagi nanti untuk meninjau lebih banyak kata.',
   test_start: 'Mulai', test_shuffle: 'Acak', test_reset: 'Atur Ulang',
   test_reset_confirm: 'Semua progres akan dihapus.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Ketuk kartu untuk menguji apakah kamu memahami artinya.',
+  test_intro_results:
+    'Kata dengan hasil {perfect} dikeluarkan dari pengulangan. Kata {good}, {slightly}, dan {unknown} dikelompokkan ke bagian berwarna di kiri atas dan sementara hilang dari daftar kata utama.',
+  test_intro_got_it:     'Mengerti',
   test_info_title: 'Metode Tes Berdasarkan Kurva Lupa', test_info_caption: 'Kurva lupa menunjukkan bagaimana ingatan melemah seiring waktu. Mengulang pada waktu yang tepat membantu mengingat lebih lama.',
   test_info_section: 'OPSI ULANGAN', test_info_perfect_exp: 'Dihapus dari ulangan',
   test_info_good_exp: 'Ulang dalam 3 hari', test_info_slightly_exp: 'Ulang besok',
@@ -5274,6 +5361,11 @@ const pl: Dict = {
   test_complete_title: 'Sesja zakończona!', test_complete_hint: 'Wróć później, aby powtórzyć więcej słów.',
   test_start: 'Start', test_shuffle: 'Przetasuj', test_reset: 'Resetuj',
   test_reset_confirm: 'Cały postęp zostanie usunięty.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Naciśnij kartę, aby sprawdzić, czy rozumiesz jej znaczenie.',
+  test_intro_results:
+    'Słowa oznaczone jako {perfect} znikają z powtórek. Słowa {good}, {slightly} i {unknown} trafiają do kolorowych sekcji w lewym górnym rogu i tymczasowo znikają z głównej listy.',
+  test_intro_got_it:     'Rozumiem',
   test_info_title: 'Metoda testowania oparta na krzywej zapominania', test_info_caption: 'Krzywa zapominania pokazuje, jak pamięć słabnie z czasem. Powtórka we właściwym momencie pomaga zachować informacje na dłużej.',
   test_info_section: 'OPCJE POWTÓREK', test_info_perfect_exp: 'Usunięto z powtórek',
   test_info_good_exp: 'Powtórka za 3 dni', test_info_slightly_exp: 'Powtórka jutro',
@@ -5464,6 +5556,11 @@ const el: Dict = {
   test_complete_title: 'Η συνεδρία ολοκληρώθηκε!', test_complete_hint: 'Επιστρέψτε αργότερα για επανάληψη.',
   test_start: 'Έναρξη', test_shuffle: 'Ανακάτεμα', test_reset: 'Επαναφορά',
   test_reset_confirm: 'Όλη η πρόοδος θα διαγραφεί.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Πατήστε την κάρτα για να ελέγξετε αν καταλαβαίνετε τη σημασία της.',
+  test_intro_results:
+    'Οι λέξεις με {perfect} αφαιρούνται από την επανάληψη. Οι λέξεις {good}, {slightly} και {unknown} ταξινομούνται στις χρωματιστές ενότητες πάνω αριστερά και εξανίζονται προσωρινά από την κύρια λίστα.',
+  test_intro_got_it:     'Κατάλαβα',
   test_info_title: 'Μέθοδος τεστ βασισμένη στην καμπύλη λήθης', test_info_caption: 'Η καμπύλη λήθης δείχνει πώς εξασθενεί η μνήμη με τον χρόνο. Η επανάληψη την κατάλληλη στιγμή βοηθά στη διατήρηση των γνώσεων για περισσότερο.',
   test_info_section: 'ΕΠΙΛΟΓΕΣ ΕΠΑΝΑΛΗΨΗΣ', test_info_perfect_exp: 'Αφαιρέθηκε από επαναλήψεις',
   test_info_good_exp: 'Επανάληψη σε 3 μέρες', test_info_slightly_exp: 'Επανάληψη αύριο',
@@ -5654,6 +5751,11 @@ const sv: Dict = {
   test_complete_title: 'Session slutförd!', test_complete_hint: 'Kom tillbaka senare för att repetera fler ord.',
   test_start: 'Starta', test_shuffle: 'Blanda', test_reset: 'Återställ',
   test_reset_confirm: 'All framsteg kommer att raderas.',
+  // Test Mode introduction — three one-time popups, in order.
+  test_intro_tap_card:   'Tryck på kortet för att testa om du förstår dess betydelse.',
+  test_intro_results:
+    'Ord med {perfect} tas bort från repetitionen. Ord med {good}, {slightly} och {unknown} sorteras in i de färgade sektionerna uppe till vänster och försvinner tillfälligt från huvudlistan.',
+  test_intro_got_it:     'Uppfattat',
   test_info_title: 'En testmetod baserad på glömskekurvan', test_info_caption: 'Glömskekurvan visar hur minnet försvagas med tiden. Repetition vid rätt tidpunkt hjälper dig att minnas längre.',
   test_info_section: 'REPETITIONSALTERNATIV', test_info_perfect_exp: 'Borttagen från repetition',
   test_info_good_exp: 'Repetera om 3 dagar', test_info_slightly_exp: 'Repetera imorgon',

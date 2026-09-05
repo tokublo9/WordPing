@@ -3,16 +3,26 @@ import type { WordCard } from '../../types';
 /**
  * One-time tutorial state.
  *
- * Covers the result-colour filters: shown once, at the moment the user has just
- * earned it, and never again on a later launch.
+ * Two things live here: the Test Mode introduction — three popups, in order,
+ * each shown once ever — and the rule that decides when the result-colour
+ * filters appear.
  *
  * Pure — no react-native or expo import. The AsyncStorage reads and writes live
- * with the other UI preferences in `useAppPersistence` / `useAppBootstrap`.
+ * with the other UI preferences in `useAppPersistence` / `useAppBootstrap`, and
+ * for the Test introduction in `hooks/useTestIntro.ts`.
  */
 
-/** The result-colour filters, explained after the first Test Mode answer. */
+/**
+ * The old result-filter tutorial's dismissal flag.
+ *
+ * Nothing sets it any more: the popup it belonged to — raised on leaving Test
+ * Mode after the first answer — is gone, replaced by the three-step
+ * introduction below. It is still *read*, because it is what already-migrated
+ * and already-taught users carry, and dropping it would take the filters away
+ * from everyone who earned them before this release.
+ */
 export const RESULT_FILTER_TUTORIAL_KEY = 'wordping_tutorial_result_filter_seen';
-/** Set the first time any card is graded, so the filter tutorial has a trigger. */
+/** Set the first time any card is graded. Now also what reveals the filters. */
 export const FIRST_TEST_ANSWER_KEY = 'wordping_first_test_answer';
 /**
  * Records that the one-time check for pre-existing Test Mode results has run.
@@ -51,57 +61,115 @@ export function hasExistingTestResults(cards: readonly WordCard[]): boolean {
 }
 
 export interface ResultFilterVisibilityInput {
-  /** Stored value of RESULT_FILTER_TUTORIAL_KEY: the user dismissed the tutorial. */
+  /** Stored value of RESULT_FILTER_TUTORIAL_KEY: an already-taught user. */
   hasSeenResultFilterTutorial: boolean;
+  /** Stored value of FIRST_TEST_ANSWER_KEY: at least one card has been graded. */
+  hasCompletedFirstTestAnswer: boolean;
 }
 
 /**
  * Whether the result-colour filter chips may be rendered.
  *
- * Dismissing the tutorial is the single gate. Answering a card is deliberately
- * *not* enough: the chips are the thing the tutorial explains, so revealing them
- * first would leave a user looking at four unexplained colours — which is the
- * situation this feature exists to prevent.
+ * Either condition is enough, and they are two eras of the same rule: nobody
+ * sees the chips before they have been told what the colours mean.
  *
- * Existing users are not a second condition here. They are handled once, at
- * migration, by initialising the same flag — see `resolveResultFilterMigration`.
- * Keeping one rule means there is no way for the two paths to disagree.
+ * The first answer is what says so now — the third Test introduction popup
+ * explains the coloured sections at that exact moment, so the chips and their
+ * explanation arrive together. The old flag is still honoured because it means
+ * the same thing for everyone who was taught the previous way: they dismissed
+ * the tutorial, or they were migrated as an existing user with results. Reading
+ * both is what keeps this release from taking the filters back off them.
  */
 export function shouldShowResultFilters(input: ResultFilterVisibilityInput): boolean {
-  return input.hasSeenResultFilterTutorial;
+  return input.hasSeenResultFilterTutorial || input.hasCompletedFirstTestAnswer;
 }
 
-export interface ResultFilterTutorialInput extends ResultFilterVisibilityInput {
-  /** Stored value of FIRST_TEST_ANSWER_KEY: at least one card has been graded. */
-  hasCompletedFirstTestAnswer: boolean;
-  /** Bootstrap has finished, so the stored flags are the real ones. */
-  isAppReady: boolean;
-  /** Test Mode is on screen right now. */
-  isTestModeOpen: boolean;
-  /** Onboarding, a modal or a transient mode owns the screen. */
+// ── The Test Mode introduction ───────────────────────────────────────────────
+
+/**
+ * Three popups, in this order, each shown once for the lifetime of the install.
+ *
+ * `opened`   — on entering Test Mode: what the card is for.
+ * `revealed` — the first time the answers are uncovered: the same explanation
+ *              the Info button opens, so there is one description of the four
+ *              results rather than two that can disagree.
+ * `answered` — after the first answer is applied: where the word just went.
+ *
+ * Each has its own key, and each is written when the popup is *dismissed*
+ * rather than when it is triggered. Quitting mid-step therefore resumes at that
+ * same step, which is what the alternative — writing on the trigger — would
+ * silently lose.
+ */
+export type TestIntroStep = 'opened' | 'revealed' | 'answered';
+
+export const TEST_INTRO_STEPS: readonly TestIntroStep[] = ['opened', 'revealed', 'answered'];
+
+export const TEST_INTRO_KEYS: Readonly<Record<TestIntroStep, string>> = {
+  opened:   'wordping_tutorial_test_opened',
+  revealed: 'wordping_tutorial_test_revealed',
+  answered: 'wordping_tutorial_test_answered',
+};
+
+export type TestIntroSeen = Readonly<Record<TestIntroStep, boolean>>;
+
+export const NO_TEST_INTRO_SEEN: TestIntroSeen = {
+  opened: false, revealed: false, answered: false,
+};
+
+export interface TestIntroInput {
+  seen: TestIntroSeen;
+  /** The stored flags have been read. Nothing is shown before that. */
+  loaded: boolean;
+  /** A card is on screen, so there is something the first popup can point at. */
+  hasCard: boolean;
+  /** The card has been turned over and the four answers are on screen. */
+  hasRevealedAnswers: boolean;
+  /** An answer has been applied and the test has moved on from it. */
+  hasAnswered: boolean;
+  /** Something the user opened themselves owns the screen. */
   isScreenBusy: boolean;
 }
 
 /**
- * Whether to show the filter tutorial now.
+ * The one popup to show right now, or null.
  *
- * One rule covers both the normal path and force-close recovery, because both
- * describe the same situation: a card has been answered, the tutorial has not
- * been dismissed, and the user is somewhere it can safely appear. Finishing a
- * test, quitting one, and relaunching the app after a force-close all arrive
- * here identically — there is no separate "was closed" flag that a crash could
- * lose.
+ * A single answer rather than three booleans, so two introduction popups can
+ * never be on screen together — there is no state in which this returns more
+ * than one thing.
  *
- * `isTestModeOpen` keeps it off the results screen, an exit confirmation and the
- * dismissal animation. `isAppReady` keeps it from appearing before the stored
- * flags have been read, which would otherwise show it to someone who had
- * already dismissed it.
+ * Order is structural, not a convention: an unseen step stops the search, so a
+ * later step can never overtake an earlier one even if its own trigger has
+ * already happened. That also makes the resume rule fall out for free — after a
+ * force-quit the first unseen step is simply the next one returned.
+ *
+ * Being derived from state rather than fired from an effect is what makes it
+ * safe against re-renders, repeated taps and Strict Mode's double invocation:
+ * there is no "show" event to run twice, only a value that is or is not this
+ * step.
  */
-export function shouldShowResultFilterTutorial(input: ResultFilterTutorialInput): boolean {
-  if (!input.isAppReady) return false;
-  if (input.hasSeenResultFilterTutorial) return false;
-  if (!input.hasCompletedFirstTestAnswer) return false;
-  return !input.isTestModeOpen && !input.isScreenBusy;
+export function nextTestIntroStep(input: TestIntroInput): TestIntroStep | null {
+  if (!input.loaded || input.isScreenBusy) return null;
+  if (!input.seen.opened)   return input.hasCard ? 'opened' : null;
+  if (!input.seen.revealed) return input.hasRevealedAnswers ? 'revealed' : null;
+  if (!input.seen.answered) return input.hasAnswered ? 'answered' : null;
+  return null;
+}
+
+/**
+ * Adds one step. Returns the same object when nothing changed, so a repeated
+ * dismissal is a no-op rather than a second render and a second write.
+ *
+ * Written out rather than spread with a computed key: three named fields cannot
+ * be widened into an index signature by inference, and the one thing this must
+ * never do is let a step outside the three exist.
+ */
+export function markTestIntroSeen(seen: TestIntroSeen, step: TestIntroStep): TestIntroSeen {
+  if (seen[step]) return seen;
+  return {
+    opened:   seen.opened   || step === 'opened',
+    revealed: seen.revealed || step === 'revealed',
+    answered: seen.answered || step === 'answered',
+  };
 }
 
 export interface ResultFilterMigrationInput {
@@ -148,7 +216,8 @@ export function resolveResultFilterMigration(
 }
 
 /*
- * Swipe and long-press are explained by a seeded welcome card, not by a
- * tutorial popup — see DEFAULT_CARDS in lib/db.ts. There is deliberately no
- * state here for it: a card the user can read, keep or delete needs none.
+ * Swipe and long-press are explained by one of the seeded tutorial cards, not by
+ * a tutorial popup — see DEFAULT_CARDS in lib/db.ts and WELCOME_CARD_TEXTS in
+ * features/onboarding/welcomeContent.ts. There is deliberately no state here for
+ * it: a card the user can read, keep or delete needs none.
  */

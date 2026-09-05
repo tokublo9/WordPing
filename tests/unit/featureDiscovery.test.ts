@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   FEATURE_MARKERS,
+  hasExitedFirstTest,
   markFeatureSeen,
   parseSeenFeatures,
   planUnlocksFeature,
   serializeSeenFeatures,
   shouldShowFeatureMarker,
+  shouldShowNotificationMarker,
+  shouldShowTestMarker,
   type FeatureMarkerId,
 } from '../../src/features/onboarding/featureDiscovery';
 import type { PlanTier } from '../../src/lib/planLimits';
@@ -19,10 +22,32 @@ import type { PlanTier } from '../../src/lib/planLimits';
  */
 
 const ALL = Object.values(FEATURE_MARKERS);
-/** What any paid plan unlocks in addition to Free's Custom Voice marker. */
+/**
+ * Everything no plan gates: the word editor's three controls, Bulk Import, the
+ * two Word List header icons, Send Test, Upgrade Plan, and the first-test milestone.
+ *
+ * Every one of them works on Free, so a marker for any of them must appear on
+ * Free too — a hint pointing at something the user can already do. Upgrade Plan
+ * most of all: gating it would hide it from the people it exists for.
+ *
+ * `firstTestExited` is in here because it is stored in the same set and obeys
+ * the same mechanics. Nothing renders it — see the sequencing tests below.
+ */
+const EVERY_PLAN_MARKERS = [
+  FEATURE_MARKERS.customAudio,
+  FEATURE_MARKERS.hideWord,
+  FEATURE_MARKERS.notifyWord,
+  FEATURE_MARKERS.bulkImport,
+  FEATURE_MARKERS.upgradePlan,
+  FEATURE_MARKERS.testIcon,
+  FEATURE_MARKERS.notificationIcon,
+  FEATURE_MARKERS.sendTest,
+  FEATURE_MARKERS.firstTestExited,
+];
+/** What any paid plan unlocks in addition to the ungated markers. */
 const BASIC_SET = [
   FEATURE_MARKERS.themeShop,
-  FEATURE_MARKERS.customAudio,
+  ...EVERY_PLAN_MARKERS,
   FEATURE_MARKERS.naturalAIVoice,
   FEATURE_MARKERS.aboutAIVoice,
 ];
@@ -44,8 +69,8 @@ function visible(plan: PlanTier, seen: string[] = [], isSubscriptionLoaded = tru
     shouldShowFeatureMarker({ marker, plan, isSubscriptionLoaded, seen: new Set(seen) }));
 }
 
-test('20. a Free user can discover the Custom Voice control', () => {
-  assert.deepEqual(visible('free'), [FEATURE_MARKERS.customAudio]);
+test('20. a Free user can discover every ungated control', () => {
+  assert.deepEqual(visible('free').sort(), [...EVERY_PLAN_MARKERS].sort());
 });
 
 test('21. nothing is marked while the subscription state is unknown', () => {
@@ -53,7 +78,7 @@ test('21. nothing is marked while the subscription state is unknown', () => {
   assert.deepEqual(visible('premium', [], false), []);
 });
 
-test('15. Basic receives the Theme Shop, custom audio and the AI Voice surfaces', () => {
+test('15. Basic receives the Theme Shop, the ungated controls and the AI Voice surfaces', () => {
   assert.deepEqual(visible('basic').sort(), [...BASIC_SET].sort());
   // Free still reaches neither AI Voice surface — that boundary did not move.
   for (const marker of AI_VOICE_MARKERS) {
@@ -66,9 +91,11 @@ test('16. Premium receives those plus both AI Voice surfaces', () => {
 });
 
 test('the plan requirement comes from each feature rule, not a tier list', () => {
-  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'free'), true);
-  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'basic'), true);
-  assert.equal(planUnlocksFeature(FEATURE_MARKERS.customAudio, 'premium'), true);
+  for (const marker of EVERY_PLAN_MARKERS) {
+    for (const plan of ['free', 'basic', 'premium'] as const) {
+      assert.equal(planUnlocksFeature(marker, plan), true, `${marker}/${plan} is ungated`);
+    }
+  }
   assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'free'), false);
   assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'basic'), true);
   assert.equal(planUnlocksFeature(FEATURE_MARKERS.themeShop, 'premium'), true);
@@ -83,10 +110,10 @@ test('18. each marker dismisses independently', () => {
   const afterThemeShop = visible('premium', [FEATURE_MARKERS.themeShop]);
   assert.deepEqual(
     afterThemeShop.sort(),
-    [...AI_VOICE_MARKERS, FEATURE_MARKERS.customAudio].sort(),
+    [...AI_VOICE_MARKERS, ...EVERY_PLAN_MARKERS].sort(),
     'opening one feature must not clear the others',
   );
-  assert.deepEqual(visible('premium', [FEATURE_MARKERS.aboutAIVoice]).length, 3);
+  assert.deepEqual(visible('premium', [FEATURE_MARKERS.aboutAIVoice]).length, ALL.length - 1);
   assert.deepEqual(visible('premium', ALL), []);
 });
 
@@ -120,14 +147,14 @@ test('17. a Basic user upgrading to Premium keeps what they already found', () =
   assert.deepEqual(visible('premium', BASIC_SET), []);
   // A marker not yet found is still marked after the upgrade.
   assert.deepEqual(
-    visible('premium', [FEATURE_MARKERS.themeShop, FEATURE_MARKERS.customAudio]).sort(),
+    visible('premium', [FEATURE_MARKERS.themeShop, ...EVERY_PLAN_MARKERS]).sort(),
     [...AI_VOICE_MARKERS].sort(),
   );
 });
 
 test('22. a downgrade hides inaccessible markers without erasing history', () => {
   const seen = [FEATURE_MARKERS.themeShop];
-  assert.deepEqual(visible('free', seen), [FEATURE_MARKERS.customAudio]);
+  assert.deepEqual(visible('free', seen).sort(), [...EVERY_PLAN_MARKERS].sort());
   // The set itself is untouched — hiding is by entitlement, not by forgetting.
   assert.deepEqual([...markFeatureSeen(new Set(seen), FEATURE_MARKERS.themeShop)], seen);
 });
@@ -144,7 +171,7 @@ test('23. resubscribing does not restore a dismissed marker', () => {
   }
   // And a marker never found is still offered after the plan changes, so the
   // rule hides by entitlement rather than by forgetting what was seen.
-  const seen = [FEATURE_MARKERS.customAudio, FEATURE_MARKERS.themeShop];
+  const seen = [...EVERY_PLAN_MARKERS, FEATURE_MARKERS.themeShop];
   assert.deepEqual(visible('premium', seen).sort(), [...AI_VOICE_MARKERS].sort());
 });
 
@@ -167,4 +194,98 @@ test('marking is idempotent, so a repeat tap writes nothing', () => {
   const seen = new Set([FEATURE_MARKERS.themeShop]);
   assert.equal(markFeatureSeen(seen, FEATURE_MARKERS.themeShop), seen, 'same set, no write');
   assert.notEqual(markFeatureSeen(seen, FEATURE_MARKERS.aboutAIVoice), seen);
+});
+
+// ── The Test → Notification sequence ─────────────────────────────────────────
+
+/** Every marker rule takes the same three inputs; only the ids differ. */
+function context(seen: string[] = []) {
+  return { plan: 'free' as const, isSubscriptionLoaded: true, seen: new Set(seen) };
+}
+
+test('the Test marker shows until the icon has been tapped, then never again', () => {
+  assert.equal(shouldShowTestMarker(context()), true);
+  assert.equal(shouldShowTestMarker(context([FEATURE_MARKERS.testIcon])), false);
+  // Nothing else can spend it, and nothing brings it back.
+  assert.equal(shouldShowTestMarker(context([FEATURE_MARKERS.notificationIcon])), true);
+  assert.equal(
+    shouldShowTestMarker(context([FEATURE_MARKERS.testIcon, FEATURE_MARKERS.firstTestExited])),
+    false,
+  );
+});
+
+test('the Notification marker is withheld until the first test has been left', () => {
+  // Nothing yet: the sequence has not started.
+  assert.equal(shouldShowNotificationMarker(context()), false);
+  // Tapped Test, still inside it. This is the case the sequence exists to
+  // prevent — the header is on screen behind the test, so a marker here would
+  // be spent before the user could act on it.
+  assert.equal(shouldShowNotificationMarker(context([FEATURE_MARKERS.testIcon])), false);
+  // Left the first test.
+  assert.equal(
+    shouldShowNotificationMarker(context([FEATURE_MARKERS.testIcon, FEATURE_MARKERS.firstTestExited])),
+    true,
+  );
+  // Tapped the Notification icon: gone, and it stays gone.
+  assert.equal(
+    shouldShowNotificationMarker(context([
+      FEATURE_MARKERS.testIcon,
+      FEATURE_MARKERS.firstTestExited,
+      FEATURE_MARKERS.notificationIcon,
+    ])),
+    false,
+  );
+});
+
+test('the two header markers are never on screen at the same time', () => {
+  // Whatever the stored set, at most one of the two is shown: the Test marker
+  // is spent by the tap that starts the sequence the other one waits on.
+  for (const seen of [
+    [],
+    [FEATURE_MARKERS.testIcon],
+    [FEATURE_MARKERS.testIcon, FEATURE_MARKERS.firstTestExited],
+    [FEATURE_MARKERS.testIcon, FEATURE_MARKERS.firstTestExited, FEATURE_MARKERS.notificationIcon],
+    [FEATURE_MARKERS.firstTestExited],
+  ]) {
+    const both = [shouldShowTestMarker(context(seen)), shouldShowNotificationMarker(context(seen))];
+    assert.notDeepEqual(both, [true, true], `both shown for ${seen.join()}`);
+  }
+});
+
+test('the milestone is due once the test has been opened and is not open now', () => {
+  const tapped = new Set<string>([FEATURE_MARKERS.testIcon]);
+  // Inside the first test: not yet.
+  assert.equal(hasExitedFirstTest(tapped, true), false);
+  // Left it — and equally, relaunched after a force-quit inside it, which is
+  // the same observation: opened once, not open now.
+  assert.equal(hasExitedFirstTest(tapped, false), true);
+  // Never tapped Test: nothing to have exited, whatever the mode is doing.
+  assert.equal(hasExitedFirstTest(new Set(), false), false);
+  assert.equal(hasExitedFirstTest(new Set(), true), false);
+});
+
+test('the Upgrade Plan marker is independent of the header sequence', () => {
+  // It is not waiting on anything, and nothing in the sequence disturbs it.
+  assert.equal(shouldShowFeatureMarker({ ...context(), marker: FEATURE_MARKERS.upgradePlan }), true);
+  for (const seen of [
+    [FEATURE_MARKERS.testIcon],
+    [FEATURE_MARKERS.testIcon, FEATURE_MARKERS.firstTestExited],
+    [FEATURE_MARKERS.notificationIcon],
+  ]) {
+    assert.equal(
+      shouldShowFeatureMarker({ ...context(seen), marker: FEATURE_MARKERS.upgradePlan }),
+      true,
+      `disturbed by ${seen.join()}`,
+    );
+  }
+  // Only its own tap clears it, and the header markers survive that.
+  const afterUpgrade = context([FEATURE_MARKERS.upgradePlan]);
+  assert.equal(shouldShowFeatureMarker({ ...afterUpgrade, marker: FEATURE_MARKERS.upgradePlan }), false);
+  assert.equal(shouldShowTestMarker(afterUpgrade), true);
+
+  // Every plan sees it, including the subscribed ones — a Basic user upgrading
+  // to Premium is the other half of what this row is for.
+  for (const plan of ['free', 'basic', 'premium'] as const) {
+    assert.equal(planUnlocksFeature(FEATURE_MARKERS.upgradePlan, plan), true, plan);
+  }
 });

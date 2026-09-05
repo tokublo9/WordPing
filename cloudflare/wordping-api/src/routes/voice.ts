@@ -4,6 +4,7 @@ import {
   PROMO_SAMPLE_CACHE_TTL_SECONDS,
   PROMO_SAMPLE_VERSION,
   PROMO_SAMPLE_VOICE,
+  SPEECH_MODEL,
   VOICE_SAMPLE_CACHE_TTL_SECONDS,
   VOICE_SAMPLE_TEXT,
   VOICE_SAMPLE_VERSION,
@@ -15,7 +16,7 @@ import {
 } from '../config';
 import { audioResponse, errorResponse, type ResponseContext } from '../http';
 import { log } from '../log';
-import { requestSpeech } from '../openai';
+import { languageName, requestSpeech } from '../openai';
 import { guard, type GuardContext } from '../pipeline';
 import { voiceCardSchema, voiceCustomSchema, voicePromoSchema, voiceSampleSchema } from '../schemas';
 
@@ -44,8 +45,9 @@ function relay(
   format: AudioFormat,
   cache: 'hit' | 'miss',
   body: BodyInit,
+  extraHeaders: Record<string, string> = {},
 ): Response {
-  const headers: Record<string, string> = { 'X-WordPing-Cache': cache };
+  const headers: Record<string, string> = { 'X-WordPing-Cache': cache, ...extraHeaders };
   const declared = upstream.headers.get('Content-Length');
   if (declared !== null) headers['Content-Length'] = declared;
   return audioResponse(response, body, contentTypeFor(format), headers);
@@ -58,6 +60,14 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
     schema: voiceCardSchema,
     validate: body => voiceOrNull(body.voice),
     billableText: body => body.text,
+    idempotencyInput: body => JSON.stringify({
+      text: body.text,
+      voice: resolveVoice(body.voice),
+      format: body.format ?? 'wav',
+      langCode: body.langCode || null,
+      model: SPEECH_MODEL,
+      speed: 1,
+    }),
   });
   if (!result.ok) return result.response;
 
@@ -79,6 +89,9 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
         format,
         timeoutMs: context.resolved.speechTimeoutMs,
         localMock: context.localAiVoiceTestScenario !== null,
+        ...(body.langCode
+          ? { instructions: `Speak naturally using ${languageName(body.langCode)} pronunciation.` }
+          : {}),
       },
       context.response.requestId,
     );
@@ -96,6 +109,15 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
     return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_too_large' });
   }
 
+  // The caller can disappear while OpenAI is working. Do not turn a request
+  // the app cancelled into a lifetime spend merely because upstream happened
+  // to finish before the Worker observed the disconnect.
+  if (context.request.signal.aborted) {
+    await upstream.body?.cancel();
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'request_timeout', 408, { reason: 'client_cancelled' });
+  }
+
   // The generation succeeded. This is the only place a credit becomes a spend,
   // and it is a no-op on Premium and for anything that never reserved one.
   //
@@ -103,14 +125,25 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
   // uncharged, and the reservation would then expire and return the credit. The
   // request is failed instead, and the reservation released, so the user can
   // retry rather than being silently given a free generation.
-  if (!await result.value.commitVoiceCredit()) {
+  const creditBalance = await result.value.commitVoiceCredit();
+  if (creditBalance === null) {
     await upstream.body?.cancel();
     await result.value.releaseVoiceCredit();
     return errorResponse(context.response, 'upstream_failed', 503, { reason: 'credit_ledger' });
   }
 
   log('info', 'voice_card_ok', context.response.requestId, { voice, format, characters });
-  return relay(context.response, upstream, format, 'miss', upstream.body!);
+  return relay(
+    context.response,
+    upstream,
+    format,
+    'miss',
+    upstream.body!,
+    creditBalance === undefined ? {} : {
+      'X-WordPing-Voice-Credits-Remaining': String(creditBalance.remaining),
+      'X-WordPing-Voice-Credits-Available': String(creditBalance.available),
+    },
+  );
 }
 
 /**
@@ -190,13 +223,13 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
 }
 
 /**
- * POST /v1/voice/promo — the two promotional clips in the Upgrade Plan sheet.
+ * POST /v1/voice/promo — fixed promotional clips in the Upgrade Plan sheet.
  *
  * The only speech route reachable without a subscription. What makes that safe
  * is not a flag but the shape of the request: there is no text field and no
- * voice field, so a caller picks one of two server-authored sentences and
- * nothing else. Both clips live in KV, shared by every user, which means the
- * entire feature costs two OpenAI generations per cache lifetime.
+ * voice field, so a caller picks one server-authored sample and nothing else.
+ * Every clip lives in KV, shared by every user, which means the entire feature
+ * costs one OpenAI generation per clip per cache lifetime.
  *
  * Never metered against the Basic monthly voice allowance — `voice_promo` is
  * absent from VOICE_QUOTA_FEATURES — and never a substitute for /v1/voice/card,

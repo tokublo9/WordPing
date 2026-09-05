@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  NO_TEST_INTRO_SEEN,
+  TEST_INTRO_KEYS,
+  TEST_INTRO_STEPS,
   hasExistingTestResults,
+  markTestIntroSeen,
+  nextTestIntroStep,
   parseTutorialFlag,
   resolveResultFilterMigration,
   serializeTutorialFlag,
-  shouldShowResultFilterTutorial,
   shouldShowResultFilters,
+  type TestIntroInput,
+  type TestIntroStep,
 } from '../../src/features/onboarding/tutorialState';
 import { gradeCard } from '../../src/features/cards/grading';
 import { shouldShowCard } from '../../src/features/cards/visibility';
@@ -19,21 +25,27 @@ function card(overrides: Partial<WordCard> = {}): WordCard {
 }
 
 /**
- * The state machine behind the result-colour filters.
+ * The Test Mode introduction, and the rule that reveals the result filters.
  *
- * The single rule under test: the filters stay hidden until the user has
- * dismissed the tutorial. Answering a card makes the tutorial *due*; it does not
- * reveal anything by itself.
+ * The introduction is three popups shown once each, in a fixed order. The rule
+ * under test is that `nextTestIntroStep` answers with at most one of them, that
+ * the order cannot be jumped, and that an interrupted run resumes where it
+ * stopped rather than skipping ahead.
  */
 
-/** A genuinely new user: nothing stored, nothing graded. */
-const NEW_USER = {
-  hasSeenResultFilterTutorial: false,
-  hasCompletedFirstTestAnswer: false,
-  isAppReady: true,
-  isTestModeOpen: false,
+/** In Test Mode with a card on screen, nothing seen and nothing done yet. */
+const FRESH: TestIntroInput = {
+  seen: NO_TEST_INTRO_SEEN,
+  loaded: true,
+  hasCard: true,
+  hasRevealedAnswers: false,
+  hasAnswered: false,
   isScreenBusy: false,
 };
+
+function seenUpTo(...steps: TestIntroStep[]) {
+  return steps.reduce(markTestIntroSeen, NO_TEST_INTRO_SEEN);
+}
 
 test('an absent or malformed flag means "not seen"', () => {
   for (const raw of [null, undefined, '', 'TRUE', '1', 'yes', 'seen']) {
@@ -44,122 +56,138 @@ test('an absent or malformed flag means "not seen"', () => {
   assert.equal(parseTutorialFlag(serializeTutorialFlag(false)), false);
 });
 
-// ── 1–6, 9: visibility follows the dismissal, and nothing else ────────────────
+// ── The three-step introduction ──────────────────────────────────────────────
 
-test('1. a new user sees no filters before answering anything', () => {
-  assert.equal(shouldShowResultFilters({ hasSeenResultFilterTutorial: false }), false);
-  assert.equal(shouldShowResultFilterTutorial(NEW_USER), false);
+test('1. opening Test Mode raises the first popup, and nothing else', () => {
+  assert.equal(nextTestIntroStep(FRESH), 'opened');
+  // It says to tap the card; it must not be conditional on the card having been
+  // tapped, flipped, or answered.
+  assert.equal(nextTestIntroStep({ ...FRESH, hasRevealedAnswers: true }), 'opened');
+  assert.equal(nextTestIntroStep({ ...FRESH, hasAnswered: true }), 'opened');
 });
 
-test('2. answering the first card leaves the filters hidden during the test', () => {
-  const answered = { ...NEW_USER, hasCompletedFirstTestAnswer: true, isTestModeOpen: true };
-  assert.equal(shouldShowResultFilters(answered), false, 'an answer alone reveals nothing');
-  assert.equal(shouldShowResultFilterTutorial(answered), false, 'the test is not interrupted');
+test('2. with no card there is nothing to point at, so nothing is shown', () => {
+  // An empty queue opens straight onto the completion screen. The step stays
+  // unseen, so the first real session still gets it.
+  assert.equal(nextTestIntroStep({ ...FRESH, hasCard: false }), null);
 });
 
-test('3. finishing the test shows the tutorial', () => {
+test('3. the second popup waits for the answers to be uncovered', () => {
+  const afterFirst = { ...FRESH, seen: seenUpTo('opened') };
+  assert.equal(nextTestIntroStep(afterFirst), null, 'the card has not been turned over');
+  assert.equal(nextTestIntroStep({ ...afterFirst, hasRevealedAnswers: true }), 'revealed');
+});
+
+test('4. the third popup waits for an answer to have been applied', () => {
+  const afterSecond = { ...FRESH, seen: seenUpTo('opened', 'revealed'), hasRevealedAnswers: true };
+  assert.equal(nextTestIntroStep(afterSecond), null, 'nothing has been answered yet');
+  assert.equal(nextTestIntroStep({ ...afterSecond, hasAnswered: true }), 'answered');
+});
+
+test('5. the order holds even when a later trigger has already happened', () => {
+  // Everything has happened at once. The first unseen step still wins, so the
+  // three can never arrive out of order or two at a time.
+  const everything = { ...FRESH, hasRevealedAnswers: true, hasAnswered: true };
+  assert.equal(nextTestIntroStep(everything), 'opened');
+  assert.equal(nextTestIntroStep({ ...everything, seen: seenUpTo('opened') }), 'revealed');
   assert.equal(
-    shouldShowResultFilterTutorial({
-      ...NEW_USER, hasCompletedFirstTestAnswer: true, isTestModeOpen: false,
-    }),
-    true,
+    nextTestIntroStep({ ...everything, seen: seenUpTo('opened', 'revealed') }),
+    'answered',
+  );
+  assert.equal(
+    nextTestIntroStep({ ...everything, seen: seenUpTo('opened', 'revealed', 'answered') }),
+    null,
   );
 });
 
-test('4. quitting after answering shows the tutorial too', () => {
-  // Finishing and quitting are the same state to this rule: Test Mode is closed
-  // and a card has been graded. There is no separate "how it ended" flag.
-  assert.equal(
-    shouldShowResultFilterTutorial({
-      ...NEW_USER, hasCompletedFirstTestAnswer: true, isTestModeOpen: false,
-    }),
-    true,
-  );
-});
-
-test('5. the filters stay hidden while the tutorial is on screen', () => {
-  const showing = { ...NEW_USER, hasCompletedFirstTestAnswer: true };
-  assert.equal(shouldShowResultFilterTutorial(showing), true);
-  assert.equal(shouldShowResultFilters(showing), false);
-});
-
-test('6. dismissing the tutorial is what reveals the filters', () => {
-  const dismissed = {
-    ...NEW_USER, hasCompletedFirstTestAnswer: true, hasSeenResultFilterTutorial: true,
+test('6. quitting part-way resumes at the step that was not finished', () => {
+  // The user dismissed the first popup, revealed the answers, then force-quit
+  // before acknowledging the second. Relaunching finds the same step waiting.
+  const resumed = {
+    ...FRESH,
+    seen: seenUpTo('opened'),
+    hasRevealedAnswers: false,
+    hasAnswered: false,
   };
-  assert.equal(shouldShowResultFilters(dismissed), true);
-  assert.equal(shouldShowResultFilterTutorial(dismissed), false);
+  assert.equal(nextTestIntroStep(resumed), null, 'not until the answers are uncovered again');
+  assert.equal(nextTestIntroStep({ ...resumed, hasRevealedAnswers: true }), 'revealed');
 });
 
-test('9. a dismissed tutorial never returns on its own', () => {
-  for (const state of [
-    { isTestModeOpen: true }, { isScreenBusy: true }, { isAppReady: false }, {},
+test('7. a dismissed step never returns, whatever else is true', () => {
+  const allSeen = seenUpTo('opened', 'revealed', 'answered');
+  for (const extra of [
+    {}, { hasRevealedAnswers: true }, { hasAnswered: true }, { hasCard: false },
   ]) {
-    assert.equal(
-      shouldShowResultFilterTutorial({
-        ...NEW_USER,
-        hasCompletedFirstTestAnswer: true,
-        hasSeenResultFilterTutorial: true,
-        ...state,
-      }),
-      false,
-    );
+    assert.equal(nextTestIntroStep({ ...FRESH, seen: allSeen, ...extra }), null);
   }
 });
 
-// ── 7–8: force-close recovery ────────────────────────────────────────────────
+test('8. nothing is shown before the stored flags have been read', () => {
+  assert.equal(nextTestIntroStep({ ...FRESH, loaded: false }), null);
+});
 
-test('7. a force-close after answering shows the tutorial on the next launch', () => {
-  // Nothing records how the previous session ended, and nothing needs to: the
-  // stored answer flag plus an undismissed tutorial is the whole condition.
+test('9. nothing is shown while something the user opened owns the screen', () => {
+  assert.equal(nextTestIntroStep({ ...FRESH, isScreenBusy: true }), null);
+});
+
+test('10. each step has its own key, and marking one leaves the others alone', () => {
+  assert.deepEqual([...TEST_INTRO_STEPS], ['opened', 'revealed', 'answered']);
+  assert.equal(new Set(Object.values(TEST_INTRO_KEYS)).size, TEST_INTRO_STEPS.length);
+  for (const step of TEST_INTRO_STEPS) {
+    const marked = markTestIntroSeen(NO_TEST_INTRO_SEEN, step);
+    assert.equal(marked[step], true);
+    for (const other of TEST_INTRO_STEPS) {
+      if (other !== step) assert.equal(marked[other], false, `${step} disturbed ${other}`);
+    }
+  }
+});
+
+test('11. marking is idempotent, so a repeated dismissal writes nothing new', () => {
+  const once = markTestIntroSeen(NO_TEST_INTRO_SEEN, 'opened');
+  assert.equal(markTestIntroSeen(once, 'opened'), once, 'same object, no change');
+  assert.notEqual(markTestIntroSeen(once, 'revealed'), once);
+  // The source of truth is untouched by any of it.
+  assert.deepEqual(NO_TEST_INTRO_SEEN, { opened: false, revealed: false, answered: false });
+});
+
+// ── What reveals the result-colour filters ───────────────────────────────────
+
+test('12. a new user sees no filters before answering anything', () => {
   assert.equal(
-    shouldShowResultFilterTutorial({
-      ...NEW_USER, hasCompletedFirstTestAnswer: true,
+    shouldShowResultFilters({
+      hasSeenResultFilterTutorial: false,
+      hasCompletedFirstTestAnswer: false,
+    }),
+    false,
+  );
+});
+
+test('13. the first answer reveals them — the same moment they are explained', () => {
+  assert.equal(
+    shouldShowResultFilters({
+      hasSeenResultFilterTutorial: false,
+      hasCompletedFirstTestAnswer: true,
     }),
     true,
   );
 });
 
-test('8. the filters stay hidden after a force-close, until it is dismissed', () => {
+test('14. a user taught the previous way keeps them', () => {
+  // The old tutorial's flag, and the one the bootstrap migration grants to an
+  // install that already had results. Neither is set by anything new, and
+  // dropping either would take the filters back off those users.
   assert.equal(
-    shouldShowResultFilters({ hasSeenResultFilterTutorial: false }),
-    false,
-    'an answered card must not reveal the filters across a restart',
-  );
-});
-
-test('nothing appears before bootstrap has read the stored flags', () => {
-  assert.equal(
-    shouldShowResultFilterTutorial({
-      ...NEW_USER, hasCompletedFirstTestAnswer: true, isAppReady: false,
+    shouldShowResultFilters({
+      hasSeenResultFilterTutorial: true,
+      hasCompletedFirstTestAnswer: false,
     }),
-    false,
-  );
-});
-
-test('nothing appears while another modal owns the screen', () => {
-  assert.equal(
-    shouldShowResultFilterTutorial({
-      ...NEW_USER, hasCompletedFirstTestAnswer: true, isScreenBusy: true,
-    }),
-    false,
-  );
-});
-
-test('11. quitting without answering shows nothing', () => {
-  assert.equal(shouldShowResultFilterTutorial({ ...NEW_USER, isTestModeOpen: false }), false);
-});
-
-test('a single-card test qualifies like any other: one answer is enough', () => {
-  assert.equal(
-    shouldShowResultFilterTutorial({ ...NEW_USER, hasCompletedFirstTestAnswer: true }),
     true,
   );
 });
 
 // ── 10: existing-user migration ──────────────────────────────────────────────
 
-test('10. an existing user with results keeps their filters, untaught', () => {
+test('15. an existing user with results keeps their filters, untaught', () => {
   const migration = resolveResultFilterMigration({
     alreadyMigrated: false,
     hasSeenResultFilterTutorial: false,
@@ -167,15 +195,16 @@ test('10. an existing user with results keeps their filters, untaught', () => {
   });
   assert.deepEqual(migration, { shouldMarkMigrated: true, shouldMarkTutorialSeen: true });
 
-  // After migration the ordinary rules apply, and both come out right.
-  const migrated = { ...NEW_USER, hasSeenResultFilterTutorial: true };
-  assert.equal(shouldShowResultFilters(migrated), true);
+  // After migration the ordinary rule applies, and comes out right.
   assert.equal(
-    shouldShowResultFilterTutorial({ ...migrated, hasCompletedFirstTestAnswer: true }),
-    false,
-    'an experienced user is never taught a feature they already use',
+    shouldShowResultFilters({
+      hasSeenResultFilterTutorial: true,
+      hasCompletedFirstTestAnswer: false,
+    }),
+    true,
   );
 });
+
 
 test('a new user is not migrated, so the tutorial still awaits them', () => {
   const migration = resolveResultFilterMigration({

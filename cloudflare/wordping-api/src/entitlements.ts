@@ -79,6 +79,8 @@ interface RevenueCatEntitlement {
 
 interface RevenueCatSubscriberResponse {
   subscriber?: {
+    /** Stable across RevenueCat aliases/restores for the same subscriber. */
+    original_app_user_id?: string;
     entitlements?: Record<string, RevenueCatEntitlement>;
   };
 }
@@ -111,7 +113,7 @@ async function fetchTier(
   resolved: ResolvedEnv,
   appUserId: string,
   requestId: string,
-): Promise<Tier> {
+): Promise<{ tier: Tier; canonicalAppUserId: string }> {
   const url = `${REVENUECAT_API_BASE}/subscribers/${encodeURIComponent(appUserId)}`;
 
   let response: Response;
@@ -150,7 +152,7 @@ async function fetchTier(
 
   // 404 means RevenueCat has never seen this ID. That is a definitive answer:
   // the caller has no purchases, so they are free.
-  if (response.status === 404) return 'free';
+  if (response.status === 404) return { tier: 'free', canonicalAppUserId: appUserId };
 
   let payload: RevenueCatSubscriberResponse;
   try {
@@ -161,12 +163,30 @@ async function fetchTier(
   }
   if (!payload.subscriber) throw new EntitlementServiceError('malformed_response');
 
-  return tierFromSubscriber(payload, resolved);
+  const canonicalAppUserId = payload.subscriber.original_app_user_id?.trim() || appUserId;
+  return { tier: tierFromSubscriber(payload, resolved), canonicalAppUserId };
 }
 
 export interface EntitlementResult {
   tier: Tier;
   source: 'cache' | 'revenuecat' | 'dev-bypass';
+  /** Salted hash of RevenueCat's canonical subscriber identity. */
+  voiceCreditLedgerId: string;
+}
+
+function parseCachedEntitlement(raw: string): { tier: Tier; voiceCreditLedgerId?: string } | null {
+  // Backward compatibility for entries written by the previous Worker. A paid
+  // app immediately calls the fresh balance route, which replaces this with
+  // the canonical hashed identity before any preload is admitted.
+  if (raw === 'free' || raw === 'basic' || raw === 'premium') return { tier: raw };
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (parsed.tier !== 'free' && parsed.tier !== 'basic' && parsed.tier !== 'premium') return null;
+    if (typeof parsed.voiceCreditLedgerId !== 'string' || !parsed.voiceCreditLedgerId) return null;
+    return { tier: parsed.tier, voiceCreditLedgerId: parsed.voiceCreditLedgerId };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -182,29 +202,55 @@ export async function resolveEntitlement(
   resolved: ResolvedEnv,
   appUserId: string,
   requestId: string,
+  forceRefresh = false,
 ): Promise<EntitlementResult> {
   if (resolved.devBypassEntitlements) {
     log('warn', 'entitlement_dev_bypass', requestId, {});
-    return { tier: 'premium', source: 'dev-bypass' };
+    return {
+      tier: 'premium',
+      source: 'dev-bypass',
+      voiceCreditLedgerId: await privacyHash(env, 'rcuser', appUserId),
+    };
   }
 
   const hashedUser = await privacyHash(env, 'rcuser', appUserId);
   const key = cacheKey(hashedUser);
 
-  const cached = await env.WORDPING_KV.get(key).catch(() => null);
-  if (cached === 'free' || cached === 'basic' || cached === 'premium') {
-    return { tier: cached, source: 'cache' };
+  if (!forceRefresh) {
+    const cached = await env.WORDPING_KV.get(key).catch(() => null);
+    const parsed = cached === null ? null : parseCachedEntitlement(cached);
+    // A legacy paid entry has no canonical subscriber hash. Do not use the
+    // current device alias for lifetime accounting; refresh RevenueCat once
+    // and replace it. Legacy Free cannot reach a credit-spending route, so it
+    // remains safe to honor for its short negative-cache lifetime.
+    if (parsed !== null
+      && (parsed.voiceCreditLedgerId !== undefined || parsed.tier === 'free')) {
+      return {
+        tier: parsed.tier,
+        source: 'cache',
+        voiceCreditLedgerId: parsed.voiceCreditLedgerId
+          ?? await privacyHash(env, 'rcuser', appUserId),
+      };
+    }
   }
 
-  const tier = await fetchTier(env, resolved, appUserId, requestId);
+  const verified = await fetchTier(env, resolved, appUserId, requestId);
+  const voiceCreditLedgerId = await privacyHash(
+    env, 'rcuser', verified.canonicalAppUserId,
+  );
 
-  const ttl = tier === 'free' ? ENTITLEMENT_NEGATIVE_CACHE_TTL_SECONDS : ENTITLEMENT_CACHE_TTL_SECONDS;
+  const ttl = verified.tier === 'free'
+    ? ENTITLEMENT_NEGATIVE_CACHE_TTL_SECONDS
+    : ENTITLEMENT_CACHE_TTL_SECONDS;
   // Cache write failures are non-fatal: the next request simply re-verifies.
-  await env.WORDPING_KV.put(key, tier, { expirationTtl: ttl }).catch(error => {
+  await env.WORDPING_KV.put(key, JSON.stringify({
+    tier: verified.tier,
+    voiceCreditLedgerId,
+  }), { expirationTtl: ttl }).catch(error => {
     log('warn', 'entitlement_cache_write_failed', requestId, redactError(error));
   });
 
-  return { tier, source: 'revenuecat' };
+  return { tier: verified.tier, source: 'revenuecat', voiceCreditLedgerId };
 }
 
 const TIER_RANK: Readonly<Record<Tier, number>> = { free: 0, basic: 1, premium: 2 };

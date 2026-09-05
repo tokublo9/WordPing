@@ -48,6 +48,8 @@ const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 const EXPOSED_HEADERS = [
   REQUEST_ID_HEADER,
   'X-WordPing-Cache',
+  'X-WordPing-Voice-Credits-Remaining',
+  'X-WordPing-Voice-Credits-Available',
   'Retry-After',
   'X-RateLimit-Remaining',
 ].join(', ');

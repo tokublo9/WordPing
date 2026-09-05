@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -35,6 +35,9 @@ import { CardScrollFace } from './CardScrollFace';
 import { HiddenWordIcon } from './HiddenWordIcon';
 import { isWordTextHidden } from '../features/cards/hideWordAccess';
 import { useReduceMotion } from '../hooks/useReduceMotion';
+import { useTestIntro } from '../hooks/useTestIntro';
+import type { SpotlightRect, SpotlightTarget } from '../features/onboarding/spotlight';
+import { nextTestIntroStep } from '../features/onboarding/tutorialState';
 
 const TEST_MUTED_KEY = 'wordping_test_muted';
 
@@ -66,6 +69,13 @@ const ANSWERS: Answer[] = [
   { kind: 'slightly', labelKey: 'test_know_slightly',  descKey: 'test_desc_slightly', icon: 'triangle-outline', color: '#f59e0b' },
   { kind: 'unknown',  labelKey: 'test_dont_know',      descKey: 'test_desc_unknown',  icon: 'close-outline',    color: '#ef4444' },
 ];
+
+function localizeTestIntroResults(t: (key: TranslationKey) => string): string {
+  return ANSWERS.reduce(
+    (message, answer) => message.replace(`{${answer.kind}}`, t(answer.labelKey)),
+    t('test_intro_results'),
+  );
+}
 
 // ── Information popup ────────────────────────────────────────────────────────
 
@@ -273,6 +283,24 @@ interface Props {
   onCloseAnalytics: () => void;
   /** Opens analytics as a view over the current session, without changing it. */
   onOpenAnalytics: () => void;
+  /** Publishes the position in this session's snapshot queue for the shared header. */
+  onProgressChange?: (progress: TestModeProgress | null) => void;
+  /**
+   * Publishes the introduction step that should be on screen, or null.
+   *
+   * Presentation only. Which step is due, what it says and what dismissing it
+   * records all stay in this screen; the parent draws it because only a host
+   * outside the SafeAreaView can dim the whole window. Null is reported when
+   * this screen unmounts, so the overlay cannot outlive the test.
+   */
+  onIntroChange?: (intro: {
+    message: string;
+    onDismiss: () => void;
+    /** Which measured target this step points at, if any. */
+    spotlight: SpotlightTarget | null;
+  } | null) => void;
+  /** The word card's measured place in the window, for the first step. */
+  onCardSpotlightChange?: (rect: SpotlightRect | null) => void;
   pal: Palette;
   themeColor: string;
   /** The plan includes High-Quality AI Voice — Premium only. */
@@ -283,7 +311,13 @@ interface Props {
   verticalFlip: boolean;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, pal, themeColor, canUseAIVoice, onVoiceCreditsExhausted, explanationLang, verticalFlip }: Props) {
+export interface TestModeProgress {
+  /** One-based while a card is active; zero only for an empty session. */
+  current: number;
+  total: number;
+}
+
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, onProgressChange, onIntroChange, onCardSpotlightChange, pal, themeColor, canUseAIVoice, onVoiceCreditsExhausted, explanationLang, verticalFlip }: Props) {
   const t      = useLang();
 
   // The same rule the grey chip counts with, so the number on that chip is the
@@ -312,6 +346,10 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   // idx stays at 0 (e.g., after Shuffle / Reset from the first card).
   const [sessionKey,  setSessionKey]  = useState(0);
   const [infoVisible, setInfoVisible] = useState(false);
+  // The third introduction step's trigger. Set once the first answer has been
+  // applied and the test has moved on from that card — see `advance`.
+  const [answeredOnce, setAnsweredOnce] = useState(false);
+  const intro = useTestIntro();
   // The parent owns durable persistence. This local mirror is advanced in the
   // same answer event so the completion screen cannot render one answer behind
   // while React is still delivering the updated prop back down.
@@ -327,6 +365,15 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   const active = idx >= 0 && idx < total;
   const done   = idx >= total;
   const card   = active ? queue[idx] : null;
+
+  // The shared screen header sits outside this component, but only this
+  // component owns the session snapshot and its current index. Publish before
+  // paint so entering Test Mode never flashes a guessed count from live cards.
+  const progressCurrent = total === 0 ? 0 : Math.min(idx + 1, total);
+  useLayoutEffect(() => {
+    onProgressChange?.({ current: progressCurrent, total });
+  }, [onProgressChange, progressCurrent, total]);
+  useEffect(() => () => onProgressChange?.(null), [onProgressChange]);
   /**
    * The session ran and every card in it was answered.
    *
@@ -335,6 +382,97 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
    * test paused to inspect analytics remains resumable.
    */
   const showAnalytics = done || analyticsOpen;
+
+  // ── The three-step introduction ───────────────────────────────────────────
+  // Derived, never fired: `nextTestIntroStep` answers with at most one step, so
+  // a re-render, a repeated tap or Strict Mode's double invocation cannot show
+  // anything twice, and two popups can never overlap. Analytics opened by the
+  // user counts as busy; the completion screen does not, because the third step
+  // is exactly what explains where the word that just finished the test went.
+  const introStep = nextTestIntroStep({
+    seen: intro.seen,
+    loaded: intro.loaded,
+    hasCard: active && !showAnalytics,
+    hasRevealedAnswers: backPlayed,
+    hasAnswered: answeredOnce,
+    isScreenBusy: analyticsOpen,
+  });
+
+  /**
+   * Automatic playback is held while the introduction owns the moment.
+   *
+   * The normal playback paths are not duplicated by the popups — they are
+   * postponed by them. Every one of them is an effect that already re-runs when
+   * this releases, so dismissing a step *is* the trigger: the same call, in the
+   * same place, once, rather than a second call from a dismiss handler that
+   * would speak on top of the first.
+   *
+   * `!intro.loaded` holds too, and that is the actual bug this fixes. The mute
+   * preference and the introduction flags are two independent reads; the mute
+   * one resolved first, so the card spoke before anything knew a popup was due
+   * and the voice ran underneath it. Not knowing yet is a reason to wait.
+   */
+  const introPlaybackHold = !intro.loaded || introStep !== null;
+
+  /**
+   * The word card's real place on screen, for the first step's spotlight.
+   *
+   * Measured from the view itself rather than derived from the layout
+   * constants: `measureInWindow` reports where the card actually ended up on
+   * this device, at this text size, with this header — which is the only way
+   * the bright area and the card can be guaranteed to coincide. Re-measured on
+   * every layout, so a rotation or a Dynamic Type change moves it too.
+   */
+  const cardSlotRef = useRef<View>(null);
+  const measureCardSlot = useCallback(() => {
+    cardSlotRef.current?.measureInWindow((x, y, width, height) => {
+      onCardSpotlightChange?.({ x, y, width, height, radius: FLIP_CARD_RADIUS });
+    });
+  }, [onCardSpotlightChange]);
+  useEffect(() => () => onCardSpotlightChange?.(null), [onCardSpotlightChange]);
+
+  // Step 2 has no dialog of its own: it opens the Info popup, the same content
+  // the Info button opens. One visibility flag covers both routes, so the
+  // button keeps working at any time and closing settles whichever raised it.
+  const infoPopupVisible = infoVisible || introStep === 'revealed';
+  const closeInfoPopup = useCallback(() => {
+    if (introStep === 'revealed') intro.markSeen('revealed');
+    setInfoVisible(false);
+  }, [introStep, intro.markSeen]);
+
+  const introDialogStep = introStep === 'opened' || introStep === 'answered' ? introStep : null;
+  const dismissIntroDialog = useCallback(() => {
+    if (introDialogStep) intro.markSeen(introDialogStep);
+  }, [introDialogStep, intro.markSeen]);
+
+  // Steps 1 and 3 are drawn by App, not here: only a host outside the
+  // SafeAreaView can dim the status bar and the bottom strip, and only a
+  // full-window box can place the popup from window measurements and cover both
+  // safe areas. Everything else about them stays here — which step is due, what
+  // it says, and what dismissing it records.
+  //
+  // Withheld while the Info popup is up so the two can never stack, even though
+  // the ordering rule already keeps them apart.
+  const introMessage = introDialogStep === 'answered'
+    ? localizeTestIntroResults(t)
+    : t('test_intro_tap_card');
+  useEffect(() => {
+    onIntroChange?.(
+      introDialogStep !== null && !infoVisible
+        ? {
+          message: introMessage,
+          onDismiss: dismissIntroDialog,
+          // Each step lights what it is talking about: the card the user is
+          // being asked to tap, and the coloured sections the answer just fed.
+          spotlight: introDialogStep === 'answered' ? 'resultFilters' : 'card',
+        }
+        : null,
+    );
+  }, [dismissIntroDialog, infoVisible, introDialogStep, introMessage, onIntroChange]);
+  // Taken back on the way out, so a step can never outlive the test that owns
+  // it: quitting mid-step leaves nothing on screen and nothing recorded, and
+  // the step is offered again next time.
+  useEffect(() => () => onIntroChange?.(null), [onIntroChange]);
 
   // ── Voice playback ────────────────────────────────────────────────────────
   // The same hook the Flip screen uses, so the icon here shares its audio source,
@@ -349,15 +487,40 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   // ── Auto-play word when a new card (or new session) becomes active ────────
   // There is no presentation animation to wait for any more — the card area is
   // simply this content — so the stored mute preference is the only gate.
+  //
+  // `introPlaybackHold` is a dependency, not just a guard: when a step closes,
+  // this effect re-runs and speaks the card that is on screen *then*. That is
+  // what makes the first card speak after "Got it", and the card after an
+  // answer speak after the third step — always `queue[idx]`, never the card
+  // that was just answered, and nothing at all once the queue is spent.
 
   useEffect(() => {
-    if (!mutedLoaded) return;
+    if (!mutedLoaded || introPlaybackHold) return;
+    // Turned over already, so the back side owns this card's playback — the
+    // effect below speaks it. Without this, closing the second step would speak
+    // the front of a card the user is looking at the back of.
+    if (backPlayed) return;
     const current = queue[idx];
     if (!current?.word || muted) return;
     // Same action as tapping the icon, so the icon shows the loading and playing
     // states for automatic playback too.
     void playWord();
-  }, [idx, sessionKey, mutedLoaded, canUseAIVoice]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [idx, sessionKey, mutedLoaded, canUseAIVoice, introPlaybackHold]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * The back side, spoken once when the card is first turned over.
+   *
+   * Moved out of the flip animation's completion so it can be postponed the
+   * same way: revealing the answers is what raises the second step, so the
+   * reveal itself must not speak. `backPlayed` says the card has been turned
+   * over; this says what that costs in audio, and it can only fire again for a
+   * card that has been turned over again — advancing clears the flag first.
+   */
+  useEffect(() => {
+    if (!backPlayed || introPlaybackHold) return;
+    if (muted || !card?.meaning) return;
+    void playMeaning();
+  }, [backPlayed, introPlaybackHold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Flip animation interpolations ────────────────────────────────────────
 
@@ -451,16 +614,17 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
       Animated.timing(flipAnim, { toValue: 1, duration: 300, useNativeDriver: true })
         .start(() => {
           setFlipped(true);
-          if (!backPlayed) {
-            setBackPlayed(true);
-            if (!muted && card?.meaning) void playMeaning();
-          }
+          // Records the reveal and nothing else. Speaking the back side is the
+          // effect above, so the one path can be postponed by the second
+          // introduction step instead of racing it — the answers appear, the
+          // popup explains them, and the meaning is spoken once it is closed.
+          if (!backPlayed) setBackPlayed(true);
         });
     }
     // Muting only hides the icon; any clip already playing still stops as soon
     // as either side starts leaving the screen.
     stopVoice();
-  }, [flipped, flipAnim, card, backPlayed, muted, playMeaning, stopVoice]);
+  }, [flipped, flipAnim, backPlayed, stopVoice]);
 
   const advance = useCallback((kind: AnswerKind) => {
     if (!card) return;
@@ -521,6 +685,11 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
       setFlipped(false);
       setBackPlayed(false);
       setIdx(i => i + 1);
+      // The answer is now fully applied: the card has left, the progress bar has
+      // moved and the result has been written. Only then may the third
+      // introduction popup say where the word went. Setting it again on later
+      // answers is a no-op, and the popup itself is gated on its own stored flag.
+      setAnsweredOnce(true);
       Animated.timing(cardOpacity, {
         toValue: 1, duration: CARD_FADE_IN_MS, useNativeDriver: true,
       }).start();
@@ -660,7 +829,16 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                 },
               ]}
             >
-              <View style={s.cardSlot}>
+              <View
+                ref={cardSlotRef}
+                style={s.cardSlot}
+                onLayout={measureCardSlot}
+                collapsable={false}
+                // Storage and layout both resolve asynchronously. Keep the
+                // card inert until we know whether the opening step is due,
+                // and while that step is awaiting/drawing its measured popup.
+                pointerEvents={!intro.loaded || introStep === 'opened' ? 'none' : 'auto'}
+              >
                 {/* Front face */}
                 <Animated.View
                   style={[
@@ -767,11 +945,12 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
           this content now sits inside, so neither is drawn a second time. */}
 
       <InfoPopup
-        visible={infoVisible}
-        onClose={() => setInfoVisible(false)}
+        visible={infoPopupVisible}
+        onClose={closeInfoPopup}
         pal={pal}
         explanationLang={explanationLang}
       />
+
     </View>
   );
 }

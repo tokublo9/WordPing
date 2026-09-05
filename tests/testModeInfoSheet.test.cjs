@@ -24,7 +24,14 @@ test('the information UI is a centred popup with backdrop and both dismissal pat
   assert.match(popup, /<View style=\{is\.backdrop\}>/u);
   assert.equal((popup.match(/onPress=\{onClose\}/gu) ?? []).length, 2);
   assert.match(screen, /onPress=\{\(\) => setInfoVisible\(true\)\}[\s\S]{0,180}accessibilityRole="button"[\s\S]{0,100}accessibilityLabel=\{t\('test_info_title'\)\}/u);
-  assert.match(screen, /<InfoPopup\s*visible=\{infoVisible\}\s*onClose=\{\(\) => setInfoVisible\(false\)\}/u);
+  // Two routes to one popup: the button, and the second introduction step. The
+  // button's own state is still what it sets, so it opens at any time.
+  assert.match(screen, /<InfoPopup\s*visible=\{infoPopupVisible\}\s*onClose=\{closeInfoPopup\}/u);
+  assert.match(screen, /const infoPopupVisible = infoVisible \|\| introStep === 'revealed';/u);
+  assert.match(
+    screen,
+    /const closeInfoPopup = useCallback\(\(\) => \{\s*if \(introStep === 'revealed'\) intro\.markSeen\('revealed'\);\s*setInfoVisible\(false\);/u,
+  );
   assert.match(styles, /backdrop:\s*\{[\s\S]*alignItems: 'center',[\s\S]*justifyContent: 'center'/u);
   assert.match(styles, /dialog:\s*\{[\s\S]*maxWidth: 440,[\s\S]*borderRadius: 18/u);
   assert.doesNotMatch(screen, /function InfoSheet|sheetOuter|borderTopLeftRadius|translateY: slideY/u);

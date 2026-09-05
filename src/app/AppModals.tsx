@@ -93,6 +93,8 @@ export interface AppModalsProps {
     onToggleNotifyAllWords(v: boolean): void;
     noNotifiableWords: boolean;
     onTest(): void;
+    showSendTestBadge: boolean;
+    onSendTestSeen(): void;
   };
 
   // Standalone Text-to-Speech prototype
@@ -261,6 +263,8 @@ export function AppModals({
         pal={pal}
         themeColor={themeColor}
         onTest={notifModal.onTest}
+        showSendTestBadge={notifModal.showSendTestBadge}
+        onSendTestSeen={notifModal.onSendTestSeen}
       />
 
       {TEXT_TO_SPEECH_ENABLED && (

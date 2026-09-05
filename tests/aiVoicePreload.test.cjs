@@ -154,9 +154,11 @@ test('Test mode drives its voice icon through the shared playback hook', () => {
 
   // No parallel implementation left: no direct TTS calls, no local playing flag.
   assert.doesNotMatch(testMode, /speakWordCard|stopPlayback|setPlaying|from '\.\.\/lib\/tts'/u);
-  // Automatic playback uses the same actions, so the icon reflects it too.
+  // Automatic playback uses the same actions, so the icon reflects it too. Both
+  // sides are spoken from an effect now, so the introduction can postpone them
+  // by holding one flag rather than either path gaining a second caller.
   assert.match(testMode, /void playWord\(\);/u);
-  assert.match(testMode, /if \(!muted && card\?\.meaning\) void playMeaning\(\);/u);
+  assert.match(testMode, /if \(muted \|\| !card\?\.meaning\) return;\s*void playMeaning\(\);/u);
   // Stops route through the hook so its state clears with the audio.
   assert.match(testMode, /if \(!muted\) stopVoice\(\);/u);
 });

@@ -30,6 +30,8 @@ import { SwipeableCard } from '../../components/SwipeableCard';
 import { ReorderableList } from '../../components/ReorderableList';
 import { FlipCardBrowser } from '../../components/FlipCardBrowser';
 import { TestStatusIcon } from '../../components/TestStatusIcon';
+import { NewFeatureBadge } from '../../components/NewFeatureBadge';
+import type { SpotlightRect } from '../../features/onboarding/spotlight';
 import {
   getScrollBarMetrics,
   getScrollOffsetForThumb,
@@ -60,6 +62,18 @@ const FILTER_BORDER_WIDTH = 1;
 const CHIP_PADDING_V = 6;
 // The result-count flash. Short enough not to sit under the next answer, long
 // enough to be seen while the eye is still on the card that was just graded.
+/**
+ * Corner radius for the introduction spotlight around the colour filters.
+ *
+ * The group itself is a plain row with no radius of its own — the chips inside
+ * are pills — so the bright area gets one gentle rounding that reads as a
+ * single highlighted group rather than tracing each chip.
+ */
+const RESULT_FILTER_SPOTLIGHT_RADIUS = 14;
+// Expands only the cutout, not the measured chip row itself. Adding the same
+// amount to the radius preserves the rounded outline as an even outward offset.
+const RESULT_FILTER_SPOTLIGHT_PADDING = 11;
+
 const CHIP_FLASH_IN_MS = 130;
 const CHIP_FLASH_OUT_MS = 420;
 // Peak of the flash: the chip fills with its own colour and swells slightly.
@@ -130,6 +144,24 @@ export interface WordListScreenProps {
   /** Basic's one-time AI Voice grant is spent; App raises the dialog. */
   onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
   hasTextToSpeechHistory?: boolean;
+  /**
+   * New-feature markers for the two header icons.
+   *
+   * Booleans rather than the discovery object: the rules — including the
+   * sequence that withholds the second until the first test has been left —
+   * are resolved once in App, and the dismissals ride the existing
+   * `onOpenTestMode` / `onOpenNotifications` actions, so this screen neither
+   * decides nor records anything about them.
+   */
+  showTestMarker?: boolean;
+  showNotificationMarker?: boolean;
+  /**
+   * The colour-filter group's measured place in the window.
+   *
+   * Reported for the third Test introduction step, which lights the chips its
+   * copy is about. Layout only — this screen knows nothing about the step.
+   */
+  onResultFiltersLayout?: (rect: SpotlightRect | null) => void;
 
   // Deep Sea skin scroll animation
   scrollY: Animated.Value;
@@ -189,6 +221,8 @@ export interface WordListScreenProps {
     active: boolean;
     content: React.ReactNode;
     onQuit(): void;
+    /** Position from Test Mode's session snapshot, not the changing word list. */
+    progress: { current: number; total: number } | null;
   };
 
   menuBtnRef: React.RefObject<View | null>;
@@ -201,6 +235,9 @@ export function WordListScreen({
   canUseAIVoice = false,
   onVoiceCreditsExhausted,
   hasTextToSpeechHistory = false,
+  showTestMarker = false,
+  showNotificationMarker = false,
+  onResultFiltersLayout,
   scrollY, deepSeaSkin,
   currentFolder, allFolderCards, visibleFolderCards,
   showFullCard, verticalFlip, notificationsEnabled,
@@ -228,6 +265,22 @@ export function WordListScreen({
   const [horizontalSwipeLocked, setHorizontalSwipeLocked] = useState(false);
   const horizontalSwipeLockedRef = useRef(false);
   const verticalGestureLockedRef = useRef(false);
+
+  // The colour-filter group's window rect, re-read on every layout so it
+  // follows the row rather than being guessed from a constant.
+  const chipGroupRef = useRef<View>(null);
+  const measureChipGroup = useCallback(() => {
+    chipGroupRef.current?.measureInWindow((x, y, width, height) => {
+      onResultFiltersLayout?.({
+        x: x - RESULT_FILTER_SPOTLIGHT_PADDING,
+        y: y - RESULT_FILTER_SPOTLIGHT_PADDING,
+        width: width + RESULT_FILTER_SPOTLIGHT_PADDING * 2,
+        height: height + RESULT_FILTER_SPOTLIGHT_PADDING * 2,
+        radius: RESULT_FILTER_SPOTLIGHT_RADIUS + RESULT_FILTER_SPOTLIGHT_PADDING,
+      });
+    });
+  }, [onResultFiltersLayout]);
+  useEffect(() => () => onResultFiltersLayout?.(null), [onResultFiltersLayout]);
 
   const handleGestureStart = useCallback(() => {
     verticalGestureLockedRef.current = false;
@@ -823,11 +876,21 @@ export function WordListScreen({
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenNotifications}>
-          <Ionicons
-            name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
-            size={22}
-            color={notificationsEnabled ? themeColor : pal.sub}
-          />
+          {/* Second in the sequence: App withholds it until the first test has
+              been opened and left. This whole header is replaced while a test
+              is running, so there is no moment where the marker is drawn on a
+              header the user cannot reach. */}
+          <NewFeatureBadge
+            visible={showNotificationMarker}
+            themeColor={themeColor}
+            label={t('new_feature_badge')}
+          >
+            <Ionicons
+              name={notificationsEnabled ? 'notifications' : 'notifications-off-outline'}
+              size={22}
+              color={notificationsEnabled ? themeColor : pal.sub}
+            />
+          </NewFeatureBadge>
         </TouchableOpacity>
         <View ref={menuBtnRef}>
           <TouchableOpacity style={s.iconBtn} onPress={actions.onOpenMenu}>
@@ -887,12 +950,19 @@ export function WordListScreen({
            rightmost header position. Quitting only hides this mounted Test
            Mode layer; already submitted answers have been persisted. */
         <View style={testHeaderStyles.row}>
-          <Text
-            style={[testHeaderStyles.title, { color: pal.text }]}
-            accessibilityRole="header"
-          >
-            TEST
-          </Text>
+          <View style={testHeaderStyles.titleGroup}>
+            <Text
+              style={[testHeaderStyles.title, { color: pal.text }]}
+              accessibilityRole="header"
+            >
+              TEST
+            </Text>
+            {testMode.progress ? (
+              <Text style={[testHeaderStyles.progress, { color: pal.sub }]}>
+                {testMode.progress.current} / {testMode.progress.total}
+              </Text>
+            ) : null}
+          </View>
           <TouchableOpacity
             style={[s.iconBtn, testHeaderStyles.closeButton]}
             onPress={testMode.onQuit}
@@ -1081,7 +1151,15 @@ export function WordListScreen({
               with no children: the button holds its position exactly, while
               there is nothing rendered to see, tap or focus. */}
           {showResultFilters ? (
-          <View style={filterStyles.chipGroup}>
+          // Measured, not assumed: the third introduction step lights this
+          // group where it actually is, whatever the language does to the
+          // counts beside it or the device does to the row.
+          <View
+            ref={chipGroupRef}
+            style={filterStyles.chipGroup}
+            onLayout={measureChipGroup}
+            collapsable={false}
+          >
             {LEVEL_FILTER_OPTIONS.map(({ level, icon, color }) => {
               const count = levelCounts[level];
               // A colour that took an answer this session stays in its own
@@ -1182,6 +1260,7 @@ export function WordListScreen({
               untestedCount={untestedCount}
               themeColor={themeColor}
               pal={pal}
+              markNew={showTestMarker}
             />
           </TouchableOpacity>
         </>
@@ -1603,6 +1682,9 @@ const testHeaderStyles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
+  titleGroup: {
+    alignItems: 'center',
+  },
   // A mode badge, not a page title: smaller than the folder name it replaces,
   // and letter-spaced so four capitals do not read as an abbreviation.
   title: {
@@ -1610,6 +1692,14 @@ const testHeaderStyles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: 2,
+    lineHeight: 22,
+  },
+  progress: {
+    transform: [{ translateY: 3 }],
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 14,
+    fontVariant: ['tabular-nums'],
   },
   closeButton: {
     position: 'absolute',

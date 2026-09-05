@@ -17,6 +17,7 @@ import {
 import { loadRuntimeConfig } from './runtimeConfig';
 import { handleTextAction } from './routes/text';
 import { handleVoiceCard, handleVoiceCustom, handleVoicePromo, handleVoiceSample } from './routes/voice';
+import { handleVoiceCredits } from './routes/voiceCredits';
 import { WORKER_VERSION } from './version';
 
 /**
@@ -35,6 +36,7 @@ const ROUTES: Readonly<Record<string, RouteHandler>> = {
   '/v1/voice/sample': handleVoiceSample,
   '/v1/voice/promo': handleVoicePromo,
   '/v1/voice/custom': handleVoiceCustom,
+  '/v1/voice/credits': handleVoiceCredits,
   '/v1/meaning': context => handleTextAction(context, 'meaning'),
   '/v1/breakdown': context => handleTextAction(context, 'breakdown'),
   '/v1/translate': context => handleTextAction(context, 'translation'),
@@ -133,7 +135,9 @@ export async function handleRequest(
   const handler = ROUTES[url.pathname];
   if (!handler) return errorResponse(response, 'not_found', 404);
 
-  if (!localAiVoiceTestScenario && (!env.OPENAI_API_KEY || !env.REVENUECAT_SECRET_API_KEY)) {
+  const routeNeedsOpenAI = url.pathname !== '/v1/voice/credits';
+  if (!localAiVoiceTestScenario
+    && (!env.REVENUECAT_SECRET_API_KEY || (routeNeedsOpenAI && !env.OPENAI_API_KEY))) {
     // Which one is missing is an operator detail; the client learns only that
     // the service is not usable.
     log('error', 'missing_required_secret', requestId, {

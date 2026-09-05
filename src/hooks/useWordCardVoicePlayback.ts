@@ -186,10 +186,34 @@ export function useWordCardVoicePlayback({
       return;
     }
 
+    // Purchase status could not be confirmed. Retrying or restoring is what
+    // actually helps, so both are offered.
+    const showEntitlementUnverified = () => {
+      Alert.alert(title, t('err_entitlement_unverified'), [
+        { text: t('cancel'), style: 'cancel' },
+        ...(onRestorePurchases
+          ? [{ text: t('restore_purchases'), onPress: () => { void onRestorePurchases(); } }]
+          : []),
+        { text: t('retry'), onPress: () => { void playRef.current?.(lastTargetRef.current ?? 'word'); } },
+      ]);
+    };
+
     switch (error.kind) {
       case 'subscription_required':
-        // AI Voice needs Basic or Premium — an intentional plan boundary, not
-        // an outage. Offer the upgrade rather than an error.
+        // `canUseAIVoice` is the app's own entitlement rule, and it is what let
+        // this request leave the device at all — Premium, or Basic while its
+        // one-time credits last. A refusal on top of that is the *server*
+        // disagreeing with the plan the user is verified to hold, not a plan
+        // boundary they can cross by paying. Offering an upgrade here sells
+        // Premium to someone whose plan already includes the feature, which is
+        // exactly what a Worker still gating AI Voice on Premium used to do to
+        // every new Basic subscriber. Restore covers a purchase attached to a
+        // different RevenueCat identity; Retry covers a transient disagreement.
+        if (canUseAIVoice) {
+          showEntitlementUnverified();
+          return;
+        }
+        // A plan that genuinely has no AI Voice. Upgrading is the real answer.
         Alert.alert(title, t('err_plan_required_speech'), upgradeAction);
         return;
 
@@ -200,15 +224,7 @@ export function useWordCardVoicePlayback({
         return;
 
       case 'entitlement_unverified':
-        // Purchase status could not be confirmed. Retrying or restoring is what
-        // actually helps here, so offer both.
-        Alert.alert(title, t('err_entitlement_unverified'), [
-          { text: t('cancel'), style: 'cancel' },
-          ...(onRestorePurchases
-            ? [{ text: t('restore_purchases'), onPress: () => { void onRestorePurchases(); } }]
-            : []),
-          { text: t('retry'), onPress: () => { void playRef.current?.(lastTargetRef.current ?? 'word'); } },
-        ]);
+        showEntitlementUnverified();
         return;
 
       case 'not_configured':
@@ -261,7 +277,7 @@ export function useWordCardVoicePlayback({
       default:
         Alert.alert(title, t('ai_service_unavailable_msg'));
     }
-  }, [language, onRestorePurchases, onUpgrade, onVoiceCreditsExhausted, speakOnDevice, t]);
+  }, [canUseAIVoice, language, onRestorePurchases, onUpgrade, onVoiceCreditsExhausted, speakOnDevice, t]);
 
   const play = useCallback(async (target: WordCardVoiceTarget) => {
     if (!item) return;

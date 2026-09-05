@@ -7,6 +7,8 @@ export const AI_SPEECH_SPEED = 1;
 export interface NormalizedTTSRequest {
   text: string;
   voice: AIVoice;
+  /** Explicit card language when the user selected one; absent means auto-detect. */
+  language?: string;
   speed: number;
   model: typeof AI_SPEECH_MODEL;
   format: typeof AI_SPEECH_FORMAT;
@@ -31,10 +33,13 @@ export function normalizeTTSRequest(
   text: string,
   voice: AIVoice,
   contentVersion?: string,
+  language?: string,
 ): NormalizedTTSRequest {
+  const normalizedLanguage = language?.trim() || undefined;
   return {
     text: normalizedTTSText(text),
     voice,
+    ...(normalizedLanguage ? { language: normalizedLanguage } : {}),
     speed: AI_SPEECH_SPEED,
     model: AI_SPEECH_MODEL,
     format: AI_SPEECH_FORMAT,
@@ -46,6 +51,7 @@ export function serializeTTSCacheKey(request: NormalizedTTSRequest): string {
   return JSON.stringify({
     text: request.text,
     voice: request.voice,
+    ...(request.language ? { language: request.language } : {}),
     speed: request.speed,
     model: request.model,
     format: request.format,

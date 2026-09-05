@@ -33,13 +33,18 @@ const inputText = z
 const voiceField = z.string().max(32);
 
 const formatField = z.enum(AUDIO_FORMATS).optional();
+const langCodeField = z.string().max(MAX_LANG_CODE_LENGTH).transform(value => value.trim()).optional();
 
 export const voiceCardSchema = z.object({
   text: inputText,
   voice: voiceField,
   format: formatField,
+  langCode: langCodeField,
 });
 export type VoiceCardRequest = z.infer<typeof voiceCardSchema>;
+
+/** No client-supplied plan or count is accepted by the balance endpoint. */
+export const voiceCreditsSchema = z.object({});
 
 /**
  * Voice previews carry no user text at all: the sample sentence is chosen
@@ -56,9 +61,9 @@ export type VoiceSampleRequest = z.infer<typeof voiceSampleSchema>;
  * Promotional previews for the Upgrade Plan sheet — the one speech route a
  * caller with no subscription may reach.
  *
- * Deliberately has no `text` and no `voice` field. `sample` is a two-value enum
- * and `langCode` only selects a row from a server-side table, so the worst a
- * caller can do is choose which of the two fixed clips they hear. Unknown keys
+ * Deliberately has no `text` and no `voice` field. `sample` is a fixed enum and
+ * `langCode` only selects a row from a server-side table, so the worst a caller
+ * can do is choose which allowlisted clip they hear. Unknown keys
  * are stripped by the non-strict object, so smuggling `text` does nothing.
  */
 export const voicePromoSchema = z.object({

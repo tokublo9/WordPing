@@ -17,12 +17,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset } from 'expo-asset';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import type { OnboardingChoices, Palette, ThemeSkin } from '../types';
-import { FREE_THEME_COLOR, ONBOARDING_KEY, SKINS } from '../constants';
+import type { Palette, ThemeSkin } from '../types';
+import { FREE_THEME_COLOR, SKINS } from '../constants';
 import { useLang, type TranslationKey } from '../i18n';
 import {
   filterAiTextEntries,
@@ -97,13 +96,20 @@ function isDarkColor(color: string): boolean {
 }
 
 // ── Demo word + sentence ──────────────────────────────────────────────────────
-interface DemoContent { word: string; sentence: string }
+interface DemoContent {
+  spontaneous: string;
+  vertical: string;
+  merely: string;
+  sentence: string;
+}
 
 // Built from the shared promo table so the words on screen are exactly the words
 // the Worker speaks — see src/lib/promoVoiceSamples.ts.
 const DEMO_SAMPLES: Record<string, DemoContent> = Object.fromEntries(
   Object.keys(PROMO_SAMPLE_TEXT.spontaneous).map(lang => [lang, {
-    word: PROMO_SAMPLE_TEXT.spontaneous[lang] as string,
+    spontaneous: PROMO_SAMPLE_TEXT.spontaneous[lang] as string,
+    vertical: PROMO_SAMPLE_TEXT.vertical[lang] as string,
+    merely: PROMO_SAMPLE_TEXT.merely[lang] as string,
     sentence: PROMO_SAMPLE_TEXT.morning_light[lang] as string,
   }]),
 );
@@ -158,9 +164,15 @@ function promoFailureMessageKey(error: unknown, isAI: boolean): TranslationKey {
   }
 }
 
+type DemoStem = 'spontaneous' | 'vertical' | 'merely' | 'sentence';
+type DemoKey = `${DemoStem}_${'default' | 'ai'}`;
+type AIDemoKey = `${DemoStem}_ai`;
+
 /** Which fixed promo clip each AI demo button plays. */
-const PROMO_SAMPLE_BY_DEMO: Readonly<Record<'word_ai' | 'sentence_ai', PromoSampleId>> = {
-  word_ai: 'spontaneous',
+const PROMO_SAMPLE_BY_DEMO: Readonly<Record<AIDemoKey, PromoSampleId>> = {
+  spontaneous_ai: 'spontaneous',
+  vertical_ai: 'vertical',
+  merely_ai: 'merely',
   sentence_ai: 'morning_light',
 };
 
@@ -169,7 +181,12 @@ function normalizeLangCode(code: string | undefined): string {
   return code.split(/[-_]/)[0].toLowerCase();
 }
 
-type DemoKey = 'word_default' | 'word_ai' | 'sentence_default' | 'sentence_ai';
+function demoTextForKey(demo: DemoContent, key: DemoKey): string {
+  if (key.startsWith('spontaneous_')) return demo.spontaneous;
+  if (key.startsWith('vertical_')) return demo.vertical;
+  if (key.startsWith('merely_')) return demo.merely;
+  return demo.sentence;
+}
 
 const CARD_PADDING = 26;
 // App icon display size: 23% of screen width, capped so it doesn't overscale on tablets.
@@ -469,7 +486,11 @@ const AIVoiceCard = React.memo(({ pal, demo, playingDemo, loadingDemo, onPlay, t
 
         {/* Default vs AI comparison */}
         <View style={[av.panel, { backgroundColor: pal.input, borderColor: pal.border }]}>
-          <VoiceRow pal={pal} text={demo.word}     demoKeyDefault="word_default"     demoKeyAi="word_ai"     playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <VoiceRow pal={pal} text={demo.spontaneous} demoKeyDefault="spontaneous_default" demoKeyAi="spontaneous_ai" playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <View style={[av.divider, { backgroundColor: pal.border }]} />
+          <VoiceRow pal={pal} text={demo.vertical} demoKeyDefault="vertical_default" demoKeyAi="vertical_ai" playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
+          <View style={[av.divider, { backgroundColor: pal.border }]} />
+          <VoiceRow pal={pal} text={demo.merely} demoKeyDefault="merely_default" demoKeyAi="merely_ai" playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
           <View style={[av.divider, { backgroundColor: pal.border }]} />
           <VoiceRow pal={pal} text={demo.sentence} demoKeyDefault="sentence_default" demoKeyAi="sentence_ai" playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={onPlay} defaultLabel={t('default_voice')} aiLabel={aiLabel} />
         </View>
@@ -1273,7 +1294,6 @@ export function ProSheet({
   isPremium = false,
   planProducts = {},
   expirationDate = null,
-  learningLang,
   nativeLang = 'en-US',
   onManageSubscription,
   skinId,
@@ -1291,7 +1311,6 @@ export function ProSheet({
 
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
-  const [resolvedSampleLang, setResolvedSampleLang] = useState('en-US');
   const [detailsItem, setDetailsItem]               = useState<ShopItem | null>(null);
   // Measured height of the fixed bottom bar → keeps scroll content clear of it.
   const [barHeight, setBarHeight]                   = useState(150);
@@ -1308,23 +1327,9 @@ export function ProSheet({
     Asset.loadAsync(sources).catch(() => {});
   }, [visible]);
 
-  useEffect(() => {
-    if (!visible) return;
-    AsyncStorage.getItem(ONBOARDING_KEY).then(raw => {
-      if (!raw) { setResolvedSampleLang(learningLang ?? nativeLang ?? 'en-US'); return; }
-      try {
-        const ob: OnboardingChoices = JSON.parse(raw);
-        const lang =
-          ob.purpose === 'language' && ob.learningLang && ob.learningLang !== 'other'
-            ? ob.learningLang
-            : ob.nativeLang && ob.nativeLang !== 'other'
-            ? ob.nativeLang
-            : null;
-        setResolvedSampleLang(lang ?? learningLang ?? nativeLang ?? 'en-US');
-      } catch { setResolvedSampleLang(learningLang ?? nativeLang ?? 'en-US'); }
-    });
-  }, [visible]);
-
+  // `nativeLang` is the app's Explanation Language. All rows use this same
+  // source for both their displayed meaning and their playback language.
+  const resolvedSampleLang = nativeLang;
   const sampleKey = normalizeLangCode(resolvedSampleLang);
   const demo      = DEMO_SAMPLES[sampleKey] ?? DEMO_SAMPLES.en;
 
@@ -1384,7 +1389,7 @@ export function ProSheet({
         // Playing it grants nothing: it does not set consent, does not unlock
         // card voice, and does not touch the entitlement. A Free user hears the
         // comparison and nothing else changes.
-        const sample = PROMO_SAMPLE_BY_DEMO[key as 'word_ai' | 'sentence_ai'];
+        const sample = PROMO_SAMPLE_BY_DEMO[key as AIDemoKey];
         await speakPromoSample(sample, resolvedSampleLang, {
           onPhaseChange: phase => {
             if (demoSequence.current !== sequence) return;
@@ -1394,7 +1399,7 @@ export function ProSheet({
           },
         });
       } else {
-        await speak(demo[key.startsWith('word') ? 'word' : 'sentence'], false, resolvedSampleLang);
+        await speak(demoTextForKey(demo, key), false, resolvedSampleLang);
       }
     } catch (error) {
       if (demoSequence.current !== sequence) return;

@@ -39,6 +39,24 @@ export const AI_TEXT_FEATURES_ENABLED = false;
 export const TEXT_TO_SPEECH_ENABLED = false;
 
 /**
+ * Replay the Test Mode introduction on every entry, for development.
+ *
+ * The three introduction popups are one-time by design, which makes them
+ * awkward to work on: seeing them again means clearing app storage. With this
+ * on, `useTestIntro` starts every Test session with nothing seen and writes
+ * nothing, so the whole sequence runs again each time the mode is opened.
+ *
+ * Nothing else changes — the popups, their order and their triggers are the
+ * real ones, so what you are looking at is what ships.
+ *
+ * Honoured only under `__DEV__`, so leaving it on cannot reach a release build
+ * and cannot stop a real user's dismissals from being remembered. Flip it back
+ * to `false` when you are done anyway: it also means this device never records
+ * the introduction as seen.
+ */
+export const TEST_TUTORIAL_MODE = false;
+
+/**
  * Word Flip — the horizontal card browser that replaces the list.
  *
  * TEMPORARILY DISABLED. Nothing is removed: `FlipCardBrowser`, the mode layer

@@ -190,12 +190,10 @@ test('the row is three coloured pills and nothing else', () => {
   assert.match(wordList, /const untestedCount = levelCounts\.none;/u);
   assert.match(wordList, /untestedCount=\{untestedCount\}/u);
 
-  // The tutorial legend follows the row: three results, no grey entry.
-  const tutorial = read('src/components/ResultFilterTutorial.tsx');
-  assert.match(
-    tutorial,
-    /\{icon !== null && <Ionicons name=\{icon as never\} size=\{14\} color=\{color\} \/>\}/u,
-  );
+  // The legend the tutorial popup used to draw is still derived from this same
+  // row, so a future reader of it cannot describe a grey chip that is not there.
+  // The popup itself is gone — see "the old result-filter popup is gone".
+  assert.equal(fs.existsSync('src/components/ResultFilterTutorial.tsx'), false);
   assert.doesNotMatch(read('src/features/cards/levels.ts'), /result_filter_due|level === 'none'/u);
 });
 

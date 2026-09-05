@@ -20,6 +20,7 @@ import {
   isLifetimeCreditFeature,
   releaseVoiceCredit,
   reserveVoiceCredit,
+  type ReserveResult,
 } from './lifetimeCredits';
 import {
   LOCAL_AI_VOICE_SCENARIO,
@@ -40,6 +41,8 @@ import type { RuntimeConfig } from './runtimeConfig';
 export interface FeatureRequestSpec<T> {
   feature: Feature;
   schema: ZodType<T>;
+  /** Bypass the short entitlement cache after purchase/restore. */
+  forceFreshEntitlement?: boolean;
   /**
    * Extra validation that must run before any quota is consumed — currently the
    * voice allowlist, so an unsupported voice does not burn a request budget.
@@ -47,6 +50,8 @@ export interface FeatureRequestSpec<T> {
   validate?(body: T): ErrorCode | null;
   /** Text charged against the caller's character budget. */
   billableText(body: T): string;
+  /** Full generation identity for Basic credit retry de-duplication. */
+  idempotencyInput?(body: T): string;
   /**
    * Defer the monthly quota reservation to the route.
    *
@@ -62,6 +67,8 @@ export interface ApprovedRequest<T> {
   tier: Tier;
   /** Null on an anonymous route — see ANONYMOUS_FEATURES. */
   identity: CallerIdentity | null;
+  /** Hashed canonical RevenueCat subscriber id; null on anonymous routes. */
+  voiceCreditLedgerId: string | null;
   limits: FeatureLimits;
   characters: number;
   /**
@@ -77,13 +84,14 @@ export interface ApprovedRequest<T> {
    *
    * Called by the route *after* the generation succeeded — only the route
    * knows that. A no-op on Premium and on routes outside
-   * LIFETIME_CREDIT_FEATURES. Returns false when the ledger could not be
-   * updated, which the route must not ignore.
+   * LIFETIME_CREDIT_FEATURES. Returns null when the ledger could not be
+   * updated, which the route must not ignore; Basic success includes the
+   * authoritative post-commit balance for response headers.
    *
    * The credit was already claimed before OpenAI was called, so this cannot
    * overdraw and cannot fail for lack of balance.
    */
-  commitVoiceCredit(): Promise<boolean>;
+  commitVoiceCredit(): Promise<ReserveResult | null | undefined>;
   /**
    * Returns this request's reservation without spending it.
    *
@@ -188,11 +196,11 @@ export async function guard<T>(
   // A feature declared 'free' in FEATURE_TIER needs no entitlement, so the
   // RevenueCat lookup is skipped rather than performed and ignored. This is a
   // server-side constant keyed on the route — there is no request field that
-  // can reach it, and no route sets it except the two fixed promo clips.
+  // can reach it, and no route sets it except the fixed promo clips.
   // Skipping also means a RevenueCat outage cannot take the promo previews
   // down, which is the point of having them.
   if (requiredTier === 'free') {
-    return approve(context, spec, parsed.data, 'free', identity);
+    return approve(context, spec, parsed.data, 'free', identity, null);
   }
 
   // Past this point an entitlement is required, which means an App User ID is
@@ -201,17 +209,26 @@ export async function guard<T>(
   if (identity === null) return reject('missing_install_id', 400);
 
   let tier: Tier;
+  let voiceCreditLedgerId: string;
   if (context.localAiVoiceTestScenario === LOCAL_AI_VOICE_SCENARIO) {
     // Premium, because that is the tier High-Quality AI Voice belongs to. A
     // mocked Basic would be refused here and the harness would drive nothing.
     tier = 'premium';
+    voiceCreditLedgerId = await privacyHash(env, 'rcuser', identity.appUserId);
     log('info', 'local_entitlement_mocked', response.requestId, {
       feature: spec.feature, tier,
     });
   } else {
     try {
-      const entitlement = await resolveEntitlement(env, resolved, identity.appUserId, response.requestId);
+      const entitlement = await resolveEntitlement(
+        env,
+        resolved,
+        identity.appUserId,
+        response.requestId,
+        spec.forceFreshEntitlement === true,
+      );
       tier = entitlement.tier;
+      voiceCreditLedgerId = entitlement.voiceCreditLedgerId;
       log('info', 'entitlement_resolved', response.requestId, {
         feature: spec.feature, tier, source: entitlement.source,
       });
@@ -237,7 +254,7 @@ export async function guard<T>(
     return reject('subscription_required', 403, { requiredTier });
   }
 
-  return approve(context, spec, parsed.data, tier, identity);
+  return approve(context, spec, parsed.data, tier, identity, voiceCreditLedgerId);
 }
 
 /**
@@ -253,6 +270,7 @@ async function approve<T>(
   body: T,
   tier: Tier,
   identity: CallerIdentity | null,
+  voiceCreditLedgerId: string | null,
 ): Promise<GuardResult<T>> {
   const { request, env, runtime, response } = context;
   const reject = (code: ErrorCode, status: number, details = {}, headers = {}): GuardResult<T> => ({
@@ -301,16 +319,19 @@ async function approve<T>(
   // route reports success.
   const spendsCredits = isLifetimeCreditFeature(spec.feature)
     && identity !== null
+    && voiceCreditLedgerId !== null
     && VOICE_LIFETIME_CREDITS[tier] !== null
     && VOICE_LIFETIME_CREDITS[tier] !== 0;
-  const creditLedgerId = spendsCredits
-    ? await privacyHash(env, 'rcuser', identity!.appUserId)
-    : '';
+  const creditLedgerId = spendsCredits ? voiceCreditLedgerId! : '';
   // Derived from the request's own content, so a retry or a duplicate of the
   // same generation reserves and commits the same claim rather than a second
   // one. Hashed, so no user text reaches the ledger or its logs.
   const idempotencyKey = spendsCredits
-    ? await privacyHash(env, 'voicereq', `${identity!.appUserId}\u0000${spec.billableText(body)}`)
+    ? await privacyHash(
+      env,
+      'voicereq',
+      `${creditLedgerId}\u0000${spec.idempotencyInput?.(body) ?? spec.billableText(body)}`,
+    )
     : '';
   if (spendsCredits) {
     const reservation = await reserveVoiceCredit(
@@ -324,6 +345,14 @@ async function approve<T>(
       });
     }
     if (!reservation.ok) {
+      // Another bounded preload worker can be holding the last unspent credit.
+      // That is temporary, not exhaustion: retry after the reservation either
+      // commits or releases rather than permanently abandoning this word.
+      if (reservation.remaining > 0) {
+        return reject('rate_limit_exceeded', 429, {
+          scope: 'account', window: 'minute', limit: reservation.remaining,
+        }, { 'Retry-After': '2' });
+      }
       log('info', 'voice_credits_exhausted', response.requestId, { tier });
       return reject('voice_credits_exhausted', 403, {
         grant: VOICE_LIFETIME_CREDITS[tier] ?? 0,
@@ -333,9 +362,7 @@ async function approve<T>(
   }
 
   const meteredForVoice = isVoiceQuotaFeature(spec.feature) && identity !== null;
-  const hashedAppUserId = meteredForVoice
-    ? await privacyHash(env, 'rcuser', identity!.appUserId)
-    : '';
+  const hashedAppUserId = meteredForVoice ? voiceCreditLedgerId ?? '' : '';
   const reserveQuota = async (): Promise<Response | null> => {
     if (!meteredForVoice) return null;
     const quota = await reserveMonthlyQuota(
@@ -356,11 +383,21 @@ async function approve<T>(
 
   if (spec.deferQuota !== true) {
     const exhausted = await reserveQuota();
-    if (exhausted) return { ok: false, response: exhausted };
+    if (exhausted) {
+      // Lifetime credit reservation happened first to make concurrent Basic
+      // requests atomic. A later monthly-policy rejection generated nothing,
+      // so return the claim immediately instead of waiting for its TTL.
+      if (spendsCredits) {
+        await releaseVoiceCredit(
+          env, creditLedgerId, idempotencyKey, response.requestId,
+        );
+      }
+      return { ok: false, response: exhausted };
+    }
   }
 
-  const commitCredit = async (): Promise<boolean> => {
-    if (!spendsCredits) return true;
+  const commitCredit = async (): Promise<ReserveResult | null | undefined> => {
+    if (!spendsCredits) return undefined;
     return commitVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
   };
   const releaseCredit = async (): Promise<void> => {
@@ -371,7 +408,7 @@ async function approve<T>(
   return {
     ok: true,
     value: {
-      body, tier, identity, limits, characters,
+      body, tier, identity, voiceCreditLedgerId, limits, characters,
       reserveQuota,
       commitVoiceCredit: commitCredit,
       releaseVoiceCredit: releaseCredit,

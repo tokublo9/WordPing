@@ -32,7 +32,7 @@ export interface UseCardsParams {
   currentFolderId: string | null;
   language: string;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
-  onCardRegistered?(card: WordCard): void;
+  onCardRegistered?(card: WordCard, remaining: readonly WordCard[]): void | Promise<void>;
   /**
    * An existing word was saved. Carries what it used to say and the library as
    * it now stands, which is what the AI-voice cache needs to decide whether the
@@ -40,10 +40,10 @@ export interface UseCardsParams {
    */
   onCardEdited?(change: {
     card: WordCard;
-    previousWord: string;
+    previousCard: WordCard;
     remaining: readonly WordCard[];
-  }): void;
-  onCardsImported?(cards: readonly WordCard[]): void;
+  }): void | Promise<void>;
+  onCardsImported?(cards: readonly WordCard[], remaining: readonly WordCard[]): void | Promise<void>;
   /** The removed cards themselves, and what is left — not just the ids. */
   onCardsDeleted?(removed: readonly WordCard[], remaining: readonly WordCard[]): void;
 }
@@ -499,14 +499,17 @@ export function useCards({
       };
       const applyEdits = (c: WordCard): WordCard =>
         c.id === editingCard.id ? { ...c, ...edits } : c;
-      setCards(prev => prev.map(applyEdits));
+      const remaining = cards.map(applyEdits);
+      setCards(remaining);
       // After the save and never awaited, exactly like registration: whatever
       // this triggers must not delay the write or hold the sheet open.
-      onCardEdited?.({
-        card: { ...editingCard, ...edits },
-        previousWord: editingCard.word,
-        remaining: cards.map(applyEdits),
-      });
+      void Promise.resolve()
+        .then(() => onCardEdited?.({
+          card: { ...editingCard, ...edits },
+          previousCard: editingCard,
+          remaining,
+        }))
+        .catch(error => reportSideEffectFailure('post-edit AI Voice preload', error));
     } else {
       const registeredCard: WordCard = {
         id: createId('card'),
@@ -522,10 +525,13 @@ export function useCards({
         audioSpeed: wordAudioSpeed,
         audioVolume: wordAudioVolume,
       };
-      setCards(prev => [...prev, registeredCard]);
-      // Queue only after the registration state update has been accepted. The
-      // callback is synchronous and must never await generation or block close.
-      onCardRegistered?.(registeredCard);
+      const remaining = [...cards, registeredCard];
+      setCards(remaining);
+      // The callback commits this snapshot before queueing generation, but is
+      // deliberately not awaited so saving never blocks closing the sheet.
+      void Promise.resolve()
+        .then(() => onCardRegistered?.(registeredCard, remaining))
+        .catch(error => reportSideEffectFailure('post-registration AI Voice preload', error));
     }
     setWordModalVisible(false);
   };
@@ -546,12 +552,17 @@ export function useCards({
         createId: () => createId('card'),
       });
       // One state update feeds the existing snapshot persistence path.
-      setCards(prev => [...prev, ...batch.cards]);
+      const remaining = [...cards, ...batch.cards];
+      setCards(remaining);
       // Queued after the import is accepted, and only for the words it actually
       // created — duplicates were skipped and already have whatever audio they
-      // had. The listener hands these to the same one-at-a-time preload queue a
+      // had. The listener hands these to the same bounded preload queue a
       // single registration uses, so an import cannot burst the API.
-      if (batch.cards.length > 0) onCardsImported?.(batch.cards);
+      if (batch.cards.length > 0) {
+        void Promise.resolve()
+          .then(() => onCardsImported?.(batch.cards, remaining))
+          .catch(error => reportSideEffectFailure('post-import AI Voice preload', error));
+      }
       return {
         added: batch.cards.length,
         duplicatesSkipped: batch.duplicatesSkipped,

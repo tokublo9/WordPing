@@ -1,19 +1,45 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Palette } from '../types';
+import { useLang } from '../i18n';
+import { NewFeatureBadge } from './NewFeatureBadge';
 
 interface Props {
   cardCount: number;
   untestedCount: number;
   themeColor: string;
   pal: Palette;
+  /**
+   * Draw the new-feature marker instead of the count.
+   *
+   * Instead of, never as well as: both occupy the same corner, and a "!" beside
+   * a number would read as part of it. The count is not computed differently
+   * while this is on — it is simply not the thing drawn — so the first tap
+   * restores exactly the badge that was always there.
+   */
+  markNew?: boolean;
 }
 
-export function TestStatusIcon({ cardCount, untestedCount, themeColor, pal }: Props) {
+export function TestStatusIcon({ cardCount, untestedCount, themeColor, pal, markNew = false }: Props) {
+  const t = useLang();
   if (cardCount === 0) return null;
 
   const complete = untestedCount === 0;
   const over99   = !complete && untestedCount > 99;
+
+  if (markNew) {
+    // No `rootShifted`: that nudge exists to clear the "99+" pill, and this
+    // marker is the same width as the ordinary circle.
+    return (
+      <NewFeatureBadge visible themeColor={themeColor} label={t('new_feature_badge')}>
+        <Ionicons
+          name={complete ? 'school' : 'school-outline'}
+          size={ICON_SIZE}
+          color={complete ? themeColor : pal.sub}
+        />
+      </NewFeatureBadge>
+    );
+  }
 
   return (
     // The "99+" pill reaches further right than the circle, so the whole control nudges

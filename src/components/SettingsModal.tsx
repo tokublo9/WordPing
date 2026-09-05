@@ -263,8 +263,25 @@ export function SettingsModal({
           {/* ── Pro ──────────────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
-          <TouchableOpacity style={styles.removeAdsRow} onPress={() => setProSheetVisible(true)} activeOpacity={0.7}>
-            <Ionicons name="star-outline" size={18} color={pal.sub} />
+          <TouchableOpacity
+            style={styles.removeAdsRow}
+            onPress={() => {
+              discovery.dismiss(FEATURE_MARKERS.upgradePlan);
+              setProSheetVisible(true);
+            }}
+            activeOpacity={0.7}
+          >
+            {/* Dismissed by the tap that opens the paywall, not by the row being
+                drawn — so it survives every render of Settings, and closing the
+                paywall, restoring, or changing plan neither brings it back nor
+                is what took it away. */}
+            <NewFeatureBadge
+              visible={discovery.isNew(FEATURE_MARKERS.upgradePlan)}
+              themeColor={themeColor}
+              label={t('new_feature_badge')}
+            >
+              <Ionicons name="star-outline" size={18} color={pal.sub} />
+            </NewFeatureBadge>
             <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('upgrade_plan')}</Text>
             {isSubscribed && !isPremium && (
               <View style={[styles.proBadge, { backgroundColor: '#3B82F618', borderColor: '#3B82F644' }]}>
@@ -284,16 +301,18 @@ export function SettingsModal({
             onPress={() => { discovery.dismiss(FEATURE_MARKERS.themeShop); setShopVisible(true); }}
             activeOpacity={0.7}
           >
-            <Ionicons name="pricetag-outline" size={18} color={pal.sub} />
-            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('kisekae_shop')}</Text>
             {/* The row itself is on every plan — the premium skins inside are
                 what a subscription unlocks — so the marker is plan-gated even
-                though the row is not. */}
+                though the row is not. It rides the row's own icon, so a longer
+                label in another language cannot move it. */}
             <NewFeatureBadge
               visible={discovery.isNew(FEATURE_MARKERS.themeShop)}
               themeColor={themeColor}
               label={t('new_feature_badge')}
-            />
+            >
+              <Ionicons name="pricetag-outline" size={18} color={pal.sub} />
+            </NewFeatureBadge>
+            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('kisekae_shop')}</Text>
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
@@ -332,7 +351,15 @@ export function SettingsModal({
               accessibilityRole="button"
               accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
             >
-              <CardBehaviorIcon name="mic-outline" color={pal.sub} />
+              {/* The marker rides the row's icon, so the info button, the voice
+                  name on the right and any label length leave it where it is. */}
+              <CardBehaviorIcon name="mic-outline" color={pal.sub}
+                badge={{
+                  visible: discovery.isNew(FEATURE_MARKERS.naturalAIVoice),
+                  themeColor,
+                  label: t('new_feature_badge'),
+                }}
+              />
               <View style={styles.titleAndInfo}>
                 <Text style={[styles.toggleLabel, { color: pal.text }]}>{t('feature_ai_voice')}</Text>
                 {/* Belongs to the label, not to the row's right edge: its own
@@ -358,11 +385,6 @@ export function SettingsModal({
                     style={styles.subtleInfoIcon}
                   />
                 </TouchableOpacity>
-                <NewFeatureBadge
-                  visible={discovery.isNew(FEATURE_MARKERS.naturalAIVoice)}
-                  themeColor={themeColor}
-                  label={t('new_feature_badge')}
-                />
               </View>
               <View style={styles.voiceRowControl}>
                 <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
@@ -969,7 +991,7 @@ function AppInfoSheet({
 function SettingRow({ icon, label, value, onPress, badge, themeColor, pal }: {
   icon: IoniconName; label: string; value?: string;
   onPress?: () => void;
-  /** Draws the "New feature" marker beside the label. */
+  /** Draws the "New feature" marker on the row's icon. */
   badge?: boolean;
   themeColor?: string;
   pal: Palette;
@@ -979,13 +1001,16 @@ function SettingRow({ icon, label, value, onPress, badge, themeColor, pal }: {
     <TouchableOpacity style={styles.row} onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}>
-      <Ionicons name={icon} size={18} color={pal.sub} />
-      <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
+      {/* The marker is anchored to the icon, not inserted between the label and
+          the row's value — so it stays put whatever the label's length. */}
       <NewFeatureBadge
         visible={badge === true}
         themeColor={themeColor ?? pal.text}
         label={t('new_feature_badge')}
-      />
+      >
+        <Ionicons name={icon} size={18} color={pal.sub} />
+      </NewFeatureBadge>
+      <Text style={[styles.rowLabel, { color: pal.text }]}>{label}</Text>
       {value
         ? <Text style={[styles.rowValue, { color: pal.sub }]}>{value}</Text>
         : <Ionicons name="chevron-forward" size={15} color={pal.sub} />
@@ -995,10 +1020,29 @@ function SettingRow({ icon, label, value, onPress, badge, themeColor, pal }: {
 }
 
 // ── Toggle row ─────────────────────────────────────────────────────────────────
-function CardBehaviorIcon({ name, color }: { name: IoniconName; color: string }) {
+function CardBehaviorIcon({ name, color, badge }: {
+  name: IoniconName;
+  color: string;
+  /**
+   * New-feature marker, pinned to this icon's bottom-right corner.
+   *
+   * Wraps the glyph rather than the column: the column is a fixed 24pt slot and
+   * the icon is 18pt, so anchoring to the column would leave the marker floating
+   * off the icon's corner. Omitted entirely by every row that has no marker, so
+   * their layout is untouched.
+   */
+  badge?: { visible: boolean; themeColor: string; label: string };
+}) {
+  const icon = <Ionicons name={name} size={CARD_BEHAVIOR_ICON_SIZE} color={color} />;
   return (
     <View style={styles.cardBehaviorIconColumn}>
-      <Ionicons name={name} size={CARD_BEHAVIOR_ICON_SIZE} color={color} />
+      {badge
+        ? (
+          <NewFeatureBadge visible={badge.visible} themeColor={badge.themeColor} label={badge.label}>
+            {icon}
+          </NewFeatureBadge>
+        )
+        : icon}
     </View>
   );
 }

@@ -53,9 +53,13 @@ test('tapping Test opens no sheet and no modal', () => {
   assert.doesNotMatch(modals, /TestModeScreen/u, 'the modal host must not own Test Mode');
   assert.doesNotMatch(modals, /testMode\./u);
 
-  // The same Test icon still toggles the mode, without presenting a sheet.
+  // The same Test icon still toggles the mode, without presenting a sheet. The
+  // marker dismissal rides along on the tap; the toggle itself is unchanged.
   const app = read(APP);
-  assert.match(app, /onOpenTestMode: toggleTestMode,/u);
+  assert.match(
+    app,
+    /onOpenTestMode: \(\) => \{\s*discovery\.dismiss\(FEATURE_MARKERS\.testIcon\);\s*toggleTestMode\(\);\s*\},/u,
+  );
   assert.match(
     app,
     /const toggleTestMode = useCallback\(\(\) => \{\s*setTestModeAnalyticsVisible\(false\);\s*setTestModeVisible\(open => !open\);/u,
@@ -408,7 +412,7 @@ function headerJsx(source) {
   );
 }
 
-test('a running test shows a centred TEST title with a rightmost X', () => {
+test('a running test shows centred TEST progress with a rightmost X', () => {
   const wordList = read(WORD_LIST);
   const header = headerJsx(wordList);
 
@@ -423,6 +427,10 @@ test('a running test shows a centred TEST title with a rightmost X', () => {
     header,
     /<Text\s*style=\{\[testHeaderStyles\.title, \{ color: pal\.text \}\]\}\s*accessibilityRole="header"\s*>\s*TEST\s*<\/Text>/u,
   );
+  assert.match(
+    header,
+    /<Text style=\{\[testHeaderStyles\.progress, \{ color: pal\.sub \}\]\}>\s*\{testMode\.progress\.current\} \/ \{testMode\.progress\.total\}\s*<\/Text>/u,
+  );
   assert.match(header, /onPress=\{testMode\.onQuit\}[\s\S]{0,220}name="close" size=\{24\} color=\{pal\.sub\}/u);
 
   // The title is centred independently of the absolutely right-aligned X.
@@ -431,9 +439,11 @@ test('a running test shows a centred TEST title with a rightmost X', () => {
     /row: \{\s*flex: 1,[\s\S]{0,120}justifyContent: 'center',[\s\S]{0,80}position: 'relative',/u,
   );
   assert.match(wordList, /closeButton: \{\s*position: 'absolute',\s*right: 0,/u);
+  assert.match(wordList, /titleGroup: \{\s*alignItems: 'center',\s*\}/u);
+  assert.match(wordList, /progress: \{\s*fontSize: 11,[\s\S]{0,100}fontVariant: \['tabular-nums'\],/u);
 });
 
-test('the Test header carries only the title and its quit button', () => {
+test('the Test header carries only its title, progress, and quit button', () => {
   const header = headerJsx(read(WORD_LIST));
   const testBranch = header.slice(
     header.indexOf(') : testMode.active ? ('),
@@ -457,6 +467,28 @@ test('the Test header carries only the title and its quit button', () => {
   assert.match(header, /onPress=\{actions\.onOpenNotifications\}/u);
   assert.match(header, /onPress=\{actions\.onOpenMenu\}/u);
   assert.match(header, /\) : \(\s*folderHeaderContent\s*\)\}/u);
+});
+
+test('the Test header counter follows the session snapshot', () => {
+  const screen = read(SCREEN);
+  const app = read(APP);
+  const wordList = read(WORD_LIST);
+
+  // Test Mode is the authority: the denominator is its mount-time queue, not
+  // the live word list that changes as answers are persisted.
+  assert.match(screen, /const total {2}= queue\.length;/u);
+  assert.match(screen, /const progressCurrent = total === 0 \? 0 : Math\.min\(idx \+ 1, total\);/u);
+  assert.match(
+    screen,
+    /useLayoutEffect\(\(\) => \{\s*onProgressChange\?\.\(\{ current: progressCurrent, total \}\);/u,
+  );
+  // Completion stays at N / N rather than exposing the internal N+1 index;
+  // an empty queue naturally reports 0 / 0.
+  assert.doesNotMatch(screen, /current: idx \+ 1/u);
+
+  assert.match(app, /onProgressChange=\{setTestModeProgress\}/u);
+  assert.match(app, /progress: testModeProgress,/u);
+  assert.match(wordList, /\{testMode\.progress\.current\} \/ \{testMode\.progress\.total\}/u);
 });
 
 test('the word count is hidden during a test without moving the rows below it', () => {

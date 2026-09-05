@@ -9,17 +9,20 @@ function read(path) {
 const APP_SAMPLES = 'src/lib/promoVoiceSamples.ts';
 const WORKER_CONFIG = 'cloudflare/wordping-api/src/config.ts';
 
-// ── The two promotional samples ──────────────────────────────────────────────
+// ── The promotional samples ──────────────────────────────────────────────────
 
-test('the two promo samples are the ones the Upgrade sheet already showed', () => {
+test('the promo samples include the ordered Upgrade sheet examples', () => {
   const samples = read(APP_SAMPLES);
-  assert.match(samples, /export const PROMO_SAMPLE_IDS = \['spontaneous', 'morning_light'\] as const;/u);
-  // The exact English copy that was already on screen — no new voice
-  // definitions and no renamed ids.
+  assert.match(samples, /export const PROMO_SAMPLE_IDS = \['spontaneous', 'vertical', 'merely', 'morning_light'\] as const;/u);
+  // The original copy is unchanged and the two inserted words are in order.
   assert.match(samples, /en: 'Spontaneous',/u);
+  assert.match(samples, /vertical: \{[\s\S]*?en: 'Vertical',/u);
+  assert.match(samples, /merely: \{[\s\S]*?en: 'Merely',/u);
   assert.match(samples, /en: 'The morning light filtered through the trees\.',/u);
-  // Japanese keeps the wording the sheet already used.
+  // Japanese keeps the original wording and localizes the new meanings.
   assert.match(samples, /ja: '自発的',/u);
+  assert.match(samples, /vertical: \{[\s\S]*?ja: '垂直の',/u);
+  assert.match(samples, /merely: \{[\s\S]*?ja: '単に',/u);
   assert.match(samples, /ja: '朝の光が木々の間から差し込んでいた。',/u);
 });
 
@@ -27,6 +30,8 @@ test('the Upgrade sheet renders its demo text from the shared table', () => {
   const sheet = read('src/components/ProSheet.tsx');
   assert.match(sheet, /import \{ PROMO_SAMPLE_TEXT, type PromoSampleId \} from '\.\.\/lib\/promoVoiceSamples';/u);
   assert.match(sheet, /PROMO_SAMPLE_TEXT\.spontaneous\[lang\] as string/u);
+  assert.match(sheet, /PROMO_SAMPLE_TEXT\.vertical\[lang\] as string/u);
+  assert.match(sheet, /PROMO_SAMPLE_TEXT\.merely\[lang\] as string/u);
   assert.match(sheet, /PROMO_SAMPLE_TEXT\.morning_light\[lang\] as string/u);
   // No second copy of the sentences left behind in the component.
   assert.doesNotMatch(sheet, /The morning light filtered through the trees/u);
@@ -41,7 +46,7 @@ test('the app and the Worker speak exactly the same words', () => {
     const out = {};
     let sample = null;
     for (const line of body.split('\n')) {
-      const head = line.match(/^\s{2}(spontaneous|morning_light): \{/u);
+      const head = line.match(/^\s{2}(spontaneous|vertical|merely|morning_light): \{/u);
       if (head) { sample = head[1]; out[sample] = {}; continue; }
       const entry = line.match(/^\s{4}([a-z]{2}): '(.*)',$/u);
       if (entry && sample) out[sample][entry[1]] = entry[2];
@@ -52,10 +57,12 @@ test('the app and the Worker speak exactly the same words', () => {
   const app = table(read(APP_SAMPLES));
   const worker = table(read(WORKER_CONFIG));
 
-  assert.deepEqual(Object.keys(app).sort(), ['morning_light', 'spontaneous']);
+  assert.deepEqual(Object.keys(app).sort(), ['merely', 'morning_light', 'spontaneous', 'vertical']);
   assert.deepEqual(app, worker, 'promo sample text has drifted between app and Worker');
   // Both cover every language the sheet can display.
   assert.equal(Object.keys(app.spontaneous).length, 20);
+  assert.equal(Object.keys(app.vertical).length, 20);
+  assert.equal(Object.keys(app.merely).length, 20);
   assert.equal(Object.keys(app.morning_light).length, 20);
 
   // And the cache version is bumped together, or a stale clip would be served.
@@ -134,7 +141,7 @@ test('a free preview cannot carry text or choose a voice', () => {
 test('an unapproved sample id is rejected by the schema', () => {
   const config = read(WORKER_CONFIG);
   assert.match(config, /const PROMO_SAMPLE_ID_SET: ReadonlySet<string> = new Set\(PROMO_SAMPLE_IDS\);/u);
-  // z.enum over the two-value allowlist: anything else fails validation before
+  // z.enum over the fixed allowlist: anything else fails validation before
   // entitlement, rate limiting or OpenAI is reached.
   assert.match(read('cloudflare/wordping-api/src/schemas.ts'), /z\.enum\(PROMO_SAMPLE_IDS\)/u);
   // langCode only selects a row; an unknown value falls back to English.

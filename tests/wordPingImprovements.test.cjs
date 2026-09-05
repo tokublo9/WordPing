@@ -393,7 +393,7 @@ test('7 & 8. the promo body carries no user content and an allowlisted id', () =
   const client = read('src/lib/api/client.ts');
   const promo = client.slice(client.indexOf('export async function postPromoSpeech'));
 
-  // Checked on the device against the same two-value list the Worker enforces.
+  // Checked on the device against the same fixed list the Worker enforces.
   assert.match(promo, /if \(!isPromoSampleId\(sample\)\) \{/u);
   // The body is built here, from arguments — a caller cannot supply one.
   assert.match(promo, /\{\s*sample,\s*\.\.\.\(langCode !== undefined \? \{ langCode \} : \{\}\),\s*\.\.\.\(sampleVersion !== undefined \? \{ sampleVersion \} : \{\}\),\s*\}/u);
@@ -402,8 +402,8 @@ test('7 & 8. the promo body carries no user content and an allowlisted id', () =
   // Both allowlists agree, and the Worker's schema has no text or voice field.
   const clientList = read('src/lib/promoVoiceSamples.ts');
   const workerList = read('cloudflare/wordping-api/src/config.ts');
-  assert.match(clientList, /PROMO_SAMPLE_IDS = \['spontaneous', 'morning_light'\]/u);
-  assert.match(workerList, /PROMO_SAMPLE_IDS = \['spontaneous', 'morning_light'\]/u);
+  assert.match(clientList, /PROMO_SAMPLE_IDS = \['spontaneous', 'vertical', 'merely', 'morning_light'\]/u);
+  assert.match(workerList, /PROMO_SAMPLE_IDS = \['spontaneous', 'vertical', 'merely', 'morning_light'\]/u);
   const schema = read('cloudflare/wordping-api/src/schemas.ts');
   const promoSchema = schema.slice(schema.indexOf('export const voicePromoSchema'), schema.indexOf('export type VoicePromoRequest'));
   assert.match(promoSchema, /sample: z\.enum\(PROMO_SAMPLE_IDS\)/u);
@@ -483,11 +483,23 @@ test('16. the Privacy Policy is still reachable from App Info', () => {
 
 // ── 4 & 7. Tutorials ─────────────────────────────────────────────────────────
 
-test('the result-filter tutorial persists its seen flag and is shown from App', () => {
+test('the old result-filter popup, and its exit trigger, are gone', () => {
   const app = read('App.tsx');
-  assert.match(app, /visible=\{showResultFilterTutorial\}/u);
-  assert.match(app, /onDismiss=\{dismissResultFilterTutorial\}/u);
+  // Removed outright: the component, the rule that decided when to raise it,
+  // and every reference App held to either.
+  assert.equal(fs.existsSync('src/components/ResultFilterTutorial.tsx'), false);
+  assert.doesNotMatch(app, /<ResultFilterTutorial|components\/ResultFilterTutorial/u);
+  assert.doesNotMatch(app, /shouldShowResultFilterTutorial|dismissResultFilterTutorial/u);
+  assert.doesNotMatch(
+    read('src/features/onboarding/tutorialState.ts'),
+    /shouldShowResultFilterTutorial|ResultFilterTutorialInput/u,
+  );
+  // Nothing may be raised by leaving the test: no rule anywhere reads whether
+  // Test Mode is open, or how it ended.
+  assert.doesNotMatch(app, /isTestModeOpen/u);
+  assert.doesNotMatch(read('src/features/onboarding/tutorialState.ts'), /isTestModeOpen|isAppReady/u);
 
+  // The two flags themselves stay: they are what already-taught users carry.
   const persistence = read('src/app/useAppPersistence.ts');
   for (const key of ['RESULT_FILTER_TUTORIAL_KEY', 'FIRST_TEST_ANSWER_KEY']) {
     assert.match(persistence, new RegExp(`AsyncStorage\\.setItem\\(${key}`, 'u'));
@@ -519,62 +531,110 @@ test('no gesture tutorial popup, state or Settings item exists', () => {
       `${path} must carry no gesture-tutorial code`,
     );
   }
-  // Swipe and long-press are taught by a seeded card instead.
-  assert.match(read('src/lib/db.ts'), /GESTURES_CARD_ID/u);
+  // Swipe and long-press are taught by a seeded tutorial card instead.
+  assert.match(
+    read('src/lib/db.ts'),
+    /word: 'Word cards and folders can be edited by swiping or long-pressing them\.'/u,
+  );
 });
 
-test('the fifth default card teaches the gestures, and only for new users', () => {
+test('the eight tutorial cards are seeded once and owned by onboarding', () => {
   const db = read('src/lib/db.ts');
   const cards = db.slice(db.indexOf('const DEFAULT_CARDS'), db.indexOf('export interface Settings'));
 
-  // Five cards, with the instruction last and the first four untouched.
-  const ids = [...cards.matchAll(/id: (?:'(wp-w\d)'|(GESTURES_CARD_ID))/gu)]
-    .map(match => match[1] ?? match[2]);
-  assert.deepEqual(ids, ['wp-w1', 'wp-w2', 'wp-w3', 'wp-w4', 'GESTURES_CARD_ID']);
-  assert.match(db, /export const GESTURES_CARD_ID = 'wp-w5';/u);
+  // Eight placeholder cards, in tutorial order.
+  const ids = [...cards.matchAll(/id: '(wp-w\d)'/gu)].map(match => match[1]);
+  assert.deepEqual(ids, ['wp-w1', 'wp-w2', 'wp-w3', 'wp-w4', 'wp-w5', 'wp-w6', 'wp-w7', 'wp-w8']);
 
-  // The exact copy, bilingual by design.
-  assert.match(cards, /word: 'You can swipe or long-press words and folders\.'/u);
-  assert.match(cards, /meaning: '単語やフォルダは、スワイプまたは長押しで操作できます。'/u);
-  assert.match(cards, /wordLang: 'en-US', meaningLang: 'ja-JP'/u);
-
-  // Seeded once, with the other four, only on a genuine first launch.
+  // Seeded once, only on a genuine first launch.
   assert.match(db, /if \(isFirstLaunch && cards\.length === 0\)/u);
   assert.match(db, /settings\.set\(SEEDED_KEY, String\(Date\.now\(\)\)\);/u);
 
-  // Outside WELCOME_CARD_IDS, which is the list onboarding rebuilds — so
-  // completing onboarding cannot duplicate it and deleting it is permanent.
+  // WELCOME_CARD_IDS is the list onboarding removes and rebuilds, so it must
+  // cover every seeded id — otherwise a placeholder would survive in English,
+  // or the four Vocabulary & Terms cards would leave four seeded ones behind.
   const welcome = read('src/features/onboarding/welcomeContent.ts');
-  assert.match(welcome, /export const WELCOME_CARD_IDS: string\[\] = \['wp-w1', 'wp-w2', 'wp-w3', 'wp-w4'\];/u);
-  assert.doesNotMatch(welcome, /wp-w5|GESTURES_CARD_ID/u);
+  const welcomeIds = [...welcome.matchAll(/'(wp-w\d)'/gu)].map(match => match[1]);
+  assert.deepEqual(welcomeIds, ids);
   assert.match(read('App.tsx'), /prev\.filter\(c => !WELCOME_CARD_IDS\.includes\(c\.id\)\)/u);
+
+  // Each seeded card's English copy is the matching tutorial instruction, so the
+  // placeholder a first launch shows cannot drift from the translated one.
+  const english = welcome.slice(welcome.indexOf("'en-US': ["), welcome.indexOf("'ja-JP': ["));
+  const instructions = [...english.matchAll(/^ {4}'(.+)',$/gmu)].map(match => match[1]);
+  assert.equal(instructions.length, 8);
+  for (const instruction of instructions) {
+    assert.ok(
+      cards.includes(`word: '${instruction}'`),
+      `DEFAULT_CARDS is missing the tutorial instruction: ${instruction}`,
+    );
+  }
 });
 
-test('the result-filter tutorial is derived from the real chip mapping', () => {
+test('every locale carries all eight tutorial instructions', () => {
+  const welcome = read('src/features/onboarding/welcomeContent.ts');
+  const table = welcome.slice(
+    welcome.indexOf('const WELCOME_CARD_TEXTS'),
+    welcome.indexOf('export const WELCOME_CARD_IDS'),
+  );
+
+  // Same locales the onboarding picker offers, minus 'other', which is the one
+  // deliberate English fallback.
+  const onboarding = read('src/components/OnboardingModal.tsx');
+  const pickerLocales = [...onboarding
+    .slice(0, onboarding.indexOf('// ── Language picker'))
+    .matchAll(/\{ code: '([\w-]+)',/gu)]
+    .map(match => match[1])
+    .filter(code => code !== 'other');
+
+  const entries = [...table.matchAll(/^ {2}'?([\w-]+)'?: \[\n((?: {4}.+\n)+) {2}\],$/gmu)];
+  const covered = entries.map(entry => entry[1]);
+  assert.deepEqual(covered.slice().sort(), pickerLocales.slice().sort());
+
+  for (const [, locale, body] of entries) {
+    const lines = body.split('\n').filter(line => line.trim().length > 0);
+    assert.equal(lines.length, 8, `${locale} must carry all eight instructions`);
+  }
+
+  // No locale left as untranslated English: only 'en-US' may repeat its own copy.
+  const englishEntry = entries.find(entry => entry[1] === 'en-US');
+  assert.ok(englishEntry);
+  const englishLines = englishEntry[2].split('\n').map(line => line.trim()).filter(Boolean);
+  for (const [, locale, body] of entries) {
+    if (locale === 'en-US') continue;
+    for (const line of body.split('\n').map(l => l.trim()).filter(Boolean)) {
+      assert.ok(
+        !englishLines.includes(line),
+        `${locale} still carries the English string: ${line}`,
+      );
+    }
+  }
+});
+
+test('the tutorial cards map instructions onto both purposes', () => {
+  const welcome = read('src/features/onboarding/welcomeContent.ts');
+
+  // Language Learning: the same instruction on both sides, in the two languages.
+  assert.match(welcome, /word:\s+wordTexts\[i\],\n\s+meaning:\s+meaningTexts\[i\],/u);
+
+  // Vocabulary & Terms: four cards, both sides in the explanation language,
+  // pairing consecutive instructions rather than repeating one.
+  assert.match(welcome, /\[0, 1, 2, 3\]\.map\(i => \(\{/u);
+  assert.match(welcome, /word:\s+meaningTexts\[i \* 2\],\n\s+meaning:\s+meaningTexts\[i \* 2 \+ 1\],/u);
+  assert.match(welcome, /wordLang:\s+meaningLang,/u);
+});
+
+test('the legend still follows the real chip mapping', () => {
   const levels = read('src/features/cards/levels.ts');
-  // The legend is built from LEVEL_FILTER_OPTIONS rather than restated, so the
-  // explanation cannot describe a colour the chips no longer use.
+  // Built from LEVEL_FILTER_OPTIONS rather than restated, so nothing derived
+  // from it can describe a colour the chips no longer use.
   assert.match(levels, /export const RESULT_FILTER_LEGEND: readonly ResultFilterLegendEntry\[\] = LEVEL_FILTER_OPTIONS\.map\(/u);
-
-  const tutorial = read('src/components/ResultFilterTutorial.tsx');
-  assert.match(tutorial, /import \{ RESULT_FILTER_LEGEND \} from '\.\.\/features\/cards\/levels';/u);
-  assert.doesNotMatch(tutorial, /#6BA4F0|#F2B445|#ED7373|#6B7280/u, 'colours must not be duplicated here');
-
-  // Never colour alone: each row pairs the swatch with the result's own name.
-  assert.match(tutorial, /accessibilityLabel=\{t\(labelKey as TranslationKey\)\}/u);
-  assert.match(tutorial, /<Text style=\{\[styles\.legendLabel[\s\S]{0,120}\{t\(labelKey as TranslationKey\)\}/u);
-
-  // "Know perfectly" has no chip; the copy says so rather than inventing one.
-  // Its exact wording, including the sync-setting caveat, is asserted in
-  // "the Perfect note is true whether or not result syncing is on".
-  assert.match(tutorial, /result_filter_perfect_note/u);
 });
 
 test('the first answer is recorded without interrupting the test', () => {
   const screen = read('src/components/TestModeScreen.tsx');
   // Reported from `advance`, the grading path — not from a popup or a modal.
   assert.match(screen, /if \(gradedIdsRef\.current\.size === 0\) onFirstAnswer\?\.\(\);/u);
-  assert.doesNotMatch(screen, /ResultFilterTutorial/u, 'the popup must not open inside the test');
 
   const app = read('App.tsx');
   assert.match(app, /onFirstAnswer=\{\(\) => setFirstTestAnswerRecorded\(true\)\}/u);
@@ -586,38 +646,205 @@ test('the first answer is recorded without interrupting the test', () => {
   );
 });
 
-test('the popup is driven by live screen state, not by how the test ended', () => {
-  const app = read('App.tsx');
-  // One condition serves the normal exit and force-close recovery alike, so
-  // there is no "was closed" flag a crash could lose.
-  assert.match(app, /const showResultFilterTutorial = shouldShowResultFilterTutorial\(\{/u);
-  assert.match(app, /isAppReady: settingsLoaded,/u);
-  assert.match(app, /isTestModeOpen: testModeVisible,/u);
-  assert.match(app, /isScreenBusy: screenBusy,/u);
-  assert.doesNotMatch(app, /testModeClosed/u, 'no separate exit flag may survive');
-  assert.match(app, /onOpenTestMode: toggleTestMode,/u);
-});
-
-test('only dismissing the tutorial reveals the filters', () => {
+test('the introduction is one derived step, never a fired event', () => {
   const state = read('src/features/onboarding/tutorialState.ts');
-  // The whole rule: one flag, nothing else.
+  const screen = read('src/components/TestModeScreen.tsx');
+
+  // One answer, so two popups can never be on screen at once.
+  assert.match(state, /export function nextTestIntroStep\(input: TestIntroInput\): TestIntroStep \| null/u);
+  // Order is structural: an unseen step stops the search, so a later step can
+  // never overtake an earlier one, and a resume lands on the first unseen step.
   assert.match(
     state,
-    /export function shouldShowResultFilters\(input: ResultFilterVisibilityInput\): boolean \{\s*return input\.hasSeenResultFilterTutorial;\s*\}/u,
+    /if \(!input\.seen\.opened\) {3}return input\.hasCard \? 'opened' : null;\s*if \(!input\.seen\.revealed\) return input\.hasRevealedAnswers \? 'revealed' : null;\s*if \(!input\.seen\.answered\) return input\.hasAnswered \? 'answered' : null;/u,
   );
-  // An answered card must not be an alternative route to visibility.
-  const visibility = state.slice(
-    state.indexOf('export function shouldShowResultFilters'),
-    state.indexOf('export interface ResultFilterTutorialInput'),
+  // Nothing is shown before the stored flags have been read.
+  assert.match(state, /if \(!input\.loaded \|\| input\.isScreenBusy\) return null;/u);
+
+  // Derived in render, not raised from an effect: there is no "show" event for
+  // a re-render, a repeated tap or Strict Mode to run twice.
+  assert.match(screen, /const introStep = nextTestIntroStep\(\{/u);
+  const introBlock = screen.slice(
+    screen.indexOf('const introStep = nextTestIntroStep({'),
+    screen.indexOf('// ── Voice playback'),
   );
-  assert.doesNotMatch(visibility, /hasCompletedFirstTestAnswer|hasHistoricalResults/u);
+  assert.doesNotMatch(introBlock, /useEffect|setTimeout/u);
+
+  // Each step is written when its popup is dismissed, so quitting mid-step
+  // resumes there rather than swallowing it.
+  assert.match(screen, /if \(introStep === 'revealed'\) intro\.markSeen\('revealed'\);/u);
+  assert.match(screen, /if \(introDialogStep\) intro\.markSeen\(introDialogStep\);/u);
+  // Three separate keys, one per step.
+  assert.match(
+    state,
+    /opened: {3}'wordping_tutorial_test_opened',\s*revealed: 'wordping_tutorial_test_revealed',\s*answered: 'wordping_tutorial_test_answered',/u,
+  );
+});
+
+test('the introduction can never make the Test controls unpressable', () => {
+  const screen = read('src/components/TestModeScreen.tsx');
+  const dialog = read('src/components/TestIntroDialog.tsx');
+  const app = read('App.tsx');
+
+  // One native modal on this screen, the Info popup — the count it has always
+  // had. A second `Modal` mounted beside it is what left a presented window
+  // swallowing every touch, including the X that unmounts this screen and the
+  // Test icon that toggles it.
+  assert.equal((screen.match(/<Modal/gu) ?? []).length, 1, 'exactly one native modal here');
+  assert.doesNotMatch(dialog, /<Modal|from 'react-native'[\s\S]{0,120}Modal/u, 'the step dialog is an overlay');
+  assert.match(dialog, /if \(!visible\) return null;/u, 'nothing is left mounted when hidden');
+
+  // The test screen publishes the step and takes it back when it unmounts, so
+  // the overlay cannot outlive the session the X ends — which is what keeps
+  // that button working, not leaving part of the screen uncovered.
+  assert.match(screen, /useEffect\(\(\) => \(\) => onIntroChange\?\.\(null\), \[onIntroChange\]\);/u);
+  assert.doesNotMatch(screen, /TestIntroDialog/u, 'the test screen renders no dialog of its own');
+  assert.match(app, /onIntroChange=\{setTestIntro\}/u);
+
+  // Navigation runs first and unconditionally; the marker write is a
+  // consequence of the tap, never a gate on it.
+  assert.match(
+    app,
+    /onOpenTestMode: \(\) => \{\s*toggleTestMode\(\);\s*discovery\.dismiss\(FEATURE_MARKERS\.testIcon\);\s*\},/u,
+  );
+  assert.match(
+    app,
+    /onOpenNotifications: \(\) => \{\s*setNotificationModalVisible\(true\);\s*discovery\.dismiss\(FEATURE_MARKERS\.notificationIcon\);\s*\},/u,
+  );
+  // The toggle and the quit are untouched by any of it: no marker, seen state
+  // or popup state appears in either.
+  const quit = app.slice(app.indexOf('const quitTestMode'), app.indexOf('// ── The Word List header'));
+  assert.doesNotMatch(quit, /discovery|FEATURE_MARKERS|intro/u, 'quitting reads no badge state');
+  // And nothing anywhere makes a press conditional on a seen flag.
+  assert.doesNotMatch(app, /disabled=\{[^}]*(?:showTestMarker|showNotificationMarker)/u);
+  assert.doesNotMatch(
+    read('src/screens/WordListScreen/WordListScreen.tsx'),
+    /disabled=\{[^}]*(?:showTestMarker|showNotificationMarker)/u,
+  );
+});
+
+test('a step postpones the automatic voice rather than adding a second one', () => {
+  const screen = read('src/components/TestModeScreen.tsx');
+
+  // The hold, including the case that caused the bug: the mute preference and
+  // the introduction flags are separate reads, and the card spoke as soon as
+  // the first one landed — before anything knew a popup was due.
+  assert.match(screen, /const introPlaybackHold = !intro\.loaded \|\| introStep !== null;/u);
+
+  // Front: held, and re-run by the release, so closing a step speaks the card
+  // that is on screen then — `queue\[idx\]`, never the one just answered.
+  assert.match(screen, /if \(!mutedLoaded \|\| introPlaybackHold\) return;/u);
+  assert.match(screen, /\}, \[idx, sessionKey, mutedLoaded, canUseAIVoice, introPlaybackHold\];?\)/u);
+  // A turned-over card belongs to the back side, so releasing the second step
+  // cannot speak the front of a card the user is looking at the back of.
+  assert.match(screen, /if \(backPlayed\) return;\s*const current = queue\[idx\];/u);
+  // Nothing to say once the queue is spent, so the last answer ends in silence.
+  assert.match(screen, /if \(!current\?\.word \|\| muted\) return;/u);
+
+  // Back: the same shape, so the reveal itself is silent while the step that
+  // the reveal raised is up.
+  assert.match(screen, /if \(!backPlayed \|\| introPlaybackHold\) return;\s*if \(muted \|\| !card\?\.meaning\) return;\s*void playMeaning\(\);/u);
+  assert.match(screen, /\}, \[backPlayed, introPlaybackHold\];?\)/u);
+
+  // One caller per side. The flip records the reveal and says nothing, and no
+  // dismiss handler speaks — a second call there would play over the first.
+  assert.match(screen, /if \(!backPlayed\) setBackPlayed\(true\);/u);
+  assert.equal((screen.match(/void playMeaning\(\);/gu) ?? []).length, 2, 'the effect and the icon');
+  assert.equal((screen.match(/void playWord\(\);/gu) ?? []).length, 2, 'the effect and the icon');
+  const dismissals = screen.slice(screen.indexOf('const closeInfoPopup'), screen.indexOf('// ── Voice playback'));
+  assert.doesNotMatch(dismissals, /playWord|playMeaning/u, 'dismissing speaks nothing directly');
+});
+
+test('the introduction spotlights measured targets and anchors below them', () => {
+  const app = read('App.tsx');
+  const dialog = read('src/components/TestIntroDialog.tsx');
+  const testMode = read('src/components/TestModeScreen.tsx');
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+
+  // Hosted in the window itself, after the SafeAreaView rather than inside it:
+  // an absolutely-filled child is laid out inside its parent's padding, so
+  // anything under those insets leaves the status bar and the bottom strip
+  // undimmed. The background colour moves out with it, since those two regions
+  // are now the outer view's to paint.
+  assert.match(app, /<View style=\{\[s\.root, \{ backgroundColor: pal\.bg \}\]\}>\s*<SafeAreaView style=\{s\.root\}>/u);
+  assert.match(app, /<\/SafeAreaView>[\s\S]{0,2400}<TestIntroDialog[\s\S]{0,800}\/>\s*<\/View>/u);
+
+  // Both holes come from the real views in window coordinates. The card keeps
+  // its own radius; the complete chip group is measured as one target.
+  assert.match(testMode, /cardSlotRef\.current\?\.measureInWindow/u);
+  assert.match(testMode, /radius: FLIP_CARD_RADIUS/u);
+  assert.match(wordList, /chipGroupRef\.current\?\.measureInWindow/u);
+  assert.match(wordList, /ref=\{chipGroupRef\}[\s\S]{0,100}onLayout=\{measureChipGroup\}/u);
+
+  // A single huge border creates the rounded transparent centre. There are no
+  // four dim strips, no padding that changes the target dimensions, and no
+  // centred fallback while measurement is pending.
+  assert.match(dialog, /borderWidth: spread,[\s\S]{0,80}borderColor: DIM_COLOR,[\s\S]{0,80}borderRadius: rect\.radius \+ spread,/u);
+  assert.match(dialog, /width: rect\.width \+ spread \* 2/u);
+  assert.match(dialog, /height: rect\.height \+ spread \* 2/u);
+  assert.doesNotMatch(dialog, /SPOTLIGHT_PADDING|centredSlot/u);
+  assert.match(dialog, /if \(!visible \|\| !isMeasuredRect\(spotlight\)\) return null;/u);
+
+  // Placement is always below the measured target and bounded by the bottom
+  // inset. The body shrinks/scrolls inside that space on a short screen.
+  assert.match(dialog, /anchorBelowRect\(\{/u);
+  assert.match(dialog, /bottomInset: insets\.bottom/u);
+  assert.match(dialog, /top: anchored\.top, height: anchored\.maxHeight/u);
+  assert.match(dialog, /bodyScroll: \{ flexGrow: 0, flexShrink: 1 \}/u);
+});
+
+test('one development-only switch replays the complete Test tutorial', () => {
+  const flags = read('src/features/flags.ts');
+  const hook = read('src/hooks/useTestIntro.ts');
+
+  assert.match(flags, /export const TEST_TUTORIAL_MODE = false;/u);
+  assert.match(hook, /const replayIntro = __DEV__ && TEST_TUTORIAL_MODE;/u);
+  assert.match(hook, /const \[loaded, setLoaded\] = useState<boolean>\(replayIntro\);/u);
+  assert.match(hook, /if \(replayIntro\) return;[\s\S]{0,180}AsyncStorage\.multiGet/u);
+  assert.match(hook, /setSeen\(current => markTestIntroSeen\(current, step\)\);\s*if \(replayIntro\) return;\s*AsyncStorage\.setItem/u);
+});
+
+test('the three steps fire on opening, revealing and answering — in that order', () => {
+  const screen = read('src/components/TestModeScreen.tsx');
+
+  // 1. Opening: a card must be on screen for the popup to point at, and it does
+  //    not touch the card — no flip, no answers.
+  assert.match(screen, /hasCard: active && !showAnalytics,/u);
+  assert.match(
+    screen,
+    /const introMessage = introDialogStep === 'answered'\s*\? localizeTestIntroResults\(t\)\s*: t\('test_intro_tap_card'\);/u,
+  );
+
+  // 2. Revealing: `backPlayed` is the same flag the answer row's opacity and
+  //    pointerEvents read, so the popup cannot precede the choices appearing.
+  assert.match(screen, /hasRevealedAnswers: backPlayed,/u);
+  assert.match(screen, /opacity: backPlayed \? 1 : 0/u);
+  // It is the Info popup itself, so there is one description of the results.
+  assert.match(screen, /const infoPopupVisible = infoVisible \|\| introStep === 'revealed';/u);
+  assert.match(screen, /<InfoPopup\s*visible=\{infoPopupVisible\}/u);
+  // And the button still opens it manually at any time.
+  assert.match(screen, /onPress=\{\(\) => setInfoVisible\(true\)\}/u);
+
+  // 3. Answering: set in the exit animation's completion, after the grade was
+  //    applied and the queue advanced — the answer is complete first.
+  assert.match(screen, /setIdx\(i => i \+ 1\);[\s\S]{0,400}setAnsweredOnce\(true\);/u);
+  assert.match(screen, /hasAnswered: answeredOnce,/u);
+});
+
+test('the filters are revealed by the first answer, and by the old flag', () => {
+  const state = read('src/features/onboarding/tutorialState.ts');
+  // Two eras of one rule: the answer that raises the popup explaining the
+  // colours, and the flag everyone taught the previous way already carries.
+  assert.match(
+    state,
+    /export function shouldShowResultFilters\(input: ResultFilterVisibilityInput\): boolean \{\s*return input\.hasSeenResultFilterTutorial \|\| input\.hasCompletedFirstTestAnswer;\s*\}/u,
+  );
 
   const app = read('App.tsx');
   assert.match(
     app,
-    /const showResultFilters = shouldShowResultFilters\(\{\s*hasSeenResultFilterTutorial: resultFilterTutorialSeen,\s*\}\);/u,
+    /const showResultFilters = shouldShowResultFilters\(\{\s*hasSeenResultFilterTutorial: resultFilterTutorialSeen,\s*hasCompletedFirstTestAnswer: firstTestAnswerRecorded,\s*\}\);/u,
   );
-  assert.match(app, /const dismissResultFilterTutorial = useCallback\(\(\) => \{\s*setResultFilterTutorialSeen\(true\);/u);
 });
 
 test('Settings has no result-filter row, and no Help heading without a row', () => {
@@ -855,6 +1082,61 @@ test('every new string ships in English and Japanese', () => {
   assert.match(i18n, /result_filter_got_it:  'わかりました'/u);
 });
 
+test('the Test introduction copy and localized answer labels ship in every locale', () => {
+  const i18n = read('src/i18n.ts');
+  const screen = read('src/components/TestModeScreen.tsx');
+  // One entry per dictionary. `test_info_title` is required of every locale, so
+  // its count is the number of dictionaries the file actually has.
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+  for (const key of [
+    'test_intro_tap_card', 'test_intro_results', 'test_intro_got_it',
+    'test_know_perfectly', 'test_know_good', 'test_know_slightly', 'test_dont_know',
+  ]) {
+    const occurrences = i18n.match(new RegExp(`\\b${key}:`, 'gu')) ?? [];
+    assert.equal(occurrences.length, locales, `${key} is missing from a locale`);
+  }
+
+  // Each sentence is a localized template. Its four labels are resolved from
+  // the same bound translator, reusing the authoritative Test-answer keys.
+  assert.match(
+    screen,
+    /function localizeTestIntroResults\(t:[\s\S]*ANSWERS\.reduce\([\s\S]*message\.replace\(`\{\$\{answer\.kind\}\}`,[ ]*t\(answer\.labelKey\)\)[\s\S]*t\('test_intro_results'\)/u,
+  );
+  for (const placeholder of ['perfect', 'good', 'slightly', 'unknown']) {
+    const occurrences = i18n.match(new RegExp(`\\{${placeholder}\\}`, 'gu')) ?? [];
+    assert.equal(occurrences.length, locales, `{${placeholder}} is missing from a locale`);
+  }
+
+  // The surrounding copy remains localized; only the answer names are slots.
+  assert.match(
+    i18n,
+    /test_intro_tap_card: {3}'Tap the card to test your understanding of its meaning\.',/u,
+  );
+  assert.match(
+    i18n,
+    /test_intro_tap_card: {3}'カードをタップして、意味を理解できているかテストしましょう。',/u,
+  );
+  assert.match(
+    i18n,
+    /'\{perfect\} words are removed from review\. \{good\}, \{slightly\}, and \{unknown\} words are sorted into the colored sections at the top-left and temporarily disappear from the main word list\.',/u,
+  );
+  assert.match(
+    i18n,
+    /'\{perfect\}の単語は復習対象から削除されます。\{good\}、\{slightly\}、\{unknown\}の単語は左上の色別セクションに仕分けされ、メインの単語帳には一時的に表示されなくなります。',/u,
+  );
+
+  const resultLines = [...i18n.matchAll(/^ {2}test_intro_results:\s*\n\s*'(.+)',$/gmu)].map(m => m[1]);
+  assert.equal(resultLines.length, locales);
+  for (const line of resultLines) {
+    assert.doesNotMatch(line, /Perfect|Pretty good|Not really|Don’t know/u);
+  }
+
+  // No locale may be left holding the English or Japanese line as its own.
+  const introLines = [...i18n.matchAll(/^ {2}test_intro_tap_card: +'(.+)',$/gmu)].map(m => m[1]);
+  assert.equal(new Set(introLines).size, introLines.length, 'a locale repeats another’s copy');
+});
+
 test('Settings has no Subscription Diagnostics UI or hidden entry point', () => {
   assert.equal(fs.existsSync('src/components/SubscriptionDiagnosticsSheet.tsx'), false);
 
@@ -1021,8 +1303,17 @@ test('7. the markers are attached to the requested controls and nothing else', (
   assert.match(settings, /discovery\.dismiss\(FEATURE_MARKERS\.naturalAIVoice\);\s*setVoicePickerVisible\(true\);/u);
   assert.match(settings, /discovery\.dismiss\(FEATURE_MARKERS\.aboutAIVoice\);\s*setAboutAIVoiceVisible\(true\);/u);
   assert.match(settings, /discovery\.dismiss\(FEATURE_MARKERS\.themeShop\); setShopVisible\(true\);/u);
-  // The Premium custom-audio control in the word editor.
+  // The word editor's four controls. Each tap does its own job *and* dismisses
+  // its own marker — one line each, so no tap can clear a marker it does not own.
   assert.match(word, /discovery\.dismiss\(FEATURE_MARKERS\.customAudio\);\s*handleAudioButton\(\);/u);
+  assert.match(word, /discovery\.dismiss\(FEATURE_MARKERS\.hideWord\);\s*onChangeHideWord\?\.\(!hideWord\);/u);
+  assert.match(word, /discovery\.dismiss\(FEATURE_MARKERS\.notifyWord\);\s*onToggleNotifCandidate\?\.\(\);/u);
+  // Bulk Import dismisses before the closing animation starts, so the write does
+  // not depend on the sheet still being mounted when the importer opens.
+  assert.match(
+    word,
+    /const handleOpenBulkImport = \(\) => \{[\s\S]{0,320}?discovery\.dismiss\(FEATURE_MARKERS\.bulkImport\);[\s\S]*?onBulkImport\(\)/u,
+  );
 
   // Not on the promo previews, the Privacy Policy, plan labels or a section header.
   assert.doesNotMatch(read('src/components/ProSheet.tsx'), /NewFeatureBadge|FEATURE_MARKERS/u);
@@ -1042,9 +1333,178 @@ test('24. the marker is not colour alone and never blocks its control', () => {
   assert.match(badge, /accessibilityLabel=\{label\}/u);
   assert.match(read('src/i18n.ts'), /new_feature_badge: 'New feature'/u);
   assert.match(read('src/i18n.ts'), /new_feature_badge: '新機能'/u);
-  // Inert: it cannot take a tap meant for the row it sits in.
+  // Inert: it cannot take a tap meant for the control it sits on. It is
+  // absolutely positioned now — over the icon, never over the touch target's
+  // handler — so only the interactive forms are excluded here.
   assert.match(badge, /pointerEvents="none"/u);
-  assert.doesNotMatch(badge, /onPress|TouchableOpacity|position: 'absolute'/u);
+  assert.doesNotMatch(badge, /onPress|TouchableOpacity/u);
+});
+
+test('24b. the marker is pinned to the bottom-right of its feature icon', () => {
+  const badge = read('src/components/NewFeatureBadge.tsx');
+
+  // The icon is wrapped, so the anchor is the icon itself — not the row, the
+  // label or the screen. A longer label or another language moves both together.
+  assert.match(badge, /\{children\}/u);
+  assert.match(badge, /position: 'absolute',\s*right: -BADGE_OVERHANG,\s*bottom: -BADGE_OVERHANG,/u);
+
+  // Same corner and the same negative-inset pattern as the Test icon's count.
+  const testIcon = read('src/components/TestStatusIcon.tsx');
+  assert.match(testIcon, /position: 'absolute',\s*bottom: -4,/u);
+  assert.match(testIcon, /right: -BADGE_OVERHANG,/u);
+
+  // Nothing clips the overhang: not the wrapper, not the rows it sits in, not
+  // the button in the word editor.
+  assert.doesNotMatch(badge, /overflow: 'hidden'/u);
+  const settings = read('src/components/SettingsModal.tsx');
+  const rowStyles = settings.slice(settings.indexOf('const styles = StyleSheet.create'));
+  assert.doesNotMatch(rowStyles, /overflow: 'hidden'/u);
+  assert.doesNotMatch(read('src/components/WordModal.tsx'), /audioBtn: \{[^}]*overflow/u);
+});
+
+test('24c. every "!" marker wraps the feature\'s own left-side icon', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+
+  // Theme Shop — the marker opens the row's icon element, and the label follows
+  // it rather than sitting between the two.
+  assert.match(
+    settings,
+    /visible=\{discovery\.isNew\(FEATURE_MARKERS\.themeShop\)\}[\s\S]{0,220}<Ionicons name="pricetag-outline"[\s\S]{0,80}<\/NewFeatureBadge>\s*<Text style=\{\[styles\.removeAdsLabel/u,
+  );
+
+  // Natural AI Voice — through CardBehaviorIcon, which wraps the glyph inside
+  // its fixed-width column so the marker lands on the icon, not on the column.
+  assert.match(
+    settings,
+    /<CardBehaviorIcon\s+name="mic-outline"[\s\S]{0,220}FEATURE_MARKERS\.naturalAIVoice/u,
+  );
+  assert.match(
+    settings,
+    /const icon = <Ionicons name=\{name\} size=\{CARD_BEHAVIOR_ICON_SIZE\}[\s\S]{0,320}<NewFeatureBadge visible=\{badge\.visible\}[\s\S]{0,80}\{icon\}/u,
+  );
+  // The row's label group no longer carries a marker of its own.
+  assert.doesNotMatch(settings, /styles\.titleAndInfo[\s\S]{0,600}<NewFeatureBadge/u);
+
+  // About AI Voice — through the shared SettingRow, whose marker wraps the icon
+  // ahead of the label.
+  assert.match(
+    settings,
+    /<NewFeatureBadge\s+visible=\{badge === true\}[\s\S]{0,220}<Ionicons name=\{icon\} size=\{18\}[\s\S]{0,80}<\/NewFeatureBadge>\s*<Text style=\{\[styles\.rowLabel/u,
+  );
+
+  // The word editor's controls get the same treatment: the marker wraps the
+  // control's own glyph, never its label or the row it sits in.
+  const word = read('src/components/WordModal.tsx');
+  for (const [marker, icon] of [
+    ['customAudio', /name=\{isPlayingAudio \? 'pause-circle'/u],
+    ['hideWord', /name=\{hideWord \? 'eye-off' : 'eye-outline'\}/u],
+    ['notifyWord', /name=\{notifCandidate \? 'notifications' : 'notifications-outline'\}/u],
+  ]) {
+    const badge = new RegExp(
+      `visible=\\{[^}]*discovery\\.isNew\\(FEATURE_MARKERS\\.${marker}\\)\\}[\\s\\S]{0,700}?</NewFeatureBadge>`,
+      'u',
+    );
+    const block = badge.exec(word)?.[0];
+    assert.ok(block, `${marker} badge not found`);
+    assert.match(block, icon, `${marker} must wrap its own icon`);
+  }
+
+  // Bulk Import is the exception, and deliberately: it has no icon, so the
+  // marker wraps the button itself rather than its label.
+  assert.match(
+    word,
+    /visible=\{discovery\.isNew\(FEATURE_MARKERS\.bulkImport\)\}[\s\S]{0,220}<TouchableOpacity[\s\S]{0,1000}<\/NewFeatureBadge>/u,
+  );
+
+  // Send Test has no icon either. Its own persisted marker wraps the complete
+  // button and is dismissed by the first tap, not by opening Notification.
+  const notification = read('src/components/NotificationModal.tsx');
+  assert.match(
+    notification,
+    /<NewFeatureBadge\s+visible=\{showSendTestBadge\}[\s\S]{0,220}<TouchableOpacity[\s\S]{0,900}<\/NewFeatureBadge>/u,
+  );
+  assert.match(notification, /onPress=\{\(\) => \{\s*onSendTestSeen\(\);\s*onTest\(\);/u);
+  const app = read('App.tsx');
+  assert.match(app, /showSendTestBadge: discovery\.isNew\(FEATURE_MARKERS\.sendTest\)/u);
+  assert.match(app, /onSendTestSeen: \(\) => discovery\.dismiss\(FEATURE_MARKERS\.sendTest\)/u);
+
+  // Hide Front Word is marked in the Edit sheet only — the Add sheet shows the
+  // two markers it was asked for — but the dismissal is unconditional, so a tap
+  // in either sheet clears the one shared id.
+  assert.match(word, /visible=\{editingCard !== null && discovery\.isNew\(FEATURE_MARKERS\.hideWord\)\}/u);
+
+  // Upgrade Plan: on the row's own icon, dismissed by the tap that opens the
+  // paywall rather than by the row being drawn.
+  assert.match(
+    settings,
+    /onPress=\{\(\) => \{\s*discovery\.dismiss\(FEATURE_MARKERS\.upgradePlan\);\s*setProSheetVisible\(true\);\s*\}\}/u,
+  );
+  assert.match(
+    settings,
+    /visible=\{discovery\.isNew\(FEATURE_MARKERS\.upgradePlan\)\}[\s\S]{0,220}<Ionicons name="star-outline" size=\{18\}[\s\S]{0,80}<\/NewFeatureBadge>/u,
+  );
+  // Nothing about the row itself moved: same label, same plan chips, same chevron.
+  assert.match(settings, /<\/NewFeatureBadge>\s*<Text style=\{\[styles\.removeAdsLabel, \{ color: pal\.text \}\]\}>\{t\('upgrade_plan'\)\}/u);
+});
+
+test('the Test marker replaces the count, and never shares its corner', () => {
+  const icon = read('src/components/TestStatusIcon.tsx');
+  // One early return: with the marker on, the count, the "99+" pill and the
+  // completion tick are not rendered at all — there is no branch that draws
+  // both. The count itself is computed exactly as before either way.
+  assert.match(
+    icon,
+    /if \(markNew\) \{[\s\S]{0,400}<NewFeatureBadge visible themeColor=\{themeColor\}[\s\S]{0,300}<\/NewFeatureBadge>\s*\);\s*\}/u,
+  );
+  const marked = icon.slice(icon.indexOf('if (markNew) {'), icon.indexOf('\n\n  return ('));
+  assert.ok(marked.includes('</NewFeatureBadge>'), 'the marked branch was not found whole');
+  assert.doesNotMatch(marked, /untestedCount|badgeText|styles\.badge/u, 'no count inside the marked branch');
+  // Zero cards still draws nothing at all, marker or not.
+  assert.match(icon, /if \(cardCount === 0\) return null;/u);
+  assert.ok(icon.indexOf('if (cardCount === 0)') < icon.indexOf('if (markNew)'));
+
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  assert.match(wordList, /markNew=\{showTestMarker\}/u);
+});
+
+test('the Notification marker waits for the first test to have been left', () => {
+  const app = read('App.tsx');
+  const markers = read('src/features/onboarding/featureDiscovery.ts');
+
+  // The sequence's one extra condition, stated once, in the rule module.
+  assert.match(
+    markers,
+    /export function shouldShowNotificationMarker[\s\S]{0,400}?if \(!input\.seen\.has\(FEATURE_MARKERS\.firstTestExited\)\) return false;/u,
+  );
+  // The milestone is "opened once, not open now" — which is also true on the
+  // launch after a force-quit inside that first session.
+  assert.match(
+    markers,
+    /export function hasExitedFirstTest\(seen: ReadonlySet<string>, isTestModeOpen: boolean\): boolean \{\s*return !isTestModeOpen && seen\.has\(FEATURE_MARKERS\.testIcon\);\s*\}/u,
+  );
+
+  // Recorded from that condition, not from a close handler, and idempotently.
+  assert.match(
+    app,
+    /if \(!hasExitedFirstTest\(discovery\.seen, testModeVisible\)\) return;\s*discovery\.dismiss\(FEATURE_MARKERS\.firstTestExited\);/u,
+  );
+  // Both header rules are resolved in App and handed down as booleans.
+  assert.match(app, /const showTestMarker = shouldShowTestMarker\(\{ plan, isSubscriptionLoaded, seen: discovery\.seen \}\);/u);
+  assert.match(app, /const showNotificationMarker = shouldShowNotificationMarker\(\{/u);
+  assert.match(app, /showTestMarker=\{showTestMarker\}\s*showNotificationMarker=\{showNotificationMarker\}/u);
+
+  // Each icon's tap opens what it always opened, and spends its own marker.
+  assert.match(
+    app,
+    /onOpenNotifications: \(\) => \{\s*discovery\.dismiss\(FEATURE_MARKERS\.notificationIcon\);\s*setNotificationModalVisible\(true\);\s*\}/u,
+  );
+
+  // The Notification icon carries the marker on the icon itself.
+  const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
+  assert.match(
+    wordList,
+    /visible=\{showNotificationMarker\}[\s\S]{0,220}name=\{notificationsEnabled \? 'notifications' : 'notifications-off-outline'\}[\s\S]{0,120}<\/NewFeatureBadge>/u,
+  );
 });
 
 test('8 & 26. markers are independent of consent and grant nothing', () => {

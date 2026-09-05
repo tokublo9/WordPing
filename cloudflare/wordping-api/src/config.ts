@@ -42,7 +42,7 @@ export type AudioFormat = (typeof AUDIO_FORMATS)[number];
 
 /** Every billable operation this Worker exposes. Used for kill switches too. */
 export const FEATURES = [
-  'voice_card', 'voice_sample', 'voice_promo', 'voice_custom',
+  'voice_card', 'voice_sample', 'voice_promo', 'voice_custom', 'voice_credits',
   'meaning', 'breakdown', 'translation', 'example',
 ] as const;
 export type Feature = (typeof FEATURES)[number];
@@ -54,8 +54,8 @@ export type Tier = 'free' | 'basic' | 'premium';
  *
  * `voice_promo` is the single 'free' entry and the only route that skips the
  * RevenueCat lookup. That is safe because the route accepts no text and no
- * voice: it serves two fixed, server-authored clips that live in KV and are
- * shared by every caller, so the whole feature costs two OpenAI generations per
+ * voice: it serves fixed, server-authored clips that live in KV and are shared
+ * by every caller, so the whole feature costs one OpenAI generation per clip per
  * cache lifetime no matter how many people play it. It is still subject to the
  * kill switch, the input cap and the per-minute and per-day rate limits.
  */
@@ -67,7 +67,7 @@ export type Tier = 'free' | 'basic' | 'premium';
  * cannot ask to be treated as anonymous.
  *
  * Only the fixed promo previews qualify, and only because the request carries
- * nothing to attribute: no text, no voice, a two-value sample id and a language
+ * nothing to attribute: no text, no voice, an allowlisted sample id and a language
  * code normalised against a fixed table. With no install id these are limited
  * by IP alone — see `planBuckets` — which is the only signal such a request has.
  *
@@ -91,6 +91,9 @@ export const FEATURE_TIER: Readonly<Record<Feature, Tier>> = {
   voice_sample: 'basic',
   voice_promo: 'free',
   voice_custom: 'premium',
+  // Reads/initializes Basic's authoritative balance and confirms the paid tier.
+  // It generates nothing and never reserves a credit.
+  voice_credits: 'basic',
   meaning: 'premium',
   breakdown: 'premium',
   translation: 'premium',
@@ -151,6 +154,11 @@ export const DEFAULT_LIMITS: LimitTable = {
     basic: NO_ACCESS,
     premium: { maxCharsPerRequest: 1_000, maxRequestsPerMinute: 5, maxRequestsPerDay: 30, maxCharsPerDay: 15_000 },
   },
+  voice_credits: {
+    free: NO_ACCESS,
+    basic: { maxCharsPerRequest: 0, maxRequestsPerMinute: 12, maxRequestsPerDay: 200, maxCharsPerDay: 0 },
+    premium: { maxCharsPerRequest: 0, maxRequestsPerMinute: 12, maxRequestsPerDay: 200, maxCharsPerDay: 0 },
+  },
   meaning: TEXT_LIMITS,
   breakdown: TEXT_LIMITS,
   translation: TEXT_LIMITS,
@@ -198,7 +206,7 @@ export const MAX_LANG_CODE_LENGTH = 16;
  *
  * These are the only speech clips a caller with no subscription can obtain, and
  * the request body cannot influence what is spoken: a client sends a sample id
- * from the two-value allowlist below plus a language code, and the text comes
+ * from the fixed allowlist below plus a language code, and the text comes
  * from this table. There is no `text` field on the schema at all, so there is
  * no shape of request that turns this into a general speech API.
  *
@@ -206,7 +214,7 @@ export const MAX_LANG_CODE_LENGTH = 16;
  * in the app); a source test asserts the two tables agree, because audio that
  * does not match the words on screen is worse than no preview.
  */
-export const PROMO_SAMPLE_IDS = ['spontaneous', 'morning_light'] as const;
+export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
 
 const PROMO_SAMPLE_ID_SET: ReadonlySet<string> = new Set(PROMO_SAMPLE_IDS);
@@ -245,6 +253,50 @@ export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<s
     el: 'Αυθόρμητος',
     sv: 'Spontan',
   },
+  vertical: {
+    en: 'Vertical',
+    ja: '垂直の',
+    ko: '수직의',
+    zh: '垂直的',
+    es: 'Vertical',
+    fr: 'Vertical',
+    de: 'Vertikal',
+    it: 'Verticale',
+    pt: 'Vertical',
+    ru: 'Вертикальный',
+    ar: 'عمودي',
+    hi: 'लंबवत',
+    tr: 'Dikey',
+    nl: 'Verticaal',
+    vi: 'Thẳng đứng',
+    th: 'แนวตั้ง',
+    id: 'Vertikal',
+    pl: 'Pionowy',
+    el: 'Κατακόρυφος',
+    sv: 'Vertikal',
+  },
+  merely: {
+    en: 'Merely',
+    ja: '単に',
+    ko: '단지',
+    zh: '仅仅',
+    es: 'Simplemente',
+    fr: 'Simplement',
+    de: 'Lediglich',
+    it: 'Semplicemente',
+    pt: 'Apenas',
+    ru: 'Всего лишь',
+    ar: 'مجرد',
+    hi: 'मात्र',
+    tr: 'Yalnızca',
+    nl: 'Slechts',
+    vi: 'Chỉ đơn thuần',
+    th: 'เพียง',
+    id: 'Hanya',
+    pl: 'Jedynie',
+    el: 'Απλώς',
+    sv: 'Enbart',
+  },
   morning_light: {
     en: 'The morning light filtered through the trees.',
     ja: '朝の光が木々の間から差し込んでいた。',
@@ -282,8 +334,9 @@ export function promoSampleText(sample: PromoSampleId, lang: string): string {
 }
 
 export const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
-  'en-US': 'English', es: 'Spanish', fr: 'French', ja: 'Japanese', ko: 'Korean',
-  'zh-CN': 'Chinese (Simplified)', de: 'German', it: 'Italian', 'pt-BR': 'Portuguese',
+  en: 'English', 'en-US': 'English', es: 'Spanish', fr: 'French', ja: 'Japanese', ko: 'Korean',
+  zh: 'Chinese', 'zh-CN': 'Chinese (Simplified)', de: 'German', it: 'Italian',
+  pt: 'Portuguese', 'pt-BR': 'Portuguese',
   ru: 'Russian', ar: 'Arabic', hi: 'Hindi', tr: 'Turkish', nl: 'Dutch', vi: 'Vietnamese',
   th: 'Thai', id: 'Indonesian', pl: 'Polish', el: 'Greek', sv: 'Swedish',
 };

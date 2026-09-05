@@ -56,6 +56,8 @@ import {
   isAIPronunciationPreloadEligible,
 } from './ttsPreloadQueue';
 import type { TTSPlaybackPhase } from './ttsPlaybackState';
+import { isAIRequestError } from './api/errors';
+import { canStartAutomaticVoiceGeneration } from './voiceCreditBalance';
 export type { TTSPlaybackPhase } from './ttsPlaybackState';
 
 // expo-audio is lazy-required so that a missing native module (e.g. in an
@@ -114,6 +116,10 @@ interface AudioCacheLookupOptions {
   /** Local manual test only: traverse the real request path without deleting cached audio. */
   bypassCache?: boolean;
   sampleVersion?: string;
+  /** Explicit card language; omitted to preserve automatic detection. */
+  language?: string;
+  /** Re-check card ownership after the network response, before writing disk. */
+  shouldPersistNetworkResult?: () => boolean;
   /**
    * Fetch a fixed promotional clip instead of speaking `text`.
    *
@@ -194,7 +200,7 @@ async function fetchAndCacheAudio(
   voice: AIVoice,
   options: AudioCacheLookupOptions = {},
 ): Promise<CachedAudio> {
-  const request = normalizeTTSRequest(text, voice, options.sampleVersion);
+  const request = normalizeTTSRequest(text, voice, options.sampleVersion, options.language);
   if (!request.text) return Promise.reject(new Error('input_empty'));
   if (request.text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
 
@@ -244,7 +250,8 @@ async function fetchAndCacheAudio(
   // Preserve valid pre-normalization cache files instead of charging for a
   // second generation after this cache-key migration.
   const legacyFile = legacyTTSCacheFile(request.text, voice);
-  if (!options.bypassCache && !request.contentVersion && await validateCachedAudioFile(legacyFile)) {
+  if (!options.bypassCache && !request.contentVersion && !request.language
+    && await validateCachedAudioFile(legacyFile)) {
     const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
     restoreCachedTiming(legacyFile);
     fileUriIndex.set(key, legacyFile.uri);
@@ -255,7 +262,7 @@ async function fetchAndCacheAudio(
     });
     return { uri: legacyFile.uri, source: 'disk', cacheLookupDurationMs };
   }
-  if (!options.bypassCache && !request.contentVersion && legacyFile.exists) {
+  if (!options.bypassCache && !request.contentVersion && !request.language && legacyFile.exists) {
     if (__DEV__) console.warn('[TTS cache warning]', {
       cacheSource: 'disk', cacheStatus: 'invalid-or-unreadable', cacheKeyVersion: 'legacy',
     });
@@ -280,7 +287,11 @@ async function fetchAndCacheAudio(
         options.promo ? 'speech_promo' : request.contentVersion ? 'speech_sample' : 'speech',
         request.contentVersion,
         options.promo,
+        request.language,
       );
+      if (options.shouldPersistNetworkResult?.() === false) {
+        throw new Error('cancelled_stale_preload');
+      }
       const networkCompletedAtMs = performance.now();
       const timing = getAISpeechTiming(ab);
       const requestTiming = getAISpeechRequestTiming(ab);
@@ -348,6 +359,9 @@ export interface AIPronunciationPreloadOptions {
   voice: AIVoice;
   hasAIAccess: boolean;
   hasCustomAudio?: boolean;
+  language?: string;
+  /** Newly saved/imported words jump ahead of a full-library sweep. */
+  priority?: 'normal' | 'high';
 }
 
 /**
@@ -362,12 +376,14 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
   // api/client.ts would refuse the request anyway; stopping here keeps a
   // whole library sweep from queueing work that can only fail.
   if (!isAIConsentGranted()) return;
+  if (!canStartAutomaticVoiceGeneration()) return;
 
-  const request = normalizeTTSRequest(options.text, options.voice);
+  const request = normalizeTTSRequest(options.text, options.voice, undefined, options.language);
   if (!request.text || request.text.length > MAX_AI_INPUT_CHARS || !options.entryId) return;
   const key = serializeTTSCacheKey(request);
 
   const queued = preloadQueue.enqueue(key, options.entryId, async () => {
+    if (!canStartAutomaticVoiceGeneration()) return;
     const startedAtMs = performance.now();
     if (__DEV__) console.log('[TTS preload diagnostic]', {
       phase: 'preload-started',
@@ -377,10 +393,33 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
     });
 
     try {
-      const audio = await fetchAndCacheAudio(request.text, request.voice, {
-        loadingIndicatorAvailable: false,
-        trackAsActiveGeneration: false,
-      });
+      let audio: CachedAudio;
+      while (true) {
+        if (!preloadQueue.hasOwners(key) || !canStartAutomaticVoiceGeneration()) return;
+        try {
+          audio = await fetchAndCacheAudio(request.text, request.voice, {
+            loadingIndicatorAvailable: false,
+            trackAsActiveGeneration: false,
+            language: request.language,
+            shouldPersistNetworkResult: () => preloadQueue.hasOwners(key),
+          });
+          break;
+        } catch (error) {
+          // Honour the Worker's exact retry window. Rate limiting happens
+          // before Basic reserves a credit, so waiting and retrying cannot
+          // consume or strand the lifetime balance.
+          if (isAIRequestError(error)
+            && (error.kind === 'rate_limited' || error.kind === 'usage_limited')
+            && error.retryAfterSeconds !== undefined) {
+            await new Promise(resolve => setTimeout(
+              resolve,
+              Math.max(1, error.retryAfterSeconds!) * 1_000,
+            ));
+            continue;
+          }
+          throw error;
+        }
+      }
       const durationMs = Math.round(performance.now() - startedAtMs);
       if (__DEV__ && audio.source !== 'network') console.log('[TTS preload diagnostic]', {
         phase: 'cache-hit',
@@ -413,7 +452,7 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
       // Best-effort only. The request registry removes failed work so a later
       // user tap retries through the normal path.
     }
-  });
+  }, options.priority ?? 'normal');
 
   if (__DEV__) console.log('[TTS preload diagnostic]', {
     phase: queued.deduplicated ? 'preload-in-flight-reused' : 'preload-queued',
@@ -427,6 +466,7 @@ export interface AIPronunciationLibraryEntry {
   id: string;
   text: string;
   hasCustomAudio?: boolean;
+  language?: string;
 }
 
 export interface AIPronunciationLibraryPreloadOptions {
@@ -434,6 +474,7 @@ export interface AIPronunciationLibraryPreloadOptions {
   voice: AIVoice;
   hasAIAccess: boolean;
   triggerReason: string;
+  priority?: 'normal' | 'high';
 }
 
 /**
@@ -441,8 +482,8 @@ export interface AIPronunciationLibraryPreloadOptions {
  * becomes active, so existing words are already cached before their first tap.
  *
  * Each entry goes through `preloadAIPronunciation`, so this inherits its cache hits,
- * in-flight deduplication and single-slot queue: the work is serialized in the
- * background rather than fired off in parallel. Entries already on disk cost a cache
+ * in-flight deduplication and bounded queue: work overlaps only up to the shared
+ * worker limit. Entries already on disk cost a cache
  * lookup and nothing more, which is what makes re-running this cheap.
  */
 export function preloadAIPronunciationLibrary(
@@ -470,6 +511,8 @@ export function preloadAIPronunciationLibrary(
       voice: options.voice,
       hasAIAccess: true,
       hasCustomAudio: entry.hasCustomAudio,
+      language: entry.language,
+      priority: options.priority,
     });
   }
 }
@@ -854,7 +897,7 @@ function speakFree(text: string, locale: string, options: TTSPlaybackOptions = {
   });
 }
 
-// ── OpenAI TTS (Pro users) ────────────────────────────────────────────────────
+// ── OpenAI TTS (Basic and Premium users) ──────────────────────────────────────
 
 async function speakWithAI(
   text: string,
@@ -862,6 +905,7 @@ async function speakWithAI(
   options: TTSPlaybackOptions = {},
   sampleVersion?: string,
   promo?: PromoSpeechRequest,
+  language?: string,
 ): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
   const buttonPressAtMs = options.buttonPressedAtMs ?? performance.now();
@@ -906,6 +950,7 @@ async function speakWithAI(
       },
       bypassCache: isLocalAiVoiceScenarioActive() && sampleVersion === undefined && promo === undefined,
       sampleVersion,
+      language,
       ...(promo ? { promo } : {}),
     });
     const audioLoadCompletedAtMs = performance.now();
@@ -1226,14 +1271,14 @@ export function speakWordCard(
 
 /**
  * Speak `text` using the appropriate engine:
- * - With High-Quality AI Voice → OpenAI voice (auto-detects language from text)
+   * - With High-Quality AI Voice → OpenAI voice (uses the card language when set)
  * - Without it → device TTS; locale is inferred from the text content via
  *   detectLocale() so each card side is always spoken in its own language,
  *   regardless of the app's UI language setting.
  *
- * The flag is the AI Voice *capability*, not "is subscribed": AI Voice is a
- * Premium feature, so Basic reaches the device engine here just as Free does.
- * Basic's own voice feature is the card's attached audio, handled above.
+   * The flag is the AI Voice *capability*, not merely "is subscribed": Basic
+   * has its one-time lifetime balance and Premium is unmetered. Free reaches
+   * the device engine; attached Custom Voice audio is handled above.
  */
 export function speak(
   text: string,
@@ -1241,7 +1286,9 @@ export function speak(
   forcedLocale?: string,
   options?: TTSPlaybackOptions,
 ): Promise<void> {
-  if (canUseAIVoice) return speakWithAI(text, activeAIVoice, options);
+  if (canUseAIVoice) {
+    return speakWithAI(text, activeAIVoice, options, undefined, undefined, forcedLocale);
+  }
   return speakFree(text, forcedLocale ?? detectLocale(text), options);
 }
 
@@ -1249,6 +1296,16 @@ export function speak(
 export function setAIVoicePreference(voice: AIVoice): void {
   if (voice === activeAIVoice) return;
   activeAIVoice = voice;
+  // A settings change can race the new-voice library sweep. Keep jobs already
+  // normalized for the selected voice, but remove queued ownership for every
+  // old voice so stale work cannot spend a Basic credit after the switch.
+  preloadQueue.cancelMatching(key => {
+    try {
+      return (JSON.parse(key) as { voice?: unknown }).voice !== voice;
+    } catch {
+      return true;
+    }
+  });
   stopPlayback();
 }
 
@@ -1262,7 +1319,7 @@ export function previewAIVoice(
 }
 
 /**
- * Play one of the two promotional previews in the Upgrade Plan sheet.
+ * Play one of the fixed promotional previews in the Upgrade Plan sheet.
  *
  * Available on every plan, including Free and while the subscription is still
  * loading, because the Worker route needs no entitlement. It reuses the same

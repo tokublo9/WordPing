@@ -15,6 +15,7 @@ import { getToggleOffTrackColor, INTERVAL_OPTIONS } from '../constants';
 import { useLang } from '../i18n';
 import { appStyles as s } from '../styles';
 import { CompactSwitch } from './CompactSwitch';
+import { NewFeatureBadge } from './NewFeatureBadge';
 import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
 
 const INFO_BUTTON_TARGET = 44;
@@ -38,13 +39,15 @@ interface Props {
   pal: Palette;
   themeColor: string;
   onTest: () => void;
+  showSendTestBadge: boolean;
+  onSendTestSeen: () => void;
 }
 
 export function NotificationModal({
   visible, onClose, intervalSeconds, onPickInterval,
   displayOnlyWord, onToggleDisplayOnlyWord,
   notifyAllWords, onToggleNotifyAllWords, noNotifiableWords,
-  pal, themeColor, onTest,
+  pal, themeColor, onTest, showSendTestBadge, onSendTestSeen,
 }: Props) {
   const t = useLang();
   const offTrackColor = getToggleOffTrackColor(pal.bg, pal.border);
@@ -114,18 +117,25 @@ export function NotificationModal({
               </Text>
             </View>
             <View style={styles.headerRight}>
-              <TouchableOpacity
-                style={[s.compactHeaderButton, { backgroundColor: themeColor + '0F', borderColor: themeColor + '45' }]}
-                onPress={() => {
-                  onTest();
-                  setTestSent(true);
-                  setTimeout(() => setTestSent(false), 4000);
-                }}
+              <NewFeatureBadge
+                visible={showSendTestBadge}
+                themeColor={themeColor}
+                label={t('new_feature_badge')}
               >
-                <Text style={[s.compactHeaderButtonText, { color: themeColor }]} numberOfLines={1}>
-                  {testSent ? t('test_sending') : t('test_send')}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.compactHeaderButton, { backgroundColor: themeColor + '0F', borderColor: themeColor + '45' }]}
+                  onPress={() => {
+                    onSendTestSeen();
+                    onTest();
+                    setTestSent(true);
+                    setTimeout(() => setTestSent(false), 4000);
+                  }}
+                >
+                  <Text style={[s.compactHeaderButtonText, { color: themeColor }]} numberOfLines={1}>
+                    {testSent ? t('test_sending') : t('test_send')}
+                  </Text>
+                </TouchableOpacity>
+              </NewFeatureBadge>
               <TouchableOpacity
                 style={[styles.closeBtn, { backgroundColor: pal.input }]}
                 onPress={handleClose}

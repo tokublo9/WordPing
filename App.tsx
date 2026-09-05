@@ -9,7 +9,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { reloadLocalData, TIPS_FOLDER_ID, WELCOME_FOLDER_ID } from './src/lib/db';
+import {
+  persistCardsAndWait,
+  reloadLocalData,
+  TIPS_FOLDER_ID,
+  WELCOME_FOLDER_ID,
+} from './src/lib/db';
 import { BCP47_TO_UI_LANG, LangContext, translate } from './src/i18n';
 
 import type { Appearance, Folder, WordCard } from './src/types';
@@ -23,15 +28,22 @@ import { showTopBanner } from './src/lib/topBanner';
 import { reportSideEffectFailure } from './src/utils/reportSideEffectFailure';
 import { AIConsentDialog } from './src/components/AIConsentDialog';
 import { VoiceCreditsExhaustedDialog } from './src/components/VoiceCreditsExhaustedDialog';
-import { invalidateAIConsent } from './src/lib/aiConsent';
+import { invalidateAIConsent, subscribeToAIConsent, type AIConsentState } from './src/lib/aiConsent';
 import {
   hasEligibleAIEntitlement,
   isVerifiedAIIneligiblePlan,
   planCanUseAI,
   setAIEntitlementSnapshot,
 } from './src/lib/aiEntitlement';
-import { ResultFilterTutorial } from './src/components/ResultFilterTutorial';
 import { useFeatureDiscovery } from './src/hooks/useFeatureDiscovery';
+import { TestIntroDialog } from './src/components/TestIntroDialog';
+import type { SpotlightRect, SpotlightTarget } from './src/features/onboarding/spotlight';
+import {
+  FEATURE_MARKERS,
+  hasExitedFirstTest,
+  shouldShowNotificationMarker,
+  shouldShowTestMarker,
+} from './src/features/onboarding/featureDiscovery';
 import {
   SUBSCRIPTION_CONSENT_PROMPT_KEY,
   parseConsentPromptShown,
@@ -40,10 +52,7 @@ import {
 } from './src/features/onboarding/subscriptionOnboarding';
 import { ensureAIConsentForUserAction } from './src/lib/aiConsentPrompt';
 import { getAIConsent, loadAIConsent } from './src/lib/aiConsent';
-import {
-  shouldShowResultFilterTutorial,
-  shouldShowResultFilters,
-} from './src/features/onboarding/tutorialState';
+import { shouldShowResultFilters } from './src/features/onboarding/tutorialState';
 import { AppOverlays } from './src/app/AppOverlays';
 import { useCards } from './src/features/cards/useCards';
 import { FolderListScreen } from './src/screens/FolderListScreen/FolderListScreen';
@@ -52,7 +61,7 @@ import { WELCOME_FOLDER_NAMES, TIPS_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcome
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
-import { TestModeScreen } from './src/components/TestModeScreen';
+import { TestModeScreen, type TestModeProgress } from './src/components/TestModeScreen';
 import { recordAnswer } from './src/features/study/studyLog';
 import { AppContextMenu } from './src/app/AppContextMenu';
 import { useFolders } from './src/features/folders/useFolders';
@@ -63,12 +72,14 @@ import { useAppPersistence } from './src/app/useAppPersistence';
 import {
   preloadAIPronunciation,
   preloadAIPronunciationLibrary,
+  cancelAIPronunciationPreload,
   purgeRetiredVoiceCaches,
   releaseAIPronunciationCache,
   setAIVoicePreference,
   syncAIVoiceSamplePreloading,
 } from './src/lib/tts';
 import { normalizedTTSText } from './src/lib/ttsRequest';
+import { fetchVoiceCreditBalance } from './src/lib/api/client';
 import { useThemePurchases } from './src/hooks/useThemePurchases';
 import { isThemeOwnedIndividually } from './src/features/themes/themeProducts';
 import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
@@ -86,6 +97,15 @@ const SHOW_LEVEL_LABELS = true;
  */
 function normalizedWordTexts(cards: readonly WordCard[]): Set<string> {
   return new Set(cards.map(card => normalizedTTSText(card.word)));
+}
+
+/** Values on a card that select or invalidate its generated pronunciation. */
+function cardVoiceInput(card: WordCard): string {
+  return JSON.stringify({
+    text: normalizedTTSText(card.word),
+    language: card.wordLang?.trim() || null,
+    usesCustomAudio: Boolean(card.audioUri?.trim()),
+  });
 }
 
 export default function App() {
@@ -143,6 +163,8 @@ export default function App() {
   });
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
 
   // Saving is switched off when stored data could not be read, so the user has
   // to be told — otherwise the app looks empty and silently discards anything
@@ -160,6 +182,7 @@ export default function App() {
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [testModeAnalyticsVisible, setTestModeAnalyticsVisible] = useState(false);
+  const [testModeProgress, setTestModeProgress] = useState<TestModeProgress | null>(null);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
   const menuBtnRef = useRef<View>(null);
   const [paywallVisible, setPaywallVisible] = useState(false);
@@ -179,6 +202,82 @@ export default function App() {
   // against bootstrap — and it never awaits, so startup does not see it.
   useEffect(() => { purgeRetiredVoiceCaches(); }, []);
 
+  // Consent is a live queue input, not a one-time read. A post-purchase sweep
+  // that had to wait for the dialog begins in the same turn that Allow is
+  // persisted; declining or withdrawing continues to prevent every preload.
+  const [aiConsentState, setAIConsentState] = useState<AIConsentState>(getAIConsent());
+  useEffect(() => {
+    let active = true;
+    void loadAIConsent().then(state => { if (active) setAIConsentState(state); });
+    const unsubscribeConsent = subscribeToAIConsent(state => {
+      if (active) setAIConsentState(state);
+    });
+    return () => { active = false; unsubscribeConsent(); };
+  }, []);
+
+  // A fresh Worker lookup is the post-purchase/restore barrier: it bypasses a
+  // cached Free entitlement, confirms RevenueCat server-side and initializes
+  // Basic's Durable Object balance before any library job is admitted.
+  const [voiceCreditReadyRevision, setVoiceCreditReadyRevision] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isSubscriptionLoaded || !planCanUseAI(plan)
+      || entitlementSource === 'local-development-scenario') {
+      setVoiceCreditReadyRevision(null);
+      return;
+    }
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let finishRetryWait: (() => void) | null = null;
+    setVoiceCreditReadyRevision(null);
+
+    const waitBeforeRetry = (milliseconds: number): Promise<void> => new Promise(resolve => {
+      finishRetryWait = resolve;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        finishRetryWait = null;
+        resolve();
+      }, milliseconds);
+    });
+
+    void (async () => {
+      let lastError: unknown = new Error('voice_credit_balance_not_initialized');
+      // RevenueCat's SDK can report the purchase a moment before its REST API
+      // reflects it. Every call bypasses the Worker's entitlement cache, so a
+      // short bounded retry bridges that propagation window without requiring
+      // a screen refresh or app restart.
+      for (let attempt = 0; attempt < 5 && !cancelled; attempt += 1) {
+        try {
+          const balance = await fetchVoiceCreditBalance();
+          if (balance.tier === plan) {
+            if (!cancelled) setVoiceCreditReadyRevision(entitlementRevision);
+            return;
+          }
+          lastError = new Error('voice_credit_tier_mismatch');
+        } catch (error) {
+          lastError = error;
+        }
+        if (attempt < 4 && !cancelled) await waitBeforeRetry(500 * (2 ** attempt));
+      }
+      if (!cancelled) reportSideEffectFailure('initialize AI Voice credits', lastError);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+        finishRetryWait?.();
+        finishRetryWait = null;
+      }
+    };
+  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
+
+  // Upgrading after Basic exhaustion must resume Natural AI Voice immediately;
+  // the fallback preference existed only because Basic had no credits left.
+  useEffect(() => {
+    if (isSubscriptionLoaded && plan === 'premium') setPreferDeviceVoice(false);
+  }, [isSubscriptionLoaded, plan, setPreferDeviceVoice]);
+
   useEffect(() => {
     if (!isSubscriptionLoaded) return;
     if (entitlementSource === 'local-development-scenario') return;
@@ -187,7 +286,7 @@ export default function App() {
       activeEntitlement: plan === 'premium' ? plan : undefined,
       triggerReason: entitlementSource ?? 'subscription-state-loaded',
     });
-  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
+  }, [aiConsentState, entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
 
   // Preload every existing word's AI pronunciation once an entitlement is active, so the
   // voice icon plays from cache instead of generating on first tap. Guarded by a key
@@ -200,8 +299,10 @@ export default function App() {
       preloadedLibraryKeyRef.current = null;
       return;
     }
-    const hasAIAccess = planCanUseAI(plan);
-    if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess) {
+    const hasAIAccess = planCanUseAI(plan) && !preferDeviceVoice;
+    if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess
+      || voiceCreditReadyRevision !== entitlementRevision
+      || aiConsentState !== 'granted') {
       // Losing access clears the key so re-subscribing sweeps again.
       if (!hasAIAccess) preloadedLibraryKeyRef.current = null;
       return;
@@ -212,10 +313,21 @@ export default function App() {
     if (preloadedLibraryKeyRef.current === key) return;
     preloadedLibraryKeyRef.current = key;
 
+    // Put the open folder first without moving any cards in storage. This only
+    // affects queue order, so the words the user can currently see become
+    // playable before the remainder of a large post-purchase sweep.
+    const orderedCards = currentFolderId === null
+      ? cards
+      : [
+        ...cards.filter(card => card.folderId === currentFolderId),
+        ...cards.filter(card => card.folderId !== currentFolderId),
+      ];
+
     preloadAIPronunciationLibrary({
-      entries: cards.map(card => ({
+      entries: orderedCards.map(card => ({
         id: card.id,
         text: card.word,
+        language: card.wordLang,
         hasCustomAudio: Boolean(card.audioUri),
       })),
       voice: aiVoice,
@@ -223,8 +335,8 @@ export default function App() {
       triggerReason: entitlementSource ?? 'entitlement-active',
     });
   }, [
-    aiVoice, cards, entitlementRevision, entitlementSource,
-    isSubscriptionLoaded, plan, settingsLoaded,
+    aiConsentState, aiVoice, cards, currentFolderId, entitlementRevision, entitlementSource,
+    isSubscriptionLoaded, plan, preferDeviceVoice, settingsLoaded, voiceCreditReadyRevision,
   ]);
 
   // ── AI entitlement ────────────────────────────────────────────────────────────
@@ -243,7 +355,9 @@ export default function App() {
   // attempted at all — otherwise every card would fetch, be refused, and raise
   // the same dialog again. It withholds nothing they are entitled to: picking a
   // voice again in Settings clears it.
-  const canUseAIVoice = canUseAI && !preferDeviceVoice;
+  const voiceBackendReady = entitlementSource === 'local-development-scenario'
+    || voiceCreditReadyRevision === entitlementRevision;
+  const canUseAIVoice = canUseAI && !preferDeviceVoice && voiceBackendReady;
   const discovery = useFeatureDiscovery({ plan, isSubscriptionLoaded });
 
   // ── Individual theme purchases ──────────────────────────────────────────────
@@ -289,11 +403,14 @@ export default function App() {
   }, [aiEntitlement]);
 
   // ── Tutorials ─────────────────────────────────────────────────────────────────
-  // Dismissing the tutorial is the only thing that reveals the filters. Existing
-  // users were given this same flag once, during the migration in bootstrap, so
-  // there is a single rule here rather than two that could disagree.
+  // The filters appear once the user has been told what the colours mean. That
+  // is the first answer now — the third Test introduction popup explains the
+  // coloured sections at that moment — while the old tutorial's flag is still
+  // read for everyone taught the previous way, including the users the
+  // bootstrap migration granted it to. One rule, both eras.
   const showResultFilters = shouldShowResultFilters({
     hasSeenResultFilterTutorial: resultFilterTutorialSeen,
+    hasCompletedFirstTestAnswer: firstTestAnswerRecorded,
   });
 
   // A backup import in "replace" mode swaps out every row, so React state and
@@ -350,15 +467,30 @@ export default function App() {
     }),
   });
 
-  const handleCardRegistered = useCallback((card: WordCard) => {
+  const automaticAIVoiceReady = canUseAIVoice
+    && entitlementSource !== 'local-development-scenario'
+    && aiConsentState === 'granted';
+
+  const handleCardRegistered = useCallback(async (
+    card: WordCard,
+    remaining: readonly WordCard[],
+  ) => {
+    // Local vocabulary is durable before its text can leave the device. If the
+    // card changed or disappeared while SQLite was flushing, its stale job is
+    // abandoned and the newer save owns the next enqueue.
+    await persistCardsAndWait([...remaining]);
+    const current = cardsRef.current.find(candidate => candidate.id === card.id);
+    if (!current || cardVoiceInput(current) !== cardVoiceInput(card)) return;
     preloadAIPronunciation({
       entryId: card.id,
       text: card.word,
       voice: aiVoice,
-      hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',
+      language: card.wordLang,
+      hasAIAccess: automaticAIVoiceReady,
       hasCustomAudio: Boolean(card.audioUri),
+      priority: 'high',
     });
-  }, [aiVoice, canUseAIVoice, entitlementSource]);
+  }, [aiVoice, automaticAIVoiceReady]);
 
   /**
    * An edit is two jobs: the old clip is now unreachable from this card, and the
@@ -368,27 +500,40 @@ export default function App() {
    * A word whose normalized text did not move keeps everything: the cache key is
    * unchanged, so there is nothing to generate and nothing that has gone stale.
    */
-  const handleCardEdited = useCallback((change: {
+  const handleCardEdited = useCallback(async (change: {
     card: WordCard;
-    previousWord: string;
+    previousCard: WordCard;
     remaining: readonly WordCard[];
   }) => {
-    const previous = normalizedTTSText(change.previousWord);
-    if (previous === normalizedTTSText(change.card.word)) return;
+    if (cardVoiceInput(change.previousCard) === cardVoiceInput(change.card)) return;
 
-    releaseAIPronunciationCache({
-      entryIds: [change.card.id],
-      texts: [change.previousWord],
-      retainedTexts: normalizedWordTexts(change.remaining),
-    });
+    const textChanged = normalizedTTSText(change.previousCard.word)
+      !== normalizedTTSText(change.card.word);
+    if (textChanged) {
+      releaseAIPronunciationCache({
+        entryIds: [change.card.id],
+        texts: [change.previousCard.word],
+        retainedTexts: normalizedWordTexts(change.remaining),
+      });
+    } else {
+      // Language/custom-audio changes make this owner's queued request stale,
+      // but do not make the old text cache unreachable for other cards.
+      cancelAIPronunciationPreload(change.card.id);
+    }
+
+    await persistCardsAndWait([...change.remaining]);
+    const current = cardsRef.current.find(candidate => candidate.id === change.card.id);
+    if (!current || cardVoiceInput(current) !== cardVoiceInput(change.card)) return;
     preloadAIPronunciation({
       entryId: change.card.id,
       text: change.card.word,
       voice: aiVoice,
-      hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',
+      language: change.card.wordLang,
+      hasAIAccess: automaticAIVoiceReady,
       hasCustomAudio: Boolean(change.card.audioUri),
+      priority: 'high',
     });
-  }, [aiVoice, canUseAIVoice, entitlementSource]);
+  }, [aiVoice, automaticAIVoiceReady]);
 
   /**
    * Basic's grant is spent. The dialog owns the two ways forward.
@@ -425,18 +570,26 @@ export default function App() {
     setPreferDeviceVoice(false);
   }, [setAIVoice, setPreferDeviceVoice]);
 
-  const handleCardsImported = useCallback((imported: readonly WordCard[]) => {
+  const handleCardsImported = useCallback(async (
+    imported: readonly WordCard[],
+    remaining: readonly WordCard[],
+  ) => {
+    await persistCardsAndWait([...remaining]);
+    const importedIds = new Set(imported.map(card => card.id));
+    const currentImported = cardsRef.current.filter(card => importedIds.has(card.id));
     preloadAIPronunciationLibrary({
-      entries: imported.map(card => ({
+      entries: currentImported.map(card => ({
         id: card.id,
         text: card.word,
+        language: card.wordLang,
         hasCustomAudio: Boolean(card.audioUri),
       })),
       voice: aiVoice,
-      hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',
+      hasAIAccess: automaticAIVoiceReady,
       triggerReason: 'bulk-import',
+      priority: 'high',
     });
-  }, [aiVoice, canUseAIVoice, entitlementSource]);
+  }, [aiVoice, automaticAIVoiceReady]);
 
   // Releasing covers the cancellation the delete path always did, and adds the
   // files: same call for one word and for a select-all, since both arrive here.
@@ -509,6 +662,86 @@ export default function App() {
     setTestModeAnalyticsVisible(false);
     setTestModeVisible(open => !open);
   }, [setTestModeVisible]);
+
+  /**
+   * The Test introduction step currently on screen, published by the test.
+   *
+   * Only the presentation lives up here — the sequencing, the stored flags and
+   * the dismissal all stay with `TestModeScreen`, which is the only place that
+   * can see whether a card has been turned over or answered. What this buys is
+   * a host outside the SafeAreaView, which is the only way a plain view can dim
+   * the status bar and the bottom strip.
+   */
+  const [testIntro, setTestIntro] = useState<{
+    message: string;
+    onDismiss: () => void;
+    spotlight: SpotlightTarget | null;
+  } | null>(null);
+  /**
+   * Where the things a step points at actually are.
+   *
+   * Two screens own the two targets — the card is the test's, the colour
+   * filters are the word list's — and each reports its own measurement as it
+   * lays out. Collected here because this is where the overlay is drawn, and
+   * kept as a rect rather than a constant so the bright area lands on the real
+   * control at any size, language or device.
+   */
+  const [spotlightRects, setSpotlightRects] = useState<Partial<Record<SpotlightTarget, SpotlightRect>>>({});
+  const setSpotlightRect = useCallback((target: SpotlightTarget, rect: SpotlightRect | null) => {
+    setSpotlightRects(current => {
+      if (rect === null) {
+        if (!(target in current)) return current;
+        const next = { ...current };
+        delete next[target];
+        return next;
+      }
+      const previous = current[target];
+      // Layout fires on every pass; only a real move is worth a render.
+      if (previous
+        && previous.x === rect.x && previous.y === rect.y
+        && previous.width === rect.width && previous.height === rect.height
+        && previous.radius === rect.radius) {
+        return current;
+      }
+      return { ...current, [target]: rect };
+    });
+  }, []);
+  const setCardSpotlight = useCallback(
+    (rect: SpotlightRect | null) => setSpotlightRect('card', rect),
+    [setSpotlightRect],
+  );
+  const setResultFiltersSpotlight = useCallback(
+    (rect: SpotlightRect | null) => setSpotlightRect('resultFilters', rect),
+    [setSpotlightRect],
+  );
+
+  // ── The Word List header's two markers, in sequence ───────────────────────
+  // Resolved here rather than in the screen: the second one's condition spans
+  // two screens and a whole session, which is not something a header can see.
+  const showTestMarker = shouldShowTestMarker({ plan, isSubscriptionLoaded, seen: discovery.seen });
+  const showNotificationMarker = shouldShowNotificationMarker({
+    plan, isSubscriptionLoaded, seen: discovery.seen,
+  });
+
+  // The milestone between the two: the first test has been opened, and is no
+  // longer open. Recorded from this condition rather than from the exit handler
+  // because that also covers a force-quit inside the first session — on the
+  // next launch the test is closed and the icon is already marked as tapped, so
+  // the Notification marker is waiting where it would have been.
+  //
+  // The opening tap cannot trip it: dismissing the Test marker and opening the
+  // mode are two updates from one handler, so they land in a single render and
+  // there is no commit in which the icon is marked but the test is not yet open.
+  //
+  // `dismiss` is idempotent and writes only on a change, so this may run on
+  // every render, on every close, and twice under Strict Mode without recording
+  // anything twice.
+  useEffect(() => {
+    if (!hasExitedFirstTest(discovery.seen, testModeVisible)) return;
+    discovery.dismiss(FEATURE_MARKERS.firstTestExited);
+    // The set and the stable dismisser, not the hook's return object — which is
+    // new on every render and would run this on every render for nothing.
+  }, [discovery.seen, discovery.dismiss, testModeVisible]);
 
   const {
     folderNotifSettings,
@@ -601,23 +834,10 @@ export default function App() {
     proSheetVisible, screenBusy, settingsModalVisible,
   ]);
 
-  // The filter tutorial owes nothing to how Test Mode ended. It becomes due the
-  // moment a card has been answered, and shows as soon as the user is somewhere
-  // safe — which is finishing the test, quitting it, or relaunching after a
-  // force-close, all through this one condition. `settingsLoaded` is what keeps
-  // it from appearing before the stored flags have been read.
-  const showResultFilterTutorial = shouldShowResultFilterTutorial({
-    hasSeenResultFilterTutorial: resultFilterTutorialSeen,
-    hasCompletedFirstTestAnswer: firstTestAnswerRecorded,
-    isAppReady: settingsLoaded,
-    isTestModeOpen: testModeVisible,
-    isScreenBusy: screenBusy,
-  });
-
-  // The only thing that reveals the filters.
-  const dismissResultFilterTutorial = useCallback(() => {
-    setResultFilterTutorialSeen(true);
-  }, [setResultFilterTutorialSeen]);
+  // Nothing is raised by leaving Test Mode any more. The three introduction
+  // popups live inside the test itself — opening it, uncovering the answers, and
+  // the first answer — and are owned there, by `useTestIntro`. Closing the test,
+  // the X button and navigating away therefore show nothing at all.
 
   // Tracks word-list scroll position for the Deep Sea skin gradient effect.
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -741,6 +961,13 @@ export default function App() {
       analyticsOpen={testModeAnalyticsVisible}
       onCloseAnalytics={closeTestModeAnalytics}
       onOpenAnalytics={openTestModeAnalytics}
+      onProgressChange={setTestModeProgress}
+      // Publishes the introduction step so it can be drawn full-screen. The
+      // test reports null when it unmounts, so quitting takes the overlay with
+      // it — and reporting nothing at all would only mean no popup, never a
+      // stuck one.
+      onIntroChange={setTestIntro}
+      onCardSpotlightChange={setCardSpotlight}
       pal={pal}
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
@@ -754,7 +981,15 @@ export default function App() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <LangContext.Provider value={t}>
-    <SafeAreaView style={[s.root, { backgroundColor: pal.bg }]}>
+    {/* The window itself. Everything the app draws lives inside the SafeAreaView
+        below; this outer view exists only so the Test introduction overlay can
+        be laid out against the whole screen rather than the inset area — an
+        absolutely-filled child is positioned inside its parent's padding, so
+        nothing rendered under the SafeAreaView can reach the status bar or the
+        home-indicator strip. It carries the background colour for the same
+        reason: those two regions are now its to paint. */}
+    <View style={[s.root, { backgroundColor: pal.bg }]}>
+    <SafeAreaView style={s.root}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppOverlays activeSkin={activeSkin} scrollY={scrollY} />
 
@@ -799,6 +1034,9 @@ export default function App() {
           canUseAIVoice={canUseAIVoice}
           onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
           hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
+          showTestMarker={showTestMarker}
+          showNotificationMarker={showNotificationMarker}
+          onResultFiltersLayout={setResultFiltersSpotlight}
           scrollY={scrollY}
           deepSeaSkin={activeSkin?.id === 'skin_deep_sea'}
           currentFolder={currentFolder}
@@ -847,11 +1085,25 @@ export default function App() {
               if (isPremium || hasTextToSpeechHistory) setTextToSpeechVisible(true);
               else setProSheetVisible(true);
             },
-            onOpenNotifications: () => setNotificationModalVisible(true),
+            // Navigate first, record second — in both of these. The marker is
+            // a note about what the user has seen; it has no say in whether the
+            // control works, and putting it second means it cannot come between
+            // the tap and the thing the tap is for.
+            onOpenNotifications: () => {
+              setNotificationModalVisible(true);
+              discovery.dismiss(FEATURE_MARKERS.notificationIcon);
+            },
             onOpenMenu: openMenu,
             // One control, both directions: the Test button switches the card
-            // area into Test Mode and back out again, in place.
-            onOpenTestMode: toggleTestMode,
+            // area into Test Mode and back out again, in place. The marker is
+            // spent on the way in — the same tap that opens the test — so the
+            // count is back the moment the user returns to the list. Toggling
+            // is unconditional: this is also the way *out*, and a marker that
+            // has already been recorded must not change that.
+            onOpenTestMode: () => {
+              toggleTestMode();
+              discovery.dismiss(FEATURE_MARKERS.testIcon);
+            },
             onFlip: toggleFlip,
             onEdit: openEdit,
             onDelete: deleteCard,
@@ -866,6 +1118,7 @@ export default function App() {
             active: testModeVisible,
             content: testModeContent,
             onQuit: quitTestMode,
+            progress: testModeProgress,
           }}
           menuBtnRef={menuBtnRef}
         />
@@ -960,6 +1213,8 @@ export default function App() {
           onToggleNotifyAllWords: toggleNotifyAllWords,
           noNotifiableWords,
           onTest: sendTestForCurrentFolder,
+          showSendTestBadge: discovery.isNew(FEATURE_MARKERS.sendTest),
+          onSendTestSeen: () => discovery.dismiss(FEATURE_MARKERS.sendTest),
         }}
         textToSpeech={{
           visible: TEXT_TO_SPEECH_ENABLED && textToSpeechVisible,
@@ -1073,14 +1328,6 @@ export default function App() {
         onOpenSettings={() => { setSettingsModalVisible(true); setMenuVisible(false); }}
       />
 
-      {/* Result-filter tutorial — shown once, after Test Mode has closed. */}
-      <ResultFilterTutorial
-        visible={showResultFilterTutorial}
-        onDismiss={dismissResultFilterTutorial}
-        pal={pal}
-        themeColor={activeThemeColor}
-      />
-
       {/* AI data-sharing consent — the root host, covering word-card voice and
           anything else asked for outside a presented modal. Settings, the word
           editor and the Text-to-Speech screen each mount their own while they
@@ -1091,6 +1338,30 @@ export default function App() {
       <TopBanner pal={pal} />
 
     </SafeAreaView>
+
+    {/* The Test introduction's first and third steps.
+
+        Hosted here, outside the SafeAreaView, so its backdrop covers the whole
+        window — status bar, header, card, answers and the bottom strip — as one
+        continuous dim, while the popup is anchored beneath the real measured
+        control it explains.
+
+        Still an ordinary view, never a `Modal`: Test Mode already mounts one,
+        and a second one — or any native modal unmounted by the X button that
+        ends the session — is what left a presented window swallowing every
+        touch. `TestModeScreen` publishes the step and takes it back when it
+        unmounts, so nothing here can outlive the test it belongs to. */}
+    <TestIntroDialog
+      visible={testIntro !== null}
+      message={testIntro?.message ?? ''}
+      onDismiss={() => testIntro?.onDismiss()}
+      // Null until the target has been laid out. The dialog deliberately draws
+      // nothing in that brief interval rather than flashing at screen centre.
+      spotlight={testIntro?.spotlight ? spotlightRects[testIntro.spotlight] ?? null : null}
+      pal={pal}
+      themeColor={activeThemeColor}
+    />
+    </View>
     </LangContext.Provider>
   );
 }

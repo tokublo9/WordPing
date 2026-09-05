@@ -142,7 +142,7 @@ const VOICE_ENDPOINTS: Readonly<Record<Exclude<AISpeechAction, 'speech_promo'>, 
   speech_sample: 'sample',
 };
 
-/** Identifies one of the two fixed promotional clips. Never carries text. */
+/** Identifies one of the fixed promotional clips. Never carries text. */
 export interface PromoSpeechRequest {
   sample: string;
   langCode: string;
@@ -156,6 +156,7 @@ export async function requestAISpeech(
   action: AISpeechAction = 'speech',
   sampleVersion?: string,
   promo?: PromoSpeechRequest,
+  langCode?: string,
 ): Promise<ArrayBuffer> {
   const trimmedText = typeof text === 'string' ? text.trim() : '';
   // Neither preview route carries user text: the sentence is chosen server-side.
@@ -184,7 +185,12 @@ export async function requestAISpeech(
   } else {
     const body: Record<string, unknown> = action === 'speech_sample'
       ? { voice: validVoice, ...(sampleVersion ? { sampleVersion } : {}) }
-      : { text: trimmedText, voice: validVoice, format };
+      : {
+        text: trimmedText,
+        voice: validVoice,
+        format,
+        ...(action === 'speech' && langCode ? { langCode } : {}),
+      };
     result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });
   }
   const responseReceivedAtMs = performance.now();

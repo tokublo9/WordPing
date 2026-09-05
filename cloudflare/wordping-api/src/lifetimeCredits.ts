@@ -1,5 +1,6 @@
 import type { Env } from './env';
 import { log, redactError } from './log';
+import { VOICE_LIFETIME_CREDITS } from './planLimits';
 
 /**
  * The one-time High-Quality AI Voice grant that comes with Basic.
@@ -10,9 +11,9 @@ import { log, redactError } from './log';
  * and resubscription, not on restore, reinstall, or a new device.
  *
  * WHAT MAKES THAT HOLD is where it is stored. The ledger is a Durable Object
- * named from the salted hash of the RevenueCat App User ID — the identity that
- * survives everything in that list, because it belongs to the subscription
- * rather than to the install. Local data is irrelevant to it: wiping the app
+ * named from the salted hash of RevenueCat's canonical original App User ID —
+ * not the current device alias. The verified subscriber record resolves every
+ * restore/alias to that identity, so local data is irrelevant: wiping the app
  * cannot hand out a second grant. There is no TTL on the stored value, so it
  * also cannot expire.
  *
@@ -54,7 +55,7 @@ import { log, redactError } from './log';
  * charged again.
  */
 
-export const BASIC_LIFETIME_VOICE_CREDITS = 200;
+export const BASIC_LIFETIME_VOICE_CREDITS = VOICE_LIFETIME_CREDITS.basic ?? 0;
 
 /**
  * How long a claim survives without a commit or release.
@@ -288,18 +289,39 @@ export async function commitVoiceCredit(
   hashedAppUserId: string,
   idempotencyKey: string,
   requestId: string,
-): Promise<boolean> {
+): Promise<ReserveResult | null> {
   try {
     const result = await call(env, hashedAppUserId, 'commit', idempotencyKey);
     if (result === null || !result.ok) {
       log('error', 'voice_credit_commit_failed', requestId, { reason: 'ledger_error' });
-      return false;
+      return null;
     }
     log('info', 'voice_credit_committed', requestId, { remaining: result.remaining });
-    return true;
+    return result;
   } catch (error: unknown) {
     log('error', 'voice_credit_commit_failed', requestId, redactError(error));
-    return false;
+    return null;
+  }
+}
+
+/** Read or initialize Basic's lifetime balance without reserving a credit. */
+export async function peekVoiceCreditBalance(
+  env: Env,
+  hashedAppUserId: string,
+  requestId: string,
+): Promise<ReserveResult | null> {
+  try {
+    const result = await call(env, hashedAppUserId, 'peek', '');
+    if (result !== null) {
+      log('info', 'voice_credit_balance_read', requestId, {
+        remaining: result.remaining,
+        available: result.available,
+      });
+    }
+    return result;
+  } catch (error: unknown) {
+    log('error', 'voice_credit_balance_read_failed', requestId, redactError(error));
+    return null;
   }
 }
 

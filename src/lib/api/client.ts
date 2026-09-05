@@ -19,6 +19,12 @@ import {
   getLocalAiVoiceTestScenario,
   LOCAL_AI_VOICE_APP_USER_ID,
 } from '../../dev/localAiVoiceScenario';
+import {
+  parseVoiceCreditBalance,
+  publishVoiceCreditBalance,
+  publishVoiceCreditHeaders,
+  type VoiceCreditBalance,
+} from '../voiceCreditBalance';
 
 /**
  * The single network boundary for AI features.
@@ -114,6 +120,7 @@ function getIdentity(): Promise<{ installId: string; appUserId: string }> {
 /** Test hook, and used after a RevenueCat identity change. */
 export function resetApiIdentity(): void {
   identityRequest = null;
+  publishVoiceCreditBalance(null);
 }
 
 // ── Request plumbing ─────────────────────────────────────────────────────────
@@ -165,6 +172,7 @@ async function readErrorCode(
   requestId?: string;
   quota?: MonthlyQuotaInfo;
   limitWindow?: RateLimitWindow;
+  voiceCredits?: VoiceCreditBalance;
 }> {
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) return {};
@@ -176,11 +184,20 @@ async function readErrorCode(
     // The Worker has always sent this alongside a 429; it was simply dropped here,
     // which is why an exhausted daily allowance was indistinguishable from a burst.
     const limitWindow = parseRateLimitWindow(body.window);
+    const voiceCredits = body.error === 'voice_credits_exhausted'
+      ? parseVoiceCreditBalance({
+        tier: 'basic',
+        grant: body.grant,
+        remaining: body.remaining,
+        available: 0,
+      }) ?? undefined
+      : undefined;
     return {
       ...(typeof body.error === 'string' ? { code: body.error } : {}),
       ...(typeof body.requestId === 'string' ? { requestId: body.requestId } : {}),
       ...(quota !== undefined ? { quota } : {}),
       ...(limitWindow !== undefined ? { limitWindow } : {}),
+      ...(voiceCredits !== undefined ? { voiceCredits } : {}),
     };
   } catch {
     return {};
@@ -207,8 +224,12 @@ export interface ApiRequestOptions {
  * retries and their background preloads. Every one needs an eligible
  * entitlement, an explicit consent, and the two identity headers.
  *
- * `fixed-promo` is the two promotional clips and nothing else. The request has
- * no text field, no voice field, a two-value sample id and a language code the
+ * `account-metadata` is the fresh server-side entitlement/credit check. It
+ * carries identity but no user text. It deliberately does not trust or require
+ * the client entitlement snapshot, because resolving that snapshot is its job.
+ *
+ * `fixed-promo` is the promotional clips and nothing else. The request has no
+ * text field, no voice field, an allowlisted sample id and a language code the
  * Worker resolves against a fixed table, so there is nothing in it belonging to
  * the user — and it therefore carries no identifiers either.
  *
@@ -216,7 +237,7 @@ export interface ApiRequestOptions {
  * `postPromoSpeech` below, which builds the body itself; no caller can label
  * its own payload.
  */
-type AIRequestKind = 'user-content' | 'fixed-promo';
+type AIRequestKind = 'user-content' | 'account-metadata' | 'fixed-promo';
 
 async function post(
   path: string,
@@ -230,9 +251,9 @@ async function post(
   // device is never asked for a permission it has no use for. Throwing here
   // means nothing is read, resolved or transmitted.
   //
-  // A fixed promo clip skips them because there is nothing to gate: no user
-  // content is sent, so there is nothing to consent to, and no entitlement is
-  // required to hear WordPing's own sample.
+  // Account metadata skips the local gates because the Worker is the authority
+  // it is asking. A fixed promo skips them because no user content is sent and
+  // no entitlement is required to hear WordPing's own sample.
   if (kind === 'user-content') {
     requireAIEntitlement();
     await requireAIConsent();
@@ -242,10 +263,10 @@ async function post(
     throw new AIRequestError('service_unavailable', { serverCode: 'api_not_configured' });
   }
 
-  // Resolved only for a user-content request. `getInstallId` *creates* an id
-  // when none exists, so calling it for a public sample would mint a persistent
-  // identifier purely to play a promo — exactly what this avoids.
-  const identity = kind === 'user-content' ? await getIdentity() : null;
+  // Resolved for user content and the account-metadata verification request.
+  // `getInstallId` *creates* an id when none exists, so the fixed public sample
+  // stays outside this branch and never mints an identifier merely to play.
+  const identity = kind !== 'fixed-promo' ? await getIdentity() : null;
   const timeout = withTimeout(options.timeoutMs ?? defaultTimeoutMs, options.signal);
 
   let response: Response;
@@ -271,7 +292,8 @@ async function post(
   }
 
   if (!response.ok) {
-    const { code, requestId, quota, limitWindow } = await readErrorCode(response);
+    const { code, requestId, quota, limitWindow, voiceCredits } = await readErrorCode(response);
+    if (voiceCredits !== undefined) publishVoiceCreditBalance(voiceCredits);
     const retryAfter = retryAfterSeconds(response);
     if (__DEV__) {
       // Codes and identifiers only — never the request body or the user's text.
@@ -350,6 +372,7 @@ export async function postSpeech(
   options: ApiRequestOptions = {},
 ): Promise<SpeechResult> {
   const response = await post(VOICE_PATHS[endpoint], body, options, DEFAULT_SPEECH_TIMEOUT_MS);
+  publishVoiceCreditHeaders(response.headers);
 
   const audio = await response.arrayBuffer();
   if (audio.byteLength === 0) {
@@ -363,14 +386,35 @@ export async function postSpeech(
 }
 
 /**
- * The two fixed promotional clips — the one request that carries nothing of the
+ * Freshly verifies the paid tier with the Worker and reads/initializes Basic's
+ * authoritative one-time balance. It carries identity but no user text, so it
+ * does not require data-sharing consent and never reserves a generation.
+ */
+export async function fetchVoiceCreditBalance(): Promise<VoiceCreditBalance> {
+  const response = await post(
+    '/v1/voice/credits',
+    {},
+    {},
+    DEFAULT_TEXT_TIMEOUT_MS,
+    'account-metadata',
+  );
+  const parsed = parseVoiceCreditBalance(await response.json());
+  if (parsed === null) {
+    throw new AIRequestError('generation_failed', { serverCode: 'invalid_credit_balance' });
+  }
+  publishVoiceCreditBalance(parsed);
+  return parsed;
+}
+
+/**
+ * The fixed promotional clips — the one request that carries nothing of the
  * user's, and therefore the one exempt from entitlement and consent.
  *
  * It is a separate function rather than a flag on `postSpeech` so the exemption
  * cannot be reached with a caller-supplied payload. Everything transmitted is
  * built here from arguments this function validates:
  *
- *  - `sample` is checked against the same two-value allowlist the Worker uses,
+ *  - `sample` is checked against the same fixed allowlist the Worker uses,
  *    so a bad id fails on the device instead of becoming a request.
  *  - `langCode` selects which fixed WordPing translation is spoken. The Worker
  *    resolves it against its own table and falls back to English, so it can

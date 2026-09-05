@@ -210,7 +210,13 @@ interface Props {
   onToggleNotifCandidate?: () => void;
   /** Opens the folder picker for this word. The same move the list rows use. */
   onMove?: () => void;
-  /** Per-feature "!" markers. The custom-audio control is the only one here. */
+  /**
+   * Per-feature "!" markers: Custom Voice, Hide Front Word, Add to
+   * Notifications and Bulk Import.
+   *
+   * One shared set, so a control that appears in both sheets — Custom Voice,
+   * and Hide Front Word's dismissal — carries one id and is found once.
+   */
   discovery: FeatureDiscovery;
   wordLang: string | undefined;
   onChangeWordLang: (lang: string | undefined) => void;
@@ -509,6 +515,10 @@ export function WordModal({
   };
 
   const handleOpenBulkImport = () => {
+    // Before the sheet starts closing: the dismissal is a write to the shared
+    // discovery set, not part of this animation, and it must survive the sheet
+    // being gone by the time the importer opens.
+    discovery.dismiss(FEATURE_MARKERS.bulkImport);
     Keyboard.dismiss();
     setPickerFor(null);
     Animated.parallel([
@@ -666,22 +676,32 @@ export function WordModal({
                   </Text>
                   <View style={styles.headerActions}>
                     {!editingCard && (
-                      <TouchableOpacity
-                        style={[
-                          s.compactHeaderButton,
-                          { backgroundColor: pal.input, borderColor: pal.border },
-                        ]}
-                        onPress={handleOpenBulkImport}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('bulk_import')}
+                      // The one marked control with no icon of its own, so the
+                      // marker hangs off the button's own bottom-right corner
+                      // instead. It lands in the 6pt gap before Close, clear of
+                      // that glyph, and nothing on this row clips it.
+                      <NewFeatureBadge
+                        visible={discovery.isNew(FEATURE_MARKERS.bulkImport)}
+                        themeColor={themeColor}
+                        label={t('new_feature_badge')}
                       >
-                        <Text
-                          style={[s.compactHeaderButtonText, { color: pal.sub }]}
-                          numberOfLines={1}
+                        <TouchableOpacity
+                          style={[
+                            s.compactHeaderButton,
+                            { backgroundColor: pal.input, borderColor: pal.border },
+                          ]}
+                          onPress={handleOpenBulkImport}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('bulk_import')}
                         >
-                          {t('bulk_import')}
-                        </Text>
-                      </TouchableOpacity>
+                          <Text
+                            style={[s.compactHeaderButtonText, { color: pal.sub }]}
+                            numberOfLines={1}
+                          >
+                            {t('bulk_import')}
+                          </Text>
+                        </TouchableOpacity>
+                      </NewFeatureBadge>
                     )}
                     <TouchableOpacity
                       style={styles.closeButton}
@@ -722,7 +742,10 @@ export function WordModal({
                       {t('word_label')}<Text style={{ color: pal.sub }}> *</Text>
                     </Text>
                     <TouchableOpacity
-                      onPress={() => onChangeHideWord?.(!hideWord)}
+                      onPress={() => {
+                        discovery.dismiss(FEATURE_MARKERS.hideWord);
+                        onChangeHideWord?.(!hideWord);
+                      }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       style={[
                         styles.audioBtn,
@@ -735,19 +758,25 @@ export function WordModal({
                       accessibilityLabel={t('hide_word')}
                       accessibilityHint={t(hideWord ? 'hide_word_on' : 'hide_word_off')}
                     >
-                      <Ionicons
-                        name={hideWord ? 'eye-off' : 'eye-outline'}
-                        size={16}
-                        color={hideWord ? themeColor : pal.sub}
-                      />
+                      {/* Marked in the Edit sheet, where the control belongs to a
+                          word that already has study faces to hide. The tap
+                          dismisses it from either sheet, because both write the
+                          same one marker — there is no Add-sheet copy to leave
+                          behind. */}
+                      <NewFeatureBadge
+                        visible={editingCard !== null && discovery.isNew(FEATURE_MARKERS.hideWord)}
+                        themeColor={themeColor}
+                        label={t('new_feature_badge')}
+                      >
+                        <Ionicons
+                          name={hideWord ? 'eye-off' : 'eye-outline'}
+                          size={16}
+                          color={hideWord ? themeColor : pal.sub}
+                        />
+                      </NewFeatureBadge>
                     </TouchableOpacity>
                   </View>
                   <View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>
-                    <NewFeatureBadge
-                      visible={discovery.isNew(FEATURE_MARKERS.customAudio)}
-                      themeColor={themeColor}
-                      label={t('new_feature_badge')}
-                    />
                     <TouchableOpacity
                       onPress={() => {
                         discovery.dismiss(FEATURE_MARKERS.customAudio);
@@ -761,11 +790,20 @@ export function WordModal({
                           : { borderColor: pal.border },
                       ]}
                     >
-                      <Ionicons
-                        name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
-                        size={16}
-                        color={audioUri ? themeColor : pal.sub}
-                      />
+                      {/* The marker sits on the button's own icon, the same
+                          corner it takes everywhere else. It is inert, so the
+                          button underneath keeps its whole touch target. */}
+                      <NewFeatureBadge
+                        visible={discovery.isNew(FEATURE_MARKERS.customAudio)}
+                        themeColor={themeColor}
+                        label={t('new_feature_badge')}
+                      >
+                        <Ionicons
+                          name={isPlayingAudio ? 'pause-circle' : audioUri ? 'play-circle' : 'musical-notes-outline'}
+                          size={16}
+                          color={audioUri ? themeColor : pal.sub}
+                        />
+                      </NewFeatureBadge>
                     </TouchableOpacity>
                     {/* Remove sits to the right of the button it clears, and
                         only once there is something to clear — so the Custom
@@ -1091,15 +1129,24 @@ export function WordModal({
                         styles.wordAction,
                         { borderColor: notifCandidate ? themeColor : pal.border },
                       ]}
-                      onPress={onToggleNotifCandidate}
+                      onPress={() => {
+                        discovery.dismiss(FEATURE_MARKERS.notifyWord);
+                        onToggleNotifCandidate?.();
+                      }}
                       accessibilityRole="switch"
                       accessibilityState={{ checked: notifCandidate }}
                     >
-                      <Ionicons
-                        name={notifCandidate ? 'notifications' : 'notifications-outline'}
-                        size={17}
-                        color={notifCandidate ? themeColor : pal.sub}
-                      />
+                      <NewFeatureBadge
+                        visible={discovery.isNew(FEATURE_MARKERS.notifyWord)}
+                        themeColor={themeColor}
+                        label={t('new_feature_badge')}
+                      >
+                        <Ionicons
+                          name={notifCandidate ? 'notifications' : 'notifications-outline'}
+                          size={17}
+                          color={notifCandidate ? themeColor : pal.sub}
+                        />
+                      </NewFeatureBadge>
                       <Text
                         style={[
                           styles.wordActionLabel,
