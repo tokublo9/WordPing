@@ -12,11 +12,8 @@ import { parseRequestDate, shouldApplyCustomerInfo } from '../lib/entitlementOrd
 import {
   activeExpirationDateFromCustomerInfo,
   configureRevenueCat,
-  describeRevenueCatKey,
-  logActiveRevenueCatEntitlements,
   planFromCustomerInfo,
   PACKAGE_IDS,
-  RC_DIAGNOSTICS,
 } from '../lib/purchases';
 import {
   LOCAL_AI_VOICE_SCENARIO,
@@ -24,8 +21,6 @@ import {
 } from '../dev/localAiVoiceScenario';
 import {
   PLAN_PACKAGE_IDS,
-  PLAN_PRODUCT_IDS,
-  describePlanPriceProblem,
   type PlanStoreProduct,
   type PlanStoreProducts,
   type SubscriptionPlanId,
@@ -74,21 +69,6 @@ function purchaseErrorDetails(err: unknown): {
   };
 }
 
-function logOfferings(source: string, offerings: PurchasesOfferings): void {
-  if (!RC_DIAGNOSTICS) return;
-  console.info('[RC diagnostic]', {
-    source,
-    currentOfferingIdentifier: offerings.current?.identifier ?? null,
-    availablePackageIdentifiers: offerings.current?.availablePackages.map(pkg => pkg.identifier) ?? [],
-    // Every offering, not just `current`: a dashboard with offerings defined but none
-    // marked current is indistinguishable from an empty account without this.
-    allOfferingIdentifiers: Object.keys(offerings.all),
-  });
-  if (!offerings.current) {
-    console.warn('[RC] No current offering. Either none is marked current in the RevenueCat dashboard, or it has no products attached.');
-  }
-}
-
 
 /**
  * The Basic and Premium products, read from the offering that will be purchased.
@@ -120,52 +100,19 @@ function readPlanProducts(offerings: PurchasesOfferings | null): PlanStoreProduc
   return products;
 }
 
-/**
- * What the store actually returned for the two subscriptions, in dev only.
- *
- * A missing subscription price is silent — the button simply shows no price —
- * so without this there is no way to tell a package-id mismatch from a Test
- * Store key from a product that has no price in App Store Connect. Stripped
- * from release builds by `__DEV__`.
- */
-function logPlanPriceDiagnostics(offerings: PurchasesOfferings | null): void {
-  if (!__DEV__) return;
-
-  const products = readPlanProducts(offerings);
-  const returnedPackageIds = offerings?.current?.availablePackages.map(pkg => pkg.identifier) ?? [];
-
-  console.info('[plans] subscription price diagnostics', {
-    revenueCat: describeRevenueCatKey(),
-    // An App Store product cannot be served by the Test Store, so a `test_` key
-    // here explains a missing price on its own.
-    storeMismatchLikely: describeRevenueCatKey().store === 'test-store',
-    currentOfferingId: offerings?.current?.identifier ?? null,
-    allOfferingIds: Object.keys(offerings?.all ?? {}),
-    returnedPackageIds,
-    basic: products.basic ?? null,
-    premium: products.premium ?? null,
-    expected: {
-      basic: { packageId: PLAN_PACKAGE_IDS.basic, productId: PLAN_PRODUCT_IDS.basic },
-      premium: { packageId: PLAN_PACKAGE_IDS.premium, productId: PLAN_PRODUCT_IDS.premium },
-    },
-    problems: {
-      basic: describePlanPriceProblem(products, 'basic', returnedPackageIds),
-      premium: describePlanPriceProblem(products, 'premium', returnedPackageIds),
-    },
-  });
-}
-
-async function fetchOfferings(source: string): Promise<PurchasesOfferings> {
+async function fetchOfferings(): Promise<PurchasesOfferings> {
   const offerings = await Purchases.getOfferings();
-  logOfferings(source, offerings);
+  // A real misconfiguration, and otherwise silent: every plan price disappears
+  // with no error anywhere.
+  if (!offerings.current) {
+    console.warn('[RC] No current offering. Either none is marked current in the RevenueCat dashboard, or it has no products attached.');
+  }
   return offerings;
 }
 
-async function fetchFreshCustomerInfo(source: string): Promise<CustomerInfo> {
+async function fetchFreshCustomerInfo(): Promise<CustomerInfo> {
   await Purchases.invalidateCustomerInfoCache();
-  const info = await Purchases.getCustomerInfo();
-  logActiveRevenueCatEntitlements(source, info);
-  return info;
+  return Purchases.getCustomerInfo();
 }
 
 export function useSubscription() {
@@ -197,18 +144,7 @@ export function useSubscription() {
     source: RevenueCatEntitlementSource,
     info: CustomerInfo,
   ): void => {
-    if (!shouldApplyCustomerInfo(info.requestDate, lastAppliedRequestDateRef.current)) {
-      if (RC_DIAGNOSTICS) {
-        console.info('[RC diagnostic]', {
-          source: 'stale-snapshot-ignored',
-          from: source,
-          incomingRequestDate: info.requestDate,
-          lastAppliedRequestDate: new Date(lastAppliedRequestDateRef.current ?? 0).toISOString(),
-          wouldHaveResolvedTo: planFromCustomerInfo(info),
-        });
-      }
-      return;
-    }
+    if (!shouldApplyCustomerInfo(info.requestDate, lastAppliedRequestDateRef.current)) return;
     // Only advance on a usable timestamp, so one undated snapshot cannot pin the
     // guard to a value that rejects everything after it.
     const applied = parseRequestDate(info.requestDate);
@@ -261,7 +197,6 @@ export function useSubscription() {
         if (!configured) throw new Error('revenuecat_not_configured');
 
         listener = (info: CustomerInfo) => {
-          logActiveRevenueCatEntitlements('customer-info-listener', info);
           if (active) applyVerifiedCustomerInfo('customer-info-listener', info);
         };
         if (active) Purchases.addCustomerInfoUpdateListener(listener);
@@ -274,20 +209,11 @@ export function useSubscription() {
         // keeps the id their purchases are already attached to. Calling
         // `logOut` here would mint a new anonymous user and strand existing
         // subscribers until they found "Restore Purchases".
-        const appUserId = await Purchases.getAppUserID();
-        if (RC_DIAGNOSTICS) {
-          console.info('[RC diagnostic]', {
-            source: 'identity',
-            isAnonymous: appUserId.startsWith('$RCAnonymousID:'),
-          });
-        }
-
-        const customerInfo = await fetchFreshCustomerInfo('after-configure-refresh');
-        const nextOfferings = await fetchOfferings('after-configure');
+        const customerInfo = await fetchFreshCustomerInfo();
+        const nextOfferings = await fetchOfferings();
         if (active) {
           applyVerifiedCustomerInfo('after-configure-refresh', customerInfo);
           setOfferings(nextOfferings);
-          logPlanPriceDiagnostics(nextOfferings);
         }
 
         // These keys are migration cleanup only and never grant subscription access.
@@ -325,9 +251,8 @@ export function useSubscription() {
       try {
         // Resolve immediately before purchase so a fresh Simulator cannot race
         // the initial offerings request or use a stale package object.
-        const latestOfferings = await fetchOfferings(`before-purchase:${packageIdentifier}`);
+        const latestOfferings = await fetchOfferings();
         setOfferings(latestOfferings);
-        logPlanPriceDiagnostics(latestOfferings);
         const pkg = latestOfferings.current?.availablePackages.find(
           candidate => candidate.identifier === packageIdentifier,
         );
@@ -348,42 +273,12 @@ export function useSubscription() {
           throw new Error(`revenuecat_package_unavailable:${packageIdentifier}`);
         }
 
-        if (RC_DIAGNOSTICS) {
-          console.info('[RC diagnostic]', {
-            source: 'purchase-package',
-            currentOfferingIdentifier: latestOfferings.current?.identifier ?? null,
-            packageIdentifier: pkg.identifier,
-            productIdentifier: pkg.product.identifier,
-          });
-        }
-        const { customerInfo } = await Purchases.purchasePackage(pkg);
-        logActiveRevenueCatEntitlements('purchase-response', customerInfo);
-        const refreshedInfo = await fetchFreshCustomerInfo('after-purchase-refresh');
-        if (RC_DIAGNOSTICS) {
-          // Reading the two snapshots side by side is what separates the two
-          // possible causes of an upgrade that still shows the old plan: either
-          // RevenueCat had not yet promoted the entitlement (both say basic), or
-          // it had and something later overwrote it (both say premium, yet the UI
-          // does not). `purchased` is what the user just paid for.
-          console.info('[RC diagnostic]', {
-            source: 'purchase-plan-resolution',
-            purchased: packageIdentifier,
-            fromPurchaseResponse: planFromCustomerInfo(customerInfo),
-            fromRefreshedRead: planFromCustomerInfo(refreshedInfo),
-            purchaseRequestDate: customerInfo.requestDate,
-            refreshedRequestDate: refreshedInfo.requestDate,
-          });
-        }
+        await Purchases.purchasePackage(pkg);
+        const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-purchase-refresh', refreshedInfo);
       } catch (e) {
-        const details = purchaseErrorDetails(e);
-        if (isCancelled(e)) {
-          // Worth seeing in TestFlight: StoreKit reports some sandbox failures as a
-          // cancellation, so a purchase that "cancels" without the user tapping Cancel
-          // is a real signal rather than noise.
-          if (RC_DIAGNOSTICS) console.info('[RC diagnostic] Purchase cancelled.', details);
-        } else {
-          console.error('[RC purchase error]', details);
+        if (!isCancelled(e)) {
+          console.error('[RC purchase error]', purchaseErrorDetails(e));
           setError('Purchase failed. Please try again.');
         }
       } finally {
@@ -400,12 +295,11 @@ export function useSubscription() {
       setIsRestoring(true);
       setError(null);
       try {
-        const restoredInfo = await Purchases.restorePurchases();
-        logActiveRevenueCatEntitlements('restore-response', restoredInfo);
-        const refreshedInfo = await fetchFreshCustomerInfo('after-restore-refresh');
+        await Purchases.restorePurchases();
+        const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-restore-refresh', refreshedInfo);
       } catch (e) {
-        if (RC_DIAGNOSTICS) console.error('[RC restore error]', purchaseErrorDetails(e));
+        console.error('[RC restore error]', purchaseErrorDetails(e));
         setError('Restore failed. Please try again.');
       } finally {
         setIsRestoring(false);
@@ -414,10 +308,10 @@ export function useSubscription() {
 
   const refreshCustomerInfo = async (): Promise<void> => {
     try {
-      const info = await fetchFreshCustomerInfo('manual-refresh');
+      const info = await fetchFreshCustomerInfo();
       applyVerifiedCustomerInfo('manual-refresh', info);
     } catch (e) {
-      if (RC_DIAGNOSTICS) console.error('[RC refresh error]', purchaseErrorDetails(e));
+      console.error('[RC refresh error]', purchaseErrorDetails(e));
     }
   };
 
@@ -425,7 +319,7 @@ export function useSubscription() {
   const unsubscribe = async (): Promise<void> => {
     if (!__DEV__) return;
     try {
-      const anonymousInfo = await Purchases.logOut();
+      await Purchases.logOut();
       // logOut mints a new anonymous App User ID, so the cached identity the
       // API client sends must be discarded or it would keep quoting the old one.
       resetApiIdentity();
@@ -435,8 +329,7 @@ export function useSubscription() {
       // This is the only place the App User ID changes: production never calls
       // logIn or logOut, so there is no other switch point to cover.
       resetEntitlementOrdering();
-      logActiveRevenueCatEntitlements('logout-response', anonymousInfo);
-      const refreshedInfo = await fetchFreshCustomerInfo('after-logout-refresh');
+      const refreshedInfo = await fetchFreshCustomerInfo();
       applyVerifiedCustomerInfo('after-logout-refresh', refreshedInfo);
     } catch (e) {
       if (__DEV__) console.warn('[useSubscription] logOut error:', errorMessage(e));

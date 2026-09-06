@@ -18,6 +18,8 @@ import type { Palette, WordCard } from '../types';
 import { useLang } from '../i18n';
 import { LEVEL_FILTER_OPTIONS, TEST_LEVEL_LABEL_KEYS } from '../features/cards/levels';
 import type { ResultColorFilter } from '../features/cards/resultFilterCopy';
+import { MaskedUserText } from './MaskedUserText';
+import { needsUserContentMask } from '../features/cards/builtInCards';
 import { HiddenWordIcon } from './HiddenWordIcon';
 import { isWordTextHidden } from '../features/cards/hideWordAccess';
 
@@ -210,14 +212,18 @@ export function ResultWordsSheet({
                           {isWordTextHidden(word)
                             ? <HiddenWordIcon color={pal.text} variant="row" />
                             : (
-                              <Text style={[styles.word, { color: pal.text }]} numberOfLines={1}>
-                                {word.word}
-                              </Text>
+                              <MaskedUserText masked={needsUserContentMask(word)}>
+                                <Text style={[styles.word, { color: pal.text }]} numberOfLines={1}>
+                                  {word.word}
+                                </Text>
+                              </MaskedUserText>
                             )}
                           {!!word.meaning.trim() && (
-                            <Text style={[styles.meaning, { color: pal.sub }]} numberOfLines={1}>
-                              {word.meaning}
-                            </Text>
+                            <MaskedUserText masked={needsUserContentMask(word)}>
+                              <Text style={[styles.meaning, { color: pal.sub }]} numberOfLines={1}>
+                                {word.meaning}
+                              </Text>
+                            </MaskedUserText>
                           )}
                         </View>
                       </TouchableOpacity>

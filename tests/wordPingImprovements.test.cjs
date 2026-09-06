@@ -1111,11 +1111,11 @@ test('the Test introduction copy and localized answer labels ship in every local
   // The surrounding copy remains localized; only the answer names are slots.
   assert.match(
     i18n,
-    /test_intro_tap_card: {3}'Tap the card to test your understanding of its meaning\.',/u,
+    /test_intro_tap_card: {3}'Tap the card to test your understanding of its back\.',/u,
   );
   assert.match(
     i18n,
-    /test_intro_tap_card: {3}'カードをタップして、意味を理解できているかテストしましょう。',/u,
+    /test_intro_tap_card: {3}'カードをタップして、裏を理解できているかテストしましょう。',/u,
   );
   assert.match(
     i18n,

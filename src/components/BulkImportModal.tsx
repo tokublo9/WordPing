@@ -14,6 +14,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Palette } from '../types';
@@ -396,11 +397,15 @@ export function BulkImportModal({
                   >
                     <Text style={[styles.itemNumber, { color: pal.sub }]}>{item.rowNumber}</Text>
                     <View style={styles.itemBody}>
-                      <Text style={[styles.fileItemWord, { color: pal.text }]}>{item.word}</Text>
+                      <PostHogMaskView>
+                        <Text style={[styles.fileItemWord, { color: pal.text }]}>{item.word}</Text>
+                      </PostHogMaskView>
                       {item.meaning !== '' && (
-                        <Text style={[styles.fileItemMeaning, { color: pal.sub }]} numberOfLines={2}>
-                          {item.meaning}
-                        </Text>
+                        <PostHogMaskView>
+                          <Text style={[styles.fileItemMeaning, { color: pal.sub }]} numberOfLines={2}>
+                            {item.meaning}
+                          </Text>
+                        </PostHogMaskView>
                       )}
                       <View style={styles.badgeRow}>
                         {item.status !== 'valid' && (
@@ -535,7 +540,8 @@ export function BulkImportModal({
                   </Text>
                 </TouchableOpacity>
               </View>
-              <View {...inputScrollPan.panHandlers}>
+              {/* Everything typed or pasted here becomes the user's cards. */}
+              <PostHogMaskView {...inputScrollPan.panHandlers}>
                 <TextInput
                   ref={inputRef}
                   value={input}
@@ -555,7 +561,7 @@ export function BulkImportModal({
                     { backgroundColor: pal.input, borderColor: pal.border, color: pal.text },
                   ]}
                 />
-              </View>
+              </PostHogMaskView>
               <View style={styles.countRow}>
                 <Text style={[styles.count, { color: pal.sub }]}>
                   {formatCount(t('bulk_import_parsed_count'), parsedDrafts.length)}
@@ -610,15 +616,20 @@ export function BulkImportModal({
                   >
                     <Text style={[styles.itemNumber, { color: pal.sub }]}>{index + 1}</Text>
                     <View style={styles.itemBody}>
-                      <TextInput
-                        value={item.text}
-                        onChangeText={text => updateDraft(item.id, text)}
-                        multiline
-                        scrollEnabled={false}
-                        textAlignVertical="top"
-                        accessibilityLabel={`${t('bulk_import_input_label')} ${index + 1}`}
-                        style={[styles.itemInput, { color: pal.text }]}
-                      />
+                      {/* The draft rows are the user's words, still editable.
+                          The wrapper carries the mask; the input keeps its own
+                          accessibilityLabel. */}
+                      <PostHogMaskView>
+                        <TextInput
+                          value={item.text}
+                          onChangeText={text => updateDraft(item.id, text)}
+                          multiline
+                          scrollEnabled={false}
+                          textAlignVertical="top"
+                          accessibilityLabel={`${t('bulk_import_input_label')} ${index + 1}`}
+                          style={[styles.itemInput, { color: pal.text }]}
+                        />
+                      </PostHogMaskView>
                       <View style={styles.badgeRow}>
                         {item.duplicateKind != null && (
                           <Text style={styles.duplicateBadge}>{t('bulk_import_duplicate')}</Text>

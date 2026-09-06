@@ -108,13 +108,15 @@ export function useFolderNotifications({
       updateFolderNotif({ intervalSeconds: seconds });
       return;
     }
-    const targetName   = currentFolder?.name ?? '';
-    const conflictName = conflicting.name;
-    const conflictId   = conflicting.id;
-    const body = t('notif_conflict_body').replace('{0}', conflictName).replace('{1}', targetName);
+    const conflictId = conflicting.id;
+    // Neither folder is named. A native alert is an OS view that Session Replay
+    // captures and no React wrapper can mask, so a folder name in this string
+    // would be legible in a recording. "another folder" / "this folder" says
+    // the same thing — the user is looking at the folder they are switching to
+    // — and the two buttons still do exactly what they did.
     Alert.alert(
       t('notifications'),
-      body,
+      t('notif_conflict_body'),
       [
         { text: t('cancel'), style: 'cancel' },
         {

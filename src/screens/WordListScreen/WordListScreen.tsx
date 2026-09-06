@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Folder, Palette, WordCard } from '../../types';
 import { appStyles as s } from '../../styles';
@@ -861,9 +862,11 @@ export function WordListScreen({
         <View style={{ paddingRight: 4 }}>
           <Ionicons name="chevron-back" size={24} color={pal.text} />
         </View>
-        <Text style={[s.title, { color: pal.text, flex: 1 }]} numberOfLines={1}>
-          {currentFolder?.name ?? ''}
-        </Text>
+        <PostHogMaskView style={wordListLayoutStyles.maskedFolderTitle}>
+          <Text style={[s.title, { color: pal.text }]} numberOfLines={1}>
+            {currentFolder?.name ?? ''}
+          </Text>
+        </PostHogMaskView>
       </TouchableOpacity>
       <View style={s.headerIcons}>
         {TEXT_TO_SPEECH_ENABLED && (isPremium || hasTextToSpeechHistory) && (
@@ -1649,6 +1652,8 @@ const wordListLayoutStyles = StyleSheet.create({
   // Normal, selection, reorder and test headers contain different controls, but
   // the list must always begin at the same screen coordinate when modes change.
   header: { height: 50 },
+  // Takes the flex:1 the title carried inline, so the header row is unchanged.
+  maskedFolderTitle: { flex: 1 },
   hiddenWordCount: { opacity: 0 },
 });
 

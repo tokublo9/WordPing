@@ -19,6 +19,8 @@ import {
 } from '../constants';
 import { scrubberIndexForX, scrubberXForIndex } from '../features/cards/flipScrubber';
 import { resolveCurrentWordIndex } from '../features/cards/currentWordPosition';
+import { MaskedUserText } from './MaskedUserText';
+import { needsUserContentMask } from '../features/cards/builtInCards';
 import { CardScrollFace } from './CardScrollFace';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
@@ -642,7 +644,11 @@ function FlipCardBrowserComponent({
                       unchanged. */}
                   {isWordTextHidden(c)
                     ? <HiddenWordIcon color={pal.text} />
-                    : <Text selectable={isCurr} style={[s.wordText, { color: pal.text }]}>{c.word}</Text>}
+                    : (
+                      <MaskedUserText masked={needsUserContentMask(c)}>
+                        <Text selectable={isCurr} style={[s.wordText, { color: pal.text }]}>{c.word}</Text>
+                      </MaskedUserText>
+                    )}
                 </CardScrollFace>
                 {c.notifCandidate && (
                   <View style={s.notifBadge} pointerEvents="none">
@@ -672,8 +678,14 @@ function FlipCardBrowserComponent({
                   >
                     {/* The note is selectable too: it is where an example sentence
                         usually lives, and it is on screen with the meaning. */}
-                    <Text selectable style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
-                    {c.note ? <Text selectable style={[s.noteText, { color: pal.sub }]}>{c.note}</Text> : null}
+                    <MaskedUserText masked={needsUserContentMask(c)}>
+                      <Text selectable style={[s.meaningText, { color: pal.text }]}>{c.meaning}</Text>
+                    </MaskedUserText>
+                    {c.note ? (
+                      <MaskedUserText masked={needsUserContentMask(c)}>
+                        <Text selectable style={[s.noteText, { color: pal.sub }]}>{c.note}</Text>
+                      </MaskedUserText>
+                    ) : null}
                   </CardScrollFace>
                   {c.notifCandidate && (
                     <View style={s.notifBadge} pointerEvents="none">

@@ -25,6 +25,7 @@ if (Platform.OS === 'android') {
 }
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { isWordTextHidden } from '../features/cards/hideWordAccess';
@@ -134,10 +135,35 @@ function StationaryTapTextInput({ onFocus, onBlur, ...props }: TextInputProps) {
     onShouldBlockNativeResponder: () => false,
   })).current;
 
+  // The mask covers the *wrapper's* frame, and in Yoga a child's margin counts
+  // towards its parent's content box — so with `s.input`'s marginBottom: 18 left
+  // on the field, the wrapper stood 18pt taller than the field and the black
+  // rectangle bled into the gap beneath it. That was the extra bar between Front
+  // and Back. Moving the margins onto the wrapper leaves the total spacing
+  // identical — the same box in the same column, its margin simply now outside
+  // the masked frame instead of inside it — while the mask hugs the text holder.
+  const { style, ...inputProps } = props;
+  const {
+    margin, marginTop, marginBottom, marginLeft, marginRight,
+    marginHorizontal, marginVertical, marginStart, marginEnd,
+    ...fieldStyle
+  } = StyleSheet.flatten(style) ?? {};
+  const spacing = {
+    margin, marginTop, marginBottom, marginLeft, marginRight,
+    marginHorizontal, marginVertical, marginStart, marginEnd,
+  };
+
   return (
-    <View {...tapGate.panHandlers}>
+    // The front, back and note fields all render through here, so this is the
+    // one place their contents are kept out of a Session Replay recording.
+    // `PostHogMaskView` spreads the props it is given before adding its own, so
+    // the pan handlers still reach the same wrapper View this always was — no
+    // extra node, no layout change. `maskAllTextInputs` is off, so nothing else
+    // hides these, and nothing else on this sheet is masked at all.
+    <PostHogMaskView style={spacing} {...tapGate.panHandlers}>
       <TextInput
-        {...props}
+        {...inputProps}
+        style={fieldStyle}
         ref={inputRef}
         pointerEvents={focused ? 'auto' : 'none'}
         onFocus={event => {
@@ -151,7 +177,7 @@ function StationaryTapTextInput({ onFocus, onBlur, ...props }: TextInputProps) {
           onBlur?.(event);
         }}
       />
-    </View>
+    </PostHogMaskView>
   );
 }
 

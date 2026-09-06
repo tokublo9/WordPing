@@ -18,6 +18,9 @@ import {
   type NativeSyntheticEvent,
   type ViewToken,
 } from 'react-native';
+import { PostHogMaskView } from 'posthog-react-native';
+import { MaskedUserText } from './MaskedUserText';
+import { needsUserContentMask } from '../features/cards/builtInCards';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
 import { useLang } from '../i18n';
@@ -167,9 +170,11 @@ function DraggableRow({
             <Ionicons name={folderItem.icon as any} size={22} color={folderItem.color} />
           </View>
           <View style={styles.folderTextBlock}>
-            <Text style={[styles.folderName, { color: pal.text }]} numberOfLines={1}>
-              {card.word}
-            </Text>
+            <PostHogMaskView>
+              <Text style={[styles.folderName, { color: pal.text }]} numberOfLines={1}>
+                {card.word}
+              </Text>
+            </PostHogMaskView>
             <Text style={[styles.folderCount, { color: pal.sub }]}>
               {folderItem.cardCount}{' '}
               {t(folderItem.cardCount === 1 ? 'words_singular' : 'words_plural')}
@@ -183,9 +188,11 @@ function DraggableRow({
         // ── Word-card row ──────────────────────────────────────────────────
         <View style={[styles.rowInner, { backgroundColor: pal.card }]}>
           <View style={styles.flipArea}>
-            <Text style={[styles.cardText, { color: pal.text }]} numberOfLines={1}>
-              {card.word}
-            </Text>
+            <MaskedUserText masked={needsUserContentMask(card)}>
+              <Text style={[styles.cardText, { color: pal.text }]} numberOfLines={1}>
+                {card.word}
+              </Text>
+            </MaskedUserText>
           </View>
           {handleEl}
         </View>
@@ -816,9 +823,11 @@ function ReorderableListComponent({
                   <Ionicons name={draggingFolderItem.icon as any} size={22} color={draggingFolderItem.color} />
                 </View>
                 <View style={styles.folderTextBlock}>
-                  <Text style={[styles.folderName, { color: pal.text }]} numberOfLines={1}>
-                    {draggingCard.word}
-                  </Text>
+                  <PostHogMaskView>
+                    <Text style={[styles.folderName, { color: pal.text }]} numberOfLines={1}>
+                      {draggingCard.word}
+                    </Text>
+                  </PostHogMaskView>
                   <Text style={[styles.folderCount, { color: pal.sub }]}>
                     {draggingFolderItem.cardCount}{' '}
                     {t(draggingFolderItem.cardCount === 1 ? 'words_singular' : 'words_plural')}
@@ -842,9 +851,11 @@ function ReorderableListComponent({
               // ── Word-card ghost ────────────────────────────────────────────
               <View style={[styles.ghostWordInner, styles.ghostElevation, { backgroundColor: pal.card }]}>
                 <View style={styles.flipArea}>
-                  <Text style={[styles.cardText, { color: pal.text }]} numberOfLines={1}>
-                    {draggingCard.word}
-                  </Text>
+                  <MaskedUserText masked={needsUserContentMask(draggingCard)}>
+                    <Text style={[styles.cardText, { color: pal.text }]} numberOfLines={1}>
+                      {draggingCard.word}
+                    </Text>
+                  </MaskedUserText>
                 </View>
                 <View style={styles.handle}>
                   <Ionicons name="reorder-three-outline" size={26} color={pal.sub} />

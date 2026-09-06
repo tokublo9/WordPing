@@ -153,6 +153,7 @@ export interface AppModalsProps {
     nativeLang: string;
     skinId?: string | null;
     onPickSkin?: (id: string | null) => void;
+    /** Re-asks RevenueCat when the plan data failed to arrive. */
   };
 
   // FolderCustomizeModal — add new folder
@@ -336,6 +337,7 @@ export function AppModals({
         pal={pal}
         isSubscribed={isSubscribed}
         isPremium={isPremium}
+        isSubscriptionLoaded={isSubscriptionLoaded}
         expirationDate={subscriptionExpirationDate}
         learningLang={proSheet.learningLang}
         nativeLang={proSheet.nativeLang}

@@ -4,6 +4,7 @@ import {
   PanResponder, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Folder, Palette } from '../types';
 import { useLang } from '../i18n';
@@ -230,7 +231,9 @@ export function SwipeableFolder({
             </TouchableOpacity>
           )}
           <View style={styles.textBlock}>
-            <Text style={[styles.name, { color: pal.text }]} numberOfLines={1}>{folder.name}</Text>
+            <PostHogMaskView>
+              <Text style={[styles.name, { color: pal.text }]} numberOfLines={1}>{folder.name}</Text>
+            </PostHogMaskView>
             <Text style={[styles.count, { color: pal.sub }]}>
               {cardCount} {t(cardCount === 1 ? 'words_singular' : 'words_plural')}
             </Text>
@@ -279,7 +282,9 @@ export function SwipeableFolder({
                 <Ionicons name={folderIcon as any} size={22} color={folderColor} />
               </View>
               <View style={styles.textBlock}>
-                <Text style={[styles.name, { color: pal.text }]} numberOfLines={1}>{folder.name}</Text>
+                <PostHogMaskView>
+                  <Text style={[styles.name, { color: pal.text }]} numberOfLines={1}>{folder.name}</Text>
+                </PostHogMaskView>
                 <Text style={[styles.count, { color: pal.sub }]}>
                   {cardCount} {t(cardCount === 1 ? 'words_singular' : 'words_plural')}
                 </Text>

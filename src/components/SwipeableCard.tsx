@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { MaskedUserText } from './MaskedUserText';
+import { needsUserContentMask } from '../features/cards/builtInCards';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { BlurView } from 'expo-blur';
@@ -351,10 +353,18 @@ export function SwipeableCard({
               <>
                 {wordHidden
                   ? <HiddenWordIcon color={pal.text} variant="row" />
-                  : <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>}
+                  : (
+                    <MaskedUserText masked={needsUserContentMask(item)}>
+                      <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+                    </MaskedUserText>
+                  )}
                 <View style={[styles.expandDivider, { backgroundColor: pal.border }]} />
                 <View style={styles.expandMeaningRow}>
-                  <Text style={[styles.expandMeaningText, { color: pal.text }]}>{item.meaning}</Text>
+                  <MaskedUserText masked={needsUserContentMask(item)} style={styles.maskedFlexText}>
+                    {/* The wrapper took the row flex; the Text drops its own so
+                        a flexBasis:0 child cannot collapse in an auto-height box. */}
+                    <Text style={[styles.expandMeaningText, styles.maskedTextNoFlex, { color: pal.text }]}>{item.meaning}</Text>
+                  </MaskedUserText>
                   <WordCardVoiceButton
                     onPress={voiceLocked ? onVoiceLocked : speakMeaning}
                     phase={voiceState?.target === 'meaning' ? voiceState.phase : undefined}
@@ -366,16 +376,22 @@ export function SwipeableCard({
                   />
                 </View>
                 {!!item.note?.trim() && (
-                  <Text style={[styles.expandNoteText, { color: pal.sub }]}>{item.note}</Text>
+                  <MaskedUserText masked={needsUserContentMask(item)}>
+                    <Text style={[styles.expandNoteText, { color: pal.sub }]}>{item.note}</Text>
+                  </MaskedUserText>
                 )}
               </>
             ) : isFlipped ? (
               <>
-                <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
+                <MaskedUserText masked={needsUserContentMask(item)}>
+                  <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
+                </MaskedUserText>
                 {!!item.note?.trim() && (
-                  <Text style={[styles.cardNote, { color: 'rgba(255,255,255,0.72)' }]}>
-                    {item.note}
-                  </Text>
+                  <MaskedUserText masked={needsUserContentMask(item)}>
+                    <Text style={[styles.cardNote, { color: 'rgba(255,255,255,0.72)' }]}>
+                      {item.note}
+                    </Text>
+                  </MaskedUserText>
                 )}
               </>
             ) : wordHidden ? (
@@ -385,7 +401,9 @@ export function SwipeableCard({
               // and every row stays as easy to hit.
               <HiddenWordIcon color={pal.text} variant="row" />
             ) : (
-              <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+              <MaskedUserText masked={needsUserContentMask(item)}>
+                <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+              </MaskedUserText>
             )}
 
             {/* Corner buttons — hidden in selection mode */}
@@ -456,11 +474,15 @@ export function SwipeableCard({
             >
               {isFlipped ? (
                 <>
-                  <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
+                  <MaskedUserText masked={needsUserContentMask(item)}>
+                    <Text style={[styles.cardText, { color: '#fff' }]}>{item.meaning}</Text>
+                  </MaskedUserText>
                   {!!item.note?.trim() && (
-                    <Text style={[styles.cardNote, { color: 'rgba(255,255,255,0.72)' }]}>
-                      {item.note}
-                    </Text>
+                    <MaskedUserText masked={needsUserContentMask(item)}>
+                      <Text style={[styles.cardNote, { color: 'rgba(255,255,255,0.72)' }]}>
+                        {item.note}
+                      </Text>
+                    </MaskedUserText>
                   )}
                 </>
               ) : wordHidden ? (
@@ -468,7 +490,9 @@ export function SwipeableCard({
                 // mark too — lifting a card must not reveal the word.
                 <HiddenWordIcon color={pal.text} variant="row" />
               ) : (
-                <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+                <MaskedUserText masked={needsUserContentMask(item)}>
+                  <Text style={[styles.cardText, { color: pal.text }]}>{item.word}</Text>
+                </MaskedUserText>
               )}
             </Animated.View>
 
@@ -549,6 +573,10 @@ const styles = StyleSheet.create({
   },
 
   cardFlipArea: { paddingVertical: 16, paddingLeft: 18, paddingRight: 28 },
+  // Carries the flex a wrapped Text had in a row, so masking a field
+  // cannot move what sits beside it.
+  maskedFlexText: { flex: 1 },
+  maskedTextNoFlex: { flex: 0 },
   cardText: { fontSize: 18, fontWeight: '600' },
   cardTextMeaning: { fontSize: 15, fontWeight: '400', marginTop: 4 },
   cardNote: { fontSize: 14, fontWeight: '400', marginTop: 8 },

@@ -31,6 +31,8 @@ import {
   FLIP_NOTE_FONT_SIZE, FLIP_NOTE_LINE_H, FLIP_NOTE_MARGIN_TOP,
   FLIP_WORD_FONT_SIZE,
 } from '../constants';
+import { MaskedUserText } from './MaskedUserText';
+import { needsUserContentMask } from '../features/cards/builtInCards';
 import { CardScrollFace } from './CardScrollFace';
 import { HiddenWordIcon } from './HiddenWordIcon';
 import { isWordTextHidden } from '../features/cards/hideWordAccess';
@@ -881,7 +883,11 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         buttons are separate views a selection cannot reach. */}
                     {isWordTextHidden(card)
                       ? <HiddenWordIcon color={pal.text} />
-                      : <Text selectable style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>}
+                      : (
+                        <MaskedUserText masked={needsUserContentMask(card)}>
+                          <Text selectable style={[s.wordText, { color: pal.text }]}>{card!.word}</Text>
+                        </MaskedUserText>
+                      )}
                   </CardScrollFace>
                 </Animated.View>
 
@@ -911,9 +917,13 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         just the meaning: the note is often where the example
                         sentence lives. Both are covered by the one flag above —
                         a long press on either keeps the card on this side. */}
-                    <Text selectable style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
+                    <MaskedUserText masked={needsUserContentMask(card)}>
+                      <Text selectable style={[s.meaningText, { color: pal.text }]}>{card!.meaning}</Text>
+                    </MaskedUserText>
                     {card!.note ? (
-                      <Text selectable style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
+                      <MaskedUserText masked={needsUserContentMask(card)}>
+                        <Text selectable style={[s.noteText, { color: pal.sub }]}>{card!.note}</Text>
+                      </MaskedUserText>
                     ) : null}
                   </CardScrollFace>
                 </Animated.View>

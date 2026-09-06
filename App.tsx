@@ -64,6 +64,7 @@ import { WELCOME_FOLDER_NAMES, TIPS_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcome
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
+import { UpgradePlanImagePreloader } from './src/components/ProSheet';
 import { TestModeScreen, type TestModeProgress } from './src/components/TestModeScreen';
 import { recordAnswer } from './src/features/study/studyLog';
 import { AppContextMenu } from './src/app/AppContextMenu';
@@ -75,6 +76,7 @@ import { useAppPersistence } from './src/app/useAppPersistence';
 import {
   preloadAIPronunciation,
   preloadAIPronunciationLibrary,
+  preloadPromoVoiceSamples,
   cancelAIPronunciationPreload,
   purgeRetiredVoiceCaches,
   releaseAIPronunciationCache,
@@ -204,6 +206,24 @@ function AppContent() {
   // touches nothing reachable, so it needs no entitlement and no ordering
   // against bootstrap — and it never awaits, so startup does not see it.
   useEffect(() => { purgeRetiredVoiceCaches(); }, []);
+
+  // The four fixed Upgrade Plan voice previews, prepared once the first screen
+  // is usable so the first tap plays instead of waiting for a generation.
+  //
+  // `runAfterInteractions` keeps it behind bootstrap, navigation and any
+  // animation in flight; it awaits nothing and a failure is swallowed inside the
+  // helper, so neither startup nor the Upgrade Plan sheet can be delayed or
+  // blocked by it. It is keyed on `nativeLang` because that is the language the
+  // sheet will ask for, and a different language is a different clip.
+  //
+  // It spends nothing: `/v1/voice/promo` carries no text, no identity and no
+  // entitlement, so this cannot touch Basic's credits or Premium's generation.
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
+      preloadPromoVoiceSamples(nativeLang);
+    });
+    return () => handle.cancel();
+  }, [nativeLang]);
 
   // Consent is a live queue input, not a one-time read. A post-purchase sweep
   // that had to wait for the dialog begins in the same turn that Allow is
@@ -1017,6 +1037,16 @@ function AppContent() {
         home-indicator strip. It carries the background colour for the same
         reason: those two regions are now its to paint. */}
     <View style={[s.root, { backgroundColor: pal.bg }]}>
+
+    {/* Transparent, absolutely positioned, behind everything and unconditional:
+        the WordCore icon and the coffee photo the Upgrade Plan sheet draws,
+        mounted in this first commit so they are fetched and decoded from launch
+        rather than when the sheet opens. Both are small. It is the first child
+        of the window view — not the SafeAreaView — so its absolute position is
+        measured against the whole screen and no inset or sibling layout can be
+        affected by it. */}
+    <UpgradePlanImagePreloader />
+
     <SafeAreaView style={s.root}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <AppOverlays activeSkin={activeSkin} scrollY={scrollY} />

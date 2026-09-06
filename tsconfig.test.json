@@ -39,6 +39,7 @@
     "src/lib/aiConsent.ts",
     "src/lib/aiEntitlement.ts",
     "src/lib/aiConsentPrompt.ts",
+    "src/features/cards/builtInCards.ts",
     "src/features/cards/duplicates.ts",
     "src/features/cards/fileImport.ts",
     "src/features/cards/bulkImport.ts",

@@ -18,8 +18,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Asset } from 'expo-asset';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import type { Palette, ThemeSkin } from '../types';
 import { FREE_THEME_COLOR, SKINS } from '../constants';
 import { useLang, type TranslationKey } from '../i18n';
@@ -45,9 +43,7 @@ import { speak, speakPromoSample, stopPlayback } from '../lib/tts';
 import {
   PremiumSkinPreview,
   THEME_SCREENSHOTS,
-  THEME_SCREENSHOTS_FLIP,
-  THEME_VIDEOS,
-  THEME_VIDEOS_FLIP,
+  THEME_VIDEO_POSTERS,
   type ShopItem,
 } from './ThemeSkinPreview';
 import { SHOP_ITEMS } from './KisekaeShopSheet';
@@ -289,6 +285,47 @@ const FEATURE_SECTIONS: FeatureConfig[] = filterTextToSpeechEntries(
   feature => feature.key === 'text_to_speech',
 );
 
+function featureHasImage(
+  feature: FeatureConfig,
+): feature is FeatureConfig & { image: number } {
+  return feature.image != null;
+}
+
+
+// The two small bitmaps the sheet draws from its own files: the WordCore app
+// icon in the hero, and the coffee photo in the support card. Declared once and
+// shared by the visible images, the asset preload and `UpgradePlanImagePreloader`
+// below, so all three name the same module id and the decode the preloader warms
+// is exactly the one the sheet later mounts.
+const HERO_ICON_SOURCE   = require('../../assets/icon.png');
+const COFFEE_IMAGE_SOURCE = require('../../screenshots/paywall/coffee.jpg');
+
+// The two images at the top of the sheet. Both are normally already decoded by
+// the launch preloader, so they are simply present as the sheet slides up.
+//
+// Neither reports anywhere and nothing waits on them: if one failed to load it
+// would leave its own space empty and the rest of the sheet would be untouched.
+const HeroIcon = React.memo(function HeroIcon() {
+  return (
+    <Image
+      source={HERO_ICON_SOURCE}
+      style={hs.iconImg}
+      resizeMode="contain"
+      fadeDuration={0}
+    />
+  );
+});
+
+const CoffeeImage = React.memo(function CoffeeImage() {
+  return (
+    <Image
+      source={COFFEE_IMAGE_SOURCE}
+      style={cvs.coffeeImage}
+      resizeMode="contain"
+      fadeDuration={0}
+    />
+  );
+});
 
 // ── Hero section ──────────────────────────────────────────────────────────────
 
@@ -319,11 +356,7 @@ const HeroSection = React.memo(({ t }: { pal: Palette; t: (k: TranslationKey) =>
     {/* WordPing app icon in a metallic gold ring — the main focus */}
     <View style={hs.iconRing}>
       <View style={hs.iconClip}>
-        <Image
-          source={require('../../assets/icon.png')}
-          style={hs.iconImg}
-          resizeMode="contain"
-        />
+        <HeroIcon />
       </View>
     </View>
 
@@ -353,11 +386,7 @@ const RibbonBanner = React.memo(({ label }: { label: string }) => (
 const CoffeeValueCard = React.memo(({ t }: { t: (k: TranslationKey) => string }) => (
   <View style={cvs.card}>
     <View style={cvs.coffeeImageWrap}>
-      <Image
-        source={require('../../screenshots/paywall/coffee.jpg')}
-        style={cvs.coffeeImage}
-        resizeMode="contain"
-      />
+      <CoffeeImage />
     </View>
 
     <Text style={cvs.text}>{t('plan_coffee_line2')}</Text>
@@ -513,6 +542,11 @@ const AIVoiceCard = React.memo(({ pal, demo, playingDemo, loadingDemo, onPlay, t
 
 // Renders the preview image only once it has decoded — nothing shows before its
 // own source is ready, and no other feature's image can flash in.
+//
+// Non-blocking: it reports to no readiness key. The sheet is already on screen
+// by the time this is scrolled to, so its `ready` fade is the whole of its
+// loading behaviour, and a failure leaves this one card's image blank rather
+// than raising a full-sheet failure.
 const FeatureImage = React.memo(function FeatureImage({
   source, pal, wide = false,
 }: { source: number; pal: Palette; wide?: boolean }) {
@@ -616,33 +650,43 @@ const FeatureSection = React.memo(function FeatureSection({
 // when Theme Details is open / when the sheet is hidden, and respects reduced
 // motion. Only the centered card mounts a live video.
 
-type TileMedia =
-  | { type: 'image'; source: number }
-  | { type: 'video'; source: number };
+/** One card: a theme and the single still image it draws. */
+interface GalleryTile { key: string; item: ShopItem; source: number }
 
-interface GalleryTile { key: string; item: ShopItem; media: TileMedia }
-
+/**
+ * The themes the "Unlock All Themes" section shows, in display order.
+ *
+ * The single source for the section: the carousel, the readiness keys and the
+ * startup preload are all derived from it, so a theme added or removed here
+ * moves all three together.
+ *
+ * Deliberately not every purchasable theme. Mint, Rain, Roses, Cyber Neon,
+ * Galaxy, Beige, Teal and Orange are excluded from this section only — each one
+ * keeps its assets, price, entitlement and its place in the Theme Shop.
+ */
 const GALLERY_ORDER = [
-  'skin_deep_sea', 'skin_sakura', 'skin_galaxy', 'skin_snow', 'skin_aurora',
-  'solid_teal', 'solid_beige', 'skin_cyber', 'shop_roses', 'solid_mint',
-  'shop_woods', 'skin_leaf_blur', 'skin_rain', 'skin_night_city', 'solid_orange',
-  'skin_paw',
+  'skin_deep_sea', 'skin_sakura', 'skin_snow', 'skin_aurora', 'solid_purple',
+  'shop_woods', 'skin_leaf_blur', 'skin_night_city', 'skin_paw',
 ];
 
-// First (slot 1) or second (slot 2) media item from a theme's Theme Details preview.
-function resolveTileMedia(id: string, slot: 1 | 2): TileMedia | null {
-  const video = slot === 1 ? THEME_VIDEOS[id] : THEME_VIDEOS_FLIP[id];
-  if (video != null) return { type: 'video', source: video };
-  const img = slot === 1 ? THEME_SCREENSHOTS[id] : THEME_SCREENSHOTS_FLIP[id];
-  if (img != null) return { type: 'image', source: img };
-  return null;
+/**
+ * The one still image a theme's card draws.
+ *
+ * Posters first, deliberately. A theme that ships a video — Deep Sea, Aurora,
+ * Beautiful Woods — resolves to that video's own first frame, never the `.mov`.
+ * This section plays nothing: no player is created, no video file is fetched,
+ * and the bitmap named here is exactly the one the startup preloader warms and
+ * the card renders.
+ */
+function resolveTileImage(id: string): number | null {
+  return THEME_VIDEO_POSTERS[id] ?? THEME_SCREENSHOTS[id] ?? null;
 }
 
-// One card per theme, using its first available media item.
+// One card per theme, dropped if the theme has no still image to show.
 const CAROUSEL_TILES: GalleryTile[] = GALLERY_ORDER.reduce<GalleryTile[]>((acc, id) => {
   const item = SHOP_BY_ID.get(id);
-  const media = resolveTileMedia(id, 1);
-  if (item && media) acc.push({ key: id, item, media });
+  const source = resolveTileImage(id);
+  if (item && source != null) acc.push({ key: id, item, source });
   return acc;
 }, []);
 
@@ -651,6 +695,81 @@ const CARO_MEDIA_BG = '#0F172A';
 
 // Infinite loop: clone a few tiles on each side so scrolling past the last theme
 // continues forward into the first (and vice-versa) with no visible jump.
+const preload = StyleSheet.create({
+  /**
+   * The icon + coffee host — the only hidden preload host left.
+   *
+   * These two load reliably in this exact configuration, verified on-device, so
+   * nothing about it is touched. Absolutely positioned and fully transparent: it
+   * draws nothing, takes no touches and displaces nothing.
+   */
+  host: {
+    position: 'absolute',
+    top:      0,
+    left:     0,
+    width:    CARO_W,
+    height:   CARO_H,
+    opacity:  0,
+    zIndex:   -1,
+  },
+});
+
+
+/**
+ * The WordCore icon and the coffee photo, decoded at launch.
+ *
+ * These two, and only these two, are what the Upgrade Plan's reveal waits on.
+ * Everything else the sheet draws is below the fold and now loads after it is on
+ * screen, so preloading those was warming bitmaps nobody was waiting for.
+ *
+ * `Asset.loadAsync` resolves a *file*; the expensive half is React Native
+ * decoding it into a bitmap, and that only happens when an `<Image>` is actually
+ * mounted — which is why this is a pair of real mounted images and not an
+ * `Image.prefetch` call. Both are small, so they are mounted in the app's first
+ * commit with nothing deferring them: no `runAfterInteractions`, no navigation
+ * or animation gate, and no dependency on the sheet being opened. Nothing about
+ * the first screen waits on this component.
+ *
+ * Each uses the same module id, rendered size and `resizeMode` as its visible
+ * counterpart (`HeroIcon`, `CoffeeImage`), so the platform image cache is keyed
+ * identically and the sheet's later mount is a hit. The coffee image is inside
+ * `cvs.coffeeImageWrap` because its own style is `100%` of that box — the wrap
+ * is what gives it its 72×62 rendered size.
+ *
+ * This adds no cache of its own: the bitmaps live in RCTImageCache / Fresco, the
+ * same cache the sheet's images read. Nothing observes it and nothing waits on
+ * it — the sheet opens whether or not it has finished, and the app and its
+ * navigation never wait on it either. It stays mounted for the life of the app
+ * so the decoded bitmaps keep a live reference however much later the sheet is
+ * opened.
+ */
+export const UpgradePlanImagePreloader = React.memo(function UpgradePlanImagePreloader() {
+  return (
+    <View
+      style={preload.host}
+      pointerEvents="none"
+      collapsable={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Image
+        source={HERO_ICON_SOURCE}
+        style={hs.iconImg}
+        resizeMode="contain"
+        fadeDuration={0}
+      />
+      <View style={cvs.coffeeImageWrap}>
+        <Image
+          source={COFFEE_IMAGE_SOURCE}
+          style={cvs.coffeeImage}
+          resizeMode="contain"
+          fadeDuration={0}
+        />
+      </View>
+    </View>
+  );
+});
+
 const N_TILES    = CAROUSEL_TILES.length;
 const CLONES     = N_TILES > 1 ? Math.min(3, N_TILES) : 0;
 const FIRST_REAL = CLONES;                    // looped position of real index 0
@@ -671,9 +790,13 @@ function useAppActive(): boolean {
 }
 
 // ── Tile media ────────────────────────────────────────────────────────────────
-// Image and video use identical explicit bounds + `contain`, so media is centered
-// and never cropped, stretched, or anchored off-corner. Nothing shows until ready.
+// Explicit bounds + `contain`, so the image is centered and never cropped,
+// stretched, or anchored off-corner. Nothing shows until ready.
 
+// Non-blocking: it reports to no readiness key. The carousel is below the fold,
+// so a tile fading in after the sheet is up is the intended behaviour, and a
+// tile that fails simply stays at `opacity: 0` over its skin preview rather than
+// raising a full-sheet failure.
 const TileImage = React.memo(function TileImage({ source, width, height }: { source: number; width: number; height: number }) {
   const [ready, setReady] = useState(false);
   return (
@@ -687,53 +810,25 @@ const TileImage = React.memo(function TileImage({ source, width, height }: { sou
   );
 });
 
-// Muted, looping video. Created (and buffered) as soon as it mounts so it can be
-// preloaded before it is centered; it only plays while `active`. useVideoPlayer
-// releases the player automatically when the card unmounts.
-const TileVideoPlayer = React.memo(function TileVideoPlayer({ source, width, height, active }: { source: number; width: number; height: number; active: boolean }) {
-  const [ready, setReady] = useState(false);
-  const player = useVideoPlayer(source, p => {
-    p.loop  = true;
-    p.muted = true;
-    // Preloaded paused — playback starts only when the card becomes centered.
-  });
-  useEffect(() => {
-    if (player.status === 'readyToPlay') setReady(true);
-    const sub = player.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay') setReady(true);
-    });
-    return () => sub.remove();
-  }, [player]);
-  useEffect(() => {
-    if (active) player.play(); else player.pause();
-  }, [active, player]);
-  return (
-    <VideoView
-      player={player}
-      style={{ width, height, opacity: ready ? 1 : 0 }}
-      contentFit="contain"
-      nativeControls={false}
-    />
-  );
-});
+// No video player. This section draws still images only — a theme that ships a
+// `.mov` shows the poster frame extracted from it, so nothing here creates a
+// player, buffers, or fetches a video file.
 
 // ── Carousel card ─────────────────────────────────────────────────────────────
 
 const CarouselCard = React.memo(function CarouselCard({
-  tile, position, scrollX, mounted, videoActive, onPress, pal, t,
+  tile, position, scrollX, mounted, onPress, pal, t,
 }: {
   tile: GalleryTile;
   position: number;
   scrollX: Animated.Value;
   /** Mount heavy media (preload window); false renders just the neutral card. */
   mounted: boolean;
-  /** This card is centered → its video plays. */
-  videoActive: boolean;
   onPress: (item: ShopItem) => void;
   pal: Palette;
   t: (k: TranslationKey) => string;
 }) {
-  const { item, media } = tile;
+  const { item } = tile;
   const localizedName = t(item.nameKey);
   const skinData = useMemo<ThemeSkin | undefined>(() => SKINS.find(sk => sk.id === item.id), [item.id]);
 
@@ -752,14 +847,29 @@ const CarouselCard = React.memo(function CarouselCard({
     >
       <Animated.View style={[caro.card, { transform: [{ scale }], opacity }]}>
         <View style={caro.cardInner}>
-          {mounted && (media.type === 'image'
-            ? <TileImage source={media.source} width={CARO_W} height={CARO_H} />
-            : (
-              <>
-                <PremiumSkinPreview item={item} skinData={skinData} width={CARO_W} height={CARO_H} />
-                <TileVideoPlayer source={media.source} width={CARO_W} height={CARO_H} active={videoActive} />
-              </>
-            ))}
+          {/* Two layers, bottom to top: the skin preview, then the theme's still
+              image over it. One shape for every theme — a video theme shows the
+              poster frame here and nothing else, so no card in this section can
+              start a player.
+
+              Neither layer reports readiness. `PremiumSkinPreview` is mounted
+              without `onWallpaperLoad`/`onWallpaperError`, which it treats as
+              the ordinary case, so a wallpaper simply appears when it decodes.
+              Both were awaited when the reveal waited on every image; the sheet
+              no longer does. */}
+          {mounted && (
+            <>
+              <PremiumSkinPreview
+                item={item}
+                skinData={skinData}
+                width={CARO_W}
+                height={CARO_H}
+              />
+              <View style={StyleSheet.absoluteFill}>
+                <TileImage source={tile.source} width={CARO_W} height={CARO_H} />
+              </View>
+            </>
+          )}
         </View>
       </Animated.View>
 
@@ -774,11 +884,13 @@ const CarouselCard = React.memo(function CarouselCard({
 // ── Premium themes carousel ───────────────────────────────────────────────────
 
 const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
-  t, pal, visible, detailsOpen, onOpenDetails,
+  t, pal, visible, revealed, detailsOpen, onOpenDetails,
 }: {
   t: (k: TranslationKey) => string;
   pal: Palette;
   visible: boolean;
+  /** The loading layer is gone. Nothing animates or plays before this. */
+  revealed: boolean;
   detailsOpen: boolean;
   onOpenDetails: (item: ShopItem) => void;
 }) {
@@ -791,7 +903,10 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
   const activeVirtualRef = useRef(FIRST_REAL);
   const restartTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapTimer        = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [activeVirtual, setActiveVirtualState] = useState(FIRST_REAL);
+  // The value itself is no longer read — with no player to start, nothing
+  // renders from "which card is centered". The setter stays so `setActive` keeps
+  // its render, and `activeVirtualRef` remains the value the scroll logic reads.
+  const [, setActiveVirtualState] = useState(FIRST_REAL);
   const [interacting,   setInteracting]        = useState(false);
 
   const setActive = useCallback((v: number) => {
@@ -799,9 +914,9 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
     setActiveVirtualState(v);
   }, []);
 
-  // Video may play when the section is on-screen; auto-advance additionally
-  // requires motion allowed and the user not interacting.
-  const mediaActive       = visible && appActive && !detailsOpen;
+  // The section is on-screen; auto-advance additionally requires motion allowed
+  // and the user not interacting.
+  const mediaActive       = revealed && appActive && !detailsOpen;
   const shouldAutoAdvance = mediaActive && !reduceMotion && !interacting && N_TILES > 1;
 
   // Center the first real card on mount (covers platforms that ignore contentOffset).
@@ -884,6 +999,7 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
+        removeClippedSubviews={false}
         snapToInterval={CARO_SLOT}
         decelerationRate="fast"
         snapToAlignment="start"
@@ -898,15 +1014,14 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
       >
         {LOOP_TILES.map((tile, position) => (
           // Every tile stays mounted for the whole time the sheet is open, so all
-          // images/videos preload up-front and a swipe back shows instantly with no
-          // reload. They unmount (releasing players) only when the sheet closes.
+          // images are decoded up-front and a swipe back shows instantly with no
+          // reload. They unmount only when the sheet closes.
           <CarouselCard
             key={position}
             tile={tile}
             position={position}
             scrollX={scrollX}
             mounted={visible}
-            videoActive={mediaActive && position === activeVirtual}
             onPress={onOpenDetails}
             pal={pal}
             t={t}
@@ -1069,11 +1184,25 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
 // Pinned to the bottom of the sheet. Content scrolls above it; the localized
 // price stays visible and all purchase / owned / loading states are preserved.
 
+/**
+ * The purchase bar's height with no deferred-downgrade note, excluding the
+ * bottom safe area — the same numbers `bar.wrap` and `bar.btn` are built from,
+ * so it cannot drift from them: 10 (paddingTop) + 58 (button) + 8 (paddingBottom
+ * base). The safe-area inset is added at the call site.
+ */
+const PURCHASE_BAR_BASE_HEIGHT = 10 + 58 + 8;
+
 interface FixedPurchaseBarProps {
   pal: Palette;
   t: (k: TranslationKey) => string;
   isSubscribed: boolean;
   isPremium: boolean;
+  /**
+   * Whether RevenueCat has answered. The sheet now opens without waiting for it,
+   * so until it is true `isSubscribed`/`isPremium` are the safe defaults rather
+   * than facts, and both purchase buttons stay inert.
+   */
+  isSubscriptionLoaded: boolean;
   loadingPlan: 'basic' | 'premium' | null;
   bottomInset: number;
   /** ISO-8601 expiry of the active entitlement, for the deferred-switch notice. */
@@ -1089,7 +1218,7 @@ interface FixedPurchaseBarProps {
 }
 
 const FixedPurchaseBar = React.memo(({
-  pal, t, isSubscribed, isPremium, loadingPlan, bottomInset, expirationDate, language,
+  pal, t, isSubscribed, isPremium, isSubscriptionLoaded, loadingPlan, bottomInset, expirationDate, language,
   onSubscribeBasic, onSubscribePremium, onManageSubscription, onMeasure,
   planProducts,
 }: FixedPurchaseBarProps) => {
@@ -1118,8 +1247,14 @@ const FixedPurchaseBar = React.memo(({
   // entitlements.active, which still reports premium until the switch actually
   // takes effect, so Premium stays owned and Basic stays purchasable.
   const canManage      = typeof onManageSubscription === 'function';
-  const basicDisabled  = anyLoading || (basicOwned && !canManage);
-  const premiumDisabled = anyLoading || (premiumOwned && !canManage);
+  // Until RevenueCat answers, `isSubscribed` and `isPremium` are defaults, not
+  // facts — an active subscriber would read as Free. Both buttons therefore stay
+  // inert until the real state is known, so nobody can buy a plan they already
+  // hold. Only the taps are withheld: no colour, label, price or layout depends
+  // on this, so the bar looks identical and simply becomes live a moment later.
+  const planStateUnknown = !isSubscriptionLoaded;
+  const basicDisabled  = planStateUnknown || anyLoading || (basicOwned && !canManage);
+  const premiumDisabled = planStateUnknown || anyLoading || (premiumOwned && !canManage);
 
   // Only a move down the tiers defers to the next renewal, so the notice is tied
   // to that rather than to being subscribed at all. Basic is the only lower paid
@@ -1265,6 +1400,15 @@ interface Props {
   pal: Palette;
   isSubscribed?: boolean;
   isPremium?: boolean;
+  /**
+   * Whether RevenueCat has answered.
+   *
+   * `useSubscription` sets it in a `finally`, so by the time it is true the
+   * entitlement is known *and* the offerings fetch has settled — either the
+   * store returned prices or it definitively did not. That makes it the whole
+   * readiness condition for this sheet: there is nothing else it waits on.
+   */
+  isSubscriptionLoaded?: boolean;
   /** The two subscription products as the store returned them. */
   planProducts?: PlanStoreProducts;
   /**
@@ -1292,6 +1436,7 @@ export function ProSheet({
   pal,
   isSubscribed = false,
   isPremium = false,
+  isSubscriptionLoaded = true,
   planProducts = {},
   expirationDate = null,
   nativeLang = 'en-US',
@@ -1307,25 +1452,50 @@ export function ProSheet({
   const demoSequence = useRef(0);
   // Independent of playingDemo: a sample can be loading without playing yet.
   const [loadingDemo, setLoadingDemo] = useState<DemoKey | null>(null);
-  const hasPreloadedMedia = useRef(false);
 
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
   const [detailsItem, setDetailsItem]               = useState<ShopItem | null>(null);
-  // Measured height of the fixed bottom bar → keeps scroll content clear of it.
-  const [barHeight, setBarHeight]                   = useState(150);
-
-  // Keep optional carousel media off the critical startup path, but cache the
-  // first items the first time the plan sheet is requested.
-  useEffect(() => {
-    if (!visible || hasPreloadedMedia.current) return;
-    hasPreloadedMedia.current = true;
-    const sources: number[] = [
-      require('../../assets/icon.png'),
-      ...CAROUSEL_TILES.slice(0, 4).map(tl => tl.media.source),
-    ];
-    Asset.loadAsync(sources).catch(() => {});
-  }, [visible]);
+  /**
+   * Height of the fixed bottom bar, used as the ScrollView's bottom inset.
+   *
+   * Seeded with the real value rather than a guess: the bar is one 58pt button
+   * row inside `bar.wrap`'s 10pt top padding and its 8pt + safe-area bottom
+   * padding, all constants. That means the first frame already reserves the
+   * correct space, and the measurement that follows reports the same number and
+   * is discarded by the guard below — so mounting the bar during the opening
+   * animation costs no state update and no relayout.
+   *
+   * The one case the constants cannot cover is the deferred-downgrade note,
+   * which only a Premium→Basic switch shows. `onMeasure` corrects that.
+   */
+  const [barHeight, setBarHeight]                   = useState(
+    () => PURCHASE_BAR_BASE_HEIGHT + insets.bottom,
+  );
+  const handleBarMeasure = useCallback((height: number) => {
+    const next = Math.round(height);
+    // Idempotent: an identical remeasure — every one in the common case — is
+    // dropped instead of re-rendering the sheet mid-animation.
+    setBarHeight(previous => (previous === next ? previous : next));
+  }, []);
+  /**
+   * The opening lifecycle, and now the only gate on the sheet.
+   *
+   * There is no loading overlay. The sheet slides up immediately and its light
+   * top — hero, icon, coffee — is mounted from the first frame, so what the user
+   * sees while it animates is the real sheet rather than a cover over it. This
+   * flag exists solely to hold the *heavy* half back until the slide is over, so
+   * the comparison table, the feature cards and the fifteen carousel cards never
+   * compete with the animation.
+   */
+  const [openAnimationDone, setOpenAnimationDone]   = useState(false);
+  /**
+   * Guards asynchronous callbacks against a sheet that has since been closed, or
+   * closed and reopened. Incremented on both transitions, so an animation
+   * completion from a previous opening cannot set `openAnimationDone` for this
+   * one.
+   */
+  const openRun = useRef(0);
 
   // `nativeLang` is the app's Explanation Language. All rows use this same
   // source for both their displayed meaning and their playback language.
@@ -1337,23 +1507,59 @@ export function ProSheet({
   // never appears at an incorrect position when becoming visible.
   useLayoutEffect(() => {
     if (visible) {
+      // Establish the run before the animation effect below captures it.
+      openRun.current += 1;
       slideY.setValue(SH);
       backdropO.setValue(0);
+    } else {
+      // Invalidate the previous opening's animation callback immediately.
+      openRun.current += 1;
     }
   }, [visible]);
 
   useEffect(() => {
     if (visible) {
+      // Each opening gets its own id. Every asynchronous result below checks it
+      // before touching state, so a sheet that has been closed — or closed and
+      // reopened — can never be updated by the previous opening's callbacks.
+      const run = openRun.current;
+      setOpenAnimationDone(false);
+      // The slide is a timing curve, not a spring. The spring it replaced
+      // (tension 60, friction 11) looked the same but only reported completion
+      // once it had fully settled — about 967 ms, most of it invisible motion
+      // measured in fractions of a pixel. Since `openAnimationDone` gates the
+      // deferred half, the sheet sat waiting for most of a second on a movement
+      // that had already visually finished.
+      //
+      // `Easing.out(Easing.cubic)` decelerates into the final position with no
+      // overshoot and no bounce, and 450 ms is the whole of it — the completion
+      // callback now fires when the sheet has genuinely stopped moving. Start
+      // and end positions are untouched: still `SH` to `0`.
+      //
+      // The backdrop keeps its own 220 ms fade and still runs in parallel.
       Animated.parallel([
         Animated.timing(backdropO, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.spring(slideY, { toValue: 0, tension: 60, friction: 11, useNativeDriver: true }),
-      ]).start();
+        Animated.timing(slideY, {
+          toValue: 0,
+          duration: 450,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        // The animation's own completion, not a duration copied from it. An
+        // interrupted animation reports `finished: false` and the body simply
+        // waits for the next opening rather than mounting mid-flight.
+        if (finished && openRun.current === run) setOpenAnimationDone(true);
+      });
     } else {
       Animated.parallel([
         Animated.timing(backdropO, { toValue: 0, duration: 180, useNativeDriver: true }),
         Animated.timing(slideY, { toValue: SH, duration: 220, useNativeDriver: true }),
       ]).start();
       demoSequence.current++;
+      // So the next opening defers its heavy half again rather than mounting it
+      // during the slide.
+      setOpenAnimationDone(false);
       setPlayingDemo(null);
       setLoadingDemo(null);
       stopPlayback();
@@ -1393,7 +1599,7 @@ export function ProSheet({
         await speakPromoSample(sample, resolvedSampleLang, {
           onPhaseChange: phase => {
             if (demoSequence.current !== sequence) return;
-            // Only a genuine network fetch shows a spinner; a cached replay is
+            // Only a genuine network fetch shows a spinner; the bundled clip is
             // instant and must not flash one.
             setLoadingDemo(phase === 'generating-or-downloading' ? key : null);
           },
@@ -1469,93 +1675,123 @@ export function ProSheet({
           <View style={{ width: 44 }} />
         </View>
 
-        {/* Scrollable body — extra bottom padding keeps content clear of the fixed bar */}
-        <ScrollView
-          ref={mainScrollRef}
-          style={s.scroll}
-          contentContainerStyle={{ paddingBottom: barHeight + 24 }}
-          showsVerticalScrollIndicator={false}
-          bounces
-        >
-          {/* 1. Hero */}
-          <HeroSection pal={pal} t={t} />
-
-          {/* 2. Coffee value — sits directly above the comparison */}
-          <CoffeeValueCard t={t} />
-
-          {/* 3. Ribbon — Compare Plans */}
-          <RibbonBanner label={t('plan_compare_title')} />
-
-          {/* 4. Plan comparison table */}
-          <PlanComparisonTable t={t} pal={pal} language={language} />
-
-          {/* 5. What's included */}
-          <RibbonBanner label={t('whats_included')} />
-
-          {/* Unlock All Themes — directly below What's Included */}
-          <PremiumThemesCarousel
-            t={t}
-            pal={pal}
-            visible={visible}
-            detailsOpen={detailsItem !== null}
-            onOpenDetails={setDetailsItem}
-          />
-
-          <AIVoiceCard demo={demo} playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={handlePlayDemo} t={t} pal={pal} />
-
-          {/* AI + plan feature showcases */}
-          {FEATURE_SECTIONS.map(f => (
-            <FeatureSection
-              key={f.key}
-              title={f.title ?? (f.titleKey ? t(f.titleKey) : '')}
-              description={f.description ?? (f.descKey ? t(f.descKey) : '')}
-              note={f.noteKey ? t(f.noteKey) : undefined}
-              source={f.image}
-              wideImage={f.wideImage}
-              accent={f.accent}
-              icon={f.icon}
-              basic={f.basic}
-              premium={f.premium}
-              pal={pal}
-              t={t}
-            />
-          ))}
-
-          {/* App Store subscription disclosure */}
-          <View style={s.infoCard}>
-            <Text style={[s.infoText, { color: pal.sub }]}>{t('sub_info_payment')}</Text>
-            <Text style={[s.infoText, { color: pal.sub, marginTop: 8 }]}>{t('sub_info_manage')}</Text>
-          </View>
-
-          {/* Back to top */}
-          <TouchableOpacity
-            style={s.backToTopWrap}
-            onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={t('back_to_top')}
+        {/* The sheet body. Mounted unconditionally, from the first frame of the
+            opening: there is no loading layer over it and nothing to wait for.
+            The light top below — hero, icon, coffee — is what the user watches
+            slide up, and its two images are normally already decoded by the
+            launch preloader, so they are simply there. */}
+          <View style={s.preparedBody}>
+          {/* Scrollable body — extra bottom padding keeps content clear of the fixed bar */}
+          <ScrollView
+            ref={mainScrollRef}
+            style={s.scroll}
+            contentContainerStyle={{ paddingBottom: barHeight + 24 }}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={false}
+            bounces
           >
-            <Ionicons name="chevron-up" size={14} color={pal.sub} />
-            <Text style={[s.backToTopText, { color: pal.sub }]}>{t('back_to_top')}</Text>
-          </TouchableOpacity>
-        </ScrollView>
+            {/* Everything down to the comparison table is the first screenful,
+                and all of it mounts on the opening frame: text, icons and two
+                small bitmaps that the launch preloader has already decoded. The
+                user watches the finished sheet slide up, not an empty one that
+                fills in afterwards. */}
 
-        {/* Fixed purchase area — two plan buttons */}
-        <FixedPurchaseBar
-          pal={pal}
-          t={t}
-          isSubscribed={isSubscribed}
-          isPremium={isPremium}
-          loadingPlan={loadingPlan}
-          bottomInset={insets.bottom}
-          expirationDate={expirationDate}
-          language={language}
-          onSubscribeBasic={handleSubscribeBasic}
-          onSubscribePremium={handleSubscribePremium}
-          onManageSubscription={onManageSubscription}
-          onMeasure={setBarHeight}
-          planProducts={planProducts}
-        />
+            {/* 1. Hero */}
+            <HeroSection pal={pal} t={t} />
+
+            {/* 2. Coffee value — sits directly above the comparison */}
+            <CoffeeValueCard t={t} />
+
+            {/* 3. Ribbon — Compare Plans */}
+            <RibbonBanner label={t('plan_compare_title')} />
+
+            {/* 4. Plan comparison table. Rows of text and icons — no image
+                   decoding — so it costs the animation nothing. */}
+            <PlanComparisonTable t={t} pal={pal} language={language} />
+
+            {/* Below this line is the heavy half: the feature cards and their
+                screenshots, and fifteen carousel cards with their skin previews.
+                It waits for `openAnimationDone` so none of that work lands while
+                the sheet is sliding up. All of it is below the first screenful,
+                so it arrives before it can be scrolled to. */}
+            {openAnimationDone && (
+              <>
+            {/* 5. What's included */}
+            <RibbonBanner label={t('whats_included')} />
+
+            {/* Unlock All Themes — directly below What's Included */}
+            <PremiumThemesCarousel
+              t={t}
+              pal={pal}
+              visible={visible}
+              revealed={openAnimationDone}
+              detailsOpen={detailsItem !== null}
+              onOpenDetails={setDetailsItem}
+            />
+
+            <AIVoiceCard demo={demo} playingDemo={playingDemo} loadingDemo={loadingDemo} onPlay={handlePlayDemo} t={t} pal={pal} />
+
+            {/* AI + plan feature showcases */}
+            {FEATURE_SECTIONS.map(f => (
+              <FeatureSection
+                key={f.key}
+                title={f.title ?? (f.titleKey ? t(f.titleKey) : '')}
+                description={f.description ?? (f.descKey ? t(f.descKey) : '')}
+                note={f.noteKey ? t(f.noteKey) : undefined}
+                source={f.image}
+                wideImage={f.wideImage}
+                accent={f.accent}
+                icon={f.icon}
+                basic={f.basic}
+                premium={f.premium}
+                pal={pal}
+                t={t}
+              />
+            ))}
+
+            {/* App Store subscription disclosure */}
+            <View style={s.infoCard}>
+              <Text style={[s.infoText, { color: pal.sub }]}>{t('sub_info_payment')}</Text>
+              <Text style={[s.infoText, { color: pal.sub, marginTop: 8 }]}>{t('sub_info_manage')}</Text>
+            </View>
+
+            {/* Back to top */}
+            <TouchableOpacity
+              style={s.backToTopWrap}
+              onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('back_to_top')}
+            >
+              <Ionicons name="chevron-up" size={14} color={pal.sub} />
+              <Text style={[s.backToTopText, { color: pal.sub }]}>{t('back_to_top')}</Text>
+            </TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+
+          {/* Fixed purchase area — two plan buttons, mounted on the opening
+              frame in their final position. `barHeight` is seeded from constants
+              so the ScrollView already reserves the right space and the bar's
+              own measurement changes no state; nothing here shifts once the
+              animation ends. */}
+          <FixedPurchaseBar
+            pal={pal}
+            t={t}
+            isSubscribed={isSubscribed}
+            isPremium={isPremium}
+            isSubscriptionLoaded={isSubscriptionLoaded}
+            loadingPlan={loadingPlan}
+            bottomInset={insets.bottom}
+            expirationDate={expirationDate}
+            language={language}
+            onSubscribeBasic={handleSubscribeBasic}
+            onSubscribePremium={handleSubscribePremium}
+            onManageSubscription={onManageSubscription}
+            onMeasure={handleBarMeasure}
+            planProducts={planProducts}
+          />
+          </View>
 
       </Animated.View>
 
@@ -2017,6 +2253,8 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // The sheet body: the ScrollView and the purchase bar.
+  preparedBody: { flex: 1 },
   scroll: { flex: 1 },
 
   // ── Ribbon banner ─────────────────────────────────────────────────────────

@@ -17,7 +17,27 @@
 export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
 
-/** Bump together with the Worker's PROMO_SAMPLE_VERSION when the copy changes. */
+/**
+ * Identifies one generation of promotional audio.
+ *
+ * Bump it together with the Worker's copy whenever any of these changes:
+ *
+ *  - the sample text in the table below,
+ *  - the voice, the model, or the pronunciation instructions,
+ *  - the encoding of the bundled clips.
+ *
+ * Bumping invalidates every clip the network route has cached, on the device and
+ * in the Worker's KV, so nobody keeps hearing the previous take.
+ *
+ * Any of those changes also requires regenerating the bundled audio:
+ *
+ *     npm run generate:promo-voice -- --force
+ *
+ * which rewrites `assets/promo-voice/<lang>/<sample>.mp3` and the static
+ * `require()` map in `src/lib/promoVoiceAudio.ts`. The bundled clips are NOT
+ * keyed by this version — they are addressed by path — so a version bump alone
+ * would leave stale audio playing from the bundle. Regenerate, then bump.
+ */
 export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v1';
 
 export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<string, string>>>> = {

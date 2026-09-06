@@ -501,15 +501,30 @@ export function useCards({
           ...CLEAR_HIDE,
         } : {}),
       };
+      // A tutorial card stops being the app's the moment its text is the
+      // user's. Compared against the card as state holds it, not against the
+      // sheet's opening snapshot, so an edit made while the sheet was open
+      // still counts. Only the three content fields matter: renaming a folder,
+      // attaching audio or flipping Hide Front changes no text, so a card the
+      // user has merely filed or muted stays legible in a recording.
+      //
+      // Written into `edits`, so it travels through the same save, the same
+      // `persist` and the same upsert as everything else — which is what makes
+      // it survive a restart rather than living only in this session.
+      const declassify = (c: WordCard): Partial<WordCard> =>
+        c.builtIn === true
+          && (c.word !== edits.word || c.meaning !== edits.meaning || c.note !== edits.note)
+          ? { builtIn: undefined }
+          : {};
       const applyEdits = (c: WordCard): WordCard =>
-        c.id === editingCard.id ? { ...c, ...edits } : c;
+        c.id === editingCard.id ? { ...c, ...edits, ...declassify(c) } : c;
       const remaining = cards.map(applyEdits);
       setCards(remaining);
       // After the save and never awaited, exactly like registration: whatever
       // this triggers must not delay the write or hold the sheet open.
       void Promise.resolve()
         .then(() => onCardEdited?.({
-          card: { ...editingCard, ...edits },
+          card: { ...editingCard, ...edits, ...declassify(editingCard) },
           previousCard: editingCard,
           remaining,
         }))

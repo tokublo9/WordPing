@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Palette } from '../types';
 import {
@@ -275,7 +276,11 @@ export function TextToSpeechScreen({
   }, [busyAction, filenameAction, filenameInput, stopAudio]);
 
   const deleteHistoryItem = useCallback((item: SavedPrototypeSpeech) => {
-    Alert.alert('Delete saved audio?', `Delete “${item.filename}”?`, [
+    // The filename is the user's, and a native alert is an OS view Session
+    // Replay captures but no React wrapper can mask — so it is not interpolated
+    // here. The row the user tapped is still on screen behind the alert, so
+    // which recording this is about stays obvious.
+    Alert.alert('Delete saved audio?', 'This audio will be permanently deleted.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -345,21 +350,24 @@ export function TextToSpeechScreen({
           >
             <View>
               <Text style={[styles.sectionTitle, { color: pal.text }]}>Text</Text>
-              <TextInput
-                value={text}
-                onChangeText={setText}
-                editable={isPremium && !generating}
-                multiline
-                maxLength={TEXT_TO_SPEECH_MAX_CHARS}
-                textAlignVertical="top"
-                placeholder="Enter text to turn into speech"
-                placeholderTextColor={pal.sub}
-                style={[
-                  styles.input,
-                  { backgroundColor: pal.input, borderColor: pal.border, color: pal.text },
-                  !isPremium && styles.lockedInput,
-                ]}
-              />
+              {/* Arbitrary text the user types to be spoken. */}
+              <PostHogMaskView>
+                <TextInput
+                  value={text}
+                  onChangeText={setText}
+                  editable={isPremium && !generating}
+                  multiline
+                  maxLength={TEXT_TO_SPEECH_MAX_CHARS}
+                  textAlignVertical="top"
+                  placeholder="Enter text to turn into speech"
+                  placeholderTextColor={pal.sub}
+                  style={[
+                    styles.input,
+                    { backgroundColor: pal.input, borderColor: pal.border, color: pal.text },
+                    !isPremium && styles.lockedInput,
+                  ]}
+                />
+              </PostHogMaskView>
               <Text style={[styles.characterCount, { color: pal.sub }]}>
                 {text.length.toLocaleString()} / {TEXT_TO_SPEECH_MAX_CHARS.toLocaleString()}
               </Text>
@@ -493,25 +501,28 @@ export function TextToSpeechScreen({
                 {filenameAction?.kind === 'rename' ? 'Rename Audio' : 'Download Audio'}
               </Text>
               <Text style={[styles.filenameDescription, { color: pal.sub }]}>Filename</Text>
-              <TextInput
-                value={filenameInput}
-                onChangeText={setFilenameInput}
-                autoFocus
-                selectTextOnFocus={filenameAction?.kind === 'export'}
-                selection={filenameAction?.kind === 'rename' ? filenameSelection : undefined}
-                onSelectionChange={event => {
-                  if (filenameAction?.kind === 'rename') {
-                    setFilenameSelection(event.nativeEvent.selection);
-                  }
-                }}
-                editable={!busyAction}
-                returnKeyType="done"
-                onSubmitEditing={() => { void confirmFilename(); }}
-                style={[
-                  styles.filenameInput,
-                  { backgroundColor: pal.input, borderColor: pal.border, color: pal.text },
-                ]}
-              />
+              {/* A filename the user chose. */}
+              <PostHogMaskView>
+                <TextInput
+                  value={filenameInput}
+                  onChangeText={setFilenameInput}
+                  autoFocus
+                  selectTextOnFocus={filenameAction?.kind === 'export'}
+                  selection={filenameAction?.kind === 'rename' ? filenameSelection : undefined}
+                  onSelectionChange={event => {
+                    if (filenameAction?.kind === 'rename') {
+                      setFilenameSelection(event.nativeEvent.selection);
+                    }
+                  }}
+                  editable={!busyAction}
+                  returnKeyType="done"
+                  onSubmitEditing={() => { void confirmFilename(); }}
+                  style={[
+                    styles.filenameInput,
+                    { backgroundColor: pal.input, borderColor: pal.border, color: pal.text },
+                  ]}
+                />
+              </PostHogMaskView>
               <View style={styles.filenameButtons}>
                 <TouchableOpacity
                   style={[styles.filenameButton, { backgroundColor: pal.chip }]}

@@ -45,6 +45,19 @@ export interface WordCard {
    * the scheduler.
    */
   notifCandidate?: boolean;
+  /**
+   * This card's text was written by the app, not by the user.
+   *
+   * Set only on the seeded tutorial cards, and cleared for good the first time
+   * the user edits the front, back or note. Its one consumer is Session Replay
+   * masking — `features/cards/builtInCards.ts` — which shows app-authored text
+   * and redacts the user's. It grants nothing, gates nothing, and no learning
+   * or notification rule reads it.
+   *
+   * Absent means "treat as the user's", so every card that predates the column
+   * and every card arriving from a backup or an import is masked.
+   */
+  builtIn?: boolean;
   folderId?: string;
   testMastered?: boolean;
   testNextReview?: number; // Unix ms; if set and > appNow(), skip in test queue

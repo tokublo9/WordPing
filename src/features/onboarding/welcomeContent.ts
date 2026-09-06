@@ -76,8 +76,8 @@ type TutorialTexts = readonly [string, string, string, string, string, string, s
 const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   'en-US': [
     'Test your words using the graduation-cap icon in the top-right corner.',
-    'Tap a card to check its meaning.',
-    'You can hide the word on the front from the word-editing screen.',
+    'Tap a card to check its back.',
+    'You can hide the front of a card from the editing screen.',
     'You can also register custom audio.',
     'Set notifications using the notification icon to review words automatically.',
     'Word cards and folders can be edited by swiping or long-pressing them.',
@@ -86,8 +86,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'ja-JP': [
     '右上の帽子アイコンから、登録した単語をテストできます。',
-    'カードをタップして意味を確認しましょう。',
-    'カードの表の単語は、単語の編集画面から隠せます。',
+    'カードをタップして裏面を確認しましょう。',
+    'カードの表は、編集画面から隠せます。',
     'お好みの音声を登録することもできます。',
     '通知アイコンから通知を設定して、単語を自動で復習しましょう。',
     '単語カードやフォルダーは、スワイプまたは長押しで編集できます。',
@@ -96,8 +96,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'ko-KR': [
     '오른쪽 위의 학사모 아이콘으로 단어를 테스트해 보세요.',
-    '카드를 탭하면 뜻을 확인할 수 있어요.',
-    '카드 앞면의 단어는 단어 편집 화면에서 숨길 수 있어요.',
+    '카드를 탭하면 뒷면을 확인할 수 있어요.',
+    '카드 앞면은 편집 화면에서 숨길 수 있어요.',
     '원하는 음성을 직접 등록할 수도 있어요.',
     '알림 아이콘으로 알림을 설정하면 단어를 자동으로 복습할 수 있어요.',
     '단어 카드와 폴더는 밀거나 길게 눌러 편집할 수 있어요.',
@@ -106,8 +106,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'zh-CN': [
     '点击右上角的学士帽图标即可测试单词。',
-    '点击卡片即可查看它的含义。',
-    '可以在单词编辑页面隐藏卡片正面的单词。',
+    '点击卡片即可查看它的背面。',
+    '可以在编辑页面隐藏卡片的正面。',
     '还可以注册自定义音频。',
     '点击通知图标设置通知，自动复习单词。',
     '滑动或长按单词卡片和文件夹即可编辑。',
@@ -116,8 +116,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'es-ES': [
     'Pon a prueba tus palabras con el icono del birrete de la esquina superior derecha.',
-    'Toca una tarjeta para ver su significado.',
-    'Puedes ocultar la palabra del anverso desde la pantalla de edición de la palabra.',
+    'Toca una tarjeta para ver su reverso.',
+    'Puedes ocultar el anverso desde la pantalla de edición.',
     'También puedes añadir tu propio audio.',
     'Activa las notificaciones desde el icono de notificaciones para repasar tus palabras automáticamente.',
     'Las tarjetas y las carpetas se editan deslizándolas o manteniéndolas pulsadas.',
@@ -126,8 +126,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'fr-FR': [
     "Testez vos mots avec l'icône de chapeau de diplômé en haut à droite.",
-    'Appuyez sur une carte pour voir sa signification.',
-    "Vous pouvez masquer le mot au recto depuis l'écran de modification du mot.",
+    'Appuyez sur une carte pour voir son verso.',
+    'Vous pouvez masquer le recto depuis l’écran de modification.',
     'Vous pouvez aussi enregistrer votre propre audio.',
     "Configurez les notifications avec l'icône de notification pour réviser vos mots automatiquement.",
     "Les cartes et les dossiers se modifient d'un balayage ou d'un appui long.",
@@ -136,8 +136,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'de-DE': [
     'Teste deine Wörter über das Doktorhut-Symbol oben rechts.',
-    'Tippe auf eine Karte, um ihre Bedeutung zu sehen.',
-    'Das Wort auf der Vorderseite kannst du im Bearbeitungsbildschirm des Wortes ausblenden.',
+    'Tippe auf eine Karte, um ihre Rückseite zu sehen.',
+    'Die Vorderseite kannst du im Bearbeitungsbildschirm ausblenden.',
     'Du kannst auch eigene Audioaufnahmen hinterlegen.',
     'Richte über das Benachrichtigungssymbol Benachrichtigungen ein, um Wörter automatisch zu wiederholen.',
     'Wortkarten und Ordner lassen sich durch Wischen oder langes Drücken bearbeiten.',
@@ -146,8 +146,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'it-IT': [
     "Metti alla prova le tue parole con l'icona del tocco accademico in alto a destra.",
-    'Tocca una carta per vederne il significato.',
-    'Puoi nascondere la parola sul fronte dalla schermata di modifica della parola.',
+    'Tocca una carta per vederne il retro.',
+    'Puoi nascondere il fronte dalla schermata di modifica.',
     'Puoi anche registrare un audio personalizzato.',
     "Imposta le notifiche dall'icona delle notifiche per ripassare le parole automaticamente.",
     'Le carte e le cartelle si modificano scorrendo o tenendo premuto.',
@@ -156,8 +156,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'pt-BR': [
     'Teste suas palavras no ícone do capelo no canto superior direito.',
-    'Toque em um cartão para ver o significado.',
-    'Você pode ocultar a palavra da frente na tela de edição da palavra.',
+    'Toque em um cartão para ver o verso.',
+    'Você pode ocultar a frente na tela de edição.',
     'Você também pode adicionar um áudio personalizado.',
     'Configure as notificações no ícone de notificações para revisar as palavras automaticamente.',
     'Cartões e pastas podem ser editados deslizando ou tocando e segurando.',
@@ -166,8 +166,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'ru-RU': [
     'Проверяйте слова с помощью значка академической шапочки в правом верхнем углу.',
-    'Нажмите на карточку, чтобы увидеть её значение.',
-    'Слово на лицевой стороне можно скрыть на экране редактирования слова.',
+    'Нажмите на карточку, чтобы увидеть её обратную сторону.',
+    'Лицевую сторону можно скрыть на экране редактирования.',
     'Также можно добавить собственную аудиозапись.',
     'Настройте уведомления через значок уведомлений, чтобы повторять слова автоматически.',
     'Карточки слов и папки можно редактировать свайпом или долгим нажатием.',
@@ -176,8 +176,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'ar': [
     'اختبر كلماتك من خلال أيقونة قبعة التخرج في الزاوية العلوية اليمنى.',
-    'اضغط على البطاقة لعرض معناها.',
-    'يمكنك إخفاء الكلمة الظاهرة في الوجه الأمامي من شاشة تعديل الكلمة.',
+    'اضغط على البطاقة لعرض وجهها الخلفي.',
+    'يمكنك إخفاء الوجه الأمامي من شاشة التعديل.',
     'ويمكنك أيضاً إضافة مقطع صوتي خاص بك.',
     'اضبط الإشعارات من أيقونة الإشعارات لمراجعة كلماتك تلقائياً.',
     'يمكن تعديل بطاقات الكلمات والمجلدات بالسحب أو الضغط المطوّل.',
@@ -186,8 +186,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'hi-IN': [
     'ऊपर दाईं ओर बने ग्रेजुएशन कैप आइकन से अपने शब्दों की परीक्षा लें।',
-    'अर्थ देखने के लिए कार्ड पर टैप करें।',
-    'सामने दिखने वाले शब्द को आप शब्द संपादन स्क्रीन से छिपा सकते हैं।',
+    'पिछला भाग देखने के लिए कार्ड पर टैप करें।',
+    'सामने वाले भाग को आप संपादन स्क्रीन से छिपा सकते हैं।',
     'आप अपनी पसंद का ऑडियो भी जोड़ सकते हैं।',
     'शब्दों को अपने आप दोहराने के लिए सूचना आइकन से सूचनाएं सेट करें।',
     'शब्द कार्ड और फ़ोल्डर को स्वाइप करके या देर तक दबाकर संपादित किया जा सकता है।',
@@ -196,8 +196,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'tr-TR': [
     'Sağ üstteki mezuniyet şapkası ikonuyla kelimelerinizi test edin.',
-    'Anlamını görmek için bir karta dokunun.',
-    'Ön yüzdeki kelimeyi, kelime düzenleme ekranından gizleyebilirsiniz.',
+    'Arka yüzünü görmek için bir karta dokunun.',
+    'Ön yüzü, düzenleme ekranından gizleyebilirsiniz.',
     'Kendi ses kaydınızı da ekleyebilirsiniz.',
     'Kelimeleri otomatik olarak tekrar etmek için bildirim ikonundan bildirimleri ayarlayın.',
     'Kelime kartları ve klasörler kaydırarak veya basılı tutarak düzenlenebilir.',
@@ -206,8 +206,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'nl-NL': [
     'Test je woorden via het afstudeerhoed-pictogram rechtsboven.',
-    'Tik op een kaart om de betekenis te zien.',
-    'Je kunt het woord op de voorkant verbergen in het bewerkscherm van het woord.',
+    'Tik op een kaart om de achterkant te zien.',
+    'Je kunt de voorkant verbergen in het bewerkscherm.',
     'Je kunt ook je eigen audio toevoegen.',
     'Stel meldingen in via het meldingspictogram om woorden automatisch te herhalen.',
     'Woordkaarten en mappen bewerk je door te vegen of lang in te drukken.',
@@ -216,8 +216,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'vi-VN': [
     'Kiểm tra từ vựng bằng biểu tượng mũ tốt nghiệp ở góc trên bên phải.',
-    'Nhấn vào thẻ để xem nghĩa của nó.',
-    'Bạn có thể ẩn từ ở mặt trước trong màn hình chỉnh sửa từ.',
+    'Nhấn vào thẻ để xem mặt sau của nó.',
+    'Bạn có thể ẩn mặt trước trong màn hình chỉnh sửa.',
     'Bạn cũng có thể thêm âm thanh của riêng mình.',
     'Đặt thông báo bằng biểu tượng thông báo để tự động ôn lại từ vựng.',
     'Thẻ từ và thư mục có thể chỉnh sửa bằng cách vuốt hoặc nhấn giữ.',
@@ -226,8 +226,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'th-TH': [
     'ทดสอบคำศัพท์ได้จากไอคอนหมวกรับปริญญาที่มุมขวาบน',
-    'แตะที่การ์ดเพื่อดูความหมาย',
-    'คุณสามารถซ่อนคำที่อยู่ด้านหน้าได้จากหน้าจอแก้ไขคำศัพท์',
+    'แตะที่การ์ดเพื่อดูด้านหลัง',
+    'คุณสามารถซ่อนด้านหน้าได้จากหน้าจอแก้ไข',
     'คุณยังเพิ่มเสียงของคุณเองได้ด้วย',
     'ตั้งค่าการแจ้งเตือนจากไอคอนแจ้งเตือนเพื่อทบทวนคำศัพท์โดยอัตโนมัติ',
     'การ์ดคำศัพท์และโฟลเดอร์แก้ไขได้ด้วยการปัดหรือกดค้าง',
@@ -236,8 +236,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'id-ID': [
     'Uji kosakatamu lewat ikon topi wisuda di pojok kanan atas.',
-    'Ketuk kartu untuk melihat artinya.',
-    'Kamu bisa menyembunyikan kata di sisi depan dari layar edit kata.',
+    'Ketuk kartu untuk melihat sisi belakangnya.',
+    'Kamu bisa menyembunyikan sisi depan dari layar edit.',
     'Kamu juga bisa menambahkan audio buatanmu sendiri.',
     'Atur notifikasi lewat ikon notifikasi untuk mengulang kata secara otomatis.',
     'Kartu kata dan folder bisa diedit dengan menggeser atau menahannya.',
@@ -246,8 +246,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'pl-PL': [
     'Sprawdź swoje słówka za pomocą ikony biretu w prawym górnym rogu.',
-    'Naciśnij kartę, aby zobaczyć jej znaczenie.',
-    'Słowo na przedniej stronie możesz ukryć na ekranie edycji słowa.',
+    'Naciśnij kartę, aby zobaczyć jej tył.',
+    'Przód możesz ukryć na ekranie edycji.',
     'Możesz też dodać własne nagranie audio.',
     'Ustaw powiadomienia ikoną powiadomień, aby automatycznie powtarzać słówka.',
     'Karty słówek i foldery edytujesz przesunięciem lub przytrzymaniem.',
@@ -256,8 +256,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'el-GR': [
     'Δοκιμάστε τις λέξεις σας από το εικονίδιο με το καπέλο αποφοίτησης πάνω δεξιά.',
-    'Πατήστε μια κάρτα για να δείτε τη σημασία της.',
-    'Μπορείτε να κρύψετε τη λέξη στην μπροστινή όψη από την οθόνη επεξεργασίας της λέξης.',
+    'Πατήστε μια κάρτα για να δείτε την πίσω όψη της.',
+    'Μπορείτε να κρύψετε την μπροστινή όψη από την οθόνη επεξεργασίας.',
     'Μπορείτε επίσης να προσθέσετε δικό σας ηχητικό αρχείο.',
     'Ρυθμίστε ειδοποιήσεις από το εικονίδιο ειδοποιήσεων για αυτόματη επανάληψη των λέξεων.',
     'Οι κάρτες λέξεων και οι φάκελοι επεξεργάζονται με σύρσιμο ή παρατεταμένο πάτημα.',
@@ -266,8 +266,8 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
   ],
   'sv-SE': [
     'Testa dina ord med studentmösse-ikonen uppe till höger.',
-    'Tryck på ett kort för att se dess betydelse.',
-    'Du kan dölja ordet på framsidan från ordets redigeringsvy.',
+    'Tryck på ett kort för att se dess baksida.',
+    'Du kan dölja framsidan från redigeringsvyn.',
     'Du kan även lägga till eget ljud.',
     'Ställ in aviseringar med aviseringsikonen för att repetera orden automatiskt.',
     'Ordkort och mappar redigerar du genom att svepa eller hålla in dem.',
@@ -314,6 +314,9 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
       wordLang:    meaningLang,
       meaningLang,
       folderId:    WELCOME_FOLDER_ID,
+      // Written here, where the provenance is actually known: this text is
+      // the app's own tutorial copy. The first edit clears it for good.
+      builtIn:     true,
     }));
   }
 
@@ -326,5 +329,6 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
     wordLang,
     meaningLang,
     folderId:    WELCOME_FOLDER_ID,
+    builtIn:     true,
   }));
 }

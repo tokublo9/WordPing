@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
 
@@ -114,9 +115,11 @@ export function FolderPickerSheet({
                         color={folder.color ?? themeColor}
                       />
                     </View>
-                    <Text style={[styles.folderName, { color: pal.text }]} numberOfLines={1}>
-                      {folder.name}
-                    </Text>
+                    <PostHogMaskView style={styles.maskedFolderName}>
+                      <Text style={[styles.folderName, styles.maskedTextNoFlex, { color: pal.text }]} numberOfLines={1}>
+                        {folder.name}
+                      </Text>
+                    </PostHogMaskView>
                     <Ionicons name="chevron-forward" size={16} color={pal.sub} />
                   </TouchableOpacity>
                 ))}
@@ -174,5 +177,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   folderName: { flex: 1, fontSize: 16 },
+  // The wrapper inherits the row flex the Text had; the Text drops its own
+  // so a flexBasis:0 child cannot collapse inside the auto-height wrapper.
+  maskedFolderName: { flex: 1 },
+  maskedTextNoFlex: { flex: 0 },
   empty: { textAlign: 'center', marginTop: 32, fontSize: 14 },
 });

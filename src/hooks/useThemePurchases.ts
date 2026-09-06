@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import Purchases, {
   PURCHASES_ERROR_CODE,
-  type PurchasesOfferings,
   type CustomerInfo,
   type PurchasesError,
   type PurchasesPackage,
@@ -10,11 +9,9 @@ import Purchases, {
 
 import {
   THEME_OFFERING_ID,
-  THEME_PRODUCTS,
   themeProductRefs,
   type ThemeStoreProduct,
 } from '../features/themes/themeProducts';
-import { describeRevenueCatKey } from '../lib/purchases';
 
 /**
  * Prices and ownership for individually purchasable themes.
@@ -111,71 +108,6 @@ function describeSdkError(error: unknown): Record<string, unknown> {
   };
 }
 
-function logOfferingDiagnostics(
-  offerings: PurchasesOfferings | null,
-  error: unknown,
-): void {
-  if (!__DEV__) return;
-
-  const key = describeRevenueCatKey();
-  const expected = Object.entries(THEME_PRODUCTS);
-
-  if (error !== null || offerings === null) {
-    console.warn('[themes] offering lookup FAILED', {
-      ...key,
-      // The SDK's own error, in full: `code` and `readableErrorCode` are what
-      // separate a configuration fault from a network one, and RevenueCat puts
-      // the useful detail in `underlyingErrorMessage`.
-      error: describeSdkError(error),
-    });
-    return;
-  }
-
-  const offeringIds = Object.keys(offerings.all);
-  const themeOffering = offerings.all[THEME_OFFERING_ID] ?? null;
-  const packages = themeOffering?.availablePackages ?? [];
-
-  const returnedPackageIds = packages.map(pkg => pkg.identifier);
-  const returnedProductIds = packages.map(pkg => pkg.product.identifier);
-  const duplicatePackageIds = returnedPackageIds
-    .filter((id, index) => returnedPackageIds.indexOf(id) !== index);
-
-  const missing = expected
-    .filter(([, refs]) => !returnedPackageIds.includes(refs.packageId))
-    .map(([themeId, refs]) => `${themeId} → ${refs.packageId} (${refs.productId})`);
-  const unexpected = returnedPackageIds
-    .filter(id => !expected.some(([, refs]) => refs.packageId === id));
-
-  console.info('[themes] offering diagnostics', {
-    revenueCat: key,
-    // `test-store` here with App Store products configured is the answer on its
-    // own: the Test Store has its own catalogue and cannot serve them.
-    storeMismatchLikely: key.store === 'test-store',
-    offeringIdsReturned: offeringIds,
-    themeOfferingFound: themeOffering !== null,
-    packageCount: packages.length,
-    expectedPackageCount: expected.length,
-    packages: packages.map(pkg => ({
-      packageId: pkg.identifier,
-      productId: pkg.product.identifier,
-      priceString: pkg.product.priceString,
-    })),
-    returnedProductIds,
-    expectedProductIds: expected.map(([, refs]) => refs.productId),
-    productIdMismatches: returnedProductIds.filter(
-      id => !expected.some(([, refs]) => refs.productId === id),
-    ),
-    missingPackages: missing,
-    unexpectedPackages: unexpected,
-    duplicatePackageIds,
-    // A package that resolved but carries no price is an App Store metadata
-    // problem — missing price tier, or not yet propagated — not a mapping one.
-    packagesWithoutPrice: packages
-      .filter(pkg => (pkg.product.priceString ?? '').trim() === '')
-      .map(pkg => pkg.identifier),
-  });
-}
-
 export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesState {
   const [products, setProducts] = useState<ReadonlyMap<string, ThemeStoreProduct>>(EMPTY_PRODUCTS);
   const [ownedEntitlementIds, setOwned] = useState<ReadonlySet<string>>(EMPTY_OWNED);
@@ -212,11 +144,7 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
         const themeOffering = offerings.all[THEME_OFFERING_ID];
         if (!active) return;
 
-        logOfferingDiagnostics(offerings, null);
-
-        if (!themeOffering) {
-          // Diagnostics above already named every offering that did come back.
-        } else {
+        if (themeOffering) {
           packagesRef.current = new Map(
             themeOffering.availablePackages.map(pkg => [pkg.identifier, pkg]),
           );
@@ -227,7 +155,9 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
       } catch (error) {
         // Leave `products` empty: every theme then reads as `unavailable`, which
         // hides the price and disables buying — the correct answer to "unknown".
-        logOfferingDiagnostics(null, error);
+        // Logged because it is a real failure: `code` and `readableErrorCode`
+        // separate a configuration fault from a network one.
+        console.warn('[themes] offering lookup failed', describeSdkError(error));
       }
 
       try {

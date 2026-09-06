@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
@@ -164,20 +165,24 @@ export function FolderCustomizeModal({
                     <Ionicons name={selectedIcon as any} size={26} color={themeColor} />
                   </View>
                   {mode === 'edit' ? (
-                    <TextInput
-                      value={editName}
-                      onChangeText={setEditName}
-                      style={[styles.previewNameInput, { color: pal.text }]}
+                    <PostHogMaskView style={styles.maskedInputFlex}>
+                      <TextInput
+                        value={editName}
+                        onChangeText={setEditName}
+                        style={[styles.previewNameInput, styles.maskedInputNoFlex, { color: pal.text }]}
                       placeholder={t('folder_name_placeholder')}
                       placeholderTextColor={pal.sub}
                       maxLength={50}
-                      returnKeyType="done"
-                      onSubmitEditing={handleSave}
-                    />
+                        returnKeyType="done"
+                        onSubmitEditing={handleSave}
+                      />
+                    </PostHogMaskView>
                   ) : (
-                    <Text style={[styles.previewName, { color: pal.text }]} numberOfLines={1}>
-                      {folderName}
-                    </Text>
+                    <PostHogMaskView>
+                      <Text style={[styles.previewName, { color: pal.text }]} numberOfLines={1}>
+                        {folderName}
+                      </Text>
+                    </PostHogMaskView>
                   )}
                 </View>
 
@@ -319,6 +324,9 @@ const styles = StyleSheet.create({
     flex: 1, fontSize: 16, fontWeight: '600',
     paddingVertical: 2,
   },
+  // The wrapper takes the row flex the input owned; the input drops its own.
+  maskedInputFlex: { flex: 1 },
+  maskedInputNoFlex: { flex: 0 },
   gridLabel: {
     fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
     letterSpacing: 1, marginBottom: 8,

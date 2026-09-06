@@ -156,6 +156,27 @@ export const THEME_VIDEOS: Partial<Record<string, number>> = {
   skin_rain:      require('../../screenshots/theme/rainywindow/rainywindow1.mov'),
 };
 
+/**
+ * A still frame of each theme video, used as its poster.
+ *
+ * Every one is the source video's own **first frame**, extracted from the
+ * bundled `.mov` — not artwork invented for the purpose. That matters twice
+ * over: it is what the theme genuinely looks like, and it is the exact frame the
+ * looping player shows when it starts, so swapping the poster for the video
+ * cannot produce a visible jump.
+ *
+ * JPEG rather than PNG: these are photographic frames, and JPEG keeps each one
+ * under 100 KB at the videos' native 1260x2736.
+ */
+export const THEME_VIDEO_POSTERS: Partial<Record<string, number>> = {
+  skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea1-poster.jpg'),
+  skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy1-poster.jpg'),
+  skin_aurora:    require('../../screenshots/theme/aurora/aurora1-poster.jpg'),
+  skin_cyber:     require('../../screenshots/theme/cyberneon/cyberneon1-poster.jpg'),
+  shop_woods:     require('../../screenshots/theme/beautifulwoods/beautifulwoods1-poster.jpg'),
+  skin_rain:      require('../../screenshots/theme/rainywindow/rainywindow1-poster.jpg'),
+};
+
 export const THEME_VIDEOS_FLIP: Partial<Record<string, number>> = {
   skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea2.mov'),
   skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy2.mov'),
@@ -171,7 +192,7 @@ export const THEME_VIDEOS_FLIP: Partial<Record<string, number>> = {
 // details hero, mini gallery frames, etc).
 
 export const PremiumSkinPreview = memo(function PremiumSkinPreview({
-  item, skinData, width, height, disableBlur = false,
+  item, skinData, width, height, disableBlur = false, onWallpaperLoad, onWallpaperError,
 }: {
   item: ShopItem;
   skinData: ThemeSkin | undefined;
@@ -179,6 +200,15 @@ export const PremiumSkinPreview = memo(function PremiumSkinPreview({
   height: number;
   /** When true, skip the wallpaper blur overlay so the image reads clearly. */
   disableBlur?: boolean;
+  /**
+   * Optional. Called when this preview's wallpaper bitmap has actually decoded,
+   * or failed. Only the Upgrade Plan sheet passes them, to hold its reveal until
+   * every rendered bitmap is on screen; every other consumer omits both and this
+   * component behaves exactly as it always has — a skin without a wallpaper
+   * never calls either, because it renders no bitmap to wait for.
+   */
+  onWallpaperLoad?: () => void;
+  onWallpaperError?: () => void;
 }) {
   const W = width;
   const H = height;
@@ -188,7 +218,13 @@ export const PremiumSkinPreview = memo(function PremiumSkinPreview({
   if (skinData?.wallpaperImage) {
     return (
       <>
-        <ImageBackground source={skinData.wallpaperImage} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        <ImageBackground
+          source={skinData.wallpaperImage}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          onLoad={onWallpaperLoad}
+          onError={onWallpaperError}
+        />
         {!disableBlur && (skinData.wallpaperBlur ?? 0) > 0 && (
           <BlurView
             intensity={Math.round(skinData.wallpaperBlur! * blurScale)}

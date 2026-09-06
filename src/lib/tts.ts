@@ -17,11 +17,13 @@ import { resolveCardVoiceSource } from '../features/voice/cardVoiceSource';
  */
 const PROMO_PREVIEW_VOICE: AIVoice = DEFAULT_AI_VOICE;
 import {
+  PROMO_SAMPLE_IDS,
   PROMO_SAMPLE_VERSION,
   promoSampleText,
   resolvePromoLang,
   type PromoSampleId,
 } from './promoVoiceSamples';
+import { bundledPromoAudio, bundledPromoAudioSet } from './promoVoiceAudio';
 import {
   AI_VOICE_SAMPLES,
   AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
@@ -43,6 +45,7 @@ import {
 import { isAIConsentGranted } from './aiConsent';
 import { isAIEntitlementEligible } from './aiEntitlement';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
+import { Asset } from 'expo-asset';
 import { deferAudioPlayerRemoval } from './audioPlayerCleanup';
 import {
   DeduplicatedRequestRegistry,
@@ -734,35 +737,14 @@ export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions
   // exactly the way losing the entitlement does.
   voiceSamplePreloadEligible = options.hasAIAccess && isAIConsentGranted();
   if (!voiceSamplePreloadEligible) {
-    const cancelled = voiceSamplePreloadQueue.cancelOwner(VOICE_SAMPLE_PRELOAD_OWNER);
-    if (__DEV__) console.log('[AI voice sample preload]', {
-      phase: 'eligibility-inactive',
-      triggerReason: options.triggerReason,
-      queuedCancelled: cancelled.queuedCancelled,
-      runningDiscarded: cancelled.runningDiscarded,
-    });
+    voiceSamplePreloadQueue.cancelOwner(VOICE_SAMPLE_PRELOAD_OWNER);
     return;
   }
 
   if (activeVoiceSamplePreload) {
     if (!wasEligible) pendingVoiceSamplePreloadTrigger = options;
-    if (__DEV__) console.log('[AI voice sample preload]', {
-      phase: 'trigger-reused',
-      triggerReason: options.triggerReason,
-      activeEntitlement: options.activeEntitlement,
-    });
     return;
   }
-
-  const preloadStartedAtMs = performance.now();
-  if (__DEV__) console.log('[AI voice sample preload]', {
-    phase: 'started',
-    triggerReason: options.triggerReason,
-    activeEntitlement: options.activeEntitlement,
-    totalSamples: AI_VOICE_SAMPLES.length,
-    concurrencyLimit: AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
-    loadingIndicatorDisplayed: false,
-  });
 
   const work = AI_VOICE_SAMPLES.map((sample, index) => {
     const request = normalizeTTSRequest(sample.text, sample.voice, sample.contentVersion);
@@ -771,22 +753,11 @@ export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions
 
     const queued = voiceSamplePreloadQueue.enqueue(key, VOICE_SAMPLE_PRELOAD_OWNER, async () => {
       if (!voiceSamplePreloadEligible) return;
-      const sampleStartedAtMs = performance.now();
       try {
-        const audio = await fetchAndCacheAudio(sample.text, sample.voice, {
+        await fetchAndCacheAudio(sample.text, sample.voice, {
           loadingIndicatorAvailable: false,
           trackAsActiveGeneration: false,
           sampleVersion: sample.contentVersion,
-        });
-        if (__DEV__) console.log('[AI voice sample preload]', {
-          phase: audio.source === 'network' ? 'sample-completed' : 'cache-hit',
-          sampleId: sample.id,
-          queueProgress: `${index + 1}/${AI_VOICE_SAMPLES.length}`,
-          cacheSource: audio.source,
-          inFlightRequestReused: Boolean(audio.requestDeduplicated),
-          sampleDurationMs: Math.round(performance.now() - sampleStartedAtMs),
-          networkGenerationDownloadDurationMs: audio.networkDurationMs ?? 0,
-          loadingIndicatorDisplayed: false,
         });
       } catch (error) {
         failedVoiceSampleKeys.add(key);
@@ -800,23 +771,10 @@ export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions
         });
       }
     });
-    if (__DEV__ && queued.deduplicated) console.log('[AI voice sample preload]', {
-      phase: 'queue-request-reused',
-      sampleId: sample.id,
-      queueState: queued.state,
-    });
     return queued.promise;
   });
 
-  const run = Promise.allSettled(work).then(() => {
-    if (__DEV__) console.log('[AI voice sample preload]', {
-      phase: 'finished',
-      totalSamples: AI_VOICE_SAMPLES.length,
-      failedSamples: failedVoiceSampleKeys.size,
-      totalDurationMs: Math.round(performance.now() - preloadStartedAtMs),
-      loadingIndicatorDisplayed: false,
-    });
-  });
+  const run = Promise.allSettled(work).then(() => undefined);
   const trackedRun = run.finally(() => {
     if (activeVoiceSamplePreload !== trackedRun) return;
     activeVoiceSamplePreload = null;
@@ -1438,6 +1396,157 @@ export function setAIVoicePreference(voice: AIVoice): void {
   stopPlayback();
 }
 
+// ── Upgrade Plan promo previews ───────────────────────────────────────────────
+
+/**
+ * The network preloads for promo clips with no bundled asset.
+ *
+ * Only reachable for a language the generation script has not produced. Keyed by
+ * the same cache key playback uses, so a preload and a tap for the same sample
+ * are the same entry: the tap either finds the finished file or joins the
+ * preload's in-flight request.
+ */
+const promoPreloadByKey = new Map<string, Promise<void>>();
+
+function promoCacheKey(sample: PromoSampleId, lang: string): string {
+  return serializeTTSCacheKey(
+    normalizeTTSRequest(promoSampleText(sample, lang), PROMO_PREVIEW_VOICE, PROMO_SAMPLE_VERSION, lang),
+  );
+}
+
+/**
+ * Prepare the fixed Upgrade Plan promo clips before the user can tap one.
+ *
+ * Costs nothing and unlocks nothing on either path. The bundled clips are
+ * already on the device, so preparing them is a local resolve and never a
+ * request. The fallback path uses `/v1/voice/promo`, the one route that carries
+ * no text, no identity and no entitlement — the Worker owns the words and looks
+ * them up from a sample id — so it can never spend a Basic credit, touch
+ * Premium's generation, or need data-sharing consent. Word-card voice is
+ * untouched: it still goes through `speak()` and stays gated.
+ *
+ * Nothing here rejects to a caller, blocks startup, or holds a player. A failure
+ * leaves the tap to behave exactly as it does today.
+ */
+export function preloadPromoVoiceSamples(langCode?: string): void {
+  const lang = resolvePromoLang(langCode);
+
+  // Bundled: nothing to fetch. In a release build the files are already in the
+  // app bundle; in development Metro serves them, and resolving them now means
+  // the first tap does not wait on that. Fire-and-forget, and a failure is the
+  // player's problem later, not startup's.
+  const bundled = bundledPromoAudioSet(lang);
+  if (bundled.length > 0) {
+    void Asset.loadAsync(bundled as number[]).catch(() => {});
+    return;
+  }
+
+  for (const sample of PROMO_SAMPLE_IDS) {
+    const key = promoCacheKey(sample, lang);
+    if (promoPreloadByKey.has(key)) continue;
+    const run = fetchAndCacheAudio(promoSampleText(sample, lang), PROMO_PREVIEW_VOICE, {
+      loadingIndicatorAvailable: false,
+      trackAsActiveGeneration: false,
+      sampleVersion: PROMO_SAMPLE_VERSION,
+      language: lang,
+      promo: { sample, langCode: lang },
+    })
+      .then(() => undefined)
+      .catch(() => {
+        // Not remembered, so a language change or the next launch retries.
+        promoPreloadByKey.delete(key);
+      });
+    promoPreloadByKey.set(key, run);
+  }
+}
+
+/**
+ * Play a bundled promotional clip.
+ *
+ * Deliberately a sibling of `speakCustom` rather than a branch inside
+ * `speakWithAI`: it needs the player half and none of the fetch half, and it
+ * shares every piece of the lifecycle that matters — `beginPlayback`'s epoch and
+ * stop-on-repeat, the audio-focus token, `stopActivePlayer`, `currentPlayer`,
+ * the deferred native removal and the same phase reporting. The source is a
+ * `require()`d module id, which `expo-audio` accepts directly, so no URI is
+ * resolved and no file is read by us.
+ */
+async function speakBundledPromo(
+  source: number,
+  sample: PromoSampleId,
+  lang: string,
+  options: TTSPlaybackOptions = {},
+): Promise<void> {
+  const { createAudioPlayer, setAudioModeAsync } = audioLib();
+
+  // Same shape as the network path's key, so tapping the playing sample stops it
+  // and tapping another supersedes it, exactly as before.
+  const playbackKey = `ai:${PROMO_PREVIEW_VOICE}:${PROMO_SAMPLE_VERSION}:${sample}:${lang}`;
+  const myEpoch = beginPlayback(playbackKey);
+  if (myEpoch == null) return;
+  options.onPhaseChange?.('checking-cache');
+
+  try {
+    // iOS resets the session after backgrounding or when another app takes
+    // focus, so this is re-applied per play, as everywhere else.
+    try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
+    if (myEpoch !== epoch) throw new Error('cancelled');
+    options.onPhaseChange?.('ready');
+
+    const player = createAudioPlayer(source, { updateInterval: 50 });
+    currentPlayer = player;
+
+    return await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let reportedPlaying = false;
+      let commanded = false;
+
+      const finish = (err?: Error, stopping = false) => {
+        if (settled) return;
+        settled = true;
+        sub.remove();
+        if (stopping) {
+          try { player.pause(); } catch {}
+          deferAudioPlayerRemoval(player);
+        } else {
+          try { player.remove(); } catch {}
+        }
+        if (currentPlayer === player) currentPlayer = null;
+        if (stopActivePlayer === stop) stopActivePlayer = null;
+        releaseAudioFocus(focusToken);
+        focusToken = null;
+        options.onPhaseChange?.('idle');
+        err ? reject(err) : resolve();
+      };
+
+      const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+        if (settled || myEpoch !== epoch) return;
+        // Commanded from the loaded status rather than immediately, so play is
+        // never issued at a player that has not opened the asset yet.
+        if (status.isLoaded && !commanded) {
+          commanded = true;
+          try { player.play(); } catch (e) {
+            finish(e instanceof Error ? e : new Error(String(e)));
+          }
+        }
+        if (status.playing && !reportedPlaying) {
+          reportedPlaying = true;
+          options.onPhaseChange?.('playing');
+        }
+        if (status.didJustFinish) finish();
+      });
+      const stop = () => finish(new Error('cancelled'), true);
+      stopActivePlayer = stop;
+    });
+  } catch (error) {
+    options.onPhaseChange?.('failed');
+    throw error;
+  } finally {
+    options.onPhaseChange?.('idle');
+    finishPlayback(playbackKey, myEpoch);
+  }
+}
+
 /** Play a one-off subscriber preview without changing the saved preference. */
 export function previewAIVoice(
   voice: AIVoice,
@@ -1462,6 +1571,18 @@ export function speakPromoSample(
   options?: TTSPlaybackOptions,
 ): Promise<void> {
   const lang = resolvePromoLang(langCode);
+
+  // The normal path: the clip ships with the app, so this reaches no network,
+  // generates nothing and spends nothing.
+  const bundled = bundledPromoAudio(sample, lang);
+  if (bundled !== null) return speakBundledPromo(bundled, sample, lang, options);
+
+  // Fallback for a genuinely missing asset — before the generation script has
+  // run, or a language it did not produce. Identical to the old behaviour, and
+  // still free: `/v1/voice/promo` carries no text, no identity and no
+  // entitlement. Worth a warning because it should not happen in a shipped
+  // build; sample id and language code only, both build constants.
+  if (__DEV__) console.warn('[promo voice] no bundled clip, using network route', { sample, lang });
   return speakWithAI(
     promoSampleText(sample, lang),
     PROMO_PREVIEW_VOICE,

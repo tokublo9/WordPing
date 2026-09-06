@@ -10,7 +10,7 @@ import type { SqlDatabase } from './types';
  */
 
 /** Bumped whenever a new entry is appended to MIGRATIONS. */
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 /** Identifiers of the built-in review levels, seeded into `labels`. */
 export const LEVEL_LABEL_IDS = {
@@ -72,7 +72,11 @@ CREATE TABLE IF NOT EXISTS words (
   meaning_lang TEXT,
   audio_uri    TEXT,
   audio_speed  REAL,
-  audio_volume REAL
+  audio_volume REAL,
+  -- App-authored tutorial text. 0 means "treat as the user's", which is what
+  -- every pre-existing row gets from migration 6 and what every import and
+  -- restore leaves untouched. Read only by Session Replay masking.
+  built_in     INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -260,6 +264,31 @@ const MIGRATIONS: readonly Migration[] = [
       const folders = await tableColumns(db, 'folders');
       if (!folders.has('notif_notify_all_words')) {
         await db.execAsync('ALTER TABLE folders ADD COLUMN notif_notify_all_words INTEGER;');
+      }
+    },
+  },
+  {
+    // Marks which cards carry app-authored text, for Session Replay masking.
+    //
+    // THERE IS DELIBERATELY NO BACKFILL. The obvious one — set built_in = 1 for
+    // the eight `wp-w*` ids — would be wrong: those ids survive editing, so a
+    // card the user overwrote with their own word months ago would be marked
+    // app-authored and its text would become legible in a recording. An id
+    // proves where a card came from, never what is in it now.
+    //
+    // So every existing row keeps the column default of 0 and stays masked,
+    // including untouched tutorial cards. That loses nothing but a little
+    // legibility in recordings from installs that predate this version, and it
+    // is the only answer that cannot be wrong. Installs seeded after it get
+    // built_in = 1 written at creation, where the provenance is known.
+    //
+    // Nothing else reads this column: no learning rule, no notification rule,
+    // no entitlement. Adding it changes no behaviour.
+    version: 6,
+    async up(db) {
+      const words = await tableColumns(db, 'words');
+      if (!words.has('built_in')) {
+        await db.execAsync('ALTER TABLE words ADD COLUMN built_in INTEGER NOT NULL DEFAULT 0;');
       }
     },
   },
