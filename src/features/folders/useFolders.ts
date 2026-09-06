@@ -4,9 +4,11 @@ import type { Folder, WordCard } from '../../types';
 import { planFolderMove } from '../cards/duplicates';
 import { createId } from '../../utils/createId';
 import { createDefaultFolderNotifSettings } from '../notifications/defaultSettings';
+import { posthog } from '../../config/posthog';
 
 export interface UseFoldersParams {
   folders: Folder[];
+  cards: WordCard[];
   fallbackFolderName: string;
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   setCards: Dispatch<SetStateAction<WordCard[]>>;
@@ -41,7 +43,7 @@ export interface UseFoldersReturn {
 }
 
 export function useFolders({
-  folders, fallbackFolderName, setFolders, setCards, setMenuVisible, onDuplicatesSkipped,
+  folders, cards, fallbackFolderName, setFolders, setCards, setMenuVisible, onDuplicatesSkipped,
 }: UseFoldersParams): UseFoldersReturn {
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
@@ -116,10 +118,12 @@ export function useFolders({
       notifSettings: createDefaultFolderNotifSettings(),
     };
     setFolders(prev => [...prev, folder]);
+    posthog?.capture('folder_created');
   };
 
   const deleteFolder = (id: string) => {
     const remaining = folders.filter(f => f.id !== id);
+    if (remaining.length === folders.length) return;
     if (remaining.length > 0) {
       setFolders(remaining);
       setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: remaining[0].id } : c));
@@ -133,10 +137,13 @@ export function useFolders({
       setFolders([fallback]);
       setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: fallback.id } : c));
     }
+    posthog?.capture('folder_deleted');
   };
 
   const renameFolder = (id: string, name: string, icon: string) => {
+    if (!folders.some(folder => folder.id === id)) return;
     setFolders(prev => prev.map(f => f.id === id ? { ...f, name, icon } : f));
+    posthog?.capture('folder_renamed');
   };
 
   const openMovePicker = (ids: string[]) => {
@@ -156,12 +163,14 @@ export function useFolders({
    * many did.
    */
   const moveCardsToFolder = (targetFolderId: string) => {
-    setCards(prev => {
-      const { movableIds, blockedIds } = planFolderMove(prev, pendingMoveIds, targetFolderId);
-      if (blockedIds.length > 0) onDuplicatesSkipped?.(blockedIds.length);
-      if (movableIds.length === 0) return prev;
-      const moving = new Set(movableIds);
-      return prev.map(c => moving.has(c.id) ? { ...c, folderId: targetFolderId } : c);
+    const { movableIds, blockedIds } = planFolderMove(cards, pendingMoveIds, targetFolderId);
+    if (blockedIds.length > 0) onDuplicatesSkipped?.(blockedIds.length);
+    if (movableIds.length === 0) return;
+    const moving = new Set(movableIds);
+    setCards(prev => prev.map(c => moving.has(c.id) ? { ...c, folderId: targetFolderId } : c));
+    posthog?.capture('cards_moved_to_folder', {
+      moved_count: movableIds.length,
+      duplicates_skipped: blockedIds.length,
     });
   };
 

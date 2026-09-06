@@ -30,8 +30,9 @@ const ALL = Object.values(FEATURE_MARKERS);
  * Free too — a hint pointing at something the user can already do. Upgrade Plan
  * most of all: gating it would hide it from the people it exists for.
  *
- * `firstTestExited` is in here because it is stored in the same set and obeys
- * the same mechanics. Nothing renders it — see the sequencing tests below.
+ * `firstTestExited` and `notificationPermission` are in here because they are
+ * stored in the same set and obey the same mechanics. Nothing renders either —
+ * see the sequencing tests below.
  */
 const EVERY_PLAN_MARKERS = [
   FEATURE_MARKERS.customAudio,
@@ -43,6 +44,7 @@ const EVERY_PLAN_MARKERS = [
   FEATURE_MARKERS.notificationIcon,
   FEATURE_MARKERS.sendTest,
   FEATURE_MARKERS.firstTestExited,
+  FEATURE_MARKERS.notificationPermission,
 ];
 /** What any paid plan unlocks in addition to the ungated markers. */
 const BASIC_SET = [

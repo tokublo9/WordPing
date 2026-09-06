@@ -338,6 +338,20 @@ would be permanent.
   `canUseAIVoice` false so no further generation is attempted — that is what
   stops the dialog reappearing on every card. Picking a voice in Settings clears
   it. It is a preference, never an entitlement.
+- **`canUseAIVoice` false stops *generation*, not playback of audio already on
+  the device.** An exhausted Basic subscriber keeps hearing every word they
+  already generated: `speak` routes to `speakCachedAIOrDevice`, which asks the
+  ordinary cache — same normalized request, same key, same file validation — and
+  plays a hit, or the device engine on a miss. It reaches no network, so it can
+  spend nothing. Two rules keep it honest: it needs `isAIEntitlementEligible()`,
+  so Free and an unresolved launch never reach a former subscription's cache;
+  and it is opt-in per call via `TTSPlaybackOptions.allowCachedAIFallback`, set
+  by word-card playback only — the Upgrade Plan sheet's device-voice demo must
+  keep using expo-speech or the comparison it exists to draw plays AI on both
+  sides. **The cache is probed before either engine starts**, because
+  `beginPlayback` reads a repeat of its key as "stop"; probing inside
+  `speakWithAI` would leave the device engine holding one key while the next tap
+  arrived under another, restarting the word instead of silencing it.
 - **Do not use `monthKey` / `monthResetsAt` for this balance.** A lifetime credit
   that reset at a month boundary would be unlimited credits.
   `VOICE_QUOTA_FEATURES` is now empty; the monthly machinery is retained for a
@@ -403,13 +417,17 @@ Defined in `constants.ts` as stable config objects. `KisekaeShopSheet.tsx` rende
 
 `rescheduleAllNotifications(cards, folders)` distributes up to 64 slots across folders with a non-zero interval. `notificationGranted` only controls whether scheduling happens — never gates the menu item.
 
-**Notifications are opt-in, and eligibility is decided in one place: `notifiableCards` in `features/notifications/notificationCandidates.ts`.** The scheduler and the sheet's Send Test both call it, after filtering by `folderId` and never before.
+**Permission is asked for once, on the first tap of the Word List's notification icon** — `requestPermissionOnFirstOpen` in `useFolderNotifications`, spent against the `notificationPermission` milestone in the feature-discovery set. The sheet opens first and unconditionally; the same tap also clears the icon's "!". **Choosing an interval asks for nothing** and is applied whatever the permission says — the old prompt-on-interval made the tap conditional on an unrelated answer. `requestPermission()` returns `granted | undetermined | denied` and only ever prompts from `undetermined`, so a determined state is never asked twice; `denied` gets the Settings guidance (`notif_permission_denied` + `Linking.openSettings`), and a dismissed system prompt gets nothing. Granting turns no notification on and changes no interval.
+
+**Notifications are opt-in, and eligibility is decided in one place: `notifiableCards` in `features/notifications/notificationCandidates.ts`.** The scheduler calls it after filtering by `folderId` and never before.
+
+**Send Test is the one surface that is deliberately not the scheduler.** It answers "does a notification reach my phone?" for someone who has not set notifications up yet, so it works with regular notifications off, no interval chosen and nothing on the list. `pickTestNotificationCard` in `features/notifications/testNotification.ts` prefers a real candidate and then falls back to any saved word in the current folder — the scope the sheet already works in, never widened to other folders. The hide window is a scheduling rule and does not empty the fallback tier. With no word at all it sends nothing and says `notif_test_no_words`. It writes nothing: not `notifCandidate`, not an interval, not a switch.
 
 - `WordCard.notifCandidate = true` — the user put this word on the list. Absent means not on it, so a newly registered word notifies nothing until it is added. Set from the Add/Edit sheet ("Add to Notifications" / "Remove from Notifications", under the Note field), Flip Mode's bell, and the selection bar.
 - `FolderNotifSettings.notifyAllWords` — the folder's "Notify All Words" switch. Off by default and per folder; on, the whole folder is eligible and the list is ignored.
 - Either way, a word inside the hide a grade gave it (`isCardHidden`) is out.
 
-**There is no fallback.** With the switch off and nothing on the list the folder schedules nothing — the Notification sheet shows `notif_no_candidates` rather than quietly reverting to every word. Eligibility is read from the live card array each reschedule, so a deleted or moved word is simply absent. Adding or removing a word writes `notifCandidate` alone: never a grade, a review interval or `hideWord`.
+**The scheduler has no fallback.** With the switch off and nothing on the list the folder schedules nothing — the Notification sheet shows `notif_no_candidates` rather than quietly reverting to every word. Send Test's fallback above is not an exception to this: it fires one notification the user asked for by name, and schedules nothing. Eligibility is read from the live card array each reschedule, so a deleted or moved word is simply absent. Adding or removing a word writes `notifCandidate` alone: never a grade, a review interval or `hideWord`.
 
 `notifCandidate` **replaced** `notifOff`, the old opt-out mute, which would otherwise have been a second silent veto over a word the user had just added. Migration **5** adds `words.notif_candidate` and backfills `= 1 WHERE notif_off = 0`, so an upgrading user's reminders keep arriving; `notif_off` is left in place, unread. **Version 4 is retired and empty** — it was consumed twice during development, so a database that has it recorded may have either draft's columns or neither, and the runner skips a recorded version forever. Migration 5 therefore adds each column only if `PRAGMA table_info` says it is missing, and backfills only where it created the column, so it can never re-add a word the user has taken off the list. It is the one migration allowed to be defensive; a new one must not copy the pattern without the same reason. Backups accept both fields and write only the new one. The per-folder switch lives in `folders.notif_notify_all_words` and travels as `notifNotifyAllWords`, additive, so the backup format version does not move.
 

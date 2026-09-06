@@ -320,6 +320,13 @@ export function useWordCardVoicePlayback({
     try {
       const playbackOptions = {
         buttonPressedAtMs,
+        // Once Basic's lifetime credits are gone `canUseAIVoice` goes false, and
+        // without this the card would drop to the device engine even for words
+        // whose AI audio is already on the device and already paid for. Reaching
+        // the cache costs nothing and generates nothing; `speak` still refuses
+        // it to any plan that is not entitled, and ignores it entirely while
+        // generation is permitted.
+        allowCachedAIFallback: true,
         onPhaseChange: (phase: TTSPlaybackPhase) => {
           if (sequenceRef.current !== sequence) return;
           setVoiceState(phase === 'idle' ? null : { target, phase });

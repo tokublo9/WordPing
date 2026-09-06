@@ -440,7 +440,12 @@ test('a running test shows centred TEST progress with a rightmost X', () => {
   );
   assert.match(wordList, /closeButton: \{\s*position: 'absolute',\s*right: 0,/u);
   assert.match(wordList, /titleGroup: \{\s*alignItems: 'center',\s*\}/u);
-  assert.match(wordList, /progress: \{\s*fontSize: 11,[\s\S]{0,100}fontVariant: \['tabular-nums'\],/u);
+  // The counter sits a little below TEST. A transform, never a margin: it is a
+  // paint-time offset, so the group keeps its measured height, the 50pt header
+  // does not grow, and the centred title stays exactly where it is.
+  assert.match(wordList, /progress: \{[\s\S]{0,400}transform: \[\{ translateY: \d+ \}\],/u);
+  assert.match(wordList, /progress: \{[\s\S]{0,400}fontSize: 11,[\s\S]{0,100}fontVariant: \['tabular-nums'\],/u);
+  assert.match(wordList, /header: \{ height: 50 \}/u, 'the Test header keeps the shared height');
 });
 
 test('the Test header carries only its title, progress, and quit button', () => {

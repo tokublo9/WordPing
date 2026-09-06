@@ -50,6 +50,7 @@
     "src/features/cards/flipGesture.ts",
     "src/features/cards/levels.ts",
     "src/features/notifications/notificationCandidates.ts",
+    "src/features/notifications/testNotification.ts",
     "tests/unit/**/*.ts"
   ]
 }

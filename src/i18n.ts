@@ -159,6 +159,7 @@ export type TranslationKey =
   | 'hide_front_word_action' | 'show_front_word_action'
   | 'notif_add_word' | 'notif_remove_word'
   | 'notif_all_words' | 'notif_all_words_desc' | 'notif_no_candidates'
+  | 'notif_permission_denied' | 'notif_open_settings' | 'notif_test_no_words'
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
@@ -252,6 +253,7 @@ type AppShellKey =
   | 'hide_front_word_action' | 'show_front_word_action'
   | 'notif_add_word' | 'notif_remove_word'
   | 'notif_all_words' | 'notif_all_words_desc' | 'notif_no_candidates'
+  | 'notif_permission_denied' | 'notif_open_settings' | 'notif_test_no_words'
   | 'load_failed_title' | 'load_failed_message'
   | 'err_voice_limit_title' | 'err_voice_limit_basic'
   | 'err_entitlement_unverified' | 'err_service_not_configured'
@@ -318,6 +320,10 @@ type Dict = Record<Exclude<TranslationKey, OptionalTranslationKey>, string>
 
 // ── English (US) ───────────────────────────────────────────────────────────────
 const enUS: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Notifications are turned off in your device Settings. Turn them on there to receive reminders and test notifications.',
+  notif_open_settings: 'Open Settings',
+  notif_test_no_words: 'Add a word first, then send a test notification.',
   // ── Tutorials ─────────────────────────────────────────────────────────────
   help_section:          'Help',
   result_filter_title:   'Filter by Test Results',
@@ -878,6 +884,10 @@ const enUS: Dict = {
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
 const ja: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: '端末の設定で通知がオフになっています。リマインダーやテスト通知を受け取るには、設定から通知をオンにしてください。',
+  notif_open_settings: '設定を開く',
+  notif_test_no_words: 'まず単語を追加してから、テスト通知を送信してください。',
   // ── Tutorials ─────────────────────────────────────────────────────────────
   help_section:          'ヘルプ',
   result_filter_title:   'テスト結果で絞り込む',
@@ -1423,6 +1433,10 @@ const ja: Dict = {
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
 const ko: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: '기기 설정에서 알림이 꺼져 있습니다. 알림과 테스트 알림을 받으려면 설정에서 알림을 켜 주세요.',
+  notif_open_settings: '설정 열기',
+  notif_test_no_words: '먼저 단어를 추가한 다음 테스트 알림을 보내세요.',
   app_name:          '워드코어',
   settings:          '설정',
   theme_color:       '테마 색상',
@@ -1754,6 +1768,10 @@ const ko: Dict = {
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
 const zhCN: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: '通知已在设备设置中关闭。请在设置中开启通知，以接收提醒和测试通知。',
+  notif_open_settings: '打开设置',
+  notif_test_no_words: '请先添加单词，然后再发送测试通知。',
   app_name:          'WordCore',
   settings:          '设置',
   theme_color:       '主题颜色',
@@ -2085,6 +2103,10 @@ const zhCN: Dict = {
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
 const es: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Las notificaciones están desactivadas en los ajustes del dispositivo. Actívalas allí para recibir recordatorios y notificaciones de prueba.',
+  notif_open_settings: 'Abrir ajustes',
+  notif_test_no_words: 'Añade una palabra primero y luego envía una notificación de prueba.',
   app_name:          'WordCore',
   settings:          'Ajustes',
   theme_color:       'Color de tema',
@@ -2416,6 +2438,10 @@ const es: Dict = {
 
 // ── French ─────────────────────────────────────────────────────────────────────
 const fr: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Les notifications sont désactivées dans les réglages de votre appareil. Activez-les pour recevoir les rappels et les notifications de test.',
+  notif_open_settings: 'Ouvrir les réglages',
+  notif_test_no_words: 'Ajoutez d’abord un mot, puis envoyez une notification de test.',
   app_name:          'WordCore',
   settings:          'Paramètres',
   theme_color:       'Couleur du thème',
@@ -2747,6 +2773,10 @@ const fr: Dict = {
 
 // ── German ─────────────────────────────────────────────────────────────────────
 const de: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Mitteilungen sind in den Geräteeinstellungen deaktiviert. Aktiviere sie dort, um Erinnerungen und Testmitteilungen zu erhalten.',
+  notif_open_settings: 'Einstellungen öffnen',
+  notif_test_no_words: 'Füge zuerst ein Wort hinzu und sende dann eine Testmitteilung.',
   app_name:          'WordCore',
   settings:          'Einstellungen',
   theme_color:       'Designfarbe',
@@ -3078,6 +3108,10 @@ const de: Dict = {
 
 // ── Italian ────────────────────────────────────────────────────────────────────
 const it: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Le notifiche sono disattivate nelle impostazioni del dispositivo. Attivale lì per ricevere promemoria e notifiche di prova.',
+  notif_open_settings: 'Apri impostazioni',
+  notif_test_no_words: 'Aggiungi prima una parola, poi invia una notifica di prova.',
   app_name:          'WordCore',
   settings:          'Impostazioni',
   theme_color:       'Colore del tema',
@@ -3409,6 +3443,10 @@ const it: Dict = {
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
 const ptBR: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'As notificações estão desativadas nos ajustes do dispositivo. Ative-as lá para receber lembretes e notificações de teste.',
+  notif_open_settings: 'Abrir ajustes',
+  notif_test_no_words: 'Adicione uma palavra primeiro e depois envie uma notificação de teste.',
   app_name:          'WordCore',
   settings:          'Configurações',
   theme_color:       'Cor do tema',
@@ -3740,6 +3778,10 @@ const ptBR: Dict = {
 
 // ── Russian ────────────────────────────────────────────────────────────────────
 const ru: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Уведомления отключены в настройках устройства. Включите их там, чтобы получать напоминания и тестовые уведомления.',
+  notif_open_settings: 'Открыть настройки',
+  notif_test_no_words: 'Сначала добавьте слово, затем отправьте тестовое уведомление.',
   app_name: 'ВордКор',
   settings: 'Настройки', theme_color: 'Цвет темы', appearance: 'Внешний вид',
   mode_light: 'Светлый', mode_dark: 'Тёмный', mode_system: 'Системный',
@@ -3935,6 +3977,10 @@ const ru: Dict = {
 
 // ── Arabic ─────────────────────────────────────────────────────────────────────
 const ar: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'الإشعارات مُعطَّلة في إعدادات جهازك. فعِّلها من هناك لتلقّي التذكيرات وإشعارات الاختبار.',
+  notif_open_settings: 'فتح الإعدادات',
+  notif_test_no_words: 'أضف كلمة أولاً، ثم أرسل إشعار اختبار.',
   app_name: 'وورد كور',
   settings: 'الإعدادات', theme_color: 'لون السمة', appearance: 'المظهر',
   mode_light: 'فاتح', mode_dark: 'داكن', mode_system: 'النظام',
@@ -4131,6 +4177,10 @@ const ar: Dict = {
 
 // ── Hindi ──────────────────────────────────────────────────────────────────────
 const hi: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'आपके डिवाइस की सेटिंग में सूचनाएँ बंद हैं। रिमाइंडर और परीक्षण सूचनाएँ पाने के लिए उन्हें वहाँ चालू करें।',
+  notif_open_settings: 'सेटिंग खोलें',
+  notif_test_no_words: 'पहले एक शब्द जोड़ें, फिर परीक्षण सूचना भेजें।',
   app_name: 'वर्डकोर',
   settings: 'सेटिंग्स', theme_color: 'थीम रंग', appearance: 'दिखावट',
   mode_light: 'लाइट', mode_dark: 'डार्क', mode_system: 'सिस्टम',
@@ -4327,6 +4377,10 @@ const hi: Dict = {
 
 // ── Turkish ────────────────────────────────────────────────────────────────────
 const tr: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Bildirimler cihaz ayarlarınızda kapalı. Hatırlatıcıları ve test bildirimlerini almak için oradan açın.',
+  notif_open_settings: 'Ayarları aç',
+  notif_test_no_words: 'Önce bir kelime ekleyin, sonra test bildirimi gönderin.',
   app_name: 'WordCore',
   settings: 'Ayarlar', theme_color: 'Tema Rengi', appearance: 'Görünüm',
   mode_light: 'Açık', mode_dark: 'Koyu', mode_system: 'Sistem',
@@ -4523,6 +4577,10 @@ const tr: Dict = {
 
 // ── Dutch ──────────────────────────────────────────────────────────────────────
 const nl: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Meldingen staan uit in de instellingen van je apparaat. Zet ze daar aan om herinneringen en testmeldingen te ontvangen.',
+  notif_open_settings: 'Instellingen openen',
+  notif_test_no_words: 'Voeg eerst een woord toe en stuur dan een testmelding.',
   app_name: 'WordCore',
   settings: 'Instellingen', theme_color: 'Themakleur', appearance: 'Weergave',
   mode_light: 'Licht', mode_dark: 'Donker', mode_system: 'Systeem',
@@ -4719,6 +4777,10 @@ const nl: Dict = {
 
 // ── Vietnamese ────────────────────────────────────────────────────────────────
 const vi: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Thông báo đang tắt trong cài đặt thiết bị. Hãy bật thông báo ở đó để nhận lời nhắc và thông báo thử.',
+  notif_open_settings: 'Mở cài đặt',
+  notif_test_no_words: 'Hãy thêm một từ trước, rồi gửi thông báo thử.',
   app_name: 'WordCore',
   settings: 'Cài đặt', theme_color: 'Màu chủ đề', appearance: 'Giao diện',
   mode_light: 'Sáng', mode_dark: 'Tối', mode_system: 'Hệ thống',
@@ -4914,6 +4976,10 @@ const vi: Dict = {
 
 // ── Thai ───────────────────────────────────────────────────────────────────────
 const th: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'การแจ้งเตือนถูกปิดอยู่ในการตั้งค่าของอุปกรณ์ เปิดใช้งานที่นั่นเพื่อรับการแจ้งเตือนและการแจ้งเตือนทดสอบ',
+  notif_open_settings: 'เปิดการตั้งค่า',
+  notif_test_no_words: 'กรุณาเพิ่มคำก่อน แล้วจึงส่งการแจ้งเตือนทดสอบ',
   app_name: 'เวิร์ดคอร์',
   settings: 'การตั้งค่า', theme_color: 'สีธีม', appearance: 'รูปแบบ',
   mode_light: 'สว่าง', mode_dark: 'มืด', mode_system: 'ระบบ',
@@ -5109,6 +5175,10 @@ const th: Dict = {
 
 // ── Indonesian ─────────────────────────────────────────────────────────────────
 const id: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Notifikasi dimatikan di pengaturan perangkat Anda. Aktifkan di sana untuk menerima pengingat dan notifikasi uji coba.',
+  notif_open_settings: 'Buka Pengaturan',
+  notif_test_no_words: 'Tambahkan kata terlebih dahulu, lalu kirim notifikasi uji coba.',
   app_name: 'WordCore',
   settings: 'Pengaturan', theme_color: 'Warna Tema', appearance: 'Tampilan',
   mode_light: 'Terang', mode_dark: 'Gelap', mode_system: 'Sistem',
@@ -5304,6 +5374,10 @@ const id: Dict = {
 
 // ── Polish ─────────────────────────────────────────────────────────────────────
 const pl: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Powiadomienia są wyłączone w ustawieniach urządzenia. Włącz je tam, aby otrzymywać przypomnienia i powiadomienia testowe.',
+  notif_open_settings: 'Otwórz ustawienia',
+  notif_test_no_words: 'Najpierw dodaj słowo, a następnie wyślij powiadomienie testowe.',
   app_name: 'WordCore',
   settings: 'Ustawienia', theme_color: 'Kolor motywu', appearance: 'Wygląd',
   mode_light: 'Jasny', mode_dark: 'Ciemny', mode_system: 'Systemowy',
@@ -5499,6 +5573,10 @@ const pl: Dict = {
 
 // ── Greek ──────────────────────────────────────────────────────────────────────
 const el: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Οι ειδοποιήσεις είναι απενεργοποιημένες στις ρυθμίσεις της συσκευής σας. Ενεργοποιήστε τις εκεί για να λαμβάνετε υπενθυμίσεις και δοκιμαστικές ειδοποιήσεις.',
+  notif_open_settings: 'Άνοιγμα ρυθμίσεων',
+  notif_test_no_words: 'Προσθέστε πρώτα μια λέξη και μετά στείλτε δοκιμαστική ειδοποίηση.',
   app_name: 'WordCore',
   settings: 'Ρυθμίσεις', theme_color: 'Χρώμα θέματος', appearance: 'Εμφάνιση',
   mode_light: 'Φωτεινό', mode_dark: 'Σκοτεινό', mode_system: 'Σύστημα',
@@ -5694,6 +5772,10 @@ const el: Dict = {
 
 // ── Swedish ────────────────────────────────────────────────────────────────────
 const sv: Dict = {
+  // ── Notification permission ───────────────────────────────────────────────
+  notif_permission_denied: 'Aviseringar är avstängda i enhetens inställningar. Slå på dem där för att få påminnelser och testaviseringar.',
+  notif_open_settings: 'Öppna inställningar',
+  notif_test_no_words: 'Lägg till ett ord först och skicka sedan en testavisering.',
   app_name: 'WordCore',
   settings: 'Inställningar', theme_color: 'Temafärg', appearance: 'Utseende',
   mode_light: 'Ljust', mode_dark: 'Mörkt', mode_system: 'System',

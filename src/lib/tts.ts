@@ -41,6 +41,7 @@ import {
   type PromoSpeechRequest,
 } from './openaiGateway';
 import { isAIConsentGranted } from './aiConsent';
+import { isAIEntitlementEligible } from './aiEntitlement';
 import { claimAudioFocus, releaseAudioFocus } from './audioFocus';
 import { deferAudioPlayerRemoval } from './audioPlayerCleanup';
 import {
@@ -107,6 +108,33 @@ interface CachedAudio {
 export interface TTSPlaybackOptions {
   buttonPressedAtMs?: number;
   onPhaseChange?: (phase: TTSPlaybackPhase) => void;
+  /**
+   * When AI generation is off, still play AI audio already on the device.
+   *
+   * Opt-in per call rather than global, because "no AI generation" and "no AI
+   * audio" are not the same thing and only some callers mean the second. The
+   * Upgrade Plan sheet's device-voice demo is the reason: it exists to
+   * demonstrate what the *free* engine sounds like beside the AI one, so it
+   * must speak through expo-speech even for a subscriber whose cache happens to
+   * hold that word. Word-card playback sets it; that comparison does not.
+   *
+   * Ignored unless the plan is actually entitled to AI Voice — see `speak`.
+   */
+  allowCachedAIFallback?: boolean;
+}
+
+/**
+ * A cache-only lookup found nothing.
+ *
+ * Its own sentinel rather than a generic failure because it is not one: no
+ * request was made, nothing went wrong, and the caller simply moves on to the
+ * device engine. `speakWithAI` recognises it and stays quiet instead of
+ * reporting a failed playback the user would see flash on the card.
+ */
+const AI_CACHE_ONLY_MISS = 'ai_cache_only_miss';
+
+function isAICacheOnlyMiss(error: unknown): boolean {
+  return error instanceof Error && error.message === AI_CACHE_ONLY_MISS;
 }
 
 interface AudioCacheLookupOptions {
@@ -115,6 +143,15 @@ interface AudioCacheLookupOptions {
   trackAsActiveGeneration?: boolean;
   /** Local manual test only: traverse the real request path without deleting cached audio. */
   bypassCache?: boolean;
+  /**
+   * Serve from the local cache or not at all.
+   *
+   * Every validation above the network step still runs exactly as it does for a
+   * normal play — same normalized request, same cache key, same file checks —
+   * so a cache-only hit is the identical audio a generating call would have
+   * returned. Only the generation itself is withheld.
+   */
+  cacheOnly?: boolean;
   sampleVersion?: string;
   /** Explicit card language; omitted to preserve automatic detection. */
   language?: string;
@@ -267,6 +304,15 @@ async function fetchAndCacheAudio(
       cacheSource: 'disk', cacheStatus: 'invalid-or-unreadable', cacheKeyVersion: 'legacy',
     });
     invalidateCachedAudioFile(legacyFile);
+  }
+
+  // Every cache tier above has now been asked, with the full validation. There
+  // is nothing on the device for this text, voice, language and version, and
+  // this caller is not allowed to generate one — so stop here, before
+  // `onNetworkRequired` and before anything that would spend a credit.
+  if (options.cacheOnly) {
+    if (__DEV__) console.log('[TTS cache] cache-only miss', { voice, textLength: text.length });
+    return Promise.reject(new Error(AI_CACHE_ONLY_MISS));
   }
 
   // 3. Deduplicate concurrent requests for the same text+voice
@@ -906,11 +952,14 @@ async function speakWithAI(
   sampleVersion?: string,
   promo?: PromoSpeechRequest,
   language?: string,
+  /** Play what is already cached, or reject with the cache-only sentinel. */
+  cacheOnly = false,
 ): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
   const buttonPressAtMs = options.buttonPressedAtMs ?? performance.now();
   let loadingIndicatorDisplayed = false;
   let networkLoadingStartedAtMs: number | null = null;
+  let cacheOnlyMissed = false;
   let reportedPhase: TTSPlaybackPhase = 'idle';
   const reportPhase = (phase: TTSPlaybackPhase) => {
     if (reportedPhase === phase) return;
@@ -949,6 +998,7 @@ async function speakWithAI(
         reportPhase('generating-or-downloading');
       },
       bypassCache: isLocalAiVoiceScenarioActive() && sampleVersion === undefined && promo === undefined,
+      cacheOnly,
       sampleVersion,
       language,
       ...(promo ? { promo } : {}),
@@ -1149,6 +1199,13 @@ async function speakWithAI(
       if (player.currentStatus.isLoaded) void startPlayer();
     });
   } catch (error) {
+    // A cache-only miss is an answer, not a failure: nothing was requested and
+    // the caller is about to speak the same word on the device engine. Reporting
+    // 'failed' here would flash an error on the card on the way to working audio.
+    if (isAICacheOnlyMiss(error)) {
+      cacheOnlyMissed = true;
+      throw error;
+    }
     reportPhase('failed');
     if (__DEV__) console.warn('[TTS playback diagnostic]', {
       source: 'word-card',
@@ -1163,7 +1220,11 @@ async function speakWithAI(
     });
     throw error;
   } finally {
-    reportPhase('idle');
+    // The epoch is always released; the *phase* is not. On a cache-only miss
+    // the caller speaks the same word on the device engine immediately, and
+    // dropping to 'idle' in between would blink the card's voice indicator off
+    // and straight back on. speakFree reports its own phases from here.
+    if (!cacheOnlyMissed) reportPhase('idle');
     finishPlayback(playbackKey, myEpoch);
   }
 }
@@ -1288,6 +1349,74 @@ export function speak(
 ): Promise<void> {
   if (canUseAIVoice) {
     return speakWithAI(text, activeAIVoice, options, undefined, undefined, forcedLocale);
+  }
+
+  // Generation is off, but audio already paid for and sitting on this device is
+  // still theirs to play. This is the state a Basic subscriber lands in once the
+  // 200 lifetime credits are gone: no new generation, and every word already
+  // generated keeps its real voice instead of silently dropping to the device
+  // engine. Playing a cached file reaches no network, so it can spend nothing.
+  //
+  // `isAIEntitlementEligible` is the entitlement itself, published by App from
+  // the same RevenueCat state every other AI surface reads. It is what keeps
+  // this from leaking: Free is not eligible and never reaches the cache, and
+  // neither does a launch where the plan has not been resolved yet. An
+  // ineligible plan cannot get here even with a cache full of a former
+  // subscription's audio.
+  if (options?.allowCachedAIFallback && isAIEntitlementEligible()) {
+    return speakCachedAIOrDevice(text, forcedLocale, options);
+  }
+  return speakFree(text, forcedLocale ?? detectLocale(text), options);
+}
+
+/**
+ * Play cached AI audio if this device has it, otherwise the device engine.
+ *
+ * The cache is asked *before* either engine is started, and deliberately so.
+ * Both `speakFree` and `speakWithAI` claim the shared playback epoch under
+ * their own key, and `beginPlayback` treats a repeat of the current key as
+ * "stop" — that is how tapping a playing card a second time silences it.
+ * Probing from inside `speakWithAI` and then falling through would leave the
+ * device engine playing under one key while the next tap arrived under the
+ * other, so the second tap restarted the word instead of stopping it. The probe
+ * touches no playback state at all, so exactly one engine ever owns the epoch.
+ *
+ * The lookup is the ordinary one, with the same normalized request, the same
+ * cache key and the same file validation, so a hit here is the same audio a
+ * generating call would have played. It reaches no network, so it cannot spend
+ * a credit; a hit also warms the session index, making the real lookup a moment
+ * later a memory hit rather than a second disk read.
+ */
+async function speakCachedAIOrDevice(
+  text: string,
+  forcedLocale: string | undefined,
+  options?: TTSPlaybackOptions,
+): Promise<void> {
+  // The probe is the one moment in this path that owns no playback state, so a
+  // stop arriving during it has nothing to cancel. `stopPlayback` and every
+  // `beginPlayback` bump the epoch, so comparing it across the await is what
+  // stops a card the user has already silenced — or swiped away from — from
+  // starting to speak once the lookup lands.
+  const epochBeforeProbe = epoch;
+
+  // Any answer other than a hit means device TTS. A lookup that cannot complete
+  // is not evidence the audio exists, and a word the user asked to hear must
+  // still be spoken.
+  const cached = await fetchAndCacheAudio(text, activeAIVoice, {
+    cacheOnly: true,
+    language: forcedLocale,
+  }).then(() => true).catch(() => false);
+
+  if (epoch !== epochBeforeProbe) return;
+
+  if (cached) {
+    return speakWithAI(text, activeAIVoice, options, undefined, undefined, forcedLocale, true)
+      // The file can still be evicted between the probe and the play. Losing
+      // that race is a miss like any other, not a failure to report.
+      .catch((error: unknown) => {
+        if (!isAICacheOnlyMiss(error)) throw error;
+        return speakFree(text, forcedLocale ?? detectLocale(text), options);
+      });
   }
   return speakFree(text, forcedLocale ?? detectLocale(text), options);
 }

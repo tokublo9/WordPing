@@ -118,11 +118,41 @@ test('every surface asks the one eligibility rule', () => {
   assert.match(notifications, /notifiableCards\(owned, folder\.notifSettings\)/u);
   assert.doesNotMatch(notifications, /notifCandidate|notifyAllWords|isCardHidden/u);
 
-  // Send Test draws from the same pool, so it can only fire a word the schedule
-  // could have picked — and fires nothing when the schedule would fire nothing.
+  // The sheet's warning asks the same rule, so it reports exactly the folders
+  // the scheduler will fire nothing for.
   const hook = read('src/features/notifications/useFolderNotifications.ts');
-  assert.match(hook, /notifiableCards\(allFolderCards, currentFolder\?\.notifSettings\)/u);
   assert.match(hook, /hasNoNotifiableWords\(allFolderCards, currentFolder\?\.notifSettings\)/u);
+
+  // Send Test is the one surface that is deliberately not the scheduler: it
+  // prefers a real candidate and then falls back, because it has to answer
+  // "does this reach my phone?" before any of this is set up. It still asks the
+  // rule for its first tier rather than restating it.
+  const picker = read('src/features/notifications/testNotification.ts');
+  assert.match(picker, /notifiableCards\(usable, settings, now\)/u);
+  assert.match(picker, /candidates\.length > 0 \? candidates : usable/u);
+  // It defers for the first tier rather than restating the rule: no second
+  // opinion on what "on the list" or "hidden" means.
+  assert.doesNotMatch(picker, /notifCandidate ===|notifyAllWords|isCardHidden/u);
+  assert.match(hook, /pickTestNotificationCard\(allFolderCards, currentFolder\?\.notifSettings\)/u);
+});
+
+// ── Send Test ────────────────────────────────────────────────────────────────
+
+test('Send Test works before any notification setting has been made', () => {
+  const hook = read('src/features/notifications/useFolderNotifications.ts');
+  const sendAt = hook.indexOf('const sendTestForCurrentFolder');
+  const send = hook.slice(sendAt, hook.indexOf('\n  return {', sendAt));
+
+  // It reads settings and never writes one: no interval, no candidate, no
+  // switch. Choosing a word to preview is not a preference.
+  assert.doesNotMatch(send, /updateFolderNotif|setFolders|notifCandidate/u);
+  // It is not gated on the schedule being on, or on the list having anything.
+  assert.doesNotMatch(send, /notificationsEnabled|noNotifiableWords|intervalSeconds/u);
+  // Nothing to send is its own answer, given before permission is looked at.
+  assert.ok(
+    send.indexOf("t('notif_test_no_words')") < send.indexOf('resolvePermission'),
+    'an empty folder is reported as itself, not behind a permission prompt',
+  );
 });
 
 test('an empty list schedules nothing rather than everything', () => {

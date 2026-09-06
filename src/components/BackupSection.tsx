@@ -13,6 +13,7 @@ import {
 import { BackupImportError } from '../lib/backup/importBackup';
 import type { ImportMode } from '../lib/backup/format';
 import { canUseBackup } from '../features/backup/backupAccess';
+import { posthog } from '../config/posthog';
 
 /**
  * Backup and restore, in Settings.
@@ -80,6 +81,10 @@ export function BackupSection({
       // Offer the share sheet immediately: a backup that never leaves the
       // device does not protect against losing the device.
       await shareBackupFile(created.uri);
+      posthog?.capture('backup_exported', {
+        word_count: created.backup.data.words.length,
+        folder_count: created.backup.data.folders.length,
+      });
       Alert.alert(
         t('backup_export_done'),
         fill(t('backup_export_summary'), {
@@ -106,6 +111,11 @@ export function BackupSection({
       // Replace mode swapped the rows out from under React state, so the
       // screens above have to re-read rather than keep what they were showing.
       if (mode === 'replace') onDataReplaced();
+      posthog?.capture('backup_imported', {
+        import_mode: mode,
+        word_count: summary.words,
+        folder_count: summary.folders,
+      });
       Alert.alert(
         t('backup_import_done'),
         fill(t('backup_import_summary'), { words: summary.words, folders: summary.folders }),

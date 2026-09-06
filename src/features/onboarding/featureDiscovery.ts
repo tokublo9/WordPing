@@ -52,6 +52,17 @@ export const FEATURE_MARKERS = {
   /** Notification sheet's Send Test button. Independent of the header icon. */
   sendTest: 'send-test.v1',
   /**
+   * Not a marker — the milestone "notification permission has been asked for
+   * once", recorded on the first tap of the header's Notification icon.
+   *
+   * Kept here rather than in a key of its own because it is exactly what this
+   * set is: something this install has reached, once and permanently. It is
+   * deliberately *not* `notificationIcon`, which existing users have already
+   * spent — reusing that id would mean anyone who had opened the sheet before
+   * this build was never asked at all. Nothing renders it.
+   */
+  notificationPermission: 'notification-permission.v1',
+  /**
    * Not a marker of its own — a milestone, kept in the same set because the set
    * is exactly "ids this install has reached, once and permanently".
    *
@@ -92,6 +103,7 @@ export function planUnlocksFeature(marker: FeatureMarkerId, plan: PlanTier): boo
     case FEATURE_MARKERS.notificationIcon:
     case FEATURE_MARKERS.sendTest:
     case FEATURE_MARKERS.firstTestExited:
+    case FEATURE_MARKERS.notificationPermission:
     case FEATURE_MARKERS.customAudio:
       return true;
     case FEATURE_MARKERS.themeShop:

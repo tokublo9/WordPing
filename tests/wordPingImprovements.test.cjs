@@ -709,7 +709,7 @@ test('the introduction can never make the Test controls unpressable', () => {
   );
   assert.match(
     app,
-    /onOpenNotifications: \(\) => \{\s*setNotificationModalVisible\(true\);\s*discovery\.dismiss\(FEATURE_MARKERS\.notificationIcon\);\s*\},/u,
+    /onOpenNotifications: \(\) => \{\s*setNotificationModalVisible\(true\);\s*discovery\.dismiss\(FEATURE_MARKERS\.notificationIcon\);\s*requestPermissionOnFirstOpen\(\);\s*\},/u,
   );
   // The toggle and the quit are untouched by any of it: no marker, seen state
   // or popup state appears in either.
@@ -1494,9 +1494,11 @@ test('the Notification marker waits for the first test to have been left', () =>
   assert.match(app, /showTestMarker=\{showTestMarker\}\s*showNotificationMarker=\{showNotificationMarker\}/u);
 
   // Each icon's tap opens what it always opened, and spends its own marker.
+  // The sheet first, then the marker, then the permission step — see
+  // tests/notificationPermission.test.cjs for why that order is load-bearing.
   assert.match(
     app,
-    /onOpenNotifications: \(\) => \{\s*discovery\.dismiss\(FEATURE_MARKERS\.notificationIcon\);\s*setNotificationModalVisible\(true\);\s*\}/u,
+    /onOpenNotifications: \(\) => \{\s*setNotificationModalVisible\(true\);\s*discovery\.dismiss\(FEATURE_MARKERS\.notificationIcon\);\s*requestPermissionOnFirstOpen\(\);\s*\}/u,
   );
 
   // The Notification icon carries the marker on the icon itself.

@@ -35,6 +35,31 @@ export function planCanUseAI(plan: PlanTier): boolean {
   return VOICE_MONTHLY_LIMITS[plan] !== 0 || VOICE_LIFETIME_CREDITS[plan] !== 0;
 }
 
+/**
+ * Whether this plan's AI Voice is metered by the one-time credit ledger.
+ *
+ * Read from the same table `planCanUseAI` uses, and it is the *shape* of the
+ * value that answers rather than a tier name: an actual count is a balance that
+ * has to be initialized, `null` is unmetered, and `0` is a plan without the
+ * feature. So only Basic has a ledger — Premium and Free have nothing to
+ * initialize and nothing to wait for.
+ *
+ * This exists because the two were conflated. The post-purchase balance lookup
+ * was treated as a readiness barrier for *every* AI plan, which made Premium's
+ * unlimited voice depend on the success of a Basic-only route: when that route
+ * was unreachable, Premium silently lost AI Voice along with Basic even though
+ * it has no credits to look up. Eligibility and metering are separate
+ * questions, and only the metered plan may be held up by its meter.
+ *
+ * It is not a permission. The Worker still verifies the entitlement on every
+ * request and still refuses an exhausted Basic balance with
+ * `voice_credits_exhausted`; nothing here can spend, extend or invent a credit.
+ */
+export function planUsesLifetimeVoiceCredits(plan: PlanTier): boolean {
+  const credits = VOICE_LIFETIME_CREDITS[plan];
+  return typeof credits === 'number' && credits > 0;
+}
+
 export interface AIEntitlementState {
   plan: PlanTier;
   /** False until RevenueCat has answered. Nothing is eligible before then. */

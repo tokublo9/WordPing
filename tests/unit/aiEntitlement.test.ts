@@ -6,6 +6,7 @@ import {
   isAIEntitlementEligible,
   isVerifiedAIIneligiblePlan,
   planCanUseAI,
+  planUsesLifetimeVoiceCredits,
   requireAIEntitlement,
   resetAIEntitlementForTests,
   setAIEntitlementSnapshot,
@@ -95,6 +96,30 @@ test('eligibility is derived from the configured AI allowance, not a tier list',
   assert.equal(planCanUseAI('basic'), true);
 
   assert.equal(planCanUseAI('premium'), true, 'null means included, not zero');
+});
+
+test('only the metered plan has a credit ledger to wait for', () => {
+  // The distinction the app got wrong: eligible-for-AI and metered-by-credits
+  // are different questions. Premium is eligible *and* unmetered, so holding
+  // its voice until a balance lookup succeeds made it depend on a route that
+  // has nothing to tell it — and an outage there took Premium's AI Voice away
+  // for a count it does not have.
+  assert.equal(planUsesLifetimeVoiceCredits('basic'), true, 'an actual count is a ledger');
+  assert.equal(planUsesLifetimeVoiceCredits('premium'), false, 'null is unmetered');
+  assert.equal(planUsesLifetimeVoiceCredits('free'), false, 'zero is no feature at all');
+
+  // Derived from the same table, so a repricing moves both together and the two
+  // answers can never contradict each other.
+  for (const plan of ['free', 'basic', 'premium'] as const) {
+    const credits = VOICE_LIFETIME_CREDITS[plan];
+    assert.equal(
+      planUsesLifetimeVoiceCredits(plan),
+      typeof credits === 'number' && credits > 0,
+      `${plan} follows VOICE_LIFETIME_CREDITS`,
+    );
+    // A ledger implies eligibility; eligibility does not imply a ledger.
+    if (planUsesLifetimeVoiceCredits(plan)) assert.equal(planCanUseAI(plan), true, plan);
+  }
 });
 
 test('2. nothing is eligible while the subscription state is still loading', () => {

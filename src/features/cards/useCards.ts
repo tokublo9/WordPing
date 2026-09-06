@@ -25,6 +25,7 @@ import {
   type BulkImportDraft,
   type BulkImportResult,
 } from './bulkImport';
+import { posthog } from '../../config/posthog';
 
 export interface UseCardsParams {
   cards: WordCard[];
@@ -326,6 +327,9 @@ export function useCards({
       return next;
     });
     onCardsDeleted?.(removed, remaining);
+    if (removed.length > 0) {
+      posthog?.capture('cards_deleted', { count: removed.length });
+    }
   };
 
   const deleteSelected = () => {
@@ -510,6 +514,12 @@ export function useCards({
           remaining,
         }))
         .catch(error => reportSideEffectFailure('post-edit AI Voice preload', error));
+      posthog?.capture('card_updated', {
+        has_meaning: edits.meaning.length > 0,
+        has_note: edits.note.length > 0,
+        has_custom_audio: Boolean(edits.audioUri),
+        hide_word: edits.hideWord,
+      });
     } else {
       const registeredCard: WordCard = {
         id: createId('card'),
@@ -532,6 +542,12 @@ export function useCards({
       void Promise.resolve()
         .then(() => onCardRegistered?.(registeredCard, remaining))
         .catch(error => reportSideEffectFailure('post-registration AI Voice preload', error));
+      posthog?.capture('card_created', {
+        has_meaning: registeredCard.meaning.length > 0,
+        has_note: registeredCard.note.length > 0,
+        has_custom_audio: Boolean(registeredCard.audioUri),
+        hide_word: Boolean(registeredCard.hideWord),
+      });
     }
     setWordModalVisible(false);
   };
@@ -562,6 +578,11 @@ export function useCards({
         void Promise.resolve()
           .then(() => onCardsImported?.(batch.cards, remaining))
           .catch(error => reportSideEffectFailure('post-import AI Voice preload', error));
+        posthog?.capture('cards_bulk_imported', {
+          added_count: batch.cards.length,
+          duplicates_skipped: batch.duplicatesSkipped,
+          invalid_count: batch.invalidCount,
+        });
       }
       return {
         added: batch.cards.length,

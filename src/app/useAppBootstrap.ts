@@ -372,8 +372,9 @@ export function useAppBootstrap({
     // `requireAIConsent` awaits the same load if a request somehow beats it.
     void loadAIConsent();
 
-    // Read permission without prompting. The actual prompt is shown in context
-    // when the user enables a notification interval.
+    // Read permission without prompting. The actual prompt is raised on the
+    // first tap of the Word List's notification icon — before any interval is
+    // chosen, and never by choosing one.
     getPermissionStatus().then(granted => {
       if (!cancelled) setNotificationGranted(granted);
     }).catch(() => {

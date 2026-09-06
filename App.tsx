@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PostHogErrorBoundary, PostHogProvider } from 'posthog-react-native';
+import { posthog } from './src/config/posthog';
 import {
   persistCardsAndWait,
   reloadLocalData,
@@ -33,6 +35,7 @@ import {
   hasEligibleAIEntitlement,
   isVerifiedAIIneligiblePlan,
   planCanUseAI,
+  planUsesLifetimeVoiceCredits,
   setAIEntitlementSnapshot,
 } from './src/lib/aiEntitlement';
 import { useFeatureDiscovery } from './src/hooks/useFeatureDiscovery';
@@ -108,7 +111,7 @@ function cardVoiceInput(card: WordCard): string {
   });
 }
 
-export default function App() {
+function AppContent() {
   const {
     plan,
     planProducts,
@@ -215,12 +218,21 @@ export default function App() {
     return () => { active = false; unsubscribeConsent(); };
   }, []);
 
-  // A fresh Worker lookup is the post-purchase/restore barrier: it bypasses a
-  // cached Free entitlement, confirms RevenueCat server-side and initializes
-  // Basic's Durable Object balance before any library job is admitted.
+  // A fresh Worker lookup is the post-purchase/restore barrier for the one plan
+  // that has a balance: it bypasses a cached Free entitlement, confirms
+  // RevenueCat server-side and initializes Basic's Durable Object balance
+  // before any library job is admitted.
+  //
+  // Scoped to plans that actually have a ledger. It used to run for every AI
+  // plan, which quietly made Premium's unlimited voice conditional on a
+  // Basic-only route succeeding — so an unreachable balance endpoint took AI
+  // Voice away from Premium too, for a count Premium does not have and would
+  // never have read. Premium is unmetered; there is nothing here to initialize
+  // for it, so there is nothing for it to wait on.
+  const usesVoiceCreditLedger = planUsesLifetimeVoiceCredits(plan);
   const [voiceCreditReadyRevision, setVoiceCreditReadyRevision] = useState<number | null>(null);
   useEffect(() => {
-    if (!isSubscriptionLoaded || !planCanUseAI(plan)
+    if (!isSubscriptionLoaded || !usesVoiceCreditLedger
       || entitlementSource === 'local-development-scenario') {
       setVoiceCreditReadyRevision(null);
       return;
@@ -270,7 +282,7 @@ export default function App() {
         finishRetryWait = null;
       }
     };
-  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
+  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan, usesVoiceCreditLedger]);
 
   // Upgrading after Basic exhaustion must resume Natural AI Voice immediately;
   // the fallback preference existed only because Basic had no credits left.
@@ -288,6 +300,18 @@ export default function App() {
     });
   }, [aiConsentState, entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
 
+  // Whether the server-side half of AI Voice is ready to be used.
+  //
+  // Defined once, here, because two things read it — the library sweep below and
+  // `canUseAIVoice` — and they must not answer differently. A plan with no
+  // credit ledger is ready as soon as its entitlement is known: there is no
+  // balance to fetch, so waiting for one would be waiting for nothing. Only
+  // Basic is held until its balance has been read, which is what keeps the
+  // server the authority on how many generations remain.
+  const voiceBackendReady = entitlementSource === 'local-development-scenario'
+    || !usesVoiceCreditLedger
+    || voiceCreditReadyRevision === entitlementRevision;
+
   // Preload every existing word's AI pronunciation once an entitlement is active, so the
   // voice icon plays from cache instead of generating on first tap. Guarded by a key
   // rather than a bare mount check: the sweep must also run when cards finish loading
@@ -301,7 +325,7 @@ export default function App() {
     }
     const hasAIAccess = planCanUseAI(plan) && !preferDeviceVoice;
     if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess
-      || voiceCreditReadyRevision !== entitlementRevision
+      || !voiceBackendReady
       || aiConsentState !== 'granted') {
       // Losing access clears the key so re-subscribing sweeps again.
       if (!hasAIAccess) preloadedLibraryKeyRef.current = null;
@@ -336,7 +360,7 @@ export default function App() {
     });
   }, [
     aiConsentState, aiVoice, cards, currentFolderId, entitlementRevision, entitlementSource,
-    isSubscriptionLoaded, plan, preferDeviceVoice, settingsLoaded, voiceCreditReadyRevision,
+    isSubscriptionLoaded, plan, preferDeviceVoice, settingsLoaded, voiceBackendReady,
   ]);
 
   // ── AI entitlement ────────────────────────────────────────────────────────────
@@ -355,8 +379,9 @@ export default function App() {
   // attempted at all — otherwise every card would fetch, be refused, and raise
   // the same dialog again. It withholds nothing they are entitled to: picking a
   // voice again in Settings clears it.
-  const voiceBackendReady = entitlementSource === 'local-development-scenario'
-    || voiceCreditReadyRevision === entitlementRevision;
+  //
+  // `voiceBackendReady` is resolved above, once, so this and the library sweep
+  // cannot disagree about when the server side is usable.
   const canUseAIVoice = canUseAI && !preferDeviceVoice && voiceBackendReady;
   const discovery = useFeatureDiscovery({ plan, isSubscriptionLoaded });
 
@@ -454,6 +479,7 @@ export default function App() {
     createFolder, deleteFolder, renameFolder, openMovePicker, moveCardsToFolder,
   } = useFolders({
     folders,
+    cards,
     fallbackFolderName: t('default_folder_name'),
     setFolders,
     setCards,
@@ -751,12 +777,14 @@ export default function App() {
     toggleNotifyAllWords,
     noNotifiableWords,
     sendTestForCurrentFolder,
+    requestPermissionOnFirstOpen,
   } = useFolderNotifications({
     folders,
     setFolders,
     currentFolderId,
-    notificationGranted,
     setNotificationGranted,
+    permissionPrompted: discovery.seen.has(FEATURE_MARKERS.notificationPermission),
+    onPermissionPrompted: () => discovery.dismiss(FEATURE_MARKERS.notificationPermission),
     allFolderCards,
     t,
   });
@@ -1089,9 +1117,13 @@ export default function App() {
             // a note about what the user has seen; it has no say in whether the
             // control works, and putting it second means it cannot come between
             // the tap and the thing the tap is for.
+            // The permission request is third for the same reason: one tap
+            // removes the "!" and asks for notifications, both behind the sheet
+            // already opening. It turns nothing on and picks no interval.
             onOpenNotifications: () => {
               setNotificationModalVisible(true);
               discovery.dismiss(FEATURE_MARKERS.notificationIcon);
+              requestPermissionOnFirstOpen();
             },
             onOpenMenu: openMenu,
             // One control, both directions: the Test button switches the card
@@ -1363,5 +1395,17 @@ export default function App() {
     />
     </View>
     </LangContext.Provider>
+  );
+}
+
+export default function App() {
+  if (!posthog) return <AppContent />;
+
+  return (
+    <PostHogProvider client={posthog}>
+      <PostHogErrorBoundary>
+        <AppContent />
+      </PostHogErrorBoundary>
+    </PostHogProvider>
   );
 }

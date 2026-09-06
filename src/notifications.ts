@@ -16,8 +16,37 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function requestPermission(): Promise<boolean> {
-  if (!Device.isDevice) return false;
+/**
+ * The three answers the OS can give, kept apart because they need three
+ * different things from us.
+ *
+ * `undetermined` is the only one the system prompt can still be raised from.
+ * `denied` can be changed in the device's own Settings and nowhere else, so
+ * collapsing it into a bare `false` would leave the caller offering a prompt
+ * that will never appear.
+ */
+export type NotificationPermissionState = 'granted' | 'undetermined' | 'denied';
+
+function readState(
+  permissions: Notifications.NotificationPermissionsStatus,
+): NotificationPermissionState {
+  const granted = permissions.granted
+    || permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  if (granted) return 'granted';
+  return permissions.canAskAgain ? 'undetermined' : 'denied';
+}
+
+/**
+ * Asks for notification permission — and only when there is something to ask.
+ *
+ * Determined states return straight back out, so this is safe to call on every
+ * entry point: the system prompt is reached from `undetermined` alone, which is
+ * also the only state iOS will actually draw it in. A device that cannot
+ * receive notifications at all (a simulator) reads as `denied`, the same answer
+ * it gave before, because there is no prompt to offer there either.
+ */
+export async function requestPermission(): Promise<NotificationPermissionState> {
+  if (!Device.isDevice) return 'denied';
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'WordCore reminders',
@@ -25,15 +54,20 @@ export async function requestPermission(): Promise<boolean> {
       vibrationPattern: [0, 250, 250, 250],
     });
   }
-  if (await getPermissionStatus()) return true;
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === 'granted';
+  const current = await getPermissionState();
+  if (current !== 'undetermined') return current;
+  return readState(await Notifications.requestPermissionsAsync());
 }
 
+/** Reads the current state without prompting. */
+export async function getPermissionState(): Promise<NotificationPermissionState> {
+  if (!Device.isDevice) return 'denied';
+  return readState(await Notifications.getPermissionsAsync());
+}
+
+/** The same read, for the callers that only care whether notifications arrive. */
 export async function getPermissionStatus(): Promise<boolean> {
-  if (!Device.isDevice) return false;
-  const permissions = await Notifications.getPermissionsAsync();
-  return permissions.granted || permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  return (await getPermissionState()) === 'granted';
 }
 
 export async function sendTestNotification(card: WordCard, displayOnlyWord: boolean): Promise<void> {

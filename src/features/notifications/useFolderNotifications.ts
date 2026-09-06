@@ -1,17 +1,30 @@
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, FolderNotifSettings, WordCard } from '../../types';
 import type { TranslationKey } from '../../i18n';
-import { requestPermission, sendTestNotification } from '../../notifications';
-import { hasNoNotifiableWords, notifiableCards } from './notificationCandidates';
+import {
+  requestPermission,
+  sendTestNotification,
+  type NotificationPermissionState,
+} from '../../notifications';
+import { hasNoNotifiableWords } from './notificationCandidates';
+import { pickTestNotificationCard } from './testNotification';
 import { reportSideEffectFailure } from '../../utils/reportSideEffectFailure';
 
 export interface UseFolderNotificationsParams {
   folders: Folder[];
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   currentFolderId: string | null;
-  notificationGranted: boolean;
   setNotificationGranted: Dispatch<SetStateAction<boolean>>;
+  /**
+   * Whether the notification icon has already been tapped once on this install.
+   *
+   * The permission step belongs to the *first* tap and nothing else, so this is
+   * what stops it running again — a milestone, not an entitlement.
+   */
+  permissionPrompted: boolean;
+  /** Records that milestone. Called before the prompt, so a dismissal still counts. */
+  onPermissionPrompted: () => void;
   /**
    * Every word in the folder, hidden ones included.
    *
@@ -38,6 +51,15 @@ export interface UseFolderNotificationsReturn {
    */
   noNotifiableWords: boolean;
   sendTestForCurrentFolder(): void;
+  /**
+   * The permission step, run on the first tap of the notification icon.
+   *
+   * The sheet opens either way — this never stands between the tap and the
+   * screen it is for — and it changes no notification setting whatsoever: a
+   * granted permission does not turn regular notifications on and does not
+   * choose an interval.
+   */
+  requestPermissionOnFirstOpen(): void;
 }
 
 /** No override yet: notifications off, full content, list-only. */
@@ -47,8 +69,9 @@ export function useFolderNotifications({
   folders,
   setFolders,
   currentFolderId,
-  notificationGranted,
   setNotificationGranted,
+  permissionPrompted,
+  onPermissionPrompted,
   allFolderCards,
   t,
 }: UseFolderNotificationsParams): UseFolderNotificationsReturn {
@@ -69,17 +92,13 @@ export function useFolderNotifications({
 
   const toggleNotifyAllWords = (value: boolean) => updateFolderNotif({ notifyAllWords: value });
 
+  // Picking an interval asks for nothing. Permission is settled when the
+  // notification icon is first tapped — before any of these options are on
+  // screen — so raising the system prompt here would be asking a second time
+  // for something already decided, in the middle of a different choice.
   const handlePickInterval = (seconds: number) => {
     if (seconds === 0) {
       updateFolderNotif({ intervalSeconds: 0 });
-      return;
-    }
-    if (!notificationGranted) {
-      requestPermission().then(granted => {
-        setNotificationGranted(granted);
-        if (!granted) return;
-        updateFolderNotif({ intervalSeconds: seconds });
-      }).catch(error => reportSideEffectFailure('requestNotificationPermission', error));
       return;
     }
     const conflicting = folders.find(
@@ -118,13 +137,70 @@ export function useFolderNotifications({
     );
   };
 
+  /**
+   * Notifications are off at the OS level and only the device's own Settings
+   * can turn them back on. Said once, in one place, so neither entry point
+   * implies a system prompt it cannot raise.
+   */
+  const showPermissionSettingsGuide = () => {
+    Alert.alert(
+      t('notifications'),
+      t('notif_permission_denied'),
+      [
+        { text: t('close'), style: 'cancel' },
+        {
+          text: t('notif_open_settings'),
+          onPress: () => {
+            Linking.openSettings()
+              .catch(error => reportSideEffectFailure('openNotificationSettings', error));
+          },
+        },
+      ],
+    );
+  };
+
+  /**
+   * Reads the permission, asking only from `undetermined`, and keeps the app's
+   * copy of it in step. The scheduler watches that copy, so granting here is
+   * what lets an already-chosen interval start firing.
+   */
+  const resolvePermission = async (): Promise<NotificationPermissionState> => {
+    const state = await requestPermission();
+    setNotificationGranted(state === 'granted');
+    return state;
+  };
+
+  const requestPermissionOnFirstOpen = () => {
+    if (permissionPrompted) return;
+    // Recorded first: the offer has been made whether the user allows, refuses,
+    // or swipes the system prompt away, and none of those should bring it back.
+    onPermissionPrompted();
+    resolvePermission()
+      .then(state => {
+        // `undetermined` here means the prompt was dismissed rather than
+        // answered. That is not a refusal to explain, so nothing is said.
+        if (state === 'denied') showPermissionSettingsGuide();
+      })
+      .catch(error => reportSideEffectFailure('requestNotificationPermission', error));
+  };
+
   const sendTestForCurrentFolder = () => {
-    // The same rule the scheduler applies, so the test fires a word the schedule
-    // could actually have picked — and fires nothing when the schedule would.
-    const eligible = notifiableCards(allFolderCards, currentFolder?.notifSettings);
-    if (eligible.length === 0) return;
-    const card = eligible[Math.floor(Math.random() * eligible.length)];
-    sendTestNotification(card, folderNotifSettings.displayOnlyWord)
+    // Chosen before the permission is looked at, so the one thing that cannot be
+    // fixed by allowing notifications — having no word to send — is reported as
+    // itself rather than behind a permission prompt.
+    const card = pickTestNotificationCard(allFolderCards, currentFolder?.notifSettings);
+    if (!card) {
+      Alert.alert(t('notifications'), t('notif_test_no_words'));
+      return;
+    }
+    resolvePermission()
+      .then(state => {
+        if (state === 'granted') {
+          return sendTestNotification(card, folderNotifSettings.displayOnlyWord);
+        }
+        if (state === 'denied') showPermissionSettingsGuide();
+        return undefined;
+      })
       .catch(error => reportSideEffectFailure('sendTestNotification', error));
   };
 
@@ -136,5 +212,6 @@ export function useFolderNotifications({
     toggleNotifyAllWords,
     noNotifiableWords,
     sendTestForCurrentFolder,
+    requestPermissionOnFirstOpen,
   };
 }

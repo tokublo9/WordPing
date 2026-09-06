@@ -1695,7 +1695,12 @@ const testHeaderStyles = StyleSheet.create({
     lineHeight: 22,
   },
   progress: {
-    transform: [{ translateY: 3 }],
+    // Nudged down for a little air under TEST. A transform rather than a margin
+    // on purpose: it is a paint-time offset, so `titleGroup` keeps its measured
+    // height and the 50pt header does not grow — and, because the group is
+    // centred, a margin here would have pushed TEST *up* by half the amount
+    // instead of leaving it where it is.
+    transform: [{ translateY: 5 }],
     fontSize: 11,
     fontWeight: '600',
     lineHeight: 14,

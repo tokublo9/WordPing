@@ -155,7 +155,7 @@ test('the discovery markers follow their own features', () => {
   // Plan is in it deliberately — gating that one would hide it from Free.
   assert.match(
     markers,
-    /case FEATURE_MARKERS\.hideWord:\s*case FEATURE_MARKERS\.notifyWord:\s*case FEATURE_MARKERS\.bulkImport:\s*case FEATURE_MARKERS\.upgradePlan:\s*case FEATURE_MARKERS\.testIcon:\s*case FEATURE_MARKERS\.notificationIcon:\s*case FEATURE_MARKERS\.sendTest:\s*case FEATURE_MARKERS\.firstTestExited:\s*case FEATURE_MARKERS\.customAudio:\s*return true;/u,
+    /case FEATURE_MARKERS\.hideWord:\s*case FEATURE_MARKERS\.notifyWord:\s*case FEATURE_MARKERS\.bulkImport:\s*case FEATURE_MARKERS\.upgradePlan:\s*case FEATURE_MARKERS\.testIcon:\s*case FEATURE_MARKERS\.notificationIcon:\s*case FEATURE_MARKERS\.sendTest:\s*case FEATURE_MARKERS\.firstTestExited:\s*case FEATURE_MARKERS\.notificationPermission:\s*case FEATURE_MARKERS\.customAudio:\s*return true;/u,
   );
   assert.match(markers, /case FEATURE_MARKERS\.themeShop:\s*return planIsSubscribed\(plan\);/u);
   assert.match(markers, /default:\s*return planCanUseAI\(plan\);/u);
