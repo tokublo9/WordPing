@@ -27,8 +27,17 @@ import { posthog } from '../config/posthog';
 interface Props {
   pal: Palette;
   themeColor: string;
-  /** Reload cards and folders from the database after an import replaces them. */
-  onDataReplaced(): void;
+  /**
+   * Re-read cards, folders and settings from the database after an import.
+   *
+   * Required after **both** modes, not just `replace`. An import writes rows
+   * directly to SQLite while React still holds the arrays it had beforehand,
+   * and the ordinary persistence effect writes that stale array back as the
+   * complete library — `syncWords` deletes every row whose id is not in it. A
+   * merge that skipped this therefore looked successful, showed nothing new,
+   * and lost the imported words on the next save.
+   */
+  onDataImported(): void;
   /** RevenueCat entitlement state. Backup is Premium-only. */
   isPremium: boolean;
   /**
@@ -49,7 +58,7 @@ function fill(template: string, values: Record<string, number>): string {
 export function BackupSection({
   pal,
   themeColor,
-  onDataReplaced,
+  onDataImported,
   isPremium,
   isSubscriptionLoaded,
 }: Props) {
@@ -108,9 +117,15 @@ export function BackupSection({
     setBusy('import');
     try {
       const summary = await restoreFromBackup(raw, mode);
-      // Replace mode swapped the rows out from under React state, so the
-      // screens above have to re-read rather than keep what they were showing.
-      if (mode === 'replace') onDataReplaced();
+      // Both modes, always. The import wrote rows underneath React state, so
+      // what the screens are holding no longer describes what is stored —
+      // and the next ordinary save would write that stale array back as the
+      // whole library, deleting everything the import just added. Replace was
+      // the only mode that reloaded, which is exactly why merge lost its words.
+      //
+      // Started before the summary alert so the user is never told an import
+      // succeeded while the app is still showing the pre-import library.
+      onDataImported();
       posthog?.capture('backup_imported', {
         import_mode: mode,
         word_count: summary.words,
@@ -131,7 +146,7 @@ export function BackupSection({
     } finally {
       setBusy(null);
     }
-  }, [ensureEntitled, onDataReplaced, t]);
+  }, [ensureEntitled, onDataImported, t]);
 
   const confirmReplace = useCallback((raw: unknown) => {
     Alert.alert(

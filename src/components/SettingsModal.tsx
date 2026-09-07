@@ -17,6 +17,12 @@ import {
   FLIP_MODE_ENABLED,
 } from '../features/flags';
 import { canUseBackup } from '../features/backup/backupAccess';
+import {
+  isAnalyticsEnabled,
+  loadAnalyticsConsent,
+  setAnalyticsConsent,
+  subscribeToAnalyticsConsent,
+} from '../lib/analyticsConsent';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
 import type { ThemePurchasesState } from '../hooks/useThemePurchases';
 import type { PlanStoreProducts } from '../lib/planPricing';
@@ -110,8 +116,8 @@ interface Props {
   canUseAI: boolean;
   /** Per-feature "!" markers for a newly unlocked plan. */
   discovery: FeatureDiscovery;
-  /** Re-read cards and folders after a backup import replaced them. */
-  onDataReplaced: () => void;
+  /** Re-read cards and folders after a backup import, in either mode. */
+  onDataImported: () => void;
   /** Theme prices, ownership and the buy action. Resolved once, by App. */
   themePurchases: ThemePurchasesState;
   /** The two subscription products as the store returned them. */
@@ -131,7 +137,7 @@ export function SettingsModal({
   hideAiTools, onToggleHideAiTools,
   canUseAI,
   discovery,
-  onDataReplaced,
+  onDataImported,
   themePurchases,
   planProducts,
 }: Props) {
@@ -540,7 +546,7 @@ export function SettingsModal({
           onRestore={onRestore}
           isPremium={isPremium}
           isSubscriptionLoaded={isSubscriptionLoaded}
-          onDataReplaced={onDataReplaced}
+          onDataImported={onDataImported}
         />
 
         {/* Settings and everything it opens (the voice picker, the Upgrade
@@ -859,7 +865,7 @@ function VoiceSelectionScreen({
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
   visible, onClose, pal, themeColor, onRestore,
-  isPremium, isSubscriptionLoaded, onDataReplaced,
+  isPremium, isSubscriptionLoaded, onDataImported,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -869,7 +875,7 @@ function AppInfoSheet({
   onRestore: () => Promise<void>;
   isPremium: boolean;
   isSubscriptionLoaded: boolean;
-  onDataReplaced: () => void;
+  onDataImported: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
@@ -882,17 +888,43 @@ function AppInfoSheet({
   // divider can never appear above an empty body.
   const backupVisible = canUseBackup({ isPremium, isSubscriptionLoaded });
   const handleRestore = useCallback(async () => {
-    // Guard against a second tap while a restore is already in flight.
+    // Guard against a second tap while a restore is already in flight. The
+    // shared handler refuses a concurrent one anyway and says so; this only
+    // stops the same button starting two.
     if (restoring) return;
     setRestoring(true);
     try {
-      // Reuses the existing handler: loading, success, no-purchases-found and
-      // error feedback all remain owned by useSubscription.
+      // The shared handler resolves once the outcome has been reported —
+      // restored, nothing found, or failed. This spinner is the only loading
+      // state for the row, so it cannot disagree with a second copy or be left
+      // running by an operation that never started.
       await onRestore();
     } finally {
       setRestoring(false);
     }
   }, [onRestore, restoring]);
+
+  // ── Analytics opt-out ───────────────────────────────────────────────────────
+  // Reflects the stored preference rather than a local default, so the switch
+  // shows what is actually in force. `config/posthog.ts` owns the effect of the
+  // value — one call there stops events and Session Replay together — and this
+  // row only records the decision.
+  const [analyticsEnabled, setAnalyticsEnabledState] = useState(isAnalyticsEnabled());
+  useEffect(() => {
+    let active = true;
+    void loadAnalyticsConsent().then(state => {
+      if (active) setAnalyticsEnabledState(state === 'enabled');
+    });
+    const unsubscribe = subscribeToAnalyticsConsent(state => {
+      if (active) setAnalyticsEnabledState(state === 'enabled');
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
+  const handleToggleAnalytics = useCallback((next: boolean) => {
+    // Optimistic: the state machine publishes to every subscriber immediately
+    // and the write is best effort, so the switch never lags behind the tap.
+    void setAnalyticsConsent(next ? 'enabled' : 'disabled');
+  }, []);
   const slideX = useRef(new Animated.Value(SW)).current;
   const openExternal = useCallback(async (url: string) => {
     try {
@@ -963,12 +995,39 @@ function AppInfoSheet({
             <BackupSection
               pal={pal}
               themeColor={themeColor}
-              onDataReplaced={onDataReplaced}
+              onDataImported={onDataImported}
               isPremium={isPremium}
               isSubscriptionLoaded={isSubscriptionLoaded}
             />
           </>
         )}
+
+        {/* ── Privacy ──────────────────────────────────────────────────────
+            One switch for product analytics and Session Replay together: the
+            SDK's opt-out drives both, so there is no way to end up recording
+            someone who turned events off. It sits next to the Privacy Policy
+            link, which is where the same processing is described.
+
+            Not gated on plan or entitlement — it is a privacy control, and it
+            has to be reachable for everyone. Turning it off touches nothing
+            else: no vocabulary, no purchase, no AI consent, no backup, no
+            notification setting. */}
+        <View style={[styles.divider, { backgroundColor: pal.border }]} />
+        <View style={{ marginBottom: 12 }}>
+          <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('privacy_controls_section')}</Text>
+        </View>
+        <ToggleRow
+          icon="stats-chart-outline"
+          label={t('analytics_setting')}
+          value={analyticsEnabled}
+          onToggle={handleToggleAnalytics}
+          themeColor={themeColor}
+          pal={pal}
+        />
+        {/* The explanation is a paragraph rather than the information popup the
+            other toggles use: that popup is mounted by SettingsModal and this
+            sheet is presented over it, so it would open underneath. */}
+        <Text style={[styles.sectionNote, { color: pal.sub }]}>{t('analytics_setting_desc')}</Text>
 
         <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
@@ -1122,6 +1181,9 @@ const styles = StyleSheet.create({
   // Settings-only divider spacing. Scoped to this screen and its sub-sheets;
   // Word List, Test Mode and everything else keep their own.
   divider: { height: StyleSheet.hairlineWidth, marginVertical: SETTINGS_DIVIDER_MARGIN },
+  // Explanatory copy under a toggle. Scales with Dynamic Type like every other
+  // label here; no fixed height, so a long translation wraps instead of clipping.
+  sectionNote: { fontSize: 12, lineHeight: 17, marginTop: 2, marginBottom: 4 },
   infoButton: {
     width: INFO_BUTTON_TARGET,
     height: INFO_BUTTON_TARGET,

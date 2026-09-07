@@ -25,6 +25,12 @@ import {
   type PlanStoreProducts,
   type SubscriptionPlanId,
 } from '../lib/planPricing';
+import {
+  restoreOutcomeForPlan,
+  type PaidPlan,
+  type PurchaseOutcome,
+  type RestoreOutcome,
+} from '../features/purchases/purchaseOutcome';
 
 export type Plan = 'free' | 'basic' | 'premium';
 export type RevenueCatEntitlementSource =
@@ -39,6 +45,13 @@ export type RevenueCatEntitlementSource =
 // Legacy AsyncStorage keys cleared after RC initializes.
 const LEGACY_KEY      = 'wordping_pro';
 const LEGACY_PLAN_KEY = 'wordping_plan';
+
+/**
+ * Returned by `runExclusive` when another store operation already holds the
+ * slot. Module-level so the identity is stable across renders, and not exported
+ * so the only thing that can observe it is the mapping to `{ kind: 'busy' }`.
+ */
+const BUSY = Symbol('purchase-operation-busy');
 
 function isCancelled(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
@@ -118,9 +131,12 @@ async function fetchFreshCustomerInfo(): Promise<CustomerInfo> {
 export function useSubscription() {
   const [plan, setPlan]               = useState<Plan>('free');
   const [isLoaded, setIsLoaded]       = useState(false);
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [error, setError]             = useState<string | null>(null);
+  // There is deliberately no `error`, `isPurchasing` or `isRestoring` state
+  // here. All three existed and nothing rendered them, which is how a failed
+  // purchase and a failed restore both became silent. The outcome is returned
+  // to the caller instead, and the spinner belongs to the one screen that owns
+  // the button — so there is a single owner per surface and nothing to leave
+  // stuck behind an operation this hook refused to start.
   const [offerings, setOfferings]     = useState<PurchasesOfferings | null>(null);
   const [entitlementSource, setEntitlementSource] = useState<RevenueCatEntitlementSource | null>(null);
   const [entitlementRevision, setEntitlementRevision] = useState(0);
@@ -128,7 +144,7 @@ export function useSubscription() {
   // only alongside `plan`, so it can never describe a different snapshot than
   // the plan currently on screen.
   const [expirationDate, setExpirationDate] = useState<string | null>(null);
-  const operationRef                  = useRef<Promise<void> | null>(null);
+  const operationRef                  = useRef<Promise<unknown> | null>(null);
   // A ref, not state: this is read and written across the await in a purchase,
   // where a state value would still be the pre-purchase snapshot, and it must
   // not cause a render of its own.
@@ -235,8 +251,16 @@ export function useSubscription() {
     };
   }, []);
 
-  const runExclusive = (operation: () => Promise<void>): Promise<void> => {
-    if (operationRef.current) return operationRef.current;
+  /**
+   * One store operation at a time, and the caller is told when it was refused.
+   *
+   * This used to return the *in-flight* promise to a second caller, so tapping
+   * Premium while Basic was still going resolved with Basic's result and bought
+   * nothing — silently. `BUSY` makes that refusal an outcome the UI can report,
+   * which is what stops a second tap looking like a no-op.
+   */
+  const runExclusive = <T,>(operation: () => Promise<T>): Promise<T | typeof BUSY> => {
+    if (operationRef.current) return Promise.resolve(BUSY);
     const req = operation().finally(() => {
       if (operationRef.current === req) operationRef.current = null;
     });
@@ -244,10 +268,11 @@ export function useSubscription() {
     return req;
   };
 
-  const purchasePlan = (packageIdentifier: string): Promise<void> =>
-    runExclusive(async () => {
-      setIsPurchasing(true);
-      setError(null);
+  const purchasePlan = async (
+    packageIdentifier: string,
+    plan: PaidPlan,
+  ): Promise<PurchaseOutcome> => {
+    const result = await runExclusive(async (): Promise<PurchaseOutcome> => {
       try {
         // Resolve immediately before purchase so a fresh Simulator cannot race
         // the initial offerings request or use a stale package object.
@@ -270,45 +295,55 @@ export function useSubscription() {
               latestOfferings.current?.availablePackages.map(candidate => candidate.product.identifier) ?? [],
             allOfferingIdentifiers: Object.keys(latestOfferings.all),
           });
-          throw new Error(`revenuecat_package_unavailable:${packageIdentifier}`);
+          return { kind: 'unavailable' };
         }
 
         await Purchases.purchasePackage(pkg);
+        // Verified, and applied through the single writer so the ordering guard
+        // still rejects a snapshot older than one already applied.
         const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-purchase-refresh', refreshedInfo);
+        // The plan that was bought, not the one the refreshed receipt happens to
+        // show. `purchasePackage` resolving means StoreKit completed and
+        // RevenueCat validated it; reading the tier back here instead would turn
+        // RevenueCat's own propagation lag into a false "purchase failed" for a
+        // charge the user has already been billed for.
+        return { kind: 'purchased', plan };
       } catch (e) {
-        if (!isCancelled(e)) {
-          console.error('[RC purchase error]', purchaseErrorDetails(e));
-          setError('Purchase failed. Please try again.');
-        }
-      } finally {
-        setIsPurchasing(false);
+        if (isCancelled(e)) return { kind: 'cancelled' };
+        console.error('[RC purchase error]', purchaseErrorDetails(e));
+        return { kind: 'failed' };
       }
     });
+    return result === BUSY ? { kind: 'busy' } : result;
+  };
 
-  const subscribe = (): Promise<void> => purchasePlan(PACKAGE_IDS.BASIC);
+  const subscribe = (): Promise<PurchaseOutcome> =>
+    purchasePlan(PACKAGE_IDS.BASIC, 'basic');
 
-  const subscribePremium = (): Promise<void> => purchasePlan(PACKAGE_IDS.PREMIUM);
+  const subscribePremium = (): Promise<PurchaseOutcome> =>
+    purchasePlan(PACKAGE_IDS.PREMIUM, 'premium');
 
-  const restore = (): Promise<void> =>
-    runExclusive(async () => {
-      setIsRestoring(true);
-      setError(null);
+  const restore = async (): Promise<RestoreOutcome> => {
+    const result = await runExclusive(async (): Promise<RestoreOutcome> => {
       try {
         await Purchases.restorePurchases();
+        // Freshly fetched, never the `plan` state: that is the snapshot this
+        // operation exists to correct, so reading it would confirm a
+        // subscription from exactly the data the user distrusts.
         const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-restore-refresh', refreshedInfo);
+        return restoreOutcomeForPlan(planFromCustomerInfo(refreshedInfo));
       } catch (e) {
         // Backing out of the App Store sheet is an ordinary outcome, not a
         // failure: it is neither logged nor reported, exactly as in purchasePlan.
-        if (!isCancelled(e)) {
-          console.error('[RC restore error]', purchaseErrorDetails(e));
-          setError('Restore failed. Please try again.');
-        }
-      } finally {
-        setIsRestoring(false);
+        if (isCancelled(e)) return { kind: 'cancelled' };
+        console.error('[RC restore error]', purchaseErrorDetails(e));
+        return { kind: 'failed' };
       }
     });
+    return result === BUSY ? { kind: 'busy' } : result;
+  };
 
   const refreshCustomerInfo = async (): Promise<void> => {
     try {
@@ -350,9 +385,6 @@ export function useSubscription() {
     isSubscribed: plan !== 'free',
     isPremium: plan === 'premium',
     isLoaded,
-    isPurchasing,
-    isRestoring,
-    error,
     offerings,
     expirationDate,
     entitlementSource,

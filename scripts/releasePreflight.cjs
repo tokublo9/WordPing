@@ -31,9 +31,13 @@ function readJson(relative) {
   return JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
 
-// Themes are not sold individually, so there are no per-theme StoreKit
-// products to validate here. Paid themes are unlocked by the Basic/Premium
-// subscription, which is covered by the RevenueCat key check below.
+// Themes ARE sold individually now — the registry under src/features/themes/
+// maps 23 of them to App Store products, RevenueCat packages and entitlements.
+// None of that is validated here, and deliberately so: those identifiers exist
+// only in App Store Connect and the RevenueCat dashboard, a mismatch is silent
+// on the device (the shop simply draws no price), and confirming them needs a
+// live RevenueCat lookup. It stays a manual pre-release step rather than a
+// check that could pass falsely.
 const issues = [
   ...checks.checkEasProduction(readJson('eas.json')),
   ...checks.checkAppConfig(readJson('app.json')),

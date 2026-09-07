@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PostHogErrorBoundary, PostHogProvider } from 'posthog-react-native';
-import { posthog } from './src/config/posthog';
+import { posthog, publishAnalyticsResearchProperties } from './src/config/posthog';
 import {
   persistCardsAndWait,
   reloadLocalData,
@@ -24,6 +24,11 @@ import type { AIVoice } from './src/lib/aiVoices';
 import { FREE_SKIN_IDS, FREE_THEME_COLOR, ONBOARDING_KEY } from './src/constants';
 import { appStyles as s } from './src/styles';
 import { useSubscription } from './src/hooks/useSubscription';
+import {
+  purchaseOutcomeMessage,
+  restoreOutcomeMessage,
+  type OutcomeMessage,
+} from './src/features/purchases/purchaseOutcome';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
 import { TopBanner } from './src/components/TopBanner';
 import { showTopBanner } from './src/lib/topBanner';
@@ -123,9 +128,9 @@ function AppContent() {
     expirationDate: subscriptionExpirationDate,
     entitlementSource,
     entitlementRevision,
-    subscribe,
-    subscribePremium,
-    restore,
+    subscribe: purchaseBasic,
+    subscribePremium: purchasePremium,
+    restore: restorePurchases,
     unsubscribe,
   } = useSubscription();
 
@@ -170,6 +175,34 @@ function AppContent() {
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
   const cardsRef = useRef(cards);
   cardsRef.current = cards;
+
+  // ── Purchase and restore feedback ───────────────────────────────────────────
+  // One place turns a store outcome into something the user can actually see,
+  // so the Upgrade sheet, Settings and anything wired up later all report the
+  // same way and none of them has to infer success from a spinner stopping.
+  //
+  // `useSubscription` decides *what* happened and never renders; this decides
+  // what to say. A cancellation maps to no message at all — that is what the
+  // null from the two mappers means, and why backing out of the App Store sheet
+  // stays silent instead of looking like a failure.
+  //
+  // Alert rather than the top banner, matching the other purchase surfaces
+  // (`theme_buy_failed` in the shop) and because these are outcomes the user
+  // asked for and should have to acknowledge. It presents above the Settings
+  // and Upgrade modals, which is where both callers live.
+  const announceOutcome = useCallback((message: OutcomeMessage | null) => {
+    if (message) Alert.alert(t(message.titleKey), t(message.bodyKey));
+  }, [t]);
+
+  const subscribe = async (): Promise<void> => {
+    announceOutcome(purchaseOutcomeMessage(await purchaseBasic()));
+  };
+  const subscribePremium = async (): Promise<void> => {
+    announceOutcome(purchaseOutcomeMessage(await purchasePremium()));
+  };
+  const restore = async (): Promise<void> => {
+    announceOutcome(restoreOutcomeMessage(await restorePurchases()));
+  };
 
   // Saving is switched off when stored data could not be read, so the user has
   // to be told — otherwise the app looks empty and silently discards anything
@@ -458,9 +491,12 @@ function AppContent() {
     hasCompletedFirstTestAnswer: firstTestAnswerRecorded,
   });
 
-  // A backup import in "replace" mode swaps out every row, so React state and
-  // the database have to be resynchronised. Navigation is reset to the folder
-  // list because the folder that was open may no longer exist.
+  // A backup import writes rows underneath React state, so the two have to be
+  // resynchronised — after a merge as much as after a replace. Skipping it left
+  // the stale card array in memory, and the next persist wrote that array back
+  // as the whole library, deleting everything a merge had just added.
+  // Navigation is reset to the folder list because the folder that was open may
+  // no longer exist after a replace, and re-entering it is cheap after a merge.
   const reloadAfterImport = useCallback(() => {
     reloadLocalData()
       .then(snapshot => {
@@ -1311,7 +1347,7 @@ function AppContent() {
           onToggleHideAiTools: setHideAiTools,
           canUseAI,
           discovery,
-          onDataReplaced: reloadAfterImport,
+          onDataImported: reloadAfterImport,
           themePurchases,
           planProducts,
         }}
@@ -1351,6 +1387,12 @@ function AppContent() {
           visible: showOnboarding,
           onComplete: async (choices) => {
             await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(choices));
+            // The research answers exist for the first time here, and the
+            // consent state has not changed, so nothing else would publish them
+            // until the next launch. Reads back what was just written and sends
+            // only the derived properties — the date of birth stays on device —
+            // and returns immediately if analytics is off.
+            publishAnalyticsResearchProperties();
             if (choices.learningLang && choices.learningLang !== 'other') setLearnLang(choices.learningLang);
             if (choices.nativeLang && choices.nativeLang !== 'other') setNativeLang(choices.nativeLang);
             const uiLang = BCP47_TO_UI_LANG[choices.nativeLang];

@@ -285,12 +285,6 @@ const FEATURE_SECTIONS: FeatureConfig[] = filterTextToSpeechEntries(
   feature => feature.key === 'text_to_speech',
 );
 
-function featureHasImage(
-  feature: FeatureConfig,
-): feature is FeatureConfig & { image: number } {
-  return feature.image != null;
-}
-
 
 // The two small bitmaps the sheet draws from its own files: the WordCore app
 // icon in the hero, and the coffee photo in the support card. Declared once and

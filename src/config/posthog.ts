@@ -1,6 +1,14 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import PostHog from 'posthog-react-native';
+import {
+  configureAnalyticsConsentStorage,
+  loadAnalyticsConsent,
+  subscribeToAnalyticsConsent,
+  type AnalyticsConsentState,
+} from '../lib/analyticsConsent';
+import { syncAnalyticsResearchProperties } from '../lib/analyticsResearchProperties';
 
 /**
  * The one PostHog client. Nothing else constructs one — `App.tsx` mounts a
@@ -9,6 +17,11 @@ import PostHog from 'posthog-react-native';
  * The token and host are read from `app.config.js`, which forwards
  * EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN and EXPO_PUBLIC_POSTHOG_HOST at build time.
  * Neither value is written here and neither is ever logged.
+ *
+ * This module is also where the user's analytics opt-out is enforced, for the
+ * same reason `api/client.ts` enforces AI consent: anything that can reach the
+ * client has necessarily imported this file, so there is no path to `capture`
+ * that skips the check.
  */
 const projectToken = Constants.expoConfig?.extra?.posthogProjectToken as string | undefined;
 const host = Constants.expoConfig?.extra?.posthogHost as string | undefined;
@@ -34,10 +47,40 @@ if (__DEV__ && !host) {
   );
 }
 
+// Loud in a release build too, for the same reason `purchases.ts` reports a
+// missing RevenueCat key: EAS does not upload `.env`, so an unconfigured build
+// profile produces an app with no analytics at all and nothing anywhere saying
+// so. Names only — neither value is logged.
+if (!__DEV__ && !(projectToken && host)) {
+  console.error(
+    '[analytics] PostHog is not configured. Set EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN and '
+    + 'EXPO_PUBLIC_POSTHOG_HOST in the EAS build profile or as EAS environment variables.',
+  );
+}
+
 export const posthog = projectToken && host
   ? new PostHog(projectToken, {
     host,
     captureAppLifecycleEvents: true,
+    // Start opted out and let the stored preference decide, below.
+    //
+    // Without this the client begins capturing — the first Session Replay
+    // frames and the app-lifecycle event — during its own async bootstrap,
+    // which races our read of the opt-out. Losing that race would record a user
+    // who had switched recording off, which is the one outcome this control
+    // exists to prevent, so the race is removed rather than narrowed.
+    //
+    // THE COST, STATED PLAINLY: on a genuinely opted-in *first* launch the
+    // client is opted out until `optIn()` lands a moment later, so an
+    // app-lifecycle event fired before that — "Application Installed" in
+    // particular — can be dropped. That is a real gap in install analytics, and
+    // it is accepted because the alternative is recording people who opted out.
+    //
+    // It is only the first launch. `optIn()` / `optOut()` persist into PostHog's
+    // own storage, which it reads during that same bootstrap on every later
+    // launch, so from then on the decision is already applied before any event
+    // is captured and nothing is lost.
+    defaultOptIn: false,
     // Off by default in the SDK, which is why the dashboard toggle alone was
     // never going to produce a recording: the remote setting can only sample
     // what the client has already started capturing.
@@ -85,3 +128,71 @@ export const posthog = projectToken && host
     },
   })
   : undefined;
+
+// ── The user's opt-out ────────────────────────────────────────────────────────
+
+/**
+ * Bound here, in the module that enforces it, so the consent state machine can
+ * stay free of react-native imports and be tested against a fake store.
+ */
+configureAnalyticsConsentStorage({
+  getItem: key => AsyncStorage.getItem(key),
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+});
+
+/**
+ * One call decides both halves.
+ *
+ * `optOut()` drops events *and* propagates to the native Session Replay plugin
+ * (`_propagateNativeOptOut` → `setOptOut`), so a single switch cannot leave the
+ * app recording a user who turned analytics off. `optIn()` restores both.
+ *
+ * Enabling also republishes the onboarding research Person Properties, with the
+ * age recomputed from the locally stored date of birth. That is what makes this
+ * the only path they can travel: they are sent when analytics is on and at no
+ * other time, whether that is at launch or the moment the switch is flipped
+ * back on. Disabling sends nothing and republishes nothing.
+ *
+ * Failures are swallowed: a preference that could not be applied must not take
+ * the app down, and the next launch reapplies it from the same stored value.
+ */
+function applyAnalyticsConsent(state: AnalyticsConsentState): void {
+  if (!posthog) return;
+  const client = posthog;
+  const applied = state === 'enabled' ? client.optIn() : client.optOut();
+  void applied.catch(() => {});
+  if (state !== 'enabled') return;
+  // Recomputed here rather than stored, so a birthday that passed while the app
+  // was closed is reflected on the next launch with nothing to schedule. The
+  // date of birth itself is read on the device and never sent.
+  void syncAnalyticsResearchProperties(client).catch(() => {});
+}
+
+/**
+ * Republishes the research Person Properties from the stored answers.
+ *
+ * Called when onboarding completes, which is the one moment those answers exist
+ * for the first time and the consent state has not changed — without it a new
+ * user's answers would sit on the device until the next launch, missing exactly
+ * the first session the discovery-source question is asked to explain.
+ *
+ * Safe to call unconditionally: the sender re-checks the opt-out and returns
+ * before reading anything when analytics is off.
+ */
+export function publishAnalyticsResearchProperties(): void {
+  if (!posthog) return;
+  void syncAnalyticsResearchProperties(posthog).catch(() => {});
+}
+
+/**
+ * Resolved at import time rather than from a React effect.
+ *
+ * `App.tsx` imports this module, so this read starts before the first render —
+ * as early as the decision can be made without blocking startup on a
+ * synchronous disk read. Until it lands the client is opted out by
+ * `defaultOptIn: false`, so the window is silent rather than recorded.
+ */
+if (posthog) {
+  void loadAnalyticsConsent().then(applyAnalyticsConsent).catch(() => {});
+  subscribeToAnalyticsConsent(applyAnalyticsConsent);
+}

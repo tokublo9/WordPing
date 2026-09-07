@@ -12,9 +12,10 @@ const test = require('node:test');
 test('switching plan goes through purchasePackage, never Apple management', () => {
   const hook = fs.readFileSync('src/hooks/useSubscription.ts', 'utf8');
 
-  // Both directions share one purchase path.
-  assert.match(hook, /const subscribe = \(\): Promise<void> => purchasePlan\(PACKAGE_IDS\.BASIC\)/u);
-  assert.match(hook, /const subscribePremium = \(\): Promise<void> => purchasePlan\(PACKAGE_IDS\.PREMIUM\)/u);
+  // Both directions share one purchase path. They resolve with the purchase
+  // outcome now, so a failure can be reported instead of stopping a spinner.
+  assert.match(hook, /const subscribe = \(\): Promise<PurchaseOutcome> =>\s*purchasePlan\(PACKAGE_IDS\.BASIC, 'basic'\);/u);
+  assert.match(hook, /const subscribePremium = \(\): Promise<PurchaseOutcome> =>\s*purchasePlan\(PACKAGE_IDS\.PREMIUM, 'premium'\);/u);
   assert.match(hook, /await Purchases\.purchasePackage\(pkg\)/u);
 
   // The purchase routine itself must never reach for the store's own UI.

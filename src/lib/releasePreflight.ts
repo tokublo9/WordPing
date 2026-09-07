@@ -29,6 +29,8 @@ export function isPlaceholder(value: string): boolean {
 export interface EasProfileEnv {
   EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?: string;
   EXPO_PUBLIC_WORDPING_API_BASE_URL?: string;
+  EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN?: string;
+  EXPO_PUBLIC_POSTHOG_HOST?: string;
   [key: string]: string | undefined;
 }
 
@@ -74,6 +76,28 @@ export function checkEasProduction(eas: EasConfig): PreflightIssue[] {
     issues.push({ severity: 'error', where, message: `EXPO_PUBLIC_WORDPING_API_BASE_URL must be https in production (got ${apiUrl})` });
   } else if (/localhost|127\.0\.0\.1|0\.0\.0\.0/.test(apiUrl)) {
     issues.push({ severity: 'error', where, message: `EXPO_PUBLIC_WORDPING_API_BASE_URL points at a local dev server (${apiUrl})` });
+  }
+
+  // PostHog. Deliberately a warning, not an error: these may legitimately be
+  // supplied as EAS environment variables in the dashboard rather than in this
+  // file, and this check cannot see those. What it does catch is the case that
+  // actually shipped — neither set anywhere, so `config/posthog.ts` builds no
+  // client, and the app has no analytics and no Session Replay while the
+  // privacy policy says it has both.
+  const posthogVars = ['EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN', 'EXPO_PUBLIC_POSTHOG_HOST'] as const;
+  const missingPosthog = posthogVars.filter(name => !env[name]);
+  if (missingPosthog.length > 0) {
+    issues.push({
+      severity: 'warning',
+      where,
+      message: `${missingPosthog.join(' and ')} not set here — confirm they are set as EAS environment variables, or analytics and Session Replay will be silently absent from the build`,
+    });
+  }
+  for (const name of posthogVars) {
+    const value = env[name];
+    if (value && isPlaceholder(value)) {
+      issues.push({ severity: 'error', where, message: `${name} is still a placeholder (${value})` });
+    }
   }
 
   for (const [key, value] of Object.entries(env)) {

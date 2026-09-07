@@ -47,6 +47,7 @@
     "src/features/onboarding/spotlight.ts",
     "src/features/onboarding/featureDiscovery.ts",
     "src/features/onboarding/subscriptionOnboarding.ts",
+    "src/features/onboarding/researchProperties.ts",
     "src/features/cards/grading.ts",
     "src/features/cards/flipGesture.ts",
     "src/features/cards/levels.ts",

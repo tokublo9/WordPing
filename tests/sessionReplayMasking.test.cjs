@@ -144,6 +144,92 @@ test('global masking is off, and the per-field masking that replaces it is on', 
   assert.match(config, /enableSessionReplay: sessionReplaySupported,/u);
 });
 
+test('the analytics opt-out is applied before anything is captured, and covers replay', () => {
+  const config = read('src/config/posthog.ts');
+  const consent = read('src/lib/analyticsConsent.ts');
+
+  // Opted out until the stored preference says otherwise. Without this the
+  // client captures during its own bootstrap, racing the read — and a user who
+  // switched recording off would be recorded for the start of every launch.
+  assert.match(config, /defaultOptIn: false,/u);
+  // Resolved at import time, not from a React effect, so the decision is made
+  // before the first render rather than after the first screen is on file.
+  assert.match(config, /void loadAnalyticsConsent\(\)\.then\(applyAnalyticsConsent\)/u);
+  assert.match(config, /subscribeToAnalyticsConsent\(applyAnalyticsConsent\)/u);
+
+  // One call for both halves: the SDK's optOut also drives the native Session
+  // Replay plugin, so there is no second switch that could disagree.
+  assert.match(config, /state === 'enabled' \? client\.optIn\(\) : client\.optOut\(\)/u);
+
+  // Analytics is on unless the user said otherwise, and only the exact stored
+  // token turns it off — a truncated value must not be read as a decision.
+  assert.match(consent, /export const DEFAULT_ANALYTICS_CONSENT: AnalyticsConsentState = 'enabled';/u);
+  assert.match(consent, /return raw === 'disabled' \? 'disabled' : 'enabled';/u);
+  // Pure: the state machine must stay testable, so the store is injected.
+  // Code only — the comments there name AsyncStorage as the binding it avoids.
+  const consentCode = consent
+    .replace(/\/\*[\s\S]*?\*\//gu, '')
+    .replace(/^\s*\/\/.*$/gmu, '');
+  assert.doesNotMatch(consentCode, /react-native|expo-|AsyncStorage/u);
+
+  // The switch exists, is not gated on a plan, and is not inside the
+  // entitlement-gated backup block.
+  const settings = read('src/components/SettingsModal.tsx');
+  assert.match(settings, /t\('analytics_setting'\)/u);
+  assert.match(settings, /onToggle=\{handleToggleAnalytics\}/u);
+  const analyticsAt = settings.indexOf("t('analytics_setting')");
+  const block = settings.slice(analyticsAt - 700, analyticsAt);
+  assert.doesNotMatch(block, /backupVisible &&|isPremium \?|isSubscribed \?/u);
+});
+
+test('the research properties send a derived age and never the date of birth', () => {
+  const research = read('src/features/onboarding/researchProperties.ts');
+  const sender = read('src/lib/analyticsResearchProperties.ts');
+  const config = read('src/config/posthog.ts');
+
+  // The built payload names every key explicitly, and `dateOfBirth` is read
+  // exactly once — to derive the age from it, never to send it.
+  // The builder alone. `parseOnboardingChoices` sits after it in the same file
+  // and legitimately reads both `dateOfBirth` and `wordCategory` off the stored
+  // record, so slicing to end of file would defeat the point of these checks.
+  const buildStart = research.indexOf('export function buildResearchProperties');
+  const build = research
+    .slice(buildStart, research.indexOf('export function parseOnboardingChoices', buildStart))
+    .replace(/\/\*[\s\S]*?\*\//gu, '')
+    .replace(/^\s*\/\/.*$/gmu, '');
+  assert.match(build, /const age = calculateAge\(choices\.dateOfBirth, now\);/u);
+  assert.match(build, /if \(age !== null\) properties\.age = age;/u);
+  for (const key of [
+    'gender:', 'discovery_source:', 'native_language:', 'learning_purpose:',
+    'properties.learning_language =',
+  ]) {
+    assert.ok(build.includes(key), `missing research property: ${key}`);
+  }
+  // The date is touched once, by the age derivation, and by nothing else.
+  assert.equal(
+    (build.match(/dateOfBirth/gu) ?? []).length,
+    1,
+    'dateOfBirth may only be read to derive the age',
+  );
+  assert.doesNotMatch(build, /date_of_birth/u);
+  // No vocabulary, note, folder name or backup content reaches the payload.
+  assert.doesNotMatch(build, /word|meaning|note|folder|backup/iu);
+
+  // Person Properties, not event properties: set once against the anonymous
+  // distinct id, with no identify() that would mint or alias a user.
+  assert.match(sender, /client\.setPersonProperties\(properties, undefined, false\);/u);
+  assert.doesNotMatch(sender, /\.capture\(|\.identify\(/u);
+
+  // Gated on the opt-out before the stored answers are read, and again after
+  // the await, so switching analytics off mid-read wins.
+  assert.match(sender, /if \(!isAnalyticsEnabled\(\)\) return null;/u);
+  assert.match(sender, /if \(!isAnalyticsEnabled\(\)\) return;/u);
+
+  // Published only from the enable path, and recomputed there rather than
+  // stored, so a birthday that passed while the app was closed is picked up.
+  assert.match(config, /if \(state !== 'enabled'\) return;\s*(?:\/\/[^\n]*\n\s*)*void syncAnalyticsResearchProperties\(client\)/u);
+});
+
 /**
  * The one input deliberately left legible.
  *

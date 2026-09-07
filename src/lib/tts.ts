@@ -1172,7 +1172,6 @@ export function preloadPromoVoiceSamples(langCode?: string): void {
     const key = promoCacheKey(sample, lang);
     if (promoPreloadByKey.has(key)) continue;
     const run = fetchAndCacheAudio(promoSampleText(sample, lang), PROMO_PREVIEW_VOICE, {
-      loadingIndicatorAvailable: false,
       trackAsActiveGeneration: false,
       sampleVersion: PROMO_SAMPLE_VERSION,
       language: lang,

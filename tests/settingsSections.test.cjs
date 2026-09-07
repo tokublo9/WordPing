@@ -319,11 +319,47 @@ test('Restore reuses the shared handler and cannot be run twice at once', () => 
   // Delegates to the existing RevenueCat handler; no duplicated purchase logic.
   assert.match(settings, /await onRestore\(\);/u);
   assert.doesNotMatch(settings, /Purchases\.restorePurchases/u);
-  // useSubscription still owns success / empty / failure feedback.
+
+  // useSubscription decides *what* happened and returns it; it renders nothing.
+  // The three dead state values it used to keep instead — `error`,
+  // `isPurchasing`, `isRestoring` — are gone, because nothing read them and a
+  // failed restore was therefore silent.
   const subscription = read('src/hooks/useSubscription.ts');
-  assert.match(subscription, /const restore = \(\): Promise<void> =>/u);
-  assert.match(subscription, /setError\('Restore failed\. Please try again\.'\)/u);
+  assert.match(subscription, /const restore = async \(\): Promise<RestoreOutcome> =>/u);
   assert.match(subscription, /applyVerifiedCustomerInfo\('after-restore-refresh'/u);
+  // Code only — the comment above the state block names the three it removed.
+  const subscriptionCode = subscription
+    .replace(/\/\*[\s\S]*?\*\//gu, '')
+    .replace(/^\s*\/\/.*$/gmu, '');
+  assert.doesNotMatch(subscriptionCode, /setError\(|isPurchasing|isRestoring/u);
+  // Derived from the freshly fetched receipt, never from the `plan` state that
+  // the restore exists to correct.
+  assert.match(subscription, /return restoreOutcomeForPlan\(planFromCustomerInfo\(refreshedInfo\)\);/u);
+  // A refused concurrent operation is an outcome the UI can report, not silence.
+  assert.match(subscription, /return result === BUSY \? \{ kind: 'busy' \} : result;/u);
+});
+
+test('every purchase and restore outcome reaches a visible message', () => {
+  const app = read('App.tsx');
+  const outcomes = read('src/features/purchases/purchaseOutcome.ts');
+
+  // One place turns an outcome into an alert, so no screen can forget to.
+  assert.match(app, /const announceOutcome = useCallback\(\(message: OutcomeMessage \| null\) => \{\s*if \(message\) Alert\.alert\(t\(message\.titleKey\), t\(message\.bodyKey\)\);/u);
+  assert.match(app, /announceOutcome\(purchaseOutcomeMessage\(await purchaseBasic\(\)\)\);/u);
+  assert.match(app, /announceOutcome\(purchaseOutcomeMessage\(await purchasePremium\(\)\)\);/u);
+  assert.match(app, /announceOutcome\(restoreOutcomeMessage\(await restorePurchases\(\)\)\);/u);
+
+  // Cancelling is the one outcome that says nothing — that is what the null is.
+  assert.match(outcomes, /case 'cancelled':\s*return null;/u);
+  // Every other kind maps to copy, so none can fall through to silence.
+  for (const kind of ['purchased', 'unavailable', 'busy', 'failed']) {
+    assert.match(outcomes, new RegExp(`case '${kind}':`, 'u'));
+  }
+  for (const kind of ['restored', 'nothing_found', 'busy', 'failed']) {
+    assert.match(outcomes, new RegExp(`case '${kind}':`, 'u'));
+  }
+  // An already-active entitlement counts as restored rather than "none found".
+  assert.match(outcomes, /return plan === 'free' \? \{ kind: 'nothing_found' \} : \{ kind: 'restored', plan \};/u);
 });
 
 test('Purchases copy is translated in English and Japanese', () => {
@@ -384,10 +420,12 @@ test('every theme identifier is written out, never derived', () => {
 
 test('subscription purchasing and Restore Purchases are untouched', () => {
   const subscription = read('src/hooks/useSubscription.ts');
-  // The generic purchase utilities Basic/Premium rely on must survive.
-  assert.match(subscription, /const subscribe = \(\): Promise<void> => purchasePlan\(PACKAGE_IDS\.BASIC\)/u);
-  assert.match(subscription, /const subscribePremium = \(\): Promise<void> => purchasePlan\(PACKAGE_IDS\.PREMIUM\)/u);
-  assert.match(subscription, /const restore = \(\): Promise<void> =>/u);
+  // The generic purchase utilities Basic/Premium rely on must survive. Both now
+  // resolve with the outcome the UI reports rather than `void` — the plan
+  // argument is what lets a success name the tier that was bought.
+  assert.match(subscription, /const subscribe = \(\): Promise<PurchaseOutcome> =>\s*purchasePlan\(PACKAGE_IDS\.BASIC, 'basic'\);/u);
+  assert.match(subscription, /const subscribePremium = \(\): Promise<PurchaseOutcome> =>\s*purchasePlan\(PACKAGE_IDS\.PREMIUM, 'premium'\);/u);
+  assert.match(subscription, /const restore = async \(\): Promise<RestoreOutcome> =>/u);
   assert.match(subscription, /Purchases\.restorePurchases\(\)/u);
   assert.match(subscription, /applyVerifiedCustomerInfo\('after-restore-refresh'/u);
   // Restore stays reachable from App Info.
@@ -727,11 +765,16 @@ test('exactly the three visible Settings toggles use the compact control', () =>
   // removed; permission is now withdrawn from the About AI Voice explanation
   // instead. "Show result colour on cards" was removed with its preference —
   // the label is simply part of a card now.
+  //
+  // `analytics_setting` is last because it lives in the App Info sheet's
+  // Privacy section rather than Card Behavior. It is the analytics/Session
+  // Replay opt-out, and it is here so that adding a toggle stays a conscious
+  // decision — it uses the same shared control as every other row.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
   assert.deepEqual(rows, [
-    'view_flip', 'show_full_card', 'vertical_flip', 'hide_ai_tools',
+    'view_flip', 'show_full_card', 'vertical_flip', 'hide_ai_tools', 'analytics_setting',
   ]);
   assert.doesNotMatch(settings, /show_result_color_on_cards/u);
   // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
@@ -861,11 +904,15 @@ test('the informational Card Behavior rows use the compact shared layout and ali
   // and has no icon prop.
   assert.match(settings, /style=\{styles\.cardBehaviorRow\}[\s\S]{0,500}t\('feature_ai_voice'\)/u);
   assert.match(settings, /<ToggleRow\s+icon="albums-outline"\s+label=\{t\('view_flip'\)\}/u);
+  // The analytics opt-out takes the same icon column, in the App Info sheet's
+  // Privacy section. It carries no `info` prop, so it is absent from the
+  // informational list asserted above and appears only here.
   const iconRows = [...settings.matchAll(/<ToggleRow\s+icon="([^"]+)"\s+label=\{t\('([a-z_]+)'\)\}/gu)];
   assert.deepEqual(iconRows.map(match => [match[2], match[1]]), [
     ['view_flip', 'albums-outline'],
     ['show_full_card', 'reader-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
+    ['analytics_setting', 'stats-chart-outline'],
   ]);
   // Same shared icon column; the badge prop is the new-feature marker, which is
   // pinned to this icon rather than dropped beside the label.

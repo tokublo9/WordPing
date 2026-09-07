@@ -25,6 +25,11 @@ function eas(env: Record<string, string>): EasConfig {
 const VALID_ENV = {
   EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: 'appl_abcdefghijklmnop',
   EXPO_PUBLIC_WORDPING_API_BASE_URL: GOOD_URL,
+  // Public PostHog project credentials. Part of a complete profile now that
+  // analytics and Session Replay ship enabled: EAS does not upload .env, so a
+  // profile without them produces an app with no analytics at all.
+  EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN: 'phc_abcdefghijklmnopqrstuvwxyz012345',
+  EXPO_PUBLIC_POSTHOG_HOST: 'https://us.i.posthog.com',
 };
 
 function messages(issues: { message: string }[]): string {
@@ -88,6 +93,34 @@ test('a server-side secret in a client variable blocks release', () => {
 test('a secret-shaped value blocks release even under an innocent name', () => {
   const issues = checkEasProduction(eas({ ...VALID_ENV, EXPO_PUBLIC_HELPER: 'sk-proj-leaked' }));
   assert.equal(hasBlockingIssues(issues), true);
+});
+
+test('missing PostHog credentials warn without blocking release', () => {
+  // A warning, not an error: they may legitimately be supplied as EAS
+  // environment variables, which this check cannot see. What it catches is the
+  // case that actually shipped — set nowhere, so the app has no analytics and
+  // no Session Replay while the privacy policy says it has both.
+  const {
+    EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN: _token,
+    EXPO_PUBLIC_POSTHOG_HOST: _host,
+    ...withoutPosthog
+  } = VALID_ENV;
+  const issues = checkEasProduction(eas(withoutPosthog));
+  assert.equal(hasBlockingIssues(issues), false);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0]?.severity, 'warning');
+  assert.match(messages(issues), /EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN and EXPO_PUBLIC_POSTHOG_HOST/u);
+});
+
+test('a placeholder PostHog token blocks release', () => {
+  // Present but unfilled is worse than absent: it looks configured and silently
+  // sends nowhere, so unlike the missing case this one is an error.
+  const issues = checkEasProduction(eas({
+    ...VALID_ENV,
+    EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN: 'phc_REPLACE_WITH_PROJECT_TOKEN',
+  }));
+  assert.equal(hasBlockingIssues(issues), true);
+  assert.match(messages(issues), /EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN is still a placeholder/u);
 });
 
 test('a missing production profile blocks release', () => {

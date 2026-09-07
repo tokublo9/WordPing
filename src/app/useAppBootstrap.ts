@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Folder, OnboardingChoices, WordCard } from '../types';
+import type { Folder, WordCard } from '../types';
 import {
   HIDE_AI_TOOLS_KEY,
   SYNC_TEST_RESULTS_KEY,
@@ -32,6 +32,7 @@ import {
   serializeTutorialFlag,
 } from '../features/onboarding/tutorialState';
 import { loadAIConsent } from '../lib/aiConsent';
+import { parseOnboardingChoices } from '../features/onboarding/researchProperties';
 import { createDefaultFolderNotifSettings } from '../features/notifications/defaultSettings';
 
 /**
@@ -81,34 +82,6 @@ function migrateCards(
     cards: rawCards.map(c => c.folderId ? c : { ...c, folderId: firstId }),
     folders: finalFolders,
   };
-}
-
-function parseOnboarding(raw: string): OnboardingChoices | null {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    const value = parsed as Record<string, unknown>;
-    if (value.purpose !== 'language' && value.purpose !== 'words') return null;
-    if (typeof value.nativeLang !== 'string' || !value.nativeLang) return null;
-    return {
-      purpose: value.purpose,
-      gender: value.gender === 'woman' || value.gender === 'man' || value.gender === 'non_binary'
-        ? value.gender
-        : 'prefer_not_to_say',
-      dateOfBirth: typeof value.dateOfBirth === 'string' ? value.dateOfBirth : '',
-      discoverySource:
-        value.discoverySource === 'app_store' || value.discoverySource === 'social_media' ||
-        value.discoverySource === 'friend_family' || value.discoverySource === 'web_search' ||
-        value.discoverySource === 'advertisement'
-          ? value.discoverySource
-          : 'other',
-      learningLang: typeof value.learningLang === 'string' ? value.learningLang : undefined,
-      nativeLang: value.nativeLang,
-      wordCategory: typeof value.wordCategory === 'string' ? value.wordCategory : undefined,
-    };
-  } catch {
-    return null;
-  }
 }
 
 export interface UseAppBootstrapParams {
@@ -317,7 +290,7 @@ export function useAppBootstrap({
       } else if (obRaw !== null) {
         // First launch after this feature ships — derive default from onboarding purpose:
         // language learners see AI tools by default; other purposes hide them.
-        const ob = parseOnboarding(obRaw);
+        const ob = parseOnboardingChoices(obRaw);
         if (ob) setHideAiTools(ob.purpose !== 'language');
       }
 
@@ -329,7 +302,7 @@ export function useAppBootstrap({
 
       // ── Phase 3: Onboarding state ──────────────────────────────────────────
       if (obRaw !== null) {
-        const ob = parseOnboarding(obRaw);
+        const ob = parseOnboardingChoices(obRaw);
         if (ob) {
           if (ob.learningLang && ob.learningLang !== 'other') setLearnLang(ob.learningLang);
           if (ob.nativeLang && ob.nativeLang !== 'other') setNativeLang(ob.nativeLang);

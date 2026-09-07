@@ -3,6 +3,47 @@ export const LEGAL_EMAIL = 'daiki.studio9@gmail.com';
 export const LEGAL_EFFECTIVE_DATE_EN = 'August 20, 2026';
 export const LEGAL_EFFECTIVE_DATE_JA = '2026年8月20日';
 
+/**
+ * ⚠️ CONFIGURATION — MUST MATCH THE POSTHOG PROJECT SETTINGS.
+ *
+ * PostHog retention is a project/plan setting in the PostHog dashboard, not
+ * something this repository configures, so it cannot be derived from the code.
+ * These two values are the only place the published policy states a period.
+ *
+ * WHERE THESE NUMBERS COME FROM, as confirmed in the dashboard:
+ *   - 12 months: the PostHog Free plan retains Product Analytics data for one
+ *     year. Changing plan can change this.
+ *   - 30 days: the project's own "Session Replay Data retention" setting.
+ *
+ * RE-CHECK THEM whenever the PostHog plan or that setting changes, and update
+ * the policy in the same commit — these two numbers are published statements
+ * about how long personal data is kept, not internal configuration.
+ *
+ * Setting either back to `null` makes the policy fall back to saying, truthfully
+ * but vaguely, that data is kept for the period configured in the project. Do
+ * not guess a number: a wrong one here is a false statement in a legal document.
+ */
+export const ANALYTICS_EVENT_RETENTION_MONTHS: number | null = 12;
+export const SESSION_REPLAY_RETENTION_DAYS: number | null = 30;
+
+function analyticsRetentionEn(): string {
+  const events = ANALYTICS_EVENT_RETENTION_MONTHS;
+  const replay = SESSION_REPLAY_RETENTION_DAYS;
+  if (events === null || replay === null) {
+    return 'Analytics events and Session Replay recordings are retained for the retention period configured for our PostHog project and are then deleted automatically by PostHog.';
+  }
+  return `Analytics events are retained for approximately ${events} months and Session Replay recordings for approximately ${replay} days, after which PostHog deletes them automatically.`;
+}
+
+function analyticsRetentionJa(): string {
+  const events = ANALYTICS_EVENT_RETENTION_MONTHS;
+  const replay = SESSION_REPLAY_RETENTION_DAYS;
+  if (events === null || replay === null) {
+    return '分析イベントおよびセッションリプレイの記録は、当方のPostHogプロジェクトに設定された保存期間の経過後、PostHogにより自動的に削除されます。';
+  }
+  return `分析イベントは約${events}か月、セッションリプレイの記録は約${replay}日保存され、その後PostHogにより自動的に削除されます。`;
+}
+
 export type LegalLocale = 'en' | 'ja';
 export type LegalSlug = 'privacy' | 'terms' | 'licenses' | 'support';
 
@@ -55,6 +96,12 @@ export const serviceDisclosures: Record<LegalLocale, ServiceDisclosure[]> = {
       policyUrl: 'https://openai.com/policies/privacy-policy/',
     },
     {
+      name: 'PostHog',
+      purpose: 'Product analytics and, on iOS and Android, Session Replay — used to understand how WordCore is used and to find and fix problems.',
+      information: 'A randomly generated pseudonymous analytics identifier, app and device information such as model, operating system version, app version, language and time zone, in-app events such as creating a word or answering a test, screens and navigation, interaction and timing data, crash and error information, Session Replay recordings of the app’s own screens, and research profile properties derived from onboarding — age in whole years, gender, discovery source, languages and learning purpose. The exact date of birth is not sent. Vocabulary, meanings, notes, folder names and text you type are masked in recordings. See the Analytics and Session Replay section below, including how to turn this off.',
+      policyUrl: 'https://posthog.com/privacy',
+    },
+    {
       name: 'Vercel',
       purpose: 'Hosting and delivering the WordCore public website and these legal pages.',
       information: 'IP address, browser and device information, requested URL, timestamps, and security or delivery logs may be processed when the website is visited.',
@@ -87,6 +134,12 @@ export const serviceDisclosures: Record<LegalLocale, ServiceDisclosure[]> = {
       policyUrl: 'https://openai.com/ja-JP/policies/privacy-policy/',
     },
     {
+      name: 'PostHog',
+      purpose: 'プロダクト分析、およびiOS・Androidにおけるセッションリプレイ。WordCoreの利用状況の把握と不具合の発見・修正のために使用します。',
+      information: 'ランダムに生成された仮名の分析用識別子、機種・OSバージョン・アプリバージョン・言語・タイムゾーン等のアプリおよび端末情報、単語の作成やテストの回答等のアプリ内イベント、画面遷移、操作および処理時間の情報、クラッシュ・エラー情報、アプリ画面のセッションリプレイ記録、ならびにオンボーディングから導出される調査用プロファイルプロパティ（満年齢、性別、知ったきっかけ、言語、利用目的）。正確な生年月日は送信しません。記録において、単語、意味、メモ、フォルダ名および入力中のテキストはマスクされます。詳細および無効化の方法は、後述の「分析およびセッションリプレイ」の項をご覧ください。',
+      policyUrl: 'https://posthog.com/privacy',
+    },
+    {
       name: 'Vercel',
       purpose: 'WordCore公式ウェブサイトおよび本リーガルページのホスティングと配信。',
       information: 'ウェブサイト閲覧時に、IPアドレス、ブラウザ・端末情報、閲覧URL、時刻およびセキュリティ・配信ログが取り扱われる場合があります。',
@@ -111,7 +164,9 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         paragraphs: ['WordCore may store the following information locally on your device:'],
         bullets: [
           'Vocabulary entries, meanings, notes, folders, labels, learning progress, review history, card-visibility times, and notification preferences.',
-          'App settings such as language, appearance, theme, selected AI voice, onboarding choices, and display preferences.',
+          'App settings such as language, appearance, theme, selected AI voice, and display preferences.',
+          'Your answers to the onboarding questions, including what you want to use WordCore for, your learning and explanation languages, your date of birth, your gender, and how you heard about WordCore. Your exact date of birth stays on the device; while analytics is enabled a whole-year age calculated from it is sent, along with the other answers — see section 7.',
+          'Whether you have turned product analytics and Session Replay off, and whether you have granted AI data-sharing permission.',
           'Audio files that you attach and AI-generated audio cached for faster playback. Cached files may be removed by the operating system or when the app is removed.',
           'A randomly generated installation identifier stored in the iOS Keychain. It is not an advertising identifier and is used for abuse prevention and rate limiting.',
           'Locally scheduled notification content. Vocabulary reminders are scheduled on the device; WordCore does not operate a remote push-notification account system.',
@@ -122,6 +177,7 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         bullets: [
           'AI generation requests, and only after you have granted permission in the app (see section 3): text submitted for High-Quality AI Voice or another available server-assisted AI feature; requested language, voice, and generation settings; a random installation identifier; a pseudonymous RevenueCat App User ID; subscription tier; and request metadata such as endpoint, status, timing, input length, and request ID. The promotional clips in the Upgrade screen are the single exception and are described in section 3: they send none of this, including neither identifier.',
           'Subscription information: product identifiers, purchase and renewal status, entitlement status, and pseudonymous customer identifiers provided by Apple and RevenueCat. Complete payment-card details are not provided to WordCore.',
+          'Product analytics and, on iOS and Android, Session Replay, unless you have turned them off: in-app events, screens and navigation, interaction and timing data, crash and error information, app and device information, and recordings of the app’s own screens with your vocabulary and text inputs masked, identified by a pseudonymous analytics identifier. This is described in full in sections 5 and 6.',
           'Support communications: your email address and any information you include when you contact support.',
           'Website information: IP address, browser and device information, requested pages, timestamps, and security or delivery logs ordinarily processed by the hosting provider.',
         ],
@@ -150,14 +206,52 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '5. Backup and data transfer',
+        heading: '5. Analytics and Session Replay',
+        paragraphs: [
+          'WordCore uses PostHog for product analytics. It is enabled by default and is described here so that it is clear what is collected before you decide whether to leave it on.',
+          'On iOS and Android, WordCore also uses PostHog Session Replay. Session Replay records the app’s own screens as you use them: which screens you visit, how you move between them, taps and other interactions, timings, and app and device information. It is a recording of the WordCore interface only — it cannot see other apps, the home screen, your camera, your microphone, your photos, or anything outside WordCore.',
+        ],
+        bullets: [
+          'What analytics events contain: the name of an in-app action such as creating a word, deleting words, renaming a folder, answering a test question, exporting or importing a backup, together with counts and flags such as how many words were affected or whether a note was present. Event properties are deliberately limited to counts and yes/no values. The content of your vocabulary — the words themselves, their meanings, your notes, and your folder names — is not sent as an analytics event property.',
+          'What identifies the data: a randomly generated pseudonymous analytics identifier created by PostHog on your device. WordCore has no user accounts, so this is not linked to a name, an email address or an Apple ID. Because the identifier persists across sessions on the same installation, the data is pseudonymous rather than anonymous: it can be associated with that installation over time. Deleting and reinstalling the app produces a new identifier.',
+          'Research properties: your age in whole years, gender, how you heard about WordCore, explanation and learning languages, and learning purpose are stored against that identifier as profile properties. They come from the onboarding questions and are described in section 7. Your exact date of birth is not among them and never leaves the device.',
+          'Masking in Session Replay: WordCore marks the parts of the interface that hold your own content — your words, meanings, notes, folder names, and the text fields you type into — so PostHog obscures them in the recording. Masking is applied by the app to those specific views. It substantially reduces what a recording can expose, but it is not an absolute guarantee: a change to the app, a defect, or a limitation of the recording SDK could leave something visible that was intended to be masked. If you would rather nothing about your session were recorded, turn the setting off as described below.',
+          'Images are not masked. Every image WordCore draws is an asset that ships with the app — theme previews, icons and illustrations. WordCore has no avatar, no photo attachment and no image picker, so no image you supply is ever rendered or recorded.',
+          'Console output and network telemetry are not captured in recordings; both are switched off in the app’s Session Replay configuration.',
+          'PostHog is not used for advertising, and WordCore does not use the Advertising Identifier (IDFA), does not ask for App Tracking Transparency permission, and does not track you across other companies’ apps or websites.',
+        ],
+      },
+      {
+        heading: '6. Turning analytics and Session Replay off',
+        paragraphs: [
+          'You can turn this off at any time in the app under Settings → App Info → Privacy → “Share Usage Data”. The single switch controls product analytics, Session Replay and the research properties in section 7 together: turning it off stops event collection, stops screen recording, and stops those properties being sent.',
+          'Turning it off takes effect immediately and is remembered on your device, so it stays off for later launches. It does not delete or change anything else — your vocabulary, folders, notes, notification settings, purchases, AI data-sharing choice and backups are untouched — and no feature of the app stops working.',
+          `Data already collected before you turned it off remains subject to the retention described below. To request deletion of previously collected analytics data, contact ${LEGAL_EMAIL} and describe when and on which device you used WordCore, so the pseudonymous identifier can be located.`,
+        ],
+      },
+      {
+        heading: '7. Onboarding questions and research properties',
+        paragraphs: [
+          'When WordCore first launches it asks a short set of questions: what you want to use the app for, your learning and explanation languages, your date of birth, your gender, and how you heard about WordCore. Your answers are stored on your device. They are used for product research and improvement — to understand who WordCore is for, what they are trying to do with it, and which channels reach them.',
+          'Your exact date of birth does not leave your device. It is stored locally so that WordCore can calculate your current age from it, and only that age — a whole number of years — is ever sent. The date itself is never transmitted to PostHog or to any other service.',
+        ],
+        bullets: [
+          'While analytics is enabled, WordCore sends the following to PostHog as properties of your pseudonymous analytics profile: your age in whole years, your gender, how you heard about WordCore, your explanation (native) language, your learning language if you chose one, and your learning purpose.',
+          'These are set as profile properties rather than attached to every event, so they are stored once against the pseudonymous analytics identifier described in section 5 and updated when they change, rather than repeated on every action you take.',
+          'Your age is recalculated from the locally stored date on each launch, so it stays correct after a birthday. If the stored date is missing, malformed, in the future, or produces an implausible age, no age is sent at all rather than a guessed or corrected value.',
+          'While analytics is turned off, none of these properties is sent. Turning analytics off stops them along with events and Session Replay. If you later turn analytics back on, WordCore calculates your current age at that moment and sends the properties then.',
+          'Your answers remain on your device until you remove the app, whether or not analytics is enabled.',
+        ],
+      },
+      {
+        heading: '8. Backup and data transfer',
         paragraphs: [
           'Backup & Restore is a Premium feature that creates a file on the device at the user’s request. The user chooses whether and where to share or store that file. WordCore does not automatically upload or retain a server copy.',
           'A backup may contain vocabulary, meanings, notes, folders, labels, learning progress, review history, visibility timestamps, notification settings, and transferable app preferences. It excludes device-local audio files, installation identifiers, RevenueCat identifiers, credentials, and purchase entitlements. Anyone who receives a backup file may be able to read its contents, so users should store and share it carefully.',
         ],
       },
       {
-        heading: '6. How we use information',
+        heading: '9. How we use information',
         bullets: [
           'To provide vocabulary study, local reminders, backup and restore, subscription features, and requested AI-generated output.',
           'To authenticate paid entitlements, apply the Basic monthly AI Voice allowance, and restore purchases.',
@@ -167,65 +261,68 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '7. Third-party services and disclosure',
+        heading: '10. Third-party services and disclosure',
         paragraphs: [
           'WordCore uses the service providers listed below. Information is disclosed only as reasonably necessary for their stated functions, to comply with law, to protect rights and safety, or in connection with a lawful business transfer. Their own terms and privacy policies govern their processing.',
-          'WordCore does not sell personal information, does not use third-party advertising SDKs, and does not use third-party analytics SDKs in the current release.',
+          'WordCore does not sell personal information and does not use third-party advertising SDKs. WordCore does use one third-party product-analytics SDK, PostHog, which also provides Session Replay on iOS and Android; both are described in sections 5 and 6 and can be turned off in the app.',
         ],
       },
       {
-        heading: '8. Retention',
+        heading: '11. Retention',
         bullets: [
           'Device data remains until you delete it, clear relevant content, remove the app, or the operating system removes cache files.',
           'The WordCore API does not intentionally place submitted user text in application logs or the Worker KV store. It is transmitted to the relevant AI provider to fulfill the request.',
           'Entitlement cache entries are generally retained for approximately 30 seconds to 5 minutes. Minute rate-limit counters are generally retained for up to 2 minutes, and daily counters for up to 48 hours.',
           'Basic monthly-usage counters use a salted hash of the RevenueCat App User ID and expire after the relevant UTC monthly quota period and a limited operational buffer.',
           'Shared voice-preview and promotional audio caches may be retained for approximately 30 days. These shared clips contain fixed WordCore-authored text, not user-submitted text.',
+          analyticsRetentionEn(),
+          'Onboarding answers, including the exact date of birth, remain on your device and are deleted with the app. The date of birth is never transmitted. The research properties derived from those answers — age, gender, discovery source, languages and learning purpose — are stored with your pseudonymous analytics profile and follow the analytics retention above, and are only sent while analytics is enabled.',
           'Operational logs and support communications are retained only for as long as reasonably necessary for security, troubleshooting, support, legal compliance, and dispute handling, subject to provider settings and legal obligations.',
         ],
       },
       {
-        heading: '9. Website storage',
+        heading: '12. Website storage',
         paragraphs: [
           'The website uses necessary local browser storage to remember light or dark theme and may use a functional locale cookie to remember language routing. The current website does not use advertising or third-party analytics cookies.',
         ],
       },
       {
-        heading: '10. Security',
+        heading: '13. Security',
         paragraphs: [
           'We use reasonable technical and organizational safeguards, including encrypted network transport, server-side secret storage, input limits, pseudonymous salted identifiers for server counters, restricted logging, and device Keychain storage for the installation identifier. No system is completely secure, and users should protect their devices and backup files.',
         ],
       },
       {
-        heading: '11. International processing',
+        heading: '14. International processing',
         paragraphs: [
           'WordCore’s providers may process information in Japan, the United States, and other countries where they operate. Those countries may have different data-protection laws. We use providers and safeguards reasonably appropriate to the services being supplied.',
         ],
       },
       {
-        heading: '12. Your choices and rights',
+        heading: '15. Your choices and rights',
         bullets: [
           'You can edit or delete vocabulary and other local content in the app and can remove local app data by deleting the app, subject to iOS behavior and any backup copies you created.',
           'You can decline notification permission or disable notifications in iOS Settings.',
           'You can decline AI data sharing when asked, and can withdraw permission at any time under Settings → Help → About AI Voice. See sections 3 and 4.',
+          'You can turn product analytics, Session Replay and the onboarding research properties off at any time under Settings → App Info → Privacy → “Share Usage Data”. See sections 5, 6 and 7.',
           'You can manage or cancel subscriptions through your Apple account settings.',
           `To request access, correction, deletion, restriction, objection, or information about personal data handled by the Operator, contact ${LEGAL_EMAIL}. Applicable rights vary by jurisdiction. We may need to verify the request and may retain information where legally permitted or required.`,
         ],
       },
       {
-        heading: '13. Children',
+        heading: '16. Children',
         paragraphs: [
           `WordCore does not knowingly request a child’s name, address, or direct contact information through an account-registration system. If a parent or guardian believes a child has sent personal information to the Operator, please contact ${LEGAL_EMAIL}.`,
         ],
       },
       {
-        heading: '14. Changes to this policy',
+        heading: '17. Changes to this policy',
         paragraphs: [
           'We may update this Privacy Policy to reflect changes in WordCore, service providers, law, or operating practices. The updated policy will be posted on this page with a revised effective date. Where legally required, additional notice or consent will be provided.',
         ],
       },
       {
-        heading: '15. Contact',
+        heading: '18. Contact',
         paragraphs: [
           `Operator: ${LEGAL_OPERATOR}`,
           `Privacy and support email: ${LEGAL_EMAIL}`,
@@ -248,7 +345,9 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         paragraphs: ['WordCoreは、次の情報を利用者の端末内に保存する場合があります。'],
         bullets: [
           '単語、意味、メモ、フォルダ、ラベル、学習進捗、復習履歴、カードの非表示期限、通知設定。',
-          '言語、外観、テーマ、選択したAI音声、オンボーディングの選択内容、表示設定等のアプリ設定。',
+          '言語、外観、テーマ、選択したAI音声、表示設定等のアプリ設定。',
+          'オンボーディングの回答（利用目的、学習する言語と説明の言語、生年月日、性別、WordCoreを知ったきっかけ）。正確な生年月日は端末内にとどまり、分析が有効な場合には、そこから算出した満年齢とその他の回答が送信されます。第7項を参照してください。',
+          'プロダクト分析およびセッションリプレイを無効にしたかどうか、ならびにAIデータ共有を許可したかどうか。',
           '利用者が添付した音声ファイル、および高速再生のため端末内にキャッシュされたAI生成音声。キャッシュはOSまたはアプリ削除により消去される場合があります。',
           'iOSキーチェーンに保存されるランダムなインストール識別子。この識別子は広告識別子ではなく、不正利用防止およびレート制限のために使用されます。',
           '端末内で予約される通知内容。単語リマインダーは端末上でローカルに予約され、WordCoreはリモートプッシュ通知用のアカウントシステムを運用していません。',
@@ -259,6 +358,7 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         bullets: [
           'AI生成リクエスト（アプリ内で許可を与えた場合に限ります。第3項を参照）：高品質AI音声または提供中のその他のサーバー経由AI機能に送信されたテキスト、指定言語・音声・生成設定、ランダムなインストール識別子、仮名化されたRevenueCat App User ID、サブスクリプション区分、エンドポイント、ステータス、処理時間、入力文字数、リクエストID等のリクエスト情報。ただし、アップグレード画面のプロモーション音声のみは例外であり（第3項を参照）、上記のいずれも送信されません。前述の2種類の識別子も送信されません。',
           'サブスクリプション情報：AppleおよびRevenueCatから提供される商品識別子、購入・更新状態、利用資格、仮名化された顧客識別子。クレジットカード番号等の完全な決済情報がWordCoreに提供されることはありません。',
+          'プロダクト分析、およびiOS・Androidにおけるセッションリプレイ（無効にしている場合を除く）：アプリ内イベント、画面遷移、操作および処理時間の情報、クラッシュ・エラー情報、アプリおよび端末情報、ならびに学習内容と入力テキストをマスクしたうえでのアプリ画面の記録。仮名の分析用識別子により識別されます。詳細は第5項および第6項に記載しています。',
           'サポート連絡：利用者のメールアドレス、および問い合わせ時に利用者が記載した情報。',
           'ウェブサイト情報：ホスティング事業者が通常取り扱うIPアドレス、ブラウザ・端末情報、閲覧ページ、時刻、セキュリティおよび配信ログ。',
         ],
@@ -287,14 +387,52 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '5. バックアップおよびデータ移行',
+        heading: '5. 分析およびセッションリプレイ',
+        paragraphs: [
+          'WordCoreは、プロダクト分析のためPostHogを利用しています。初期状態では有効になっているため、継続するかどうかを判断できるよう、取得する内容を以下に説明します。',
+          'iOSおよびAndroidでは、PostHogのセッションリプレイも利用しています。セッションリプレイは、利用者がアプリを操作する様子、すなわち表示した画面、画面間の移動、タップ等の操作、処理時間、アプリおよび端末情報を記録します。記録対象はWordCoreの画面のみであり、他のアプリ、ホーム画面、カメラ、マイク、写真、その他WordCore外の内容を取得することはありません。',
+        ],
+        bullets: [
+          '分析イベントの内容：単語の作成、単語の削除、フォルダ名の変更、テストの回答、バックアップの書き出し・読み込み等、アプリ内の操作名と、対象件数やメモの有無といった件数・真偽値。イベントのプロパティは件数と真偽値に限定しています。単語、意味、メモ、フォルダ名といった学習内容そのものを分析イベントのプロパティとして送信することはありません。',
+          'データを識別する情報：PostHogが端末上で生成する、ランダムな仮名の分析用識別子。WordCoreにはユーザーアカウントがないため、氏名、メールアドレスまたはApple IDと紐づくことはありません。ただし、この識別子は同一インストール内でセッションをまたいで保持されるため、データは匿名ではなく仮名であり、そのインストールと継続的に関連付けられます。アプリを削除して再インストールすると、新しい識別子が生成されます。',
+          '調査用プロパティ：満年齢、性別、WordCoreを知ったきっかけ、説明および学習の言語、利用目的が、上記の識別子に対するプロファイルのプロパティとして保存されます。これらはオンボーディングの質問に由来するもので、詳細は第7項に記載しています。正確な生年月日はこれに含まれず、端末外へ送信されることはありません。',
+          'セッションリプレイにおけるマスキング：WordCoreは、単語、意味、メモ、フォルダ名、および入力欄といった利用者自身の内容を含む部分をマスク対象として指定し、PostHogが記録上で覆い隠します。マスキングはアプリが該当の表示に対して適用するものです。記録から読み取れる内容を大幅に減らしますが、絶対的な保証ではありません。アプリの変更、不具合、または記録SDKの制約により、意図した箇所がマスクされない可能性は残ります。記録自体を望まない場合は、後述の方法で無効化してください。',
+          '画像はマスクされません。WordCoreが表示する画像はすべてアプリに同梱された素材（テーマのプレビュー、アイコン、イラスト）です。アバター、写真の添付、画像選択の機能はないため、利用者が提供した画像が表示・記録されることはありません。',
+          'コンソール出力およびネットワーク通信の記録は取得しません。いずれもアプリのセッションリプレイ設定で無効にしています。',
+          'PostHogを広告目的で利用することはありません。WordCoreは広告識別子（IDFA）を使用せず、Appのトラッキングの透明性（ATT）の許可を求めることもなく、他社のアプリやウェブサイトをまたいで利用者を追跡することもありません。',
+        ],
+      },
+      {
+        heading: '6. 分析およびセッションリプレイの無効化',
+        paragraphs: [
+          'アプリ内の「設定」→「アプリ情報」→「プライバシー」→「利用状況の共有」から、いつでも無効にできます。このスイッチはプロダクト分析、セッションリプレイ、および第7項の調査用プロパティをまとめて制御し、オフにするとイベントの収集、画面の記録、当該プロパティの送信がいずれも停止します。',
+          '無効化は直ちに適用され、端末に記憶されるため、次回以降の起動でも無効のままです。単語、フォルダ、メモ、通知設定、購入、AIデータ共有の選択、バックアップを含め、他のデータや設定は一切変更されず、いずれの機能も引き続き利用できます。',
+          `無効化前に取得済みのデータは、後述の保存期間に従います。取得済みの分析データの削除を希望する場合は、仮名識別子を特定できるよう、利用時期と使用端末を添えて${LEGAL_EMAIL}までご連絡ください。`,
+        ],
+      },
+      {
+        heading: '7. オンボーディングの質問と調査用プロパティ',
+        paragraphs: [
+          'WordCoreは初回起動時に、利用目的、学習する言語と説明の言語、生年月日、性別、およびWordCoreを知ったきっかけを質問します。回答は端末内に保存され、WordCoreがどのような方に、どのような目的で使われ、どの経路で知られているかを把握するためのプロダクト調査および改善の目的で利用します。',
+          '正確な生年月日が端末外へ送信されることはありません。生年月日は、現在の年齢を算出するために端末内にのみ保存され、送信されるのは算出された年齢（満年齢の整数値）のみです。生年月日そのものは、PostHogその他いかなるサービスへも送信されません。',
+        ],
+        bullets: [
+          '分析が有効な場合、WordCoreは次の情報を、第5項に記載の仮名の分析プロファイルのプロパティとしてPostHogへ送信します：満年齢、性別、WordCoreを知ったきっかけ、説明（母語）の言語、選択している場合は学習する言語、および利用目的。',
+          'これらは各イベントに毎回付与するのではなく、プロファイルのプロパティとして設定します。第5項に記載の仮名の分析用識別子に対して一度保存され、変更時に更新されます。',
+          '年齢は起動のたびに端末内の生年月日から再計算されるため、誕生日の経過後も正しい値が保たれます。保存された日付が存在しない、形式が不正である、未来の日付である、または現実的でない年齢となる場合、推測や補正を行わず、年齢を一切送信しません。',
+          '分析を無効にしている間は、これらのプロパティを一切送信しません。分析を無効にすると、イベントおよびセッションリプレイとあわせて送信が停止します。後から分析を有効にした場合は、その時点で現在の年齢を算出してプロパティを送信します。',
+          '回答は、分析の有効・無効にかかわらず、アプリを削除するまで端末内に保存されます。',
+        ],
+      },
+      {
+        heading: '8. バックアップおよびデータ移行',
         paragraphs: [
           'バックアップと復元はPremium機能であり、利用者の操作により端末上でファイルを作成します。保存先または共有先は利用者が選択します。WordCoreがバックアップを自動的にアップロードしたり、サーバー上にコピーを保管したりすることはありません。',
           'バックアップには、単語、意味、メモ、フォルダ、ラベル、学習進捗、復習履歴、非表示期限、通知設定、および移行可能なアプリ設定が含まれる場合があります。端末内の音声ファイル、インストール識別子、RevenueCat識別子、認証情報および購入資格は含まれません。バックアップを受け取った者は内容を閲覧できる可能性があるため、安全な方法で保存・共有してください。',
         ],
       },
       {
-        heading: '6. 利用目的',
+        heading: '9. 利用目的',
         bullets: [
           '単語学習、ローカル通知、バックアップと復元、サブスクリプション機能、および利用者が要求したAI生成結果を提供するため。',
           '有料利用資格の確認、Basicの月間AI音声上限の適用、および購入の復元を行うため。',
@@ -304,65 +442,68 @@ export const privacyDocuments: Record<LegalLocale, LegalDocument> = {
         ],
       },
       {
-        heading: '7. 外部サービスおよび第三者提供',
+        heading: '10. 外部サービスおよび第三者提供',
         paragraphs: [
           'WordCoreは、下記の外部サービスを利用します。情報は、各サービスの機能提供に合理的に必要な範囲、法令遵守、権利・安全の保護、または適法な事業承継に必要な範囲でのみ提供されます。各事業者による取扱いには、各事業者の利用規約およびプライバシーポリシーが適用されます。',
-          '現在のリリースにおいて、WordCoreは個人情報を販売せず、第三者広告SDKおよび第三者分析SDKを使用していません。',
+          'WordCoreは個人情報を販売せず、第三者広告SDKも使用していません。一方で、第三者のプロダクト分析SDKであるPostHogを使用しており、iOSおよびAndroidではPostHogのセッションリプレイも利用しています。いずれも第5項および第6項に記載のとおりで、アプリ内で無効化できます。',
         ],
       },
       {
-        heading: '8. 保存期間',
+        heading: '11. 保存期間',
         bullets: [
           '端末内データは、利用者が削除・消去するまで、アプリを削除するまで、またはOSがキャッシュを削除するまで保存されます。',
           'WordCore APIは、利用者が送信したテキストをアプリケーションログまたはWorker KVへ意図的に保存しません。当該テキストは、リクエストを実行するために必要なAI事業者へ送信されます。',
           '利用資格のキャッシュは通常約30秒から5分、分単位のレート制限カウンターは通常最大2分、日単位のカウンターは通常最大48時間保存されます。',
           'Basicの月間利用回数は、RevenueCat App User IDのソルト付きハッシュを用いて記録され、対象となるUTC基準の月間上限期間および限定的な運用上の猶予期間の終了後に失効します。',
           '共通の音声プレビューおよびプロモーション音声キャッシュは、約30日保存される場合があります。これらはWordCoreが固定した共通テキストであり、利用者が入力したテキストではありません。',
+          analyticsRetentionJa(),
+          '正確な生年月日を含むオンボーディングの回答は端末内に保存され、アプリの削除とともに消去されます。生年月日が送信されることはありません。回答から導出される調査用プロパティ（年齢、性別、知ったきっかけ、言語、利用目的）は仮名の分析プロファイルに保存され、上記の分析データの保存期間に従います。送信されるのは分析が有効な場合に限られます。',
           '運用ログおよびサポート連絡は、セキュリティ、障害調査、サポート、法令遵守および紛争対応のため合理的に必要な期間に限り、各事業者の設定および法的義務に従って保存されます。',
         ],
       },
       {
-        heading: '9. ウェブサイトの保存機能',
+        heading: '12. ウェブサイトの保存機能',
         paragraphs: [
           'ウェブサイトは、ライト・ダークテーマを記憶するために必要なブラウザのローカルストレージを利用し、言語ルーティングを記憶するための機能的なロケールCookieを使用する場合があります。現在のウェブサイトは、広告Cookieまたは第三者分析Cookieを使用していません。',
         ],
       },
       {
-        heading: '10. 安全管理措置',
+        heading: '13. 安全管理措置',
         paragraphs: [
           '当方は、通信の暗号化、サーバー秘密情報の分離保管、入力制限、サーバーカウンターにおけるソルト付き仮名識別子、ログ項目の制限、インストール識別子の端末キーチェーン保存等、合理的な技術上・組織上の安全管理措置を講じます。ただし、完全に安全なシステムは存在しないため、利用者も端末およびバックアップファイルを適切に管理してください。',
         ],
       },
       {
-        heading: '11. 国外での取扱い',
+        heading: '14. 国外での取扱い',
         paragraphs: [
           'WordCoreの外部事業者は、日本、米国その他当該事業者が事業を行う国で情報を取り扱う場合があります。これらの国では日本と異なる個人情報保護法制が適用される場合があります。当方は、提供されるサービスに照らして合理的に適切な事業者および保護措置を利用します。',
         ],
       },
       {
-        heading: '12. 利用者の選択および権利',
+        heading: '15. 利用者の選択および権利',
         bullets: [
           'アプリ内で単語その他のローカルデータを編集・削除できます。また、利用者が作成したバックアップを除き、iOSの仕様に従ってアプリを削除することでローカルデータを削除できます。',
           '通知権限を許可しないこと、またはiOS設定で通知を無効にすることができます。',
           'AIデータ共有の許可を求められた際に拒否することができ、「設定」→「ヘルプ」→「AI Voiceについて」からいつでも許可を取り消せます。第3項および第4項を参照してください。',
+          '「設定」→「アプリ情報」→「プライバシー」→「利用状況の共有」から、プロダクト分析、セッションリプレイおよびオンボーディングの調査用プロパティをいつでも無効にできます。第5項、第6項および第7項を参照してください。',
           'Appleアカウントの設定からサブスクリプションを管理または解約できます。',
           `運営者が取り扱う個人情報について、開示、訂正、削除、利用制限、異議申立てまたは取扱いに関する説明を希望する場合は、${LEGAL_EMAIL}までご連絡ください。適用される権利は地域により異なります。本人確認をお願いする場合があり、法令上認められる場合または必要な場合には情報を保持することがあります。`,
         ],
       },
       {
-        heading: '13. 子どもの情報',
+        heading: '16. 子どもの情報',
         paragraphs: [
           `WordCoreは、アカウント登録システムを通じて子どもの氏名、住所または直接の連絡先を故意に求めるものではありません。保護者が、子どもが運営者へ個人情報を送信したと考える場合は、${LEGAL_EMAIL}までご連絡ください。`,
         ],
       },
       {
-        heading: '14. 本ポリシーの変更',
+        heading: '17. 本ポリシーの変更',
         paragraphs: [
           'WordCore、外部サービス、法令または運用方法の変更を反映するため、本ポリシーを変更する場合があります。変更後のポリシーは、改定後の施行日とともに本ページへ掲載します。法令上必要な場合は、追加の通知または同意取得を行います。',
         ],
       },
       {
-        heading: '15. お問い合わせ先',
+        heading: '18. お問い合わせ先',
         paragraphs: [
           `運営者：${LEGAL_OPERATOR}`,
           `プライバシーおよびサポート窓口：${LEGAL_EMAIL}`,

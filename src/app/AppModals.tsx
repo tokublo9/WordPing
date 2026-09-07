@@ -132,7 +132,7 @@ export interface AppModalsProps {
     canUseAI: boolean;
     /** Per-feature "!" markers for a newly unlocked plan. */
     discovery: FeatureDiscovery;
-    onDataReplaced(): void;
+    onDataImported(): void;
     /** Theme prices, ownership and the buy action. Resolved once, by App. */
     themePurchases: ThemePurchasesState;
     /** The two subscription products as the store returned them. */
@@ -312,7 +312,7 @@ export function AppModals({
         onToggleHideAiTools={settingsModal.onToggleHideAiTools}
         canUseAI={settingsModal.canUseAI}
         discovery={settingsModal.discovery}
-        onDataReplaced={settingsModal.onDataReplaced}
+        onDataImported={settingsModal.onDataImported}
         themePurchases={settingsModal.themePurchases}
         planProducts={settingsModal.planProducts}
       />
