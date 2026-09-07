@@ -35,7 +35,6 @@ import {
   withSafeAudibleStartMs,
 } from './audioTiming';
 import {
-  getAISpeechRequestTiming,
   getAISpeechTiming,
   isAISpeechTimingDiagnostics,
   requestAISpeech,
@@ -98,18 +97,11 @@ const TTS_CACHE_DIR = 'tts';
 // includes OpenAI's trailing silence.
 const TTS_CACHE_VERSION = 'trimmed-v3-leading';
 
-type AudioCacheSource = 'memory' | 'disk' | 'network';
-
 interface CachedAudio {
   uri: string;
-  source: AudioCacheSource;
-  cacheLookupDurationMs: number;
-  networkDurationMs?: number;
-  requestDeduplicated?: boolean;
 }
 
 export interface TTSPlaybackOptions {
-  buttonPressedAtMs?: number;
   onPhaseChange?: (phase: TTSPlaybackPhase) => void;
   /**
    * When AI generation is off, still play AI audio already on the device.
@@ -142,7 +134,6 @@ function isAICacheOnlyMiss(error: unknown): boolean {
 
 interface AudioCacheLookupOptions {
   onNetworkRequired?: () => void;
-  loadingIndicatorAvailable?: boolean;
   trackAsActiveGeneration?: boolean;
   /** Local manual test only: traverse the real request path without deleting cached audio. */
   bypassCache?: boolean;
@@ -245,20 +236,13 @@ async function fetchAndCacheAudio(
   if (request.text.length > MAX_AI_INPUT_CHARS) return Promise.reject(new Error('input_too_long'));
 
   const key = serializeTTSCacheKey(request);
-  const lookupStartedAtMs = performance.now();
 
   // 1. Session-level memory index
   const indexed = fileUriIndex.get(key);
   if (indexed && !options.bypassCache) {
     const indexedFile = new File(indexed);
     if (await validateCachedAudioFile(indexedFile)) {
-      const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
-      if (__DEV__) console.log('[TTS cache] memory hit', { voice, textLength: text.length });
-      if (__DEV__) console.log('[TTS playback stages]', {
-        source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'memory',
-        loadingIndicatorDisplayed: false, cacheLookupMs: cacheLookupDurationMs,
-      });
-      return { uri: indexed, source: 'memory', cacheLookupDurationMs };
+      return { uri: indexed };
     }
     if (__DEV__) console.warn('[TTS cache warning]', {
       cacheSource: 'memory', cacheStatus: indexedFile.exists ? 'invalid-or-unreadable' : 'missing',
@@ -270,15 +254,9 @@ async function fetchAndCacheAudio(
   // 2. Persistent disk cache
   const cachedFile = ttsCacheFile(key, voice);
   if (!options.bypassCache && await validateCachedAudioFile(cachedFile)) {
-    const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
-    if (__DEV__) console.log('[TTS cache] disk hit', { voice, textLength: text.length });
     restoreCachedTiming(cachedFile);
     fileUriIndex.set(key, cachedFile.uri);
-    if (__DEV__) console.log('[TTS playback stages]', {
-      source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'disk',
-      loadingIndicatorDisplayed: false, cacheLookupMs: cacheLookupDurationMs,
-    });
-    return { uri: cachedFile.uri, source: 'disk', cacheLookupDurationMs };
+    return { uri: cachedFile.uri };
   }
   if (!options.bypassCache && cachedFile.exists) {
     if (__DEV__) console.warn('[TTS cache warning]', {
@@ -292,15 +270,9 @@ async function fetchAndCacheAudio(
   const legacyFile = legacyTTSCacheFile(request.text, voice);
   if (!options.bypassCache && !request.contentVersion && !request.language
     && await validateCachedAudioFile(legacyFile)) {
-    const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
     restoreCachedTiming(legacyFile);
     fileUriIndex.set(key, legacyFile.uri);
-    if (__DEV__) console.log('[TTS playback stages]', {
-      source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'disk',
-      cacheKeyVersion: 'legacy', loadingIndicatorDisplayed: false,
-      cacheLookupMs: cacheLookupDurationMs,
-    });
-    return { uri: legacyFile.uri, source: 'disk', cacheLookupDurationMs };
+    return { uri: legacyFile.uri };
   }
   if (!options.bypassCache && !request.contentVersion && !request.language && legacyFile.exists) {
     if (__DEV__) console.warn('[TTS cache warning]', {
@@ -314,20 +286,12 @@ async function fetchAndCacheAudio(
   // this caller is not allowed to generate one — so stop here, before
   // `onNetworkRequired` and before anything that would spend a credit.
   if (options.cacheOnly) {
-    if (__DEV__) console.log('[TTS cache] cache-only miss', { voice, textLength: text.length });
     return Promise.reject(new Error(AI_CACHE_ONLY_MISS));
   }
 
   // 3. Deduplicate concurrent requests for the same text+voice
-  const cacheLookupDurationMs = Math.round(performance.now() - lookupStartedAtMs);
-  if (__DEV__) console.log('[TTS playback stages]', {
-    source: 'word-card', phase: 'cache-lookup-complete', cacheSource: 'network',
-    loadingIndicatorDisplayed: Boolean(options.loadingIndicatorAvailable),
-    cacheLookupMs: cacheLookupDurationMs,
-  });
   options.onNetworkRequired?.();
   const pending = networkRequests.run(key, async signal => {
-      const networkStartedAtMs = performance.now();
       const ab = await requestAISpeech(
         request.text,
         voice,
@@ -341,15 +305,11 @@ async function fetchAndCacheAudio(
       if (options.shouldPersistNetworkResult?.() === false) {
         throw new Error('cancelled_stale_preload');
       }
-      const networkCompletedAtMs = performance.now();
       const timing = getAISpeechTiming(ab);
-      const requestTiming = getAISpeechRequestTiming(ab);
-      const fileWriteStartedAtMs = performance.now();
       const file = ttsCacheFile(key, voice);
       file.create({ overwrite: true });
       file.write(new Uint8Array(ab));
       validatedFileUris.add(file.uri);
-      const fileWriteCompletedAtMs = performance.now();
       if (timing) {
         timingByFileUri.set(file.uri, timing);
         const timingFile = ttsTimingFile(file);
@@ -357,44 +317,11 @@ async function fetchAndCacheAudio(
         timingFile.write(JSON.stringify(withSafeAudibleStartMs(timing)));
       }
       fileUriIndex.set(key, file.uri);
-      if (__DEV__ && requestTiming) {
-        console.log('[TTS playback stages]', {
-          source: 'word-card',
-          phase: 'network-audio-ready',
-          ttsRequestStartMs: 0,
-          ttsRequestCompleteMs: Math.round(
-            requestTiming.responseReceivedAtMs - requestTiming.requestStartedAtMs,
-          ),
-          // Silence analysis moved from the server to the client, so it is now
-          // a local stage between download and file write rather than an
-          // opaque slice of the server's total time.
-          audioAnalysisMs: Math.round(
-            requestTiming.analysisCompletedAtMs - requestTiming.responseReceivedAtMs,
-          ),
-          localFileWriteMs: Math.round(fileWriteCompletedAtMs - fileWriteStartedAtMs),
-          apiRequestId: requestTiming.requestId,
-          apiCache: requestTiming.cache,
-        });
-      }
-      return {
-        uri: file.uri,
-        source: 'network',
-        cacheLookupDurationMs,
-        networkDurationMs: Math.round(networkCompletedAtMs - networkStartedAtMs),
-      };
+      return { uri: file.uri };
   });
   const trackAsActiveGeneration = options.trackAsActiveGeneration !== false;
   if (trackAsActiveGeneration) activeGenerationController = pending.controller;
-  if (__DEV__) console.log(
-    pending.deduplicated ? '[TTS cache] in-flight dedup' : '[TTS cache] miss — fetching',
-    { voice, textLength: request.text.length },
-  );
   return pending.promise
-    .then(audio => ({
-      ...audio,
-      cacheLookupDurationMs,
-      requestDeduplicated: pending.deduplicated,
-    }))
     .finally(() => {
       if (trackAsActiveGeneration && activeGenerationController === pending.controller) {
         activeGenerationController = null;
@@ -433,21 +360,12 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
 
   const queued = preloadQueue.enqueue(key, options.entryId, async () => {
     if (!canStartAutomaticVoiceGeneration()) return;
-    const startedAtMs = performance.now();
-    if (__DEV__) console.log('[TTS preload diagnostic]', {
-      phase: 'preload-started',
-      voice: request.voice,
-      textLength: request.text.length,
-      concurrencyLimit: DEFAULT_TTS_PRELOAD_CONCURRENCY,
-    });
 
     try {
-      let audio: CachedAudio;
       while (true) {
         if (!preloadQueue.hasOwners(key) || !canStartAutomaticVoiceGeneration()) return;
         try {
-          audio = await fetchAndCacheAudio(request.text, request.voice, {
-            loadingIndicatorAvailable: false,
+          await fetchAndCacheAudio(request.text, request.voice, {
             trackAsActiveGeneration: false,
             language: request.language,
             shouldPersistNetworkResult: () => preloadQueue.hasOwners(key),
@@ -469,45 +387,12 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
           throw error;
         }
       }
-      const durationMs = Math.round(performance.now() - startedAtMs);
-      if (__DEV__ && audio.source !== 'network') console.log('[TTS preload diagnostic]', {
-        phase: 'cache-hit',
-        cacheSource: audio.source,
-        cacheLookupMs: audio.cacheLookupDurationMs,
-        loadingIndicatorDisplayed: false,
-      });
-      if (__DEV__ && audio.requestDeduplicated) console.log('[TTS preload diagnostic]', {
-        phase: 'in-flight-request-reused',
-        cacheSource: 'network',
-        loadingIndicatorDisplayed: false,
-      });
-      if (__DEV__) console.log('[TTS preload diagnostic]', {
-        phase: 'preload-completed',
-        cacheSource: audio.source,
-        preloadDurationMs: durationMs,
-        cacheLookupMs: audio.cacheLookupDurationMs,
-        networkGenerationDownloadDurationMs: audio.networkDurationMs ?? 0,
-        loadingIndicatorDisplayed: false,
-        discardedForDeletedEntry: !preloadQueue.hasOwners(key),
-      });
-    } catch (error) {
-      if (__DEV__) console.warn('[TTS preload diagnostic]', {
-        phase: 'preload-failed',
-        preloadDurationMs: Math.round(performance.now() - startedAtMs),
-        loadingIndicatorDisplayed: false,
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : 'unknown_error',
-      });
+    } catch {
       // Best-effort only. The request registry removes failed work so a later
       // user tap retries through the normal path.
     }
   }, options.priority ?? 'normal');
 
-  if (__DEV__) console.log('[TTS preload diagnostic]', {
-    phase: queued.deduplicated ? 'preload-in-flight-reused' : 'preload-queued',
-    queueState: queued.state,
-    loadingIndicatorDisplayed: false,
-  });
   void queued.promise.catch(() => {});
 }
 
@@ -543,15 +428,6 @@ export function preloadAIPronunciationLibrary(
   // library is exactly the kind of unattended transmission consent exists to
   // prevent. Each entry is checked again inside preloadAIPronunciation.
   if (!isAIConsentGranted()) return;
-
-  if (__DEV__) console.log('[TTS preload diagnostic]', {
-    phase: 'library-preload-started',
-    triggerReason: options.triggerReason,
-    totalEntries: options.entries.length,
-    voice: options.voice,
-    concurrencyLimit: DEFAULT_TTS_PRELOAD_CONCURRENCY,
-    loadingIndicatorDisplayed: false,
-  });
 
   for (const entry of options.entries) {
     preloadAIPronunciation({
@@ -608,19 +484,14 @@ export function releaseAIPronunciationCache(
 }
 
 async function releaseObsoleteClips(texts: readonly string[]): Promise<void> {
-  let released = 0;
   for (let index = 0; index < texts.length; index++) {
     // The file APIs are synchronous, so a large delete is chunked back to the
     // event loop rather than run as one long blocking sweep.
     if (index > 0 && index % CACHE_RELEASE_CHUNK === 0) {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
-    for (const voice of AI_VOICES) released += deleteCachedPronunciation(texts[index], voice) ? 1 : 0;
+    for (const voice of AI_VOICES) deleteCachedPronunciation(texts[index], voice);
   }
-  if (__DEV__) console.log('[TTS cache] released', {
-    obsoleteTexts: texts.length,
-    filesReleased: released,
-  });
 }
 
 /**
@@ -659,7 +530,6 @@ export function purgeRetiredVoiceCaches(): void {
 }
 
 async function purgeRetiredVoiceCacheFiles(): Promise<void> {
-  let removed = 0;
   try {
     const dir = new Directory(Paths.cache, TTS_CACHE_DIR);
     if (!dir.exists) return;
@@ -672,7 +542,6 @@ async function purgeRetiredVoiceCacheFiles(): Promise<void> {
       if (!isRetiredVoiceCacheName(entry.name)) continue;
       try {
         entry.delete();
-        removed++;
       } catch {
         // A file the OS is holding is not worth failing a cleanup over.
       }
@@ -680,7 +549,6 @@ async function purgeRetiredVoiceCacheFiles(): Promise<void> {
   } catch {
     // Best effort. A cache that cannot be tidied still plays.
   }
-  if (__DEV__ && removed > 0) console.log('[TTS cache] retired voices purged', { removed });
 }
 
 /**
@@ -703,14 +571,7 @@ function isSpeakingCardText(voice: AIVoice, normalizedText: string): boolean {
 /** Stop associating queued/running preload work with a deleted card. */
 export function cancelAIPronunciationPreload(entryId: string): void {
   if (!entryId) return;
-  const result = preloadQueue.cancelOwner(entryId);
-  if (__DEV__ && (result.queuedCancelled > 0 || result.runningDiscarded > 0)) {
-    console.log('[TTS preload diagnostic]', {
-      phase: 'entry-deleted',
-      queuedCancelled: result.queuedCancelled,
-      runningResultsDiscarded: result.runningDiscarded,
-    });
-  }
+  preloadQueue.cancelOwner(entryId);
 }
 
 export interface AIVoiceSamplePreloadOptions {
@@ -755,7 +616,6 @@ export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions
       if (!voiceSamplePreloadEligible) return;
       try {
         await fetchAndCacheAudio(sample.text, sample.voice, {
-          loadingIndicatorAvailable: false,
           trackAsActiveGeneration: false,
           sampleVersion: sample.contentVersion,
         });
@@ -914,7 +774,6 @@ async function speakWithAI(
   cacheOnly = false,
 ): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
-  const buttonPressAtMs = options.buttonPressedAtMs ?? performance.now();
   let loadingIndicatorDisplayed = false;
   let networkLoadingStartedAtMs: number | null = null;
   let cacheOnlyMissed = false;
@@ -930,26 +789,9 @@ async function speakWithAI(
   if (myEpoch == null) return;
   reportPhase('checking-cache');
 
-  if (__DEV__) {
-    console.log('[TTS playback stages]', {
-      source: 'word-card',
-      phase: 'button-press',
-      buttonPressMs: 0,
-      textLength: text.length,
-    });
-  }
-
   try {
     // ── Fetch audio (or hit local file cache) ────────────────────────────────
-    const audioLoadStartedAtMs = performance.now();
-    const {
-      uri: fileUri,
-      source: cacheSource,
-      cacheLookupDurationMs,
-      networkDurationMs,
-      requestDeduplicated,
-    } = await fetchAndCacheAudio(text, voice, {
-      loadingIndicatorAvailable: Boolean(options.onPhaseChange),
+    const { uri: fileUri } = await fetchAndCacheAudio(text, voice, {
       onNetworkRequired: () => {
         networkLoadingStartedAtMs = performance.now();
         loadingIndicatorDisplayed = Boolean(options.onPhaseChange);
@@ -961,21 +803,7 @@ async function speakWithAI(
       language,
       ...(promo ? { promo } : {}),
     });
-    const audioLoadCompletedAtMs = performance.now();
     reportPhase('ready');
-    if (__DEV__) {
-      console.log('[TTS playback stages]', {
-        source: 'word-card',
-        phase: 'audio-load-complete',
-        cacheSource,
-        sinceButtonPressMs: Math.round(audioLoadCompletedAtMs - buttonPressAtMs),
-        audioLoadDurationMs: Math.round(audioLoadCompletedAtMs - audioLoadStartedAtMs),
-        cacheLookupDurationMs,
-        networkGenerationDownloadDurationMs: networkDurationMs,
-        inFlightRequestReused: Boolean(requestDeduplicated),
-        loadingIndicatorDisplayed,
-      });
-    }
 
     // If another speak call arrived while we were fetching, bail out.
     if (myEpoch !== epoch) throw new Error('cancelled');
@@ -999,19 +827,11 @@ async function speakWithAI(
 
     return await new Promise<void>((resolve, reject) => {
       let settled = false;
-      let lastStatus: AudioStatus | null = null;
-      let loggedStart = false;
-      let loggedAudibleStart = false;
-      let loggedFirstProgress = false;
       let reportedPlaying = false;
       let startInFlight = false;
       let playbackCommandAtMs: number | null = null;
 
-      const finish = (
-        err?: Error,
-        stopNativePlayback = false,
-        completionReason: 'audible-end' | 'native-end' | 'stopped' = 'native-end',
-      ) => {
+      const finish = (err?: Error, stopNativePlayback = false) => {
         if (settled) return;
         settled = true;
         sub.remove();
@@ -1024,129 +844,36 @@ async function speakWithAI(
         releaseAudioFocus(focusToken);
         focusToken = null;
         reportPhase('idle');
-        if (__DEV__ && !err && lastStatus) {
-          console.log('[TTS playback timing]', {
-            source: 'word-card',
-            phase: 'complete',
-            completionReason,
-            detectedAudibleStartMs: audioTiming?.audibleStartMs,
-            playbackPositionMs: Math.round(lastStatus.currentTime * 1000),
-            reportedDurationMs: Math.round(lastStatus.duration * 1000),
-            detectedAudibleEndMs: audioTiming?.audibleEndMs ?? Math.round(lastStatus.duration * 1000),
-            beforeTrim: audioTiming ? {
-              durationMs: audioTiming.originalDurationMs,
-              detectedAudibleStartMs: audioTiming.originalAudibleStartMs,
-              detectedAudibleEndMs: audioTiming.originalAudibleEndMs,
-            } : undefined,
-            afterTrim: audioTiming ? {
-              durationMs: audioTiming.durationMs,
-              detectedAudibleStartMs: audioTiming.audibleStartMs,
-              detectedAudibleEndMs: audioTiming.audibleEndMs,
-            } : undefined,
-          });
-        }
         err ? reject(err) : resolve();
       };
 
       const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
-        lastStatus = status;
         if (status.isLoaded && playbackCommandAtMs == null) void startPlayer();
         if (status.playing && !reportedPlaying) {
           reportedPlaying = true;
           reportPhase('playing');
         }
-        if (__DEV__ && !loggedFirstProgress && playbackCommandAtMs != null && status.currentTime > 0) {
-          loggedFirstProgress = true;
-          console.log('[TTS playback stages]', {
-            source: 'word-card',
-            phase: 'first-playback-progress',
-            cacheSource,
-            sinceButtonPressMs: Math.round(performance.now() - buttonPressAtMs),
-            sincePlayCommandMs: Math.round(performance.now() - playbackCommandAtMs),
-            playbackPositionMs: Math.round(status.currentTime * 1000),
-            expectedAudibleStartMs: audioTiming?.audibleStartMs,
-          });
-        }
-        if (__DEV__ && !loggedStart && status.duration > 0) {
-          loggedStart = true;
-          console.log('[TTS playback timing]', {
-            source: 'word-card',
-            phase: 'start',
-            detectedAudibleStartMs: audioTiming?.audibleStartMs,
-            safePlaybackStartMs: Math.round(safeStartSeconds * 1000),
-            playbackPositionMs: Math.round(status.currentTime * 1000),
-            reportedDurationMs: Math.round(status.duration * 1000),
-            detectedAudibleEndMs: audioTiming?.audibleEndMs ?? Math.round(status.duration * 1000),
-            beforeTrim: audioTiming ? {
-              durationMs: audioTiming.originalDurationMs,
-              detectedAudibleStartMs: audioTiming.originalAudibleStartMs,
-              detectedAudibleEndMs: audioTiming.originalAudibleEndMs,
-            } : undefined,
-            afterTrim: audioTiming ? {
-              durationMs: audioTiming.durationMs,
-              detectedAudibleStartMs: audioTiming.audibleStartMs,
-              detectedAudibleEndMs: audioTiming.audibleEndMs,
-            } : undefined,
-          });
-        }
-        if (
-          __DEV__ &&
-          !loggedAudibleStart &&
-          playbackCommandAtMs != null &&
-          audioTiming?.audibleStartMs != null &&
-          status.currentTime * 1000 >= audioTiming.audibleStartMs
-        ) {
-          loggedAudibleStart = true;
-          const now = performance.now();
-          console.log('[TTS playback stages]', {
-            source: 'word-card',
-            phase: 'audible-start-observed',
-            cacheSource,
-            actualAudibleStartSinceButtonMs: Math.round(now - buttonPressAtMs),
-            actualAudibleStartSincePlayCommandMs: Math.round(now - playbackCommandAtMs),
-            playbackPositionMs: Math.round(status.currentTime * 1000),
-            detectedAudibleStartMs: audioTiming.audibleStartMs,
-          });
-        }
         if (hasReachedAISpeechAudibleEnd(status.currentTime, audioTiming)) {
           // Stop the decoded file's inaudible remainder and resolve immediately
           // from the position measured by the native player.
-          finish(undefined, true, 'audible-end');
+          finish(undefined, true);
         } else if (status.didJustFinish) {
-          finish(undefined, false, 'native-end');
+          finish();
         }
       });
-      const stop = () => finish(new Error('cancelled'), true, 'stopped');
+      const stop = () => finish(new Error('cancelled'), true);
       stopActivePlayer = stop;
 
       const startPlayer = async () => {
         if (settled || startInFlight || playbackCommandAtMs != null) return;
         startInFlight = true;
-        const playerReadyAtMs = performance.now();
         try {
-          const seekStartedAtMs = performance.now();
           if (safeStartSeconds > 0) {
             await player.seekTo(safeStartSeconds, 0, 0);
           }
-          const seekCompletedAtMs = performance.now();
           if (settled || myEpoch !== epoch) return;
           playbackCommandAtMs = performance.now();
           player.play();
-          if (__DEV__) {
-            console.log('[TTS playback stages]', {
-              source: 'word-card',
-              phase: 'playback-command',
-              cacheSource,
-              playerReadySinceButtonMs: Math.round(playerReadyAtMs - buttonPressAtMs),
-              playerCreationAndLoadMs: Math.round(playerReadyAtMs - audioLoadCompletedAtMs),
-              seekDurationMs: Math.round(seekCompletedAtMs - seekStartedAtMs),
-              seekCompletedSinceButtonMs: Math.round(seekCompletedAtMs - buttonPressAtMs),
-              playbackCommandSinceButtonMs: Math.round(playbackCommandAtMs - buttonPressAtMs),
-              detectedAudibleStartMs: audioTiming?.audibleStartMs,
-              safePlaybackStartMs: Math.round(safeStartSeconds * 1000),
-              detectedAudibleEndMs: audioTiming?.audibleEndMs,
-            });
-          }
         } catch (e) {
           finish(e instanceof Error ? e : new Error(String(e)));
         } finally {

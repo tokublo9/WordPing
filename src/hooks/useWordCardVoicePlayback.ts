@@ -282,7 +282,6 @@ export function useWordCardVoicePlayback({
   const play = useCallback(async (target: WordCardVoiceTarget) => {
     if (!item) return;
     lastTargetRef.current = target;
-    const buttonPressedAtMs = performance.now();
     if (voiceStateRef.current?.target === target) {
       stopVoice();
       return;
@@ -309,17 +308,9 @@ export function useWordCardVoicePlayback({
     if (sequenceRef.current !== sequence) return;
 
     setVoiceState({ target, phase: 'checking-cache' });
-    if (__DEV__) console.log('[TTS playback stages]', {
-      source: 'word-card',
-      phase: 'subscription-permission-checks-complete',
-      sinceButtonPressMs: Math.round(performance.now() - buttonPressedAtMs),
-      usesAttachedAudio: target === 'word' ? Boolean(item.audioUri) : false,
-      aiVoice: canUseAIVoice,
-    });
 
     try {
       const playbackOptions = {
-        buttonPressedAtMs,
         // Once Basic's lifetime credits are gone `canUseAIVoice` goes false, and
         // without this the card would drop to the device engine even for words
         // whose AI audio is already on the device and already paid for. Reaching

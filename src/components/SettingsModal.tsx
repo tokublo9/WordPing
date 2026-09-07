@@ -709,7 +709,7 @@ function VoiceSelectionScreen({
       setPreviewingVoice(phase === 'playing' ? voice : null);
     };
     try {
-      await previewAIVoice(voice, { buttonPressedAtMs: performance.now(), onPhaseChange });
+      await previewAIVoice(voice, { onPhaseChange });
     } catch (error) {
       if (error instanceof Error && error.message === 'cancelled') return;
       // A usage limit hit from the voice picker gets the same non-blocking banner

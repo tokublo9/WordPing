@@ -207,25 +207,11 @@ export async function generatePrototypeSpeech(
   voice: AIVoice,
   signal?: AbortSignal,
 ): Promise<string> {
-  const buttonPressAtMs = performance.now();
   const trimmedInput = input.trim();
   if (!trimmedInput) throw new Error('input_empty');
   if (trimmedInput.length > TEXT_TO_SPEECH_MAX_CHARS) throw new Error('input_too_long');
 
-  if (__DEV__) {
-    console.log('[TTS playback stages]', {
-      source: 'generated-speech',
-      phase: 'generate-button-press',
-      buttonPressMs: 0,
-      textLength: trimmedInput.length,
-      cacheSource: 'network',
-      cacheLookupDurationMs: 0,
-      loadingIndicatorDisplayed: true,
-    });
-  }
-
   const ab = await requestAISpeech(trimmedInput, voice, signal, 'wav', 'speech_custom');
-  const downloadCompletedAtMs = performance.now();
   const timing = getAISpeechTiming(ab);
   const dir = new Directory(Paths.cache, 'tts-gen');
   dir.create({ intermediates: true, idempotent: true });
@@ -233,17 +219,6 @@ export async function generatePrototypeSpeech(
   file.create({ overwrite: true });
   file.write(new Uint8Array(ab));
   if (timing) timingByFileUri.set(file.uri, timing);
-  if (__DEV__) {
-    console.log('[TTS playback stages]', {
-      source: 'generated-speech',
-      phase: 'audio-download-complete',
-      sinceButtonPressMs: Math.round(downloadCompletedAtMs - buttonPressAtMs),
-      networkGenerationDownloadDurationMs: Math.round(downloadCompletedAtMs - buttonPressAtMs),
-      loadingIndicatorDisplayed: true,
-      detectedAudibleStartMs: timing?.audibleStartMs,
-      detectedAudibleEndMs: timing?.audibleEndMs,
-    });
-  }
   return file.uri;
 }
 
@@ -296,7 +271,6 @@ export async function playPrototypeSpeech(
   options: TTSPlaybackOptions = {},
 ): Promise<void> {
   const { createAudioPlayer, setAudioModeAsync } = audioLib();
-  const buttonPressAtMs = options.buttonPressedAtMs ?? performance.now();
   let reportedPhase: TTSPlaybackPhase = 'idle';
   const reportPhase = (phase: TTSPlaybackPhase) => {
     if (reportedPhase === phase) return;
@@ -314,28 +288,10 @@ export async function playPrototypeSpeech(
   focusToken = claimAudioFocus(stopPrototypeSpeech);
   reportPhase('checking-cache');
 
-  if (__DEV__) {
-    console.log('[TTS playback stages]', {
-      source: 'saved-speech',
-      phase: 'button-press',
-      buttonPressMs: 0,
-    });
-  }
-
   try {
-    const cacheLookupStartedAtMs = performance.now();
     const savedFile = new File(uri);
     if (!savedFile.exists) throw new Error('audio_file_missing');
-    const cacheLookupDurationMs = Math.round(performance.now() - cacheLookupStartedAtMs);
     reportPhase('ready');
-    if (__DEV__) console.log('[TTS playback stages]', {
-      source: 'saved-speech',
-      phase: 'cache-lookup-complete',
-      cacheSource: 'saved-file',
-      cacheLookupDurationMs,
-      networkGenerationDownloadDurationMs: 0,
-      loadingIndicatorDisplayed: false,
-    });
     try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
     if (requestEpoch !== playbackEpoch) throw new Error('cancelled');
 
@@ -348,19 +304,11 @@ export async function playPrototypeSpeech(
 
     return await new Promise<void>((resolve, reject) => {
       let settled = false;
-      let lastStatus: AudioStatus | null = null;
-      let loggedStart = false;
-      let loggedAudibleStart = false;
-      let loggedFirstProgress = false;
       let reportedPlaying = false;
       let startInFlight = false;
       let playbackCommandAtMs: number | null = null;
 
-      const finish = (
-        error?: Error,
-        stopNativePlayback = false,
-        completionReason: 'audible-end' | 'native-end' | 'stopped' = 'native-end',
-      ) => {
+      const finish = (error?: Error, stopNativePlayback = false) => {
         if (settled) return;
         settled = true;
         subscription.remove();
@@ -373,126 +321,36 @@ export async function playPrototypeSpeech(
         releaseAudioFocus(focusToken);
         focusToken = null;
         reportPhase('idle');
-        if (__DEV__ && !error && lastStatus) {
-          console.log('[TTS playback timing]', {
-            source: 'saved-speech',
-            phase: 'complete',
-            completionReason,
-            detectedAudibleStartMs: audioTiming?.audibleStartMs,
-            playbackPositionMs: Math.round(lastStatus.currentTime * 1000),
-            reportedDurationMs: Math.round(lastStatus.duration * 1000),
-            detectedAudibleEndMs: audioTiming?.audibleEndMs ?? Math.round(lastStatus.duration * 1000),
-            beforeTrim: audioTiming ? {
-              durationMs: audioTiming.originalDurationMs,
-              detectedAudibleStartMs: audioTiming.originalAudibleStartMs,
-              detectedAudibleEndMs: audioTiming.originalAudibleEndMs,
-            } : undefined,
-            afterTrim: audioTiming ? {
-              durationMs: audioTiming.durationMs,
-              detectedAudibleStartMs: audioTiming.audibleStartMs,
-              detectedAudibleEndMs: audioTiming.audibleEndMs,
-            } : undefined,
-          });
-        }
         error ? reject(error) : resolve();
       };
 
       const subscription = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
-        lastStatus = status;
         if (status.isLoaded && playbackCommandAtMs == null) void startPlayer();
         if (status.playing && !reportedPlaying) {
           reportedPlaying = true;
           reportPhase('playing');
         }
-        if (__DEV__ && !loggedFirstProgress && playbackCommandAtMs != null && status.currentTime > 0) {
-          loggedFirstProgress = true;
-          console.log('[TTS playback stages]', {
-            source: 'saved-speech', phase: 'first-playback-progress', cacheSource: 'saved-file',
-            sinceButtonPressMs: Math.round(performance.now() - buttonPressAtMs),
-            sincePlayCommandMs: Math.round(performance.now() - playbackCommandAtMs),
-            playbackPositionMs: Math.round(status.currentTime * 1000),
-            expectedAudibleStartMs: audioTiming?.audibleStartMs,
-          });
-        }
-        if (__DEV__ && !loggedStart && status.duration > 0) {
-          loggedStart = true;
-          console.log('[TTS playback timing]', {
-            source: 'saved-speech',
-            phase: 'start',
-            detectedAudibleStartMs: audioTiming?.audibleStartMs,
-            safePlaybackStartMs: Math.round(safeStartSeconds * 1000),
-            playbackPositionMs: Math.round(status.currentTime * 1000),
-            reportedDurationMs: Math.round(status.duration * 1000),
-            detectedAudibleEndMs: audioTiming?.audibleEndMs ?? Math.round(status.duration * 1000),
-            beforeTrim: audioTiming ? {
-              durationMs: audioTiming.originalDurationMs,
-              detectedAudibleStartMs: audioTiming.originalAudibleStartMs,
-              detectedAudibleEndMs: audioTiming.originalAudibleEndMs,
-            } : undefined,
-            afterTrim: audioTiming ? {
-              durationMs: audioTiming.durationMs,
-              detectedAudibleStartMs: audioTiming.audibleStartMs,
-              detectedAudibleEndMs: audioTiming.audibleEndMs,
-            } : undefined,
-          });
-        }
-        if (
-          __DEV__ &&
-          !loggedAudibleStart &&
-          playbackCommandAtMs != null &&
-          audioTiming?.audibleStartMs != null &&
-          status.currentTime * 1000 >= audioTiming.audibleStartMs
-        ) {
-          loggedAudibleStart = true;
-          const now = performance.now();
-          console.log('[TTS playback stages]', {
-            source: 'saved-speech',
-            phase: 'audible-start-observed',
-            actualAudibleStartSinceButtonMs: Math.round(now - buttonPressAtMs),
-            actualAudibleStartSincePlayCommandMs: Math.round(now - playbackCommandAtMs),
-            playbackPositionMs: Math.round(status.currentTime * 1000),
-            detectedAudibleStartMs: audioTiming.audibleStartMs,
-          });
-        }
         if (hasReachedAISpeechAudibleEnd(status.currentTime, audioTiming)) {
           // Resolve from the clip's waveform-derived audible end rather than
           // waiting through its silent encoded tail.
-          finish(undefined, true, 'audible-end');
+          finish(undefined, true);
         } else if (status.didJustFinish) {
-          finish(undefined, false, 'native-end');
+          finish();
         }
       });
-      const stop = () => finish(new Error('cancelled'), true, 'stopped');
+      const stop = () => finish(new Error('cancelled'), true);
       stopActivePlayer = stop;
 
       const startPlayer = async () => {
         if (settled || startInFlight || playbackCommandAtMs != null) return;
         startInFlight = true;
-        const playerReadyAtMs = performance.now();
         try {
-          const seekStartedAtMs = performance.now();
           if (safeStartSeconds > 0) {
             await player.seekTo(safeStartSeconds, 0, 0);
           }
-          const seekCompletedAtMs = performance.now();
           if (settled || requestEpoch !== playbackEpoch) return;
           playbackCommandAtMs = performance.now();
           player.play();
-          if (__DEV__) {
-            console.log('[TTS playback stages]', {
-              source: 'saved-speech',
-              phase: 'playback-command',
-              cacheSource: 'saved-file',
-              playerReadySinceButtonMs: Math.round(playerReadyAtMs - buttonPressAtMs),
-              playerCreationAndLoadMs: Math.round(playerReadyAtMs - buttonPressAtMs),
-              seekDurationMs: Math.round(seekCompletedAtMs - seekStartedAtMs),
-              seekCompletedSinceButtonMs: Math.round(seekCompletedAtMs - buttonPressAtMs),
-              playbackCommandSinceButtonMs: Math.round(playbackCommandAtMs - buttonPressAtMs),
-              detectedAudibleStartMs: audioTiming?.audibleStartMs,
-              safePlaybackStartMs: Math.round(safeStartSeconds * 1000),
-              detectedAudibleEndMs: audioTiming?.audibleEndMs,
-            });
-          }
         } catch (error) {
           finish(error instanceof Error ? error : new Error(String(error)));
         } finally {

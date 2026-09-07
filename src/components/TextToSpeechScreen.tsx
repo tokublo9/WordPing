@@ -205,11 +205,9 @@ export function TextToSpeechScreen({
     }
 
     const sequence = ++playbackSequence.current;
-    const buttonPressedAtMs = performance.now();
     setActivePlaybackId(id);
     try {
       await playPrototypeSpeech(uri, {
-        buttonPressedAtMs,
         onPhaseChange: phase => {
           if (playbackSequence.current !== sequence) return;
           setActivePlaybackId(phase === 'idle' || phase === 'failed' ? null : id);

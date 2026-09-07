@@ -299,8 +299,12 @@ export function useSubscription() {
         const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-restore-refresh', refreshedInfo);
       } catch (e) {
-        console.error('[RC restore error]', purchaseErrorDetails(e));
-        setError('Restore failed. Please try again.');
+        // Backing out of the App Store sheet is an ordinary outcome, not a
+        // failure: it is neither logged nor reported, exactly as in purchasePlan.
+        if (!isCancelled(e)) {
+          console.error('[RC restore error]', purchaseErrorDetails(e));
+          setError('Restore failed. Please try again.');
+        }
       } finally {
         setIsRestoring(false);
       }

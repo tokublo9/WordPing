@@ -35,14 +35,6 @@ export interface AISpeechTimingDiagnostics {
   trailingSilenceMs: number;
 }
 
-export interface AISpeechRequestDiagnostics {
-  requestStartedAtMs: number;
-  responseReceivedAtMs: number;
-  analysisCompletedAtMs: number;
-  requestId?: string;
-  cache: 'hit' | 'miss';
-}
-
 export function isAISpeechTimingDiagnostics(value: unknown): value is AISpeechTimingDiagnostics {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
@@ -83,14 +75,9 @@ export function isAISpeechTimingDiagnostics(value: unknown): value is AISpeechTi
  * the audio and cannot accumulate across a long session.
  */
 const speechTimingByAudio = new WeakMap<ArrayBuffer, AISpeechTimingDiagnostics>();
-const speechRequestTimingByAudio = new WeakMap<ArrayBuffer, AISpeechRequestDiagnostics>();
 
 export function getAISpeechTiming(audio: ArrayBuffer): AISpeechTimingDiagnostics | undefined {
   return speechTimingByAudio.get(audio);
-}
-
-export function getAISpeechRequestTiming(audio: ArrayBuffer): AISpeechRequestDiagnostics | undefined {
-  return speechRequestTimingByAudio.get(audio);
 }
 
 function toDiagnostics(result: WavTrimResult): AISpeechTimingDiagnostics {
@@ -169,8 +156,6 @@ export async function requestAISpeech(
   const normalizedVoice = typeof voice === 'string' ? voice.trim().toLowerCase() : '';
   const validVoice: AIVoice = isAIVoice(normalizedVoice) ? normalizedVoice : DEFAULT_AI_VOICE;
 
-  const requestStartedAtMs = performance.now();
-
   // The promo takes its own path. Its body is built inside `postPromoSpeech`
   // from an allowlisted sample id, so nothing assembled here can reach it — in
   // particular neither `text` nor `voice`, which the route has no field for.
@@ -193,38 +178,13 @@ export async function requestAISpeech(
       };
     result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });
   }
-  const responseReceivedAtMs = performance.now();
 
   // Best-effort by contract: unanalysable audio is returned untouched rather
   // than turned into an error, so a codec quirk can never break playback.
   const analysis = format === 'wav' ? analyzeWavBestEffort(result.audio) : null;
   const audio = analysis?.audio ?? result.audio;
-  const analysisCompletedAtMs = performance.now();
 
   if (analysis?.timing) speechTimingByAudio.set(audio, toDiagnostics(analysis.timing));
-  speechRequestTimingByAudio.set(audio, {
-    requestStartedAtMs,
-    responseReceivedAtMs,
-    analysisCompletedAtMs,
-    ...(result.requestId !== null ? { requestId: result.requestId } : {}),
-    cache: result.cache,
-  });
-
-  if (__DEV__) {
-    // Sizes and durations only. The text being spoken is never logged.
-    console.log('[TTS request]', {
-      action,
-      textLength: trimmedText.length,
-      voice: validVoice,
-      format,
-      requestMs: Math.round(responseReceivedAtMs - requestStartedAtMs),
-      analysisMs: Math.round(analysisCompletedAtMs - responseReceivedAtMs),
-      cache: result.cache,
-      requestId: result.requestId,
-      trimmed: analysis?.timing?.trimmed ?? false,
-      analysisFailure: analysis?.failure?.stage,
-    });
-  }
 
   return audio;
 }
