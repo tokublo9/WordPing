@@ -34,7 +34,11 @@ test('visibility and grading-time comparisons use appNow without offsetting pers
   const visibility = read('src/features/cards/visibility.ts');
   const gradingScreen = read('src/components/TestModeScreen.tsx');
 
-  assert.match(useCards, /now: appNow\(\)/u);
+  // Visibility and the result counts read the shared clock; it is passed
+  // positionally now rather than as a `now:` option, so both call sites are
+  // named instead of matching the old keyword form.
+  assert.match(useCards, /cardsForVisibility\(displayedAllFolderCards, appNow\(\)\)/u);
+  assert.match(useCards, /countCardsByResult\(displayedAllFolderCards, appNow\(\)\)/u);
   assert.match(useCards, /const now = appNow\(\);/u);
   assert.match(folders, /const now = appNow\(\);/u);
   assert.match(visibility, /now: number = appNow\(\)/u);
@@ -42,7 +46,18 @@ test('visibility and grading-time comparisons use appNow without offsetting pers
   // rather than comparing timestamps a second time.
   assert.match(read('src/features/cards/testSchedule.ts'), /now: number = appNow\(\)/u);
   assert.match(gradingScreen, /const now = appNow\(\);[\s\S]*?isCardDueForTest\(c, now\)/u);
-  assert.match(gradingScreen, /now: Date\.now\(\),[\s\S]*?syncTestResults/u);
+  // Grading *writes* absolute timestamps, and deliberately uses the real clock
+  // rather than appNow(): the development offset must never reach
+  // reviewHistory, testNextReview, hiddenUntil or the study log, where it would
+  // outlive the offset being switched off. Reading is offset; writing is not.
+  assert.match(
+    gradingScreen,
+    /const answeredAt = Date\.now\(\);\s*const outcome = gradeCard\(card, kind, \{\s*now: answeredAt,\s*syncTestResults/u,
+  );
+  // And that one real timestamp is what reaches every sink, so they cannot
+  // disagree about when the answer happened.
+  assert.match(gradingScreen, /recordAnswer\(log, answeredAt\)/u);
+  assert.match(gradingScreen, /onAnswerRecorded\?\.\(answeredAt\);/u);
   assert.doesNotMatch([useCards, folders, visibility].join('\n'), /Date\.now\(/u);
 });
 

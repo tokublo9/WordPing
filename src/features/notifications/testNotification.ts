@@ -1,5 +1,6 @@
 import type { FolderNotifSettings, WordCard } from '../../types';
 import { appNow } from '../../lib/appClock';
+import { isCardHidden } from '../cards/visibility';
 import { notifiableCards } from './notificationCandidates';
 
 /**
@@ -53,6 +54,13 @@ function randomIndex(length: number): number {
  * *scheduling* rule, and this is explicitly the button that works when the
  * schedule would not; excluding them would report "add a word first" to someone
  * whose folder is full of words.
+ *
+ * It does *order* that tier, though. The window not emptying the fallback and a
+ * hidden word not being preferred over an available one are two different
+ * claims, and both hold: a word outside its window is picked ahead of one inside
+ * it, and a folder where every word is hidden still sends. So the tiers are
+ * three — a real candidate, then any available saved word, then a hidden one —
+ * and only the last is reached when there is nothing else at all.
  */
 export function pickTestNotificationCard<T extends TestNotificationCard>(
   folderCards: readonly T[],
@@ -62,7 +70,10 @@ export function pickTestNotificationCard<T extends TestNotificationCard>(
 ): T | null {
   const usable = folderCards.filter(hasWordText);
   const candidates = notifiableCards(usable, settings, now);
-  const pool = candidates.length > 0 ? candidates : usable;
+  const available = usable.filter(card => !isCardHidden(card, now));
+  const pool = candidates.length > 0 ? candidates
+    : available.length > 0 ? available
+    : usable;
   if (pool.length === 0) return null;
   return pool[pickIndex(pool.length)] ?? null;
 }

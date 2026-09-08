@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useLang } from '../i18n';
+import { isSupportedOnboardingLanguage, SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import type { TranslationKey } from '../i18n';
 import type { OnboardingChoices, Palette } from '../types';
 
@@ -69,35 +69,6 @@ function toIsoDate(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// ── Language list ─────────────────────────────────────────────────────────────
-
-const OB_LANGUAGES = [
-  { code: 'en-US', flag: '🇺🇸', label: 'English' },
-  { code: 'es-ES', flag: '🇪🇸', label: 'Español' },
-  { code: 'fr-FR', flag: '🇫🇷', label: 'Français' },
-  { code: 'ja-JP', flag: '🇯🇵', label: '日本語' },
-  { code: 'ko-KR', flag: '🇰🇷', label: '한국어' },
-  { code: 'zh-CN', flag: '🇨🇳', label: '中文 (简体)' },
-  { code: 'de-DE', flag: '🇩🇪', label: 'Deutsch' },
-  { code: 'it-IT', flag: '🇮🇹', label: 'Italiano' },
-  { code: 'pt-BR', flag: '🇧🇷', label: 'Português (BR)' },
-  { code: 'ru-RU', flag: '🇷🇺', label: 'Русский' },
-  { code: 'ar',    flag: '🇸🇦', label: 'العربية' },
-  { code: 'hi-IN', flag: '🇮🇳', label: 'हिन्दी' },
-  { code: 'tr-TR', flag: '🇹🇷', label: 'Türkçe' },
-  { code: 'nl-NL', flag: '🇳🇱', label: 'Nederlands' },
-  { code: 'vi-VN', flag: '🇻🇳', label: 'Tiếng Việt' },
-  { code: 'th-TH', flag: '🇹🇭', label: 'ภาษาไทย' },
-  { code: 'id-ID', flag: '🇮🇩', label: 'Bahasa Indonesia' },
-  { code: 'pl-PL', flag: '🇵🇱', label: 'Polski' },
-  { code: 'el-GR', flag: '🇬🇷', label: 'Ελληνικά' },
-  { code: 'sv-SE', flag: '🇸🇪', label: 'Svenska' },
-  // Every label above is that language's own endonym, so it is deliberately
-  // the same in all 20 UI languages. "Other" is the one entry that is UI copy
-  // rather than a language name, so it is translated at render time.
-  { code: 'other', flag: '🌐', label: null },
-];
-
 // ── Language picker ───────────────────────────────────────────────────────────
 
 interface LangPickerProps {
@@ -111,13 +82,12 @@ function LangPicker({ selected, onSelect, pal, themeColor }: LangPickerProps) {
   const t = useLang();
   return (
     <View style={ob.langList}>
-      {OB_LANGUAGES.map(lang => {
-        const active = lang.code === selected;
-        const isOther = lang.code === 'other';
+      {SUPPORTED_LANGUAGES.map(lang => {
+        const active = lang.onboardingCode === selected;
         return (
           <TouchableOpacity
-            key={lang.code}
-            onPress={() => onSelect(lang.code)}
+            key={lang.onboardingCode}
+            onPress={() => onSelect(lang.onboardingCode)}
             style={[
               ob.langChip,
               {
@@ -128,10 +98,10 @@ function LangPicker({ selected, onSelect, pal, themeColor }: LangPickerProps) {
           >
             <Text style={ob.langFlag}>{lang.flag}</Text>
             <Text
-              style={[ob.langLabel, { color: active ? themeColor : isOther ? pal.sub : pal.text }]}
+              style={[ob.langLabel, { color: active ? themeColor : pal.text }]}
               numberOfLines={1}
             >
-              {lang.label ?? t('ob_lang_other')}
+              {t(lang.nameKey)}
             </Text>
             {active && <Ionicons name="checkmark-circle" size={16} color={themeColor} />}
           </TouchableOpacity>
@@ -218,14 +188,16 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
 
   const handleComplete = () => {
     const dateOfBirth = birthDate ? toIsoDate(birthDate) : null;
-    if (!nativeLang || !purpose || !gender || !dateOfBirth || !discovery) return;
+    if (!purpose || !gender || !dateOfBirth || !discovery
+      || !isSupportedOnboardingLanguage(nativeLang)
+      || (purpose === 'language' && !isSupportedOnboardingLanguage(learningLang))) return;
     const choices: OnboardingChoices = {
       purpose,
       gender,
       dateOfBirth,
       discoverySource: discovery,
       nativeLang,
-      ...(purpose === 'language' && learningLang ? { learningLang } : {}),
+      ...(purpose === 'language' ? { learningLang: learningLang! } : {}),
       ...(purpose === 'words' && wordCategory    ? { wordCategory } : {}),
     };
     onComplete(choices);
@@ -250,7 +222,9 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
     ? gender !== null && birthDate !== null && discovery !== null
     : showingCategoryPicker
       ? wordCategory !== null
-      : (showingLearnLang ? learningLang !== null : nativeLang !== null);
+      : (showingLearnLang
+        ? isSupportedOnboardingLanguage(learningLang)
+        : isSupportedOnboardingLanguage(nativeLang));
 
   const handleProceed = () => {
     if (!canProceed) return;

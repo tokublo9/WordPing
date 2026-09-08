@@ -97,10 +97,72 @@ test('"How to use WordCore" is gone, along with its dead code', () => {
 test('Announcements opens the Announcements screen', () => {
   const settings = read('src/components/SettingsModal.tsx');
 
-  assert.match(settings, /label=\{t\('announcements'\)\}[\s\S]{0,80}onPress=\{\(\) => setAnnouncementsVisible\(true\)\}/u);
+  assert.match(settings, /label=\{t\('announcements'\)\}[\s\S]{0,180}onPress=\{\(\) => setAnnouncementsVisible\(true\)\}/u);
   assert.match(settings, /<AnnouncementsSheet\s+visible=\{announcementsVisible\}/u);
-  assert.match(settings, /onClose=\{\(\) => setAnnouncementsVisible\(false\)\}/u);
+  assert.match(settings, /announcementReadState\.markVisibleRead\(\);[\s\S]{0,80}setAnnouncementsVisible\(false\);/u);
   assert.match(settings, /import \{ AnnouncementsSheet \} from '\.\/AnnouncementsSheet';/u);
+});
+
+test('the first-install welcome announcement is localized and has persistent unread state', () => {
+  const announcements = read('src/features/announcements/announcements.ts');
+  const readState = read('src/hooks/useAnnouncementReadState.ts');
+  const settings = read('src/components/SettingsModal.tsx');
+  const sheet = read('src/components/AnnouncementsSheet.tsx');
+
+  assert.match(announcements, /WELCOME_ANNOUNCEMENT_ID = 'welcome-first-install\.v1'/u);
+  assert.match(announcements, /FORCE_SHOW_WELCOME_ANNOUNCEMENT = false/u);
+  assert.match(announcements, /Must remain false for release/u);
+  assert.match(readState, /const forceWelcomeUnread = __DEV__ && FORCE_SHOW_WELCOME_ANNOUNCEMENT;/u);
+  assert.match(settings, /badge=\{announcementReadState\.hasUnread\}/u);
+  assert.match(sheet, /t\(item\.titleKey\)/u);
+  assert.match(sheet, /t\(item\.bodyKey\)/u);
+});
+
+test('the onboarding dev switch is off, and only ever reachable in development', () => {
+  // The sibling of FORCE_SHOW_WELCOME_ANNOUNCEMENT above, and it shipped as
+  // `true` once because nothing asserted it. The `__DEV__` guard makes a release
+  // build safe either way, but a switch committed in the on state is one
+  // stripped guard away from showing onboarding on every launch.
+  const onboarding = read('src/components/OnboardingModal.tsx');
+  const bootstrap = read('src/app/useAppBootstrap.ts');
+
+  assert.match(onboarding, /export const FORCE_SHOW_ONBOARDING = false;/u);
+  assert.match(onboarding, /Flip back to false before shipping\./u);
+  // Read only behind __DEV__, so the flag alone can never decide this.
+  assert.match(
+    bootstrap,
+    /const showingOnboarding = storedOnboarding === null \|\| \(__DEV__ && FORCE_SHOW_ONBOARDING\);/u,
+  );
+  assert.equal(
+    (bootstrap.match(/FORCE_SHOW_ONBOARDING/gu) ?? []).length, 2,
+    'one import and one guarded read — no second, unguarded use',
+  );
+});
+
+test('review and recommendation rows live only inside App Info', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const appInfoAt = settings.indexOf('function AppInfoSheet');
+  const root = settings.slice(0, appInfoAt);
+  const appInfo = settings.slice(appInfoAt);
+
+  assert.doesNotMatch(root, /t\('write_review'\)|t\('recommend_friends'\)/u);
+  assert.match(appInfo, /icon="star-outline"[\s\S]{0,100}label=\{t\('write_review'\)\}/u);
+  assert.match(appInfo, /icon="share-social-outline"[\s\S]{0,100}label=\{t\('recommend_friends'\)\}/u);
+  assert.match(appInfo, /Share\.share\(buildRecommendationShareContent\(/u);
+  assert.match(appInfo, /result\.action === Share\.dismissedAction/u);
+});
+
+test('review and share use one App Store constants module and localized failures', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const constants = read('src/config/appStore.ts');
+
+  assert.match(settings, /APP_STORE_REVIEW_URL, APP_STORE_URL/u);
+  assert.match(settings, /t\('review_open_failed'\)/u);
+  assert.match(settings, /t\('share_failed'\)/u);
+  assert.match(settings, /t\('recommend_share_message'\)/u);
+  assert.match(constants, /export const APP_STORE_ID/u);
+  assert.match(constants, /export const APP_STORE_URL/u);
+  assert.match(constants, /export const APP_STORE_REVIEW_URL/u);
 });
 
 test('the Announcements screen matches the Settings sub-screen conventions', () => {
@@ -141,7 +203,7 @@ test('the screen renders supplied announcements instead of the empty state', () 
   // Injectable list, ordered and validated by the shared helper.
   assert.match(sheet, /announcements\?: readonly Announcement\[\];/u);
   assert.match(sheet, /visibleAnnouncements\(announcements\)/u);
-  assert.match(sheet, /items\.map\(item => \(/u);
+  assert.match(sheet, /items\.map\(item => \{/u);
   assert.match(sheet, /key=\{item\.id\}/u);
 });
 
@@ -633,7 +695,7 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   assert.match(limits, /premium: null/u);
   // Non-null asserted: `meteredForVoice` above already required an identity,
   // so this line is only reached when one was received.
-  assert.match(pipeline, /privacyHash\(env, 'rcuser', identity!\.appUserId\)/u);
+  assert.match(pipeline, /privacyHash\(env, 'rcuser', identity\.appUserId\)/u);
   assert.match(pipeline, /reserveMonthlyQuota\(/u);
   const guard = pipeline.slice(pipeline.indexOf('const requiredTier'));
   assert.match(guard, /tier = entitlement\.tier;/u);
@@ -1263,7 +1325,14 @@ test('restarting the session makes every card answerable again', () => {
   // cards, and leaving the answered IDs behind silently swallowed the next
   // grade — the card animated away but no hiddenUntil was ever written.
   const screen = read('src/components/TestModeScreen.tsx');
-  assert.match(screen, /setSessionKey\(k => k \+ 1\);[\s\S]{0,400}gradedIdsRef\.current = new Set\(\);/u);
+  // Scoped to the restart handler rather than a character window: the two
+  // statements are 432 characters apart now that the reason is written down
+  // between them, and the property is that they are in the *same* handler.
+  const restartAt = screen.indexOf('setSessionKey(k => k + 1);');
+  assert.ok(restartAt > -1, 'a restart bumps the session key');
+  const restart = screen.slice(restartAt, screen.indexOf('}, [', restartAt));
+  assert.match(restart, /gradedIdsRef\.current = new Set\(\);/u,
+    'and clears the graded set in the same pass, so every card is answerable again');
 });
 
 test('each grade hides for its own fixed period when the sync option is enabled', () => {
@@ -1336,15 +1405,30 @@ test('one selector decides what the list shows, and nothing narrows it further',
   const useCards = read('src/features/cards/useCards.ts');
   const visibility = read('src/features/cards/visibility.ts');
   assert.match(useCards, /const allFolderCards = useMemo/u);
-  assert.match(useCards, /cardsForVisibility\(allFolderCards/u);
+  assert.match(useCards, /cardsForVisibility\(displayedAllFolderCards, appNow\(\)\)/u);
   // One rule: inside its hide or not. No filter can override it any more.
   assert.match(visibility, /export function shouldShowCard\(card: VisibilityCard, now: number = appNow\(\)\): boolean \{\s*return !isCardHidden\(card, now\);/u);
   assert.doesNotMatch(visibility, /activeResultFilter|matchesResultFilter/u);
   assert.match(read('App.tsx'), /allFolderCards=\{allFolderCards\}/u);
   // The counts are taken where the clock signal lives, not in the screen.
   assert.match(useCards, /countCardsByResult\(displayedAllFolderCards, appNow\(\)\)/u);
-  // Notifications and folder counts.
-  assert.match(read('src/notifications.ts'), /!isCardHidden\(c\)/u);
+  // Notifications and folder counts. The scheduler stopped reimplementing the
+  // rule: it filters ownership and defers, so there is one place the hide
+  // window is applied and no second opinion to drift from it.
+  const notifications = read('src/notifications.ts');
+  assert.match(notifications, /const eligible = notifiableCards\(owned, folder\.notifSettings\);/u);
+  assert.doesNotMatch(notifications, /isCardHidden|notifCandidate|notifyAllWords/u,
+    'the caller must not reimplement the rule');
+  assert.match(
+    read('src/features/notifications/notificationCandidates.ts'),
+    /const available = cards\.filter\(card => !isCardHidden\(card, now\)\);/u,
+    'and the shared helper is where a hidden card is excluded');
+  // Send Test keeps its fallback: a hidden word is never preferred over an
+  // available one, but an all-hidden folder can still send.
+  assert.match(
+    read('src/features/notifications/testNotification.ts'),
+    /candidates\.length > 0 \? candidates\s*:\s*available\.length > 0 \? available\s*:\s*usable/u,
+  );
   assert.match(read('src/screens/FolderListScreen/FolderListScreen.tsx'), /if \(isCardHidden\(card, now\)\) continue;/u);
   // Test Mode studies the ordinary visible cards, but Reset can clear grading
   // and hiding from every existing card in the folder.

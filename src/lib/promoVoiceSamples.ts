@@ -17,6 +17,20 @@
 export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
 
+/** The twenty normalized keys shared by the text, audio and cache tables. */
+export const PROMO_SAMPLE_LANGS = [
+  'en', 'ja', 'ko', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru',
+  'ar', 'hi', 'tr', 'nl', 'vi', 'th', 'id', 'pl', 'el', 'sv',
+] as const;
+export type PromoSampleLang = (typeof PROMO_SAMPLE_LANGS)[number];
+
+const PROMO_SAMPLE_LANG_SET: ReadonlySet<string> = new Set(PROMO_SAMPLE_LANGS);
+
+// Covers the ordinary BCP-47 language/script/region/variant/extension forms the
+// app can receive, including zh-Hans, zh-Hant-TW and zh-Hans-CN. Underscores,
+// empty subtags and arbitrary path-like strings are invalid and fall back.
+const BCP47_LANGUAGE_TAG = /^(?:[a-z]{2,3}(?:-[a-z]{3}){0,3}(?:-[a-z]{4})?(?:-(?:[a-z]{2}|[0-9]{3}))?(?:-(?:[a-z0-9]{5,8}|[0-9][a-z0-9]{3}))*(?:-[0-9a-wy-z](?:-[a-z0-9]{2,8})+)*(?:-x(?:-[a-z0-9]{1,8})+)?|x(?:-[a-z0-9]{1,8})+)$/u;
+
 /**
  * Identifies one generation of promotional audio.
  *
@@ -24,23 +38,25 @@ export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
  *
  *  - the sample text in the table below,
  *  - the voice, the model, or the pronunciation instructions,
- *  - the encoding of the bundled clips.
+ *  - the encoding of the bundled clips,
+ *  - the fields that identify a promo clip in either cache.
  *
  * Bumping invalidates every clip the network route has cached, on the device and
  * in the Worker's KV, so nobody keeps hearing the previous take.
  *
- * Any of those changes also requires regenerating the bundled audio:
+ * Changes to spoken content or encoding also require regenerating the bundled
+ * audio (a cache-only identity change does not):
  *
  *     npm run generate:promo-voice -- --force
  *
- * which rewrites `assets/promo-voice/<lang>/<sample>.mp3` and the static
- * `require()` map in `src/lib/promoVoiceAudio.ts`. The bundled clips are NOT
- * keyed by this version — they are addressed by path — so a version bump alone
- * would leave stale audio playing from the bundle. Regenerate, then bump.
+ * which rewrites `assets/promo-voice/<lang>/<sample>.mp3`, the static `require()`
+ * map, and its generated version marker in `src/lib/promoVoiceAudio.ts`. Until
+ * that marker matches this value, bundle lookup deliberately uses the corrected
+ * network path instead of playing stale generated audio.
  */
-export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v1';
+export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v3';
 
-export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<string, string>>>> = {
+export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<PromoSampleLang, string>>>> = {
   spontaneous: {
     en: 'Spontaneous',
     ja: '自発的',
@@ -135,11 +151,14 @@ export function isPromoSampleId(value: unknown): value is PromoSampleId {
   return typeof value === 'string' && (PROMO_SAMPLE_IDS as readonly string[]).includes(value);
 }
 
-/** The base subtag this table has copy for, or 'en'. Mirrors the Worker. */
-export function resolvePromoLang(langCode: string | undefined): string {
-  if (!langCode || langCode === 'other') return 'en';
-  const base = langCode.split(/[-_]/u)[0]?.toLowerCase() ?? '';
-  return PROMO_SAMPLE_TEXT.spontaneous[base] !== undefined ? base : 'en';
+/** The supported base subtag for a valid BCP-47 tag, or `en`. Mirrors the Worker. */
+export function resolvePromoLang(langCode: unknown): PromoSampleLang {
+  if (typeof langCode !== 'string') return 'en';
+  const tag = langCode.trim();
+  const normalizedTag = tag.toLowerCase();
+  if (!tag || normalizedTag === 'other' || !BCP47_LANGUAGE_TAG.test(normalizedTag)) return 'en';
+  const base = normalizedTag.split('-')[0]!;
+  return PROMO_SAMPLE_LANG_SET.has(base) ? base as PromoSampleLang : 'en';
 }
 
 /**
@@ -149,5 +168,5 @@ export function resolvePromoLang(langCode: string | undefined): string {
  */
 export function promoSampleText(sample: PromoSampleId, langCode: string | undefined): string {
   const lang = resolvePromoLang(langCode);
-  return PROMO_SAMPLE_TEXT[sample][lang] ?? (PROMO_SAMPLE_TEXT[sample].en as string);
+  return PROMO_SAMPLE_TEXT[sample][lang];
 }

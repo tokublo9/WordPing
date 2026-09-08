@@ -98,7 +98,7 @@ test('age is omitted, not nulled, when it cannot be derived', () => {
 
 test('learning language is omitted on the words path', () => {
   const properties = buildResearchProperties(
-    { ...CHOICES, purpose: 'words', learningLang: undefined },
+    { ...CHOICES, purpose: 'words', learningLang: 'en-US' },
     NOW,
   );
   assert.equal('learning_language' in properties, false);
@@ -114,6 +114,7 @@ test('stored answers are validated against their allowlists', () => {
   const parsed = parseOnboardingChoices(JSON.stringify({
     purpose: 'language',
     nativeLang: 'ja-JP',
+    learningLang: 'en-US',
     gender: 'something-else',
     discoverySource: 'made-up',
     dateOfBirth: 12345,
@@ -129,4 +130,21 @@ test('an unusable stored record parses to null rather than a partial one', () =>
   assert.equal(parseOnboardingChoices('[]'), null);
   assert.equal(parseOnboardingChoices(JSON.stringify({ purpose: 'language' })), null, 'no nativeLang');
   assert.equal(parseOnboardingChoices(JSON.stringify({ nativeLang: 'ja-JP' })), null, 'no purpose');
+  assert.equal(parseOnboardingChoices(JSON.stringify({ purpose: 'words', nativeLang: 'other' })), null, 'legacy Other value');
+  assert.equal(parseOnboardingChoices(JSON.stringify({ purpose: 'words', nativeLang: 'es' })), null, 'UI code instead of BCP-47 code');
+  assert.equal(parseOnboardingChoices(JSON.stringify({
+    purpose: 'language', nativeLang: 'ja-JP', learningLang: 'other',
+  })), null, 'unsupported learning language');
+});
+
+test('the words path strips a stale learning language from stored data', () => {
+  const parsed = parseOnboardingChoices(JSON.stringify({
+    purpose: 'words',
+    nativeLang: 'ko-KR',
+    learningLang: 'en-US',
+  }));
+  assert.notEqual(parsed, null);
+  assert.equal(parsed?.purpose, 'words');
+  assert.equal(parsed?.nativeLang, 'ko-KR');
+  assert.equal('learningLang' in (parsed ?? {}), false);
 });

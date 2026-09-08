@@ -242,9 +242,13 @@ test('AI requests never start during app bootstrap', () => {
   // The API client resolves its identity lazily, on first use.
   const client = read('src/lib/api/client.ts');
   assert.match(client, /identityRequest \?\?= resolveIdentity\(\)/u);
-  // Resolved lazily, and only for a request that carries user content: a fixed
-  // promo clip must not mint an install id just to play a public sample.
-  assert.match(client, /const identity = kind === 'user-content' \? await getIdentity\(\) : null;/u);
+  // Resolved lazily, and never for a fixed promo clip: `getInstallId` creates an
+  // id when none exists, so a public sample must not mint one just to play.
+  // `account-metadata` — the server-side entitlement/credit check — was added
+  // after this assertion and does carry identity, which is the whole point of
+  // it, so the rule is stated as the exclusion it has always really been.
+  assert.match(client, /const identity = kind !== 'fixed-promo' \? await getIdentity\(\) : null;/u);
+  assert.match(client, /type AIRequestKind = 'user-content' \| 'account-metadata' \| 'fixed-promo';/u);
 });
 
 test('a failed data load never opens the persistence write gate', () => {
@@ -253,15 +257,55 @@ test('a failed data load never opens the persistence write gate', () => {
   // every persist writes the full array — so the first word the user added would
   // have been written as the complete card list, deleting everything else.
   const bootstrap = read('src/app/useAppBootstrap.ts');
+  const persistence = read('src/app/useAppPersistence.ts');
 
-  assert.match(bootstrap, /loadFailedRef\.current = true;/u, 'the failure path must record that the read failed');
+  // The gate starts shut, so nothing persists before Phase 1 has run at all.
+  assert.match(bootstrap, /const cardsLoaded = useRef\(false\);/u,
+    'the write gate must start closed');
+
+  // Phase 1 opens it on success and that is deliberate: the later non-critical
+  // phases must be able to persist what they change. What protects the data is
+  // not the absence of this line but its position — every step that puts the
+  // stored data into state has to have completed before it is reached.
+  const successAt = bootstrap.indexOf('cardsLoaded.current = true;');
+  assert.ok(successAt > -1, 'Phase 1 opens the gate once the load has succeeded');
+  for (const step of [
+    'await bootstrapData()',
+    'await readFolders()',
+    'migrateCards(',
+    'setCards(migratedCards)',
+    'setFolders(migratedFolders)',
+    'applySettings(local.settings)',
+  ]) {
+    const at = bootstrap.indexOf(step);
+    assert.ok(at > -1 && at < successAt, `${step} must complete before the gate opens`);
+  }
+
+  // The catch path records the failure and returns, so a failed read never
+  // reaches that assignment — `cards` is [] there for reasons unrelated to disk.
+  const catchAt = bootstrap.indexOf('loadFailedRef.current = true;');
+  assert.ok(catchAt > -1, 'the failure path must record that the read failed');
+  assert.ok(catchAt < successAt, 'the failure path sits above the success assignment');
+  assert.match(bootstrap.slice(catchAt, successAt), /return;/u,
+    'the failure path returns before the gate opens');
+
+  // The finally block finalizes both gates from that record, never from a literal.
   assert.match(
     bootstrap,
     /const readSucceeded = !loadFailedRef\.current;\s*hasLoaded\.current = readSucceeded;\s*cardsLoaded\.current = readSucceeded;/u,
     'both gates must be conditional on a successful read',
   );
-  assert.doesNotMatch(bootstrap, /cardsLoaded\.current = true;/u,
-    'no unconditional gate opening may remain');
+  assert.equal((bootstrap.match(/cardsLoaded\.current = true;/gu) ?? []).length, 1,
+    'the Phase 1 success path is the only place the gate is opened outright');
+  assert.doesNotMatch(
+    bootstrap.slice(bootstrap.indexOf('.finally(')),
+    /cardsLoaded\.current = true;/u,
+    'no finally block may open the gate unconditionally',
+  );
+
+  // And the gate still governs persistence.
+  assert.match(persistence, /if \(!cardsLoaded\.current\) return;/u,
+    'persistence stays gated by the write gate');
 
   // The user has to be told, or the app silently discards what they type.
   const app = read('App.tsx');

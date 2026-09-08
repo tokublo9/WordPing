@@ -40,9 +40,6 @@ import {
 import { PROMO_SAMPLE_TEXT, type PromoSampleId } from '../lib/promoVoiceSamples';
 import { AIRequestError } from '../lib/api/errors';
 import { speak, speakPromoSample, stopPlayback } from '../lib/tts';
-// The same gate every other AI surface uses. It opens the one consent dialog
-// and never grants consent by itself.
-import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
 import {
   PremiumSkinPreview,
   THEME_SCREENSHOTS,
@@ -102,16 +99,18 @@ interface DemoContent {
   sentence: string;
 }
 
+type PromoSampleLang = keyof typeof PROMO_SAMPLE_TEXT.spontaneous;
+
 // Built from the shared promo table so the words on screen are exactly the words
 // the Worker speaks — see src/lib/promoVoiceSamples.ts.
-const DEMO_SAMPLES: Record<string, DemoContent> = Object.fromEntries(
-  Object.keys(PROMO_SAMPLE_TEXT.spontaneous).map(lang => [lang, {
+const DEMO_SAMPLES = Object.fromEntries(
+  (Object.keys(PROMO_SAMPLE_TEXT.spontaneous) as PromoSampleLang[]).map(lang => [lang, {
     spontaneous: PROMO_SAMPLE_TEXT.spontaneous[lang] as string,
     vertical: PROMO_SAMPLE_TEXT.vertical[lang] as string,
     merely: PROMO_SAMPLE_TEXT.merely[lang] as string,
     sentence: PROMO_SAMPLE_TEXT.morning_light[lang] as string,
   }]),
-);
+) as Record<PromoSampleLang, DemoContent>;
 
 /**
  * Which line the promo alert shows.
@@ -174,11 +173,6 @@ const PROMO_SAMPLE_BY_DEMO: Readonly<Record<AIDemoKey, PromoSampleId>> = {
   merely_ai: 'merely',
   sentence_ai: 'morning_light',
 };
-
-function normalizeLangCode(code: string | undefined): string {
-  if (!code || code === 'other') return 'en';
-  return code.split(/[-_]/)[0].toLowerCase();
-}
 
 function demoTextForKey(demo: DemoContent, key: DemoKey): string {
   if (key.startsWith('spontaneous_')) return demo.spontaneous;
@@ -429,6 +423,23 @@ const Waveform = React.memo(function Waveform({
 // ── Voice row ─────────────────────────────────────────────────────────────────
 // Sample text on top; the Default and AI High-Quality playback buttons sit below
 // it. Text wraps fully so the sentence is never clipped.
+
+/**
+ * The AI button is sized to its own content rather than to half the row, so the
+ * Default button beside it keeps every remaining point for a translated label.
+ * Splitting the row evenly left the Default button too narrow for languages
+ * whose "Default Voice" runs long, and its label — which had nothing to shrink
+ * it — spilled across the gap and over the AI button.
+ *
+ * Fixed rather than intrinsic because the button swaps "AI" for the waveform
+ * while a sample plays: at content width it would resize on every play/pause,
+ * reflowing all four rows. Measured from that widest state, so the label never
+ * has less room than the waveform already needs:
+ *
+ *   13 (play icon) + 6 (gap) + 30 (7 bars of 2.5 with 6 gaps of 2, rounded up)
+ *   + 24 (paddingHorizontal 12 on both sides)
+ */
+const AI_SAMPLE_BTN_WIDTH = 13 + 6 + 30 + 24;
 
 interface VoiceRowProps {
   pal: Palette;
@@ -1026,6 +1037,10 @@ const PremiumThemesCarousel = React.memo(function PremiumThemesCarousel({
         ))}
       </Animated.ScrollView>
 
+      <Text style={[s.themePreviewLanguageNote, { color: pal.sub }]}>
+        {t('theme_preview_english_note')}
+      </Text>
+
       <View style={{ paddingHorizontal: CARD_PADDING, marginTop: 18 }}>
         <PlanLabels basic premium t={t} />
 
@@ -1414,8 +1429,8 @@ interface Props {
    * where there is no renewal to describe.
    */
   expirationDate?: string | null;
-  learningLang?: string;
-  nativeLang?: string;
+  /** App-resolved sample-table key used by every text and audio path. */
+  sampleLanguage: PromoSampleLang;
   onManageSubscription?: () => void;
   /** Current active skin id — forwarded to Theme Details. */
   skinId?: string | null;
@@ -1436,7 +1451,7 @@ export function ProSheet({
   isSubscriptionLoaded = true,
   planProducts = {},
   expirationDate = null,
-  nativeLang = 'en-US',
+  sampleLanguage,
   onManageSubscription,
   skinId,
   onPickSkin,
@@ -1494,11 +1509,10 @@ export function ProSheet({
    */
   const openRun = useRef(0);
 
-  // `nativeLang` is the app's Explanation Language. All rows use this same
-  // source for both their displayed meaning and their playback language.
-  const resolvedSampleLang = nativeLang;
-  const sampleKey = normalizeLangCode(resolvedSampleLang);
-  const demo      = DEMO_SAMPLES[sampleKey] ?? DEMO_SAMPLES.en;
+  // App resolves purpose plus source language once; this component never
+  // guesses from the presence of a learning language or normalizes it again.
+  const resolvedSampleLang = sampleLanguage;
+  const demo = DEMO_SAMPLES[resolvedSampleLang];
 
   // Set initial position synchronously before the first paint so the sheet
   // never appears at an incorrect position when becoming visible.
@@ -1563,7 +1577,7 @@ export function ProSheet({
     }
   }, [visible]);
 
-  useEffect(() => { demoSequence.current++; setPlayingDemo(null); setLoadingDemo(null); stopPlayback(); }, [sampleKey]);
+  useEffect(() => { demoSequence.current++; setPlayingDemo(null); setLoadingDemo(null); stopPlayback(); }, [resolvedSampleLang]);
 
   const handlePlayDemo = async (key: DemoKey) => {
     // Tapping the sample that is playing stops it, matching the word card.
@@ -1575,18 +1589,6 @@ export function ProSheet({
       return;
     }
     const isAI = key.endsWith('ai');
-    // Every explicit AI Voice sample asks the same question the word card asks,
-    // before anything starts. The promo route needs no permission of its own —
-    // it carries no user content and no identifier, and the clip may even be
-    // bundled — but a user who has not agreed to AI data sharing should not
-    // hear an AI voice begin as though they had. Declining leaves playback
-    // untouched and returns here; the next tap asks again, because
-    // `ensureAIConsentForUserAction` re-asks after a decline.
-    //
-    // Deliberately before the sequence bump and before any state is set, so a
-    // refused sample never flashes the playing state and never stops a clip
-    // that is already running.
-    if (isAI && !await ensureAIConsentForUserAction()) return;
 
     // Starting one sample supersedes the other: the sequence bump invalidates
     // the previous call's finally block and stopPlayback releases its player.
@@ -1597,10 +1599,10 @@ export function ProSheet({
 
     try {
       if (isAI) {
-        // Still no entitlement check: consent is not entitlement. Playing this
-        // grants nothing — it does not unlock card voice, does not touch the
-        // entitlement and spends no credit. A Free user who has agreed to data
-        // sharing hears the comparison and nothing else changes.
+        // These are fixed WordPing-authored promos, not user-content AI actions.
+        // Playing one grants nothing, changes no consent or entitlement state,
+        // and spends no credit. The structurally isolated promo path either
+        // plays its bundled clip or sends only this allowlisted id and language.
         const sample = PROMO_SAMPLE_BY_DEMO[key as AIDemoKey];
         await speakPromoSample(sample, resolvedSampleLang, {
           onPhaseChange: phase => {
@@ -1989,22 +1991,40 @@ const av = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E2E8F0', marginVertical: 14 },
   row: { gap: 10 },
   sampleText: { fontSize: 15, fontWeight: '600', color: '#1E293B', lineHeight: 22 },
-  btnRow: { flexDirection: 'row', gap: 10 },
+  // `row` and `gap` only: no left/right margins anywhere in the pair, so RTL
+  // mirrors the two buttons without any of the spacing landing on the wrong side.
+  btnRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   defaultBtn: {
+    // Grows and shrinks into whatever the fixed-width AI button leaves. It is
+    // the only flexible item in the row, so it absorbs every narrow layout.
     flex: 1,
+    // Yoga would otherwise refuse to size this below its content on some
+    // layouts; with it, a long label shortens the button instead of widening it.
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    paddingHorizontal: 10,
     height: 42,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#CBD5E1',
     backgroundColor: '#FFFFFF',
+    // Last line of defence: even a label that somehow measures too wide is
+    // clipped at the button's own edge rather than painted over its neighbour.
+    overflow: 'hidden',
   },
-  defaultLabel: { fontSize: 12, fontWeight: '700', color: '#475569' },
+  // flexShrink is what actually stops the overflow — a Text defaults to
+  // flexShrink: 0 and keeps its full measured width, which is what pushed the
+  // label out of the button. With it, `numberOfLines={1}` ellipsises instead.
+  defaultLabel: { fontSize: 12, fontWeight: '700', color: '#475569', flexShrink: 1, minWidth: 0 },
   aiBtnWrap: {
-    flex: 1,
+    width: AI_SAMPLE_BTN_WIDTH,
+    // Neither grows into the Default button's space nor gets squeezed out of
+    // its own on a small screen.
+    flexGrow: 0,
+    flexShrink: 0,
     borderRadius: 12,
     shadowColor: PLAN_BLUE,
     shadowOffset: { width: 0, height: 3 },
@@ -2022,10 +2042,14 @@ const av = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    paddingHorizontal: 12,
     height: 42,
     borderRadius: 12,
+    // Keeps the gradient and its contents inside the rounded edge; the glow
+    // lives on aiBtnWrap, which stays unclipped so the shadow still renders.
+    overflow: 'hidden',
   },
-  aiLabel: { fontSize: 12, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+  aiLabel: { fontSize: 12, fontWeight: '800', color: '#fff', letterSpacing: 0.5, flexShrink: 1 },
 });
 
 // Premium feature section styles — white card, blue-family accents
@@ -2338,6 +2362,13 @@ const s = StyleSheet.create({
     textAlign: 'left',
     lineHeight: 20,
     marginTop: 14,
+  },
+  themePreviewLanguageNote: {
+    paddingHorizontal: CARD_PADDING,
+    paddingTop: 2,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: 'auto',
   },
 
   // ── "Pays for itself" value promo (themes carousel) ─────────────────────────

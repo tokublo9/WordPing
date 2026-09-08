@@ -14,9 +14,12 @@ test('an active entitlement sweeps every existing word into the cache', () => {
   // once the subscription and the stored voice are both known; preloading before
   // the voice loads would cache the wrong voice. Read from `planCanUseAI` rather
   // than a tier list, so a plan change moves the sweep with it.
-  assert.match(app, /const hasAIAccess = planCanUseAI\(plan\);/u);
-  assert.match(app, /if \(!isSubscriptionLoaded \|\| !settingsLoaded \|\| !hasAIAccess\)/u);
-  assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: cards\.map\(/u);
+  assert.match(app, /const hasAIAccess = planCanUseAI\(plan\) && !preferDeviceVoice;/u);
+  assert.match(app, /if \(!isSubscriptionLoaded \|\| !settingsLoaded \|\| !hasAIAccess/u);
+  // Consent gates the sweep too, not only a single deliberate play.
+  assert.match(app, /aiConsentState !== 'granted'\) \{/u);
+  // Ordered so the open folder is queued first; still every card, none dropped.
+  assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: orderedCards\.map\(/u);
   assert.match(app, /text: card\.word,/u);
   assert.match(app, /hasCustomAudio: Boolean\(card\.audioUri\),/u);
 
@@ -27,8 +30,18 @@ test('an active entitlement sweeps every existing word into the cache', () => {
   assert.match(app, /if \(cards\.length === 0\) return;/u);
   // Losing access resets the key so re-subscribing sweeps again.
   assert.match(app, /if \(!hasAIAccess\) preloadedLibraryKeyRef\.current = null;/u);
-  // The effect must see card and voice changes to do any of that.
-  assert.match(app, /\[\s*aiVoice, cards, entitlementRevision, entitlementSource,\s*isSubscriptionLoaded, plan, settingsLoaded,\s*\]/u);
+  // The effect must see card and voice changes to do any of that. Asserted as
+  // membership rather than an exact list, so adding a dependency cannot fail
+  // this while dropping one still does.
+  const sweepAt = app.indexOf('preloadAIPronunciationLibrary({');
+  const sweepDepsAt = app.indexOf('}, [', sweepAt);
+  const sweepDeps = app.slice(sweepDepsAt, app.indexOf(']);', sweepDepsAt));
+  for (const dep of [
+    'aiVoice', 'cards', 'entitlementRevision', 'entitlementSource',
+    'isSubscriptionLoaded', 'plan', 'settingsLoaded',
+  ]) {
+    assert.ok(sweepDeps.includes(dep), `the sweep must re-run when ${dep} changes`);
+  }
 
   // The helper reuses the single-card path, so it inherits the cache hits, in-flight
   // deduplication and one-at-a-time queue rather than firing N parallel requests.
@@ -42,13 +55,30 @@ test('words added while subscribed are preloaded on registration', () => {
   // handleCardRegistered covers everything added after the sweep.
   assert.match(
     app,
-    /const handleCardRegistered = useCallback\(\(card: WordCard\) => \{\s*preloadAIPronunciation\(\{/u,
+    /const handleCardRegistered = useCallback\(async \(\s*card: WordCard,\s*remaining: readonly WordCard\[\],\s*\) => \{/u,
   );
-  // `canUseAIVoice` already carries "loaded and eligible", so a Basic user — who
-  // has no AI Voice — queues nothing.
+
+  const registered = app.slice(
+    app.indexOf('const handleCardRegistered'),
+    app.indexOf('const handleCardEdited'),
+  );
+  // Local vocabulary is durable before any of its text can leave the device.
+  const persistAt = registered.indexOf('await persistCardsAndWait([...remaining]);');
+  const preloadAt = registered.indexOf('preloadAIPronunciation({');
+  assert.ok(persistAt > -1, 'the new word is saved first');
+  assert.ok(preloadAt > persistAt, 'and only then is the preload queued');
+  // A card edited or deleted while SQLite was flushing is not preloaded at all.
+  assert.match(
+    registered,
+    /if \(!current \|\| cardVoiceInput\(current\) !== cardVoiceInput\(card\)\) return;/u,
+  );
+
+  // `automaticAIVoiceReady` carries "loaded, eligible, consented, not a dev
+  // scenario", so a Basic user — who has no AI Voice — queues nothing.
+  assert.match(registered, /hasAIAccess: automaticAIVoiceReady,/u);
   assert.match(
     app,
-    /hasAIAccess: canUseAIVoice && entitlementSource !== 'local-development-scenario',/u,
+    /const automaticAIVoiceReady = canUseAIVoice\s*&& entitlementSource !== 'local-development-scenario'\s*&& aiConsentState === 'granted';/u,
   );
   assert.match(app, /onCardRegistered: handleCardRegistered/u);
 });
@@ -57,21 +87,32 @@ test('an edit regenerates only when the spoken text actually moved', () => {
   const app = read('App.tsx');
   const cards = read('src/features/cards/useCards.ts');
 
-  // The edit branch reports what the word used to say and the library as it now
-  // stands — the two things the cache needs to decide anything.
-  assert.match(cards, /onCardEdited\?\.\(\{\s*card: \{ \.\.\.editingCard, \.\.\.edits \},\s*previousWord: editingCard\.word,\s*remaining: cards\.map\(applyEdits\),\s*\}\);/u);
+  // The edit branch reports the card before and after, plus the library as it
+  // now stands — what the cache needs to decide anything.
+  assert.match(cards, /onCardEdited\?\.\(\{\s*card: \{ \.\.\.editingCard, \.\.\.edits, \.\.\.declassify\(editingCard\) \},\s*previousCard: editingCard,\s*remaining,\s*\}\)/u);
   // Still spread onto the card as state holds it, so a write-through made while
   // the sheet was open is not rolled back by the save.
-  assert.match(cards, /setCards\(prev => prev\.map\(applyEdits\)\);/u);
+  assert.match(cards, /const remaining = cards\.map\(applyEdits\);\s*setCards\(remaining\);/u);
 
-  // Same normalization as the cache key, so a whitespace-only edit is a no-op.
-  assert.match(app, /if \(previous === normalizedTTSText\(change\.card\.word\)\) return;/u);
-  // Release first: it cancels this card's queued work, which would otherwise
-  // take the preload queued immediately after it.
+  // Nothing happens at all when neither the text nor the voice input moved.
+  assert.match(app, /if \(cardVoiceInput\(change\.previousCard\) === cardVoiceInput\(change\.card\)\) return;/u);
+  // Same normalization as the cache key, so a whitespace-only edit releases nothing.
   assert.match(
     app,
-    /releaseAIPronunciationCache\(\{[\s\S]*?\}\);\s*preloadAIPronunciation\(\{/u,
+    /const textChanged = normalizedTTSText\(change\.previousCard\.word\)\s*!== normalizedTTSText\(change\.card\.word\);/u,
   );
+  // Release first: it cancels this card's queued work, which would otherwise
+  // take the preload queued after it. A non-text change cancels instead, because
+  // the old text is still reachable from other cards.
+  const edited = app.slice(
+    app.indexOf('const handleCardEdited'),
+    app.indexOf('const handleCardsImported'),
+  );
+  const releaseAt = edited.indexOf('releaseAIPronunciationCache({');
+  const editPreloadAt = edited.indexOf('preloadAIPronunciation({');
+  assert.ok(releaseAt > -1, 'a changed word releases its old clip');
+  assert.ok(editPreloadAt > releaseAt, 'and the replacement is queued only after that');
+  assert.match(edited, /\} else \{[\s\S]*?cancelAIPronunciationPreload\(change\.card\.id\);/u);
   assert.match(app, /onCardEdited: handleCardEdited/u);
 });
 
@@ -80,11 +121,15 @@ test('a bulk import preloads its new words through the shared queue', () => {
   const cards = read('src/features/cards/useCards.ts');
 
   // Only the words the import created — skipped duplicates already exist.
-  assert.match(cards, /if \(batch\.cards\.length > 0\) onCardsImported\?\.\(batch\.cards\);/u);
+  assert.match(cards, /if \(batch\.cards\.length > 0\) \{\s*void Promise\.resolve\(\)\s*\.then\(\(\) => onCardsImported\?\.\(batch\.cards, remaining\)\)/u);
   assert.doesNotMatch(cards, /Bulk imports intentionally do not auto-preload/u);
   // The library helper is the one that feeds preloadAIPronunciation one at a
   // time, so an import cannot fire N requests in parallel.
-  assert.match(app, /const handleCardsImported = useCallback\(\(imported: readonly WordCard\[\]\) => \{\s*preloadAIPronunciationLibrary\(\{/u);
+  assert.match(app, /const handleCardsImported = useCallback\(async \(\s*imported: readonly WordCard\[\],\s*remaining: readonly WordCard\[\],\s*\) => \{/u);
+  // Saved before queued, and re-read from state so a word deleted during the
+  // write is not preloaded.
+  assert.match(app, /await persistCardsAndWait\(\[\.\.\.remaining\]\);\s*const importedIds = new Set\(imported\.map\(card => card\.id\)\);/u);
+  assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: currentImported\.map\(/u);
   assert.match(app, /triggerReason: 'bulk-import',/u);
   assert.match(app, /hasCustomAudio: Boolean\(card\.audioUri\),/u);
   assert.match(app, /onCardsImported: handleCardsImported/u);

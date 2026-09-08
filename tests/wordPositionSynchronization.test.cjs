@@ -55,7 +55,22 @@ test('Word List and Word Flip share one per-folder current word ID', () => {
   assert.match(wordList, /onCurrentWordChange\(cardId\)/u);
   assert.match(wordList, /currentWordId=\{resolvedCurrentWordId\}/u);
   assert.match(wordList, /currentIndex=\{resolvedCurrentWordIndex \+ 1\}/u);
-  assert.match(wordList, /showCurrentPosition=\{cardViewMode === 'flip' && isFilterActive\}/u);
+  // The screen no longer forces the position readout, because result-colour
+  // chips stopped narrowing the list: at rest the header reads the plain word
+  // count. Switching to "n / total" after a scroll is the label's own logic,
+  // asserted below rather than driven from here.
+  assert.match(wordList, /showCurrentPosition=\{false\}/u);
+  assert.doesNotMatch(wordList, /isFilterActive/u,
+    'list filtering is gone and must not come back through this prop');
+
+  const label = read('src/components/WordListPositionLabel.tsx');
+  assert.match(
+    label,
+    /const showPosition = hasMultiplePages && \(showCurrentPosition \|\| !state\.atTop\) && total > 0;/u,
+    'scrolling still switches to the position readout when there is more than one page',
+  );
+  assert.match(label, /showPosition \? `\$\{position\} \/ \$\{total\}` : topContent/u,
+    'and it falls back to the plain word count at the top');
   assert.match(flip, /const initialIndex = resolveCurrentWordIndex\(cards, currentWordId\);/u);
   assert.match(flip, /onCurrentWordChangeRef\.current\(c\[target\]\.id\)/u);
   assert.match(flip, /onCurrentWordChangeRef\.current\(c\[newIdx\]\?\.id \?\? null\)/u);

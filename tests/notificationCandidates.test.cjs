@@ -129,10 +129,18 @@ test('every surface asks the one eligibility rule', () => {
   // rule for its first tier rather than restating it.
   const picker = read('src/features/notifications/testNotification.ts');
   assert.match(picker, /notifiableCards\(usable, settings, now\)/u);
-  assert.match(picker, /candidates\.length > 0 \? candidates : usable/u);
-  // It defers for the first tier rather than restating the rule: no second
-  // opinion on what "on the list" or "hidden" means.
-  assert.doesNotMatch(picker, /notifCandidate ===|notifyAllWords|isCardHidden/u);
+  // Three tiers now: a real candidate, then an available saved word, then a
+  // hidden one. The hide window still does not empty the fallback — it only
+  // orders it, so a hidden word is never preferred over an available one.
+  assert.match(
+    picker,
+    /candidates\.length > 0 \? candidates\s*:\s*available\.length > 0 \? available\s*:\s*usable/u,
+  );
+  // It still defers rather than restating either rule: `notifiableCards` decides
+  // "on the list", and the hide window is asked through the one shared
+  // `isCardHidden` — imported, never a second opinion on what hidden means.
+  assert.doesNotMatch(picker, /notifCandidate ===|notifyAllWords/u);
+  assert.match(picker, /import \{ isCardHidden \} from '\.\.\/cards\/visibility';/u);
   assert.match(hook, /pickTestNotificationCard\(allFolderCards, currentFolder\?\.notifSettings\)/u);
 });
 
@@ -267,7 +275,10 @@ test('the upgrade keeps an existing user’s reminders arriving', () => {
   const schema = read('src/lib/sqlite/schema.ts');
   assert.match(schema, /ALTER TABLE words ADD COLUMN notif_candidate INTEGER NOT NULL DEFAULT 0;/u);
   assert.match(schema, /UPDATE words SET notif_candidate = 1 WHERE notif_off = 0;/u);
-  assert.match(schema, /export const CURRENT_SCHEMA_VERSION = 5;/u);
+  // 6 is words.built_in, appended after this test was written. The assertion is
+  // that migration 5 is the notif_candidate one and is still recorded — not that
+  // 5 is the last migration there will ever be.
+  assert.match(schema, /export const CURRENT_SCHEMA_VERSION = 6;/u);
 
   // Version 4 was consumed twice in development, so it can assert nothing and
   // the work lives in 5, which asks the database instead of trusting the number.

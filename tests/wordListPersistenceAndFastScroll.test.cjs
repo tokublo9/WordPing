@@ -266,14 +266,16 @@ test('tapping a colour explains it instead of filtering, and Edit opens its shee
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
   const dialog = read('src/components/ResultFilterExplanationDialog.tsx');
 
-  // One handler for every chip: a colour opens its explanation, grey still
-  // filters. The list is not touched on the way.
+  // One handler for every chip: a colour opens its explanation and nothing
+  // else happens. The grey fall-through that used to toggle a filter is gone
+  // with filtering itself, which is stronger than the old "the list is not
+  // touched on the way" — there is now no path from a chip to the list at all.
   assert.match(
     wordList,
-    /const handleChipPress = useCallback\(\(level: LevelFilterKey\) => \{\s*if \(isResultColorFilter\(level\)\) \{\s*setExplainedLevel\(level\);\s*return;\s*\}\s*onToggleResultFilter\(level\);/u,
+    /const handleChipPress = useCallback\(\(level: LevelFilterKey\) => \{\s*if \(!isResultColorFilter\(level\)\) return;\s*setExplainedLevel\(level\);\s*\}, \[\]\);/u,
   );
   assert.match(wordList, /onPress=\{\(\) => handleChipPress\(level\)\}/u);
-  assert.equal((wordList.match(/onToggleResultFilter\(level\)/gu) ?? []).length, 1);
+  assert.doesNotMatch(wordList, /onToggleResultFilter/u, 'no chip may narrow the list');
 
   // Edit closes the dialog first and opens the sheet only once it is gone: two
   // modals presented in the same frame can lose the second one on iOS.

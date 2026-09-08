@@ -58,7 +58,7 @@ test('tapping Test opens no sheet and no modal', () => {
   const app = read(APP);
   assert.match(
     app,
-    /onOpenTestMode: \(\) => \{\s*discovery\.dismiss\(FEATURE_MARKERS\.testIcon\);\s*toggleTestMode\(\);\s*\},/u,
+    /onOpenTestMode: \(\) => \{\s*toggleTestMode\(\);\s*discovery\.dismiss\(FEATURE_MARKERS\.testIcon\);\s*\},/u,
   );
   assert.match(
     app,
@@ -91,10 +91,15 @@ test('Test Mode renders below the colour-filter and Test-icon section', () => {
   // stay on screen throughout, counts and all.
   assert.doesNotMatch(bar, /showTestLayer/u);
   assert.doesNotMatch(bar, /testMode\.active &&|!testMode\.active \?/u);
-  assert.equal((bar.match(/testMode\.active/gu) ?? []).length, 4);
-  assert.match(bar, /accessibilityState=\{\{ selected: testMode\.active \}\}/u);
-  assert.match(bar, /disabled=\{testMode\.active\}/u);
-  assert.match(bar, /accessibilityState=\{\{ selected: on, disabled: testMode\.active \}\}/u);
+  // Asserted as the three things the mode is allowed to do to this row, rather
+  // than as an occurrence count — the count moved when chip selection was
+  // removed along with filtering, but none of these properties did.
+  assert.match(bar, /accessibilityState=\{\{ selected: testMode\.active \}\}/u,
+    'the Test button announces that it is the active mode');
+  assert.match(bar, /disabled=\{testMode\.active\}/u,
+    'and the chips go inert while a test runs');
+  assert.match(bar, /accessibilityState=\{\{ disabled: testMode\.active \}\}/u,
+    'which assistive technology is told about too');
 
   // Only the card area changes hands.
   assert.match(render, /\{cardContent\}/u);
@@ -164,9 +169,10 @@ test('Analytics replaces the card-toolbar Reset button and sits immediately befo
   const analyticsEnd = toolbar.indexOf('</TouchableOpacity>', analyticsAt);
   const analyticsButton = toolbar.slice(analyticsStart, analyticsEnd);
   assert.match(analyticsButton, /style=\{\[s\.toolBtn, \{ backgroundColor: pal\.card, borderColor: pal\.border \}\]\}/u);
-  assert.match(analyticsButton, /name="stats-chart-outline" size=\{15\} color=\{pal\.text\}/u);
+  // Subdued colour, matching Shuffle beside it — the toolbar reads as one row.
+  assert.match(analyticsButton, /name="stats-chart-outline" size=\{15\} color=\{pal\.sub\}/u);
   assert.match(analyticsButton, /accessibilityLabel=\{t\('study_analytics_title'\)\}/u);
-  assert.match(analyticsButton, /<Text style=\{\[s\.toolBtnText, \{ color: pal\.text \}\]\}>\{t\('study_analytics_title'\)\}<\/Text>/u);
+  assert.match(analyticsButton, /<Text style=\{\[s\.toolBtnText, \{ color: pal\.sub \}\]\}>\{t\('study_analytics_title'\)\}<\/Text>/u);
   assert.match(read('src/i18n.ts'), /study_analytics_title:\s*'Analytics',/u);
   const between = toolbar.slice(analyticsEnd + '</TouchableOpacity>'.length, toolbar.lastIndexOf('<TouchableOpacity', shuffleAt));
   assert.doesNotMatch(between, /<TouchableOpacity|<Text|<Ionicons/u, 'nothing sits between Analytics and Shuffle');
@@ -183,7 +189,9 @@ test('Analytics replaces the card-toolbar Reset button and sits immediately befo
   const muteStart = toolbar.lastIndexOf('<TouchableOpacity', muteAt);
   const muteEnd = toolbar.indexOf('</TouchableOpacity>', muteAt);
   const muteButton = toolbar.slice(muteStart, muteEnd);
-  assert.match(muteButton, /name="volume-mute-outline"\s*size=\{15\}\s*color=\{muted \? themeColor : pal\.text\}/u);
+  // Subdued when resting, theme colour when muted — the active state is what
+  // carries the meaning, and it is unchanged.
+  assert.match(muteButton, /name="volume-mute-outline"\s*size=\{15\}\s*color=\{muted \? themeColor : pal\.sub\}/u);
   assert.match(muteButton, /hitSlop=\{\{ top: 12, bottom: 12, left: 12, right: 12 \}\}/u);
   assert.match(muteButton, /accessibilityRole="button"/u);
   assert.match(muteButton, /accessibilityLabel=\{t\('test_mute'\)\}/u);
@@ -200,16 +208,36 @@ test('Analytics replaces the card-toolbar Reset button and sits immediately befo
   assert.match(infoButton, /style=\{\[s\.toolBtn, s\.toolIconBtn, \{ backgroundColor: pal\.card, borderColor: pal\.border \}\]\}/u);
   assert.match(infoButton, /name="information-circle-outline" size=\{18\} color=\{pal\.sub\}/u);
   assert.doesNotMatch(filterBar, /test_info_title|information-circle-outline|onOpenInfo/u);
-  assert.match(screen, /<InfoPopup\s*visible=\{infoVisible\}/u);
-  assert.match(screen, /onClose=\{\(\) => setInfoVisible\(false\)\}/u);
+  // The popup's open flag and its close handler are both named now; the popup
+  // is still the same single Info surface driven from this screen.
+  assert.match(screen, /<InfoPopup\s*visible=\{infoPopupVisible\}/u);
+  assert.match(screen, /onClose=\{closeInfoPopup\}/u);
 
   // Mute keeps its stored preference and its stop-what-is-playing behaviour.
   assert.match(screen, /AsyncStorage\.setItem\(TEST_MUTED_KEY, next \? 'true' : 'false'\)/u);
   assert.match(screen, /const handleMuteToggle = \(\) => \{\s*\/\/[^\n]*\n\s*if \(!muted\) stopVoice\(\);/u);
 
-  // The toolbar is drawn for the whole test, not only after a flip.
-  const cardArea = screen.slice(screen.indexOf('/* ── Card area'), screen.indexOf('{/* Answer buttons'));
-  assert.match(cardArea, /\{\/\* Toolbar: always visible above the card during the test \*\/\}/u);
+  // The toolbar is drawn for the whole test, not only after a flip. Asserted on
+  // the element and its placement rather than on the shape of a comment: the
+  // comment is a multi-line block now, and requiring `*/}` on the same line was
+  // testing its formatting rather than the toolbar.
+  const cardAreaAt = screen.indexOf('/* ── Card area');
+  const answersAt = screen.indexOf('{/* Answer buttons');
+  assert.ok(cardAreaAt > -1, 'the card area is marked');
+  assert.ok(answersAt > cardAreaAt, 'and is bounded by the answer buttons below it');
+  const cardArea = screen.slice(cardAreaAt, answersAt);
+
+  const toolbarAt = cardArea.indexOf('<View style={s.toolbar}>');
+  const wordCardAt = cardArea.indexOf('{/* Word card */}');
+  assert.ok(toolbarAt > -1, 'the toolbar lives inside the card area');
+  assert.ok(wordCardAt > toolbarAt, 'and is drawn above the card, not below it');
+  // Nothing between the card area opening and the toolbar reads the flip, so it
+  // cannot be revealed only once the card has been turned over.
+  assert.doesNotMatch(cardArea.slice(0, toolbarAt), /flipped/u,
+    'the toolbar is unconditional, never gated on the flip');
+  // The intent is still stated in the source, matched on its stable wording
+  // only — no closing marker, no line requirement.
+  assert.match(cardArea, /Toolbar: always visible above the card during the test/u);
 });
 
 // ── 5. The session survives ordinary re-renders ──────────────────────────────
@@ -425,7 +453,7 @@ test('a running test shows centred TEST progress with a rightmost X', () => {
 
   assert.match(
     header,
-    /<Text\s*style=\{\[testHeaderStyles\.title, \{ color: pal\.text \}\]\}\s*accessibilityRole="header"\s*>\s*TEST\s*<\/Text>/u,
+    /<Text\s*style=\{\[testHeaderStyles\.title, \{ color: pal\.text \}\]\}\s*accessibilityRole="header"\s*>\s*\{t\('test_screen_title'\)\}\s*<\/Text>/u,
   );
   assert.match(
     header,
@@ -553,7 +581,7 @@ test('the inline mode keeps the screen safe-area, scrolling and accessibility', 
   const screen = read(SCREEN);
 
   // The enclosing SafeAreaView owns the insets; the content adds none of its own.
-  assert.match(read(APP), /<SafeAreaView style=\{\[s\.root, \{ backgroundColor: pal\.bg \}\]\}>/u);
+  assert.match(read(APP), /<SafeAreaView style=\{s\.root\}>/u);
   assert.doesNotMatch(testModeBody(screen), /useSafeAreaInsets/u);
   // The popup still centres itself within the real insets.
   assert.match(screen, /marginTop: insets\.top \+ 16,/u);

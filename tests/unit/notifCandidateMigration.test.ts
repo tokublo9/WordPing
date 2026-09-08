@@ -148,7 +148,10 @@ test('the whole runner stays idempotent afterwards', async () => {
   const rows = await db.getAllAsync<{ version: number }>(
     'SELECT version FROM schema_migrations ORDER BY version',
   );
-  assert.deepEqual(rows.map(row => row.version), [1, 2, 3, 4, 5]);
+  // 6 is words.built_in, appended after this test was written. Retired-but-
+  // recorded 4 is still in the list: the runner records every version it has
+  // passed, including the empty one.
+  assert.deepEqual(rows.map(row => row.version), [1, 2, 3, 4, 5, 6]);
   assert.equal(rows.length, CURRENT_SCHEMA_VERSION, 'one row per version, no duplicates');
 });
 

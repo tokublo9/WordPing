@@ -80,7 +80,13 @@ test('Test Mode stops playback on a flip in either direction', () => {
   const screen = read('src/components/TestModeScreen.tsx');
   // Unconditional in the tap handler: muting only hides the icon, so a clip that
   // was already playing must not survive the next flip either.
-  assert.match(screen, /const doToggleFlip = useCallback\(\(\) => \{[\s\S]{0,900}stopVoice\(\);/u);
+  // Scoped to the handler rather than a character window: the reason is now
+  // written down inside it and stopVoice() sits 1074 characters in.
+  const flipAt = screen.indexOf('const doToggleFlip = useCallback(() => {');
+  assert.ok(flipAt > -1, 'the flip handler exists');
+  const doToggleFlip = screen.slice(flipAt, screen.indexOf('}, [', flipAt));
+  assert.match(doToggleFlip, /stopVoice\(\);/u,
+    'the flip stops playback unconditionally, in the same tap stack');
   assert.doesNotMatch(screen, /if \(!muted\) stopVoice\(\);\s*Animated\.timing\(flipAnim/u);
   // Grading advances the card, and that stops too.
   assert.match(screen, /gradedIdsRef\.current\.add\(card\.id\);\s*stopVoice\(\);/u);

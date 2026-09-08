@@ -608,6 +608,9 @@ export function ThemeDetailsSheet({
               />
             ))}
           </View>
+          <Text style={[s.previewLanguageNote, { color: pal.sub }]}>
+            {t('theme_preview_english_note')}
+          </Text>
         </>
       </ScrollView>
     </Animated.View>
@@ -704,6 +707,13 @@ const s = StyleSheet.create({
 
   // Gallery
   galleryRow: { flexDirection: 'row', gap: PREVIEW_GAP },
+  previewLanguageNote: {
+    paddingHorizontal: 2,
+    paddingTop: 8,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: 'auto',
+  },
 });
 
 const fsStyles = StyleSheet.create({

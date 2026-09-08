@@ -8,6 +8,7 @@ import {
   VOICE_SAMPLE_CACHE_TTL_SECONDS,
   VOICE_SAMPLE_TEXT,
   VOICE_SAMPLE_VERSION,
+  promoSamplePronunciationInstruction,
   promoSampleText,
   resolvePromoLang,
   resolveVoice,
@@ -228,6 +229,8 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
  * The only speech route reachable without a subscription. What makes that safe
  * is not a flag but the shape of the request: there is no text field and no
  * voice field, so a caller picks one server-authored sample and nothing else.
+ * Its normalized language selects both server-authored text and a server-owned
+ * pronunciation instruction; neither value can be supplied by the client.
  * Every clip lives in KV, shared by every user, which means the entire feature
  * costs one OpenAI generation per clip per cache lifetime.
  *
@@ -249,6 +252,7 @@ export async function handleVoicePromo(context: GuardContext): Promise<Response>
   const { sample } = result.value.body;
   const lang = resolvePromoLang(result.value.body.langCode);
   const text = promoSampleText(sample, lang);
+  const instructions = promoSamplePronunciationInstruction(lang);
   const cacheKey = `promo:${PROMO_SAMPLE_VERSION}:${sample}:${lang}.wav`;
 
   const cached = await context.env.WORDPING_KV.get(cacheKey, 'arrayBuffer').catch(() => null);
@@ -269,6 +273,7 @@ export async function handleVoicePromo(context: GuardContext): Promise<Response>
       text,
       voice: PROMO_SAMPLE_VOICE,
       format: 'wav',
+      instructions,
       timeoutMs: context.resolved.speechTimeoutMs,
       localMock: context.localAiVoiceTestScenario !== null,
     },

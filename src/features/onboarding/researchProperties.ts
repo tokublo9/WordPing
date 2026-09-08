@@ -1,4 +1,5 @@
 import type { OnboardingChoices } from '../../types';
+import { isSupportedOnboardingLanguage } from '../../i18n';
 
 /**
  * The onboarding answers, as PostHog Person Properties.
@@ -123,7 +124,9 @@ export function buildResearchProperties(
   // a previously correct value.
   const age = calculateAge(choices.dateOfBirth, now);
   if (age !== null) properties.age = age;
-  if (choices.learningLang) properties.learning_language = choices.learningLang;
+  if (choices.purpose === 'language' && choices.learningLang) {
+    properties.learning_language = choices.learningLang;
+  }
   return properties;
 }
 
@@ -145,7 +148,11 @@ export function parseOnboardingChoices(raw: string): OnboardingChoices | null {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const value = parsed as Record<string, unknown>;
     if (value.purpose !== 'language' && value.purpose !== 'words') return null;
-    if (typeof value.nativeLang !== 'string' || !value.nativeLang) return null;
+    if (!isSupportedOnboardingLanguage(value.nativeLang)) return null;
+    const learningLang = isSupportedOnboardingLanguage(value.learningLang)
+      ? value.learningLang
+      : undefined;
+    if (value.purpose === 'language' && learningLang === undefined) return null;
     return {
       purpose: value.purpose,
       gender: value.gender === 'woman' || value.gender === 'man' || value.gender === 'non_binary'
@@ -158,7 +165,7 @@ export function parseOnboardingChoices(raw: string): OnboardingChoices | null {
         value.discoverySource === 'advertisement'
           ? value.discoverySource
           : 'other',
-      learningLang: typeof value.learningLang === 'string' ? value.learningLang : undefined,
+      ...(value.purpose === 'language' ? { learningLang } : {}),
       nativeLang: value.nativeLang,
       wordCategory: typeof value.wordCategory === 'string' ? value.wordCategory : undefined,
     };

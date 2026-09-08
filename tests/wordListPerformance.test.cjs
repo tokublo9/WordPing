@@ -24,7 +24,9 @@ test('the list data keeps its identity across unrelated renders', () => {
   assert.match(useCards, /cardsForVisibility\(/u);
   assert.match(
     read('src/features/cards/visibility.ts'),
-    /return cards\.some\(card => !shouldShowCard\(card, context\)\)\s*\? cards\.filter[\s\S]*?: cards;/u,
+    // The parameter is `now` since the clock was centralised; the property is
+    // that an unhidden list is returned by identity rather than re-filtered.
+    /return cards\.some\(card => !shouldShowCard\(card, now\)\)\s*\? cards\.filter\(card => shouldShowCard\(card, now\)\)\s*: cards;/u,
   );
   assert.match(
     useCards,
@@ -200,10 +202,24 @@ test('the default count is a plain total, and scrolling turns it into a position
   assert.match(label, /setAtTop: \(atTop: boolean\) => setState\(\s*prev => prev\.atTop === atTop \? prev :/u);
 
   // It replaces the old header Text in place, keeping that line's styling.
-  assert.match(
-    wordList,
-    /<WordListPositionLabel\s*ref=\{positionLabelRef\}\s*total=\{visibleWordCount\}\s*topContent=\{wordCountSummary\}\s*currentIndex=\{resolvedCurrentWordIndex \+ 1\}\s*showCurrentPosition=\{false\}\s*hasMultiplePages=\{hasMultiplePages\}\s*style=\{\[s\.wordCount, \{ color: pal\.sub \}\]\}/u,
-  );
+  // Extracted as an element and checked prop by prop: a comment between two
+  // props must not fail this the way one exact whitespace-joined tag did.
+  // Anchored on the JSX element, not the identifier: `useRef<WordListPositionLabelHandle>`
+  // contains the same prefix and appears first in the file.
+  const labelTagAt = wordList.indexOf('<WordListPositionLabel\n');
+  assert.ok(labelTagAt > -1, 'the Word List renders the position label');
+  const labelTag = wordList.slice(labelTagAt, wordList.indexOf('/>', labelTagAt));
+  for (const prop of [
+    'ref={positionLabelRef}',
+    'total={visibleWordCount}',
+    'topContent={wordCountSummary}',
+    'currentIndex={resolvedCurrentWordIndex + 1}',
+    'showCurrentPosition={false}',
+    'hasMultiplePages={hasMultiplePages}',
+    'style={[s.wordCount, { color: pal.sub }]}',
+  ]) {
+    assert.ok(labelTag.includes(prop), `the position label keeps ${prop}`);
+  }
   // "More than one page" comes from the same measurement the scrollbar uses in
   // List Mode, and from the card count in Flip Mode where each card is a page —
   // never from a fixed number of words.

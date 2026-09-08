@@ -75,10 +75,12 @@ test('every voice surface receives only the AI capability', () => {
     );
   }
 
-  // The only voice capability comes from the AI entitlement rule, and the
-  // user's own fallback. No plan name and no second rule appears here.
+  // The only voice capability comes from the AI entitlement rule, the user's own
+  // fallback, and — added since — whether the credit ledger has been read. No
+  // plan name and no second entitlement rule appears here: `voiceBackendReady`
+  // withholds generation until the server's answer is known, it never grants.
   const app = read('App.tsx');
-  assert.match(app, /const canUseAIVoice = canUseAI && !preferDeviceVoice;/u);
+  assert.match(app, /const canUseAIVoice = canUseAI && !preferDeviceVoice && voiceBackendReady;/u);
   assert.doesNotMatch(app, /planAllowsCustomVoice|canUseCustomVoice|showVoiceLockBanner/u);
 });
 

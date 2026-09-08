@@ -53,9 +53,11 @@ test('choosing the free voice stops the dialog returning, and picking a voice re
   const app = read('App.tsx');
   const constants = read('src/constants.ts');
 
-  // The preference is half of the capability, so no further generation is even
-  // attempted — which is what makes the dialog non-repeating.
-  assert.match(app, /const canUseAIVoice = canUseAI && !preferDeviceVoice;/u);
+  // The preference is still a term of the capability, so no further generation
+  // is even attempted — which is what makes the dialog non-repeating. The added
+  // `voiceBackendReady` term only withholds while the ledger is unread; it
+  // cannot re-enable generation once the preference is set.
+  assert.match(app, /const canUseAIVoice = canUseAI && !preferDeviceVoice && voiceBackendReady;/u);
   assert.match(constants, /export const PREFER_DEVICE_VOICE_KEY = 'prefer_device_voice';/u);
 
   // Selecting a voice again is the documented way back.
@@ -180,8 +182,16 @@ test('an exhausted Basic user still hears AI audio already on the device', () =>
   // request, same cache key, same file validation for text, language, voice
   // and content version.
   assert.match(tts, /const cached = await fetchAndCacheAudio\(text, activeAIVoice, \{\s*cacheOnly: true,\s*language: forcedLocale,\s*\}\)/u);
+  // Bounded to the function itself. Unbounded, this ran to the end of the file
+  // and saw every later helper, so it could never have failed for the right
+  // reason — or passed for one.
+  const cachedAt = tts.indexOf('async function speakCachedAIOrDevice');
+  assert.ok(cachedAt > -1, 'the cache-only playback path exists');
+  const rest = tts.slice(cachedAt);
+  const nextDecl = rest.slice(10).search(/\n(export )?(async )?function |\n(export )?const /u);
+  assert.ok(nextDecl > -1, 'and something follows it, so the slice is bounded');
   assert.doesNotMatch(
-    tts.slice(tts.indexOf('async function speakCachedAIOrDevice')),
+    rest.slice(0, nextDecl + 10),
     /serializeTTSCacheKey|normalizeTTSRequest|ttsCacheFile/u,
     'no second cache-key derivation',
   );

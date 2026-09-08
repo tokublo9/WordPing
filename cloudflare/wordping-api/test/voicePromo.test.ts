@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { handleRequest } from '../src/index';
-import { PROMO_SAMPLE_TEXT, PROMO_SAMPLE_VERSION, PROMO_SAMPLE_VOICE } from '../src/config';
+import {
+  PROMO_SAMPLE_IDS,
+  PROMO_SAMPLE_LANGS,
+  PROMO_SAMPLE_PRONUNCIATION,
+  PROMO_SAMPLE_TEXT,
+  PROMO_SAMPLE_VERSION,
+  PROMO_SAMPLE_VOICE,
+  promoSamplePronunciationInstruction,
+} from '../src/config';
 import { monthKey } from '../src/planLimits';
 import { KILLSWITCH_KEY } from '../src/runtimeConfig';
 import {
@@ -38,10 +46,18 @@ function upstreams() {
 }
 
 /** The bodies this Worker sent to OpenAI, in order. */
-function speechRequests(calls: { url: string; init: RequestInit }[]): { input: string; voice: string }[] {
+function speechRequests(calls: { url: string; init: RequestInit }[]): {
+  input: string;
+  voice: string;
+  instructions?: string;
+}[] {
   return calls
     .filter(call => call.url.includes('/audio/speech'))
-    .map(call => JSON.parse(String(call.init.body)) as { input: string; voice: string });
+    .map(call => JSON.parse(String(call.init.body)) as {
+      input: string;
+      voice: string;
+      instructions?: string;
+    });
 }
 
 async function post(env: ReturnType<typeof makeEnv>, body: unknown, ctx = makeCtx()) {
@@ -109,6 +125,7 @@ describe('the allowlist', () => {
     // The server's own sentence, in the server's own voice.
     expect(sent.input).toBe(PROMO_SAMPLE_TEXT.spontaneous.en);
     expect(sent.voice).toBe(PROMO_SAMPLE_VOICE);
+    expect(sent.instructions).toBe(PROMO_SAMPLE_PRONUNCIATION.en);
     expect(JSON.stringify(sent)).not.toContain('credit card');
     expect(JSON.stringify(sent)).not.toContain('pirate');
   });
@@ -122,6 +139,7 @@ describe('the allowlist', () => {
     }
     for (const sent of speechRequests(calls)) {
       expect(sent.input).toBe(PROMO_SAMPLE_TEXT.morning_light.en);
+      expect(sent.instructions).toBe(PROMO_SAMPLE_PRONUNCIATION.en);
     }
   });
 
@@ -130,6 +148,61 @@ describe('the allowlist', () => {
 
     await post(makeEnv(), { sample: 'spontaneous', langCode: 'ja-JP' });
     expect(speechRequests(calls)[0]!.input).toBe(PROMO_SAMPLE_TEXT.spontaneous.ja);
+    expect(speechRequests(calls)[0]!.instructions).toBe(PROMO_SAMPLE_PRONUNCIATION.ja);
+  });
+});
+
+describe('language-specific pronunciation', () => {
+  it('has one allowlisted instruction for every supported promo language', () => {
+    expect(Object.keys(PROMO_SAMPLE_PRONUNCIATION)).toEqual([...PROMO_SAMPLE_LANGS]);
+    for (const lang of PROMO_SAMPLE_LANGS) {
+      expect(promoSamplePronunciationInstruction(lang)).toBe(PROMO_SAMPLE_PRONUNCIATION[lang]);
+    }
+  });
+
+  it.each([
+    ['en', 'Speak with natural English pronunciation.'],
+    ['es', 'Speak with natural Spanish pronunciation.'],
+    ['fr', 'Speak with natural French pronunciation.'],
+  ] as const)('derives the %s instruction from the Worker allowlist', (lang, expected) => {
+    expect(promoSamplePronunciationInstruction(lang)).toBe(expected);
+  });
+
+  it('falls back to the English instruction for missing or unsupported languages', () => {
+    for (const lang of [undefined, '', 'other', 'xx', '../../etc/passwd']) {
+      expect(promoSamplePronunciationInstruction(lang)).toBe(PROMO_SAMPLE_PRONUNCIATION.en);
+    }
+  });
+
+  it('gives all four samples guidance without changing their localized text', async () => {
+    const { calls } = mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
+    for (const sample of PROMO_SAMPLE_IDS) {
+      await post(makeEnv(), { sample, langCode: 'fr' });
+    }
+
+    const sent = speechRequests(calls);
+    expect(sent.map(request => request.input)).toEqual(
+      PROMO_SAMPLE_IDS.map(sample => PROMO_SAMPLE_TEXT[sample].fr),
+    );
+    expect(sent.map(request => request.instructions)).toEqual(
+      PROMO_SAMPLE_IDS.map(() => PROMO_SAMPLE_PRONUNCIATION.fr),
+    );
+  });
+
+  it('keeps identical vertical spellings in independent Worker KV entries', async () => {
+    mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
+    const env = makeEnv();
+    for (const lang of ['en', 'es', 'fr'] as const) {
+      const ctx = makeCtx();
+      await post(env, { sample: 'vertical', langCode: lang }, ctx);
+      await settle(ctx);
+    }
+
+    expect([...env.WORDPING_KV.store.keys()].filter(key => key.startsWith('promo:'))).toEqual([
+      `promo:${PROMO_SAMPLE_VERSION}:vertical:en.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:vertical:es.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:vertical:fr.wav`,
+    ]);
   });
 });
 

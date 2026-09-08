@@ -176,7 +176,12 @@ test('the analytics opt-out is applied before anything is captured, and covers r
   // entitlement-gated backup block.
   const settings = read('src/components/SettingsModal.tsx');
   assert.match(settings, /t\('analytics_setting'\)/u);
-  assert.match(settings, /onToggle=\{handleToggleAnalytics\}/u);
+  // The control is a row that opens its own explanation, and the opt-out is
+  // that popup's action — still one tap away in Settings, and still writing the
+  // shared consent store rather than a local flag of its own.
+  assert.match(settings, /label=\{t\('analytics_setting'\)\}\s*onPress=\{\(\) => setAnalyticsInfoVisible\(true\)\}/u);
+  assert.match(settings, /onPress: \(\) => \{ void handleChangeAnalytics\(\); \}/u);
+  assert.match(settings, /await setAnalyticsConsent\(analyticsEnabled \? 'disabled' : 'enabled'\);/u);
   const analyticsAt = settings.indexOf("t('analytics_setting')");
   const block = settings.slice(analyticsAt - 700, analyticsAt);
   assert.doesNotMatch(block, /backupVisible &&|isPremium \?|isSubscribed \?/u);

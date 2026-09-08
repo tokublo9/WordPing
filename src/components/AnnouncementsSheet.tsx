@@ -32,6 +32,7 @@ interface Props {
   language: string;
   /** Injectable so tests and previews can supply announcements. */
   announcements?: readonly Announcement[];
+  unreadIds?: ReadonlySet<string>;
 }
 
 function formatDate(iso: string, language: string): string {
@@ -45,7 +46,7 @@ function formatDate(iso: string, language: string): string {
   }
 }
 
-export function AnnouncementsSheet({ visible, onClose, pal, language, announcements }: Props) {
+export function AnnouncementsSheet({ visible, onClose, pal, language, announcements, unreadIds }: Props) {
   const insets = useSafeAreaInsets();
   const t = useLang();
   const slideX = useRef(new Animated.Value(SW)).current;
@@ -113,20 +114,28 @@ export function AnnouncementsSheet({ visible, onClose, pal, language, announceme
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          {items.map(item => (
-            <View
-              key={item.id}
-              style={[styles.card, { backgroundColor: pal.card, borderColor: pal.border }]}
-              accessibilityRole="text"
-              accessibilityLabel={`${item.title}. ${formatDate(item.publishedAt, language)}. ${item.body}`}
-            >
-              <Text style={[styles.cardDate, { color: pal.sub }]}>
-                {formatDate(item.publishedAt, language)}
-              </Text>
-              <Text style={[styles.cardTitle, { color: pal.text }]}>{item.title}</Text>
-              <Text style={[styles.cardBody, { color: pal.sub }]}>{item.body}</Text>
-            </View>
-          ))}
+          {items.map(item => {
+            const unread = unreadIds?.has(item.id) === true;
+            const title = t(item.titleKey);
+            const body = t(item.bodyKey);
+            return (
+              <View
+                key={item.id}
+                style={[styles.card, { backgroundColor: pal.card, borderColor: unread ? pal.text : pal.border }]}
+                accessibilityRole="text"
+                accessibilityLabel={`${unread ? `${t('announcement_unread')}. ` : ''}${title}. ${formatDate(item.publishedAt, language)}. ${body}`}
+              >
+                <Text style={[styles.cardDate, { color: pal.sub }]}>
+                  {formatDate(item.publishedAt, language)}
+                </Text>
+                <View style={styles.cardTitleRow}>
+                  {unread && <View style={[styles.unreadDot, { backgroundColor: pal.text }]} />}
+                  <Text style={[styles.cardTitle, { color: pal.text }]}>{title}</Text>
+                </View>
+                <Text style={[styles.cardBody, { color: pal.sub }]}>{body}</Text>
+              </View>
+            );
+          })}
         </ScrollView>
       )}
     </Animated.View>
@@ -153,6 +162,8 @@ const styles = StyleSheet.create({
   emptyBody: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
   card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 6 },
   cardDate: { fontSize: 11 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  unreadDot: { width: 7, height: 7, borderRadius: 4 },
   cardTitle: { fontSize: 15, fontWeight: '600' },
   cardBody: { fontSize: 13, lineHeight: 19 },
 });

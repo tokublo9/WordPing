@@ -48,7 +48,7 @@ export interface SpeechRequest {
   text: string;
   voice: Voice;
   format: AudioFormat;
-  /** Optional style hint. Length-capped by the schema before it reaches here. */
+  /** Server-selected pronunciation guidance or a schema-bounded custom style hint. */
   instructions?: string;
   timeoutMs: number;
   /** Never fetch externally when a loopback-only local scenario is active. */

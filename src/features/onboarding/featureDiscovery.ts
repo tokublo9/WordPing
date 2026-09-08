@@ -159,6 +159,14 @@ export function shouldShowTestMarker(input: Omit<MarkerVisibilityInput, 'marker'
  */
 export function shouldShowNotificationMarker(input: Omit<MarkerVisibilityInput, 'marker'>): boolean {
   if (!input.seen.has(FEATURE_MARKERS.firstTestExited)) return false;
+  // The invariant asserted rather than assumed: while the Test marker is on the
+  // header, this one stays off it. `firstTestExited` is only recorded after the
+  // tap, so in a set this app wrote this changes nothing — but the set is read
+  // from storage, and `parseSeenFeatures` deliberately keeps ids it does not
+  // recognise so a rolled-back build cannot lose a dismissal. That tolerance
+  // means a damaged set can hold the milestone without the tap, and both markers
+  // then claimed the same header. Order is immaterial: both are refusals.
+  if (shouldShowTestMarker(input)) return false;
   return shouldShowFeatureMarker({ ...input, marker: FEATURE_MARKERS.notificationIcon });
 }
 

@@ -7,6 +7,7 @@ import {
   normalizedTTSText,
   serializeTTSCacheKey,
 } from '../../src/lib/ttsRequest';
+import { PROMO_SAMPLE_TEXT, PROMO_SAMPLE_VERSION } from '../../src/lib/promoVoiceSamples';
 
 // Three decisions read this one function: which file a clip is cached as,
 // whether an edit changed the spoken word, and whether another card still needs
@@ -35,6 +36,29 @@ test('voice and content version each split the key', () => {
   // keeps word-card cache cleanup from reaching a preview clip.
   const sample = serializeTTSCacheKey(normalizeTTSRequest('hello', 'marin', 'natural-ai-voice-v2'));
   assert.notEqual(marin, sample);
+});
+
+test('identical promo text has an independent client identity per language', () => {
+  const identity = (lang: 'en' | 'es' | 'fr') => serializeTTSCacheKey(normalizeTTSRequest(
+    PROMO_SAMPLE_TEXT.vertical[lang],
+    'marin',
+    PROMO_SAMPLE_VERSION,
+    lang,
+  ));
+
+  const expected = (language: string) => JSON.stringify({
+    text: 'Vertical',
+    voice: 'marin',
+    language,
+    speed: 1,
+    model: 'gpt-4o-mini-tts',
+    format: 'wav',
+    contentVersion: 'upgrade-promo-v3',
+  });
+  assert.equal(identity('en'), expected('en'));
+  assert.equal(identity('es'), expected('es'));
+  assert.equal(identity('fr'), expected('fr'));
+  assert.equal(new Set([identity('en'), identity('es'), identity('fr')]).size, 3);
 });
 
 test('two cards with the same text share one key, which is why deletion counts references', () => {

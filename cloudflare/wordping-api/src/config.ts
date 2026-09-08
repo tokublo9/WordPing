@@ -8,6 +8,8 @@
  * The numeric limits can be overridden at runtime from KV (`config:limits`)
  * so budgets can be tightened without shipping a new mobile build.
  */
+import promoVoicePronunciationInstructions from './promoVoicePronunciation.json';
+
 export const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 export const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
 export const REVENUECAT_API_BASE = 'https://api.revenuecat.com/v1';
@@ -217,7 +219,20 @@ export const MAX_LANG_CODE_LENGTH = 16;
 export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
 
+/** The normalized keys shared by promo text, pronunciation, assets, and caches. */
+export const PROMO_SAMPLE_LANGS = [
+  'en', 'ja', 'ko', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru',
+  'ar', 'hi', 'tr', 'nl', 'vi', 'th', 'id', 'pl', 'el', 'sv',
+] as const;
+export type PromoSampleLang = (typeof PROMO_SAMPLE_LANGS)[number];
+
 const PROMO_SAMPLE_ID_SET: ReadonlySet<string> = new Set(PROMO_SAMPLE_IDS);
+const PROMO_SAMPLE_LANG_SET: ReadonlySet<string> = new Set(PROMO_SAMPLE_LANGS);
+
+// Mirrors the client's validation before reducing a supported BCP-47 tag to
+// the sample-table key. This includes Chinese script and region variants such
+// as zh-Hans, zh-Hant-TW and zh-Hans-CN.
+const PROMO_BCP47_LANGUAGE_TAG = /^(?:[a-z]{2,3}(?:-[a-z]{3}){0,3}(?:-[a-z]{4})?(?:-(?:[a-z]{2}|[0-9]{3}))?(?:-(?:[a-z0-9]{5,8}|[0-9][a-z0-9]{3}))*(?:-[0-9a-wy-z](?:-[a-z0-9]{2,8})+)*(?:-x(?:-[a-z0-9]{1,8})+)?|x(?:-[a-z0-9]{1,8})+)$/u;
 
 export function isPromoSampleId(value: unknown): value is PromoSampleId {
   return typeof value === 'string' && PROMO_SAMPLE_ID_SET.has(value);
@@ -226,11 +241,11 @@ export function isPromoSampleId(value: unknown): value is PromoSampleId {
 /** Fixed server-side. The client cannot choose a voice for a promo preview. */
 export const PROMO_SAMPLE_VOICE: Voice = DEFAULT_VOICE;
 
-/** Bump to invalidate every cached promo clip after a copy change. */
-export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v1';
+/** Bump with the client after promo content or cache identity changes. */
+export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v3';
 export const PROMO_SAMPLE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
-export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<string, string>>>> = {
+export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<PromoSampleLang, string>>>> = {
   spontaneous: {
     en: 'Spontaneous',
     ja: '自発的',
@@ -321,16 +336,34 @@ export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<s
   },
 };
 
-/** The base subtag this table has copy for, or 'en'. Never trusts the raw value. */
-export function resolvePromoLang(langCode: unknown): string {
+/** The supported base subtag for a valid BCP-47 tag, or `en`. */
+export function resolvePromoLang(langCode: unknown): PromoSampleLang {
   if (typeof langCode !== 'string' || langCode.length > MAX_LANG_CODE_LENGTH) return 'en';
-  const base = langCode.split(/[-_]/u)[0]?.toLowerCase() ?? '';
-  return PROMO_SAMPLE_TEXT.spontaneous[base] !== undefined ? base : 'en';
+  const tag = langCode.trim();
+  const normalizedTag = tag.toLowerCase();
+  if (!tag || normalizedTag === 'other' || !PROMO_BCP47_LANGUAGE_TAG.test(normalizedTag)) return 'en';
+  const base = normalizedTag.split('-')[0] ?? '';
+  return PROMO_SAMPLE_LANG_SET.has(base) ? base as PromoSampleLang : 'en';
 }
 
 /** The fixed text for a promo clip. Both arguments are already allowlisted. */
-export function promoSampleText(sample: PromoSampleId, lang: string): string {
-  return PROMO_SAMPLE_TEXT[sample][lang] ?? PROMO_SAMPLE_TEXT[sample].en as string;
+export function promoSampleText(sample: PromoSampleId, lang: PromoSampleLang): string {
+  return PROMO_SAMPLE_TEXT[sample][lang];
+}
+
+/**
+ * Server-owned pronunciation guidance for fixed promo speech.
+ *
+ * The JSON file is also read by the bundled-audio generator, making this the
+ * single allowlisted mapping for both generation paths. The client supplies
+ * only a language tag; it can neither provide nor override an instruction.
+ */
+export const PROMO_SAMPLE_PRONUNCIATION: Readonly<Record<PromoSampleLang, string>> =
+  promoVoicePronunciationInstructions;
+
+/** Resolve first, then select the corresponding server-owned instruction. */
+export function promoSamplePronunciationInstruction(langCode: unknown): string {
+  return PROMO_SAMPLE_PRONUNCIATION[resolvePromoLang(langCode)];
 }
 
 export const LANGUAGE_NAMES: Readonly<Record<string, string>> = {

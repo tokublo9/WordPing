@@ -16,6 +16,7 @@ import { BulkImportModal } from '../components/BulkImportModal';
 import type { BulkImportDraft, BulkImportResult } from '../features/cards/bulkImport';
 import type { FeatureDiscovery } from '../hooks/useFeatureDiscovery';
 import { TEXT_TO_SPEECH_ENABLED } from '../features/flags';
+import type { PromoSampleLang } from '../lib/promoVoiceSamples';
 
 // ── Prop types ────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ export interface AppModalsProps {
   settingsModal: {
     visible: boolean;
     onClose(): void;
+    isFirstLaunch: boolean | null;
     appearance: Appearance;
     onPickAppearance(mode: Appearance): void;
     skinId: string | null;
@@ -118,6 +120,7 @@ export interface AppModalsProps {
     onUpgrade(): void;
     onUpgradeSheetVisibleChange?: (visible: boolean) => void;
     language: string;
+    sampleLanguage: PromoSampleLang;
     onPickLanguage(code: string): void;
     aiVoice: AIVoice;
     onPickAIVoice(voice: AIVoice): void;
@@ -150,8 +153,7 @@ export interface AppModalsProps {
   proSheet: {
     visible: boolean;
     onClose(): void;
-    learningLang: string | undefined;
-    nativeLang: string;
+    sampleLanguage: PromoSampleLang;
     skinId?: string | null;
     onPickSkin?: (id: string | null) => void;
     /** Re-asks RevenueCat when the plan data failed to arrive. */
@@ -285,6 +287,7 @@ export function AppModals({
       <SettingsModal
         visible={settingsModal.visible}
         onClose={settingsModal.onClose}
+        isFirstLaunch={settingsModal.isFirstLaunch}
         themeColor={themeColor}
         appearance={settingsModal.appearance}
         onPickAppearance={settingsModal.onPickAppearance}
@@ -301,6 +304,7 @@ export function AppModals({
         onManageSubscription={onManageSubscription}
         pal={pal}
         language={settingsModal.language}
+        sampleLanguage={settingsModal.sampleLanguage}
         onPickLanguage={settingsModal.onPickLanguage}
         aiVoice={settingsModal.aiVoice}
         onPickAIVoice={settingsModal.onPickAIVoice}
@@ -341,8 +345,7 @@ export function AppModals({
         isPremium={isPremium}
         isSubscriptionLoaded={isSubscriptionLoaded}
         expirationDate={subscriptionExpirationDate}
-        learningLang={proSheet.learningLang}
-        nativeLang={proSheet.nativeLang}
+        sampleLanguage={proSheet.sampleLanguage}
         skinId={proSheet.skinId}
         onPickSkin={proSheet.onPickSkin}
         planProducts={settingsModal.planProducts}

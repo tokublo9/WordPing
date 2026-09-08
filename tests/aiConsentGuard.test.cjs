@@ -17,7 +17,7 @@ function read(path) {
  * bypass fails here rather than at App Review.
  */
 
-test('the one network boundary checks consent before anything leaves the device', () => {
+test('the one network boundary gates user content and isolates fixed promo', () => {
   const client = read('src/lib/api/client.ts');
 
   assert.match(client, /import \{ configureAIConsentStorage, requireAIConsent \} from '\.\.\/aiConsent';/u);
@@ -31,10 +31,15 @@ test('the one network boundary checks consent before anything leaves the device'
   assert.ok(guardAt > -1, 'post() must call requireAIConsent()');
   assert.ok(guardAt < fetchAt, 'consent must be checked before the request is sent');
   assert.ok(guardAt < identityAt, 'consent must be checked before identity is resolved');
+  assert.match(post, /if \(kind === 'user-content'\) \{\s*requireAIEntitlement\(\);\s*await requireAIConsent\(\);\s*\}/u);
+  assert.match(post, /const identity = kind !== 'fixed-promo' \? await getIdentity\(\) : null;/u);
 
   // Both endpoint helpers go through post, so neither can skip the guard.
   assert.match(client, /export async function postText\([\s\S]*?await post\(/u);
   assert.match(client, /export async function postSpeech\([\s\S]*?await post\(/u);
+  const promo = client.slice(client.indexOf('export async function postPromoSpeech('));
+  assert.match(promo, /'fixed-promo'/u);
+  assert.doesNotMatch(promo, /requireAIConsent|getIdentity|\btext\b|\bvoice\b|\binstructions\b/u);
 });
 
 test('no module other than the guarded client sends a production request', () => {
@@ -173,12 +178,19 @@ test('permission can still be withdrawn, from About AI Voice', () => {
   assert.doesNotMatch(settings, /ai_consent_setting_desc|handleToggleAIConsent/u);
   assert.match(settings, /<AboutAIVoiceDialog/u);
 
-  // Offered only while permission is granted, so it never lies about the state.
+  // One action, and its label is the state: Withdraw while permission is held,
+  // Allow otherwise — so it can never offer something the stored value
+  // contradicts, which is what the old "granted only" branch was protecting.
   assert.match(dialog, /const consent = useAIConsent\(\);/u);
-  assert.match(dialog, /consent === 'granted' \? \(/u);
-  assert.match(dialog, /void setAIConsent\('declined'\)/u);
-  // Withdrawing is the only thing it writes — it can never grant.
-  assert.doesNotMatch(dialog, /setAIConsent\('granted'\)|ensureAIConsentForUserAction/u);
+  assert.match(dialog, /const granted = consent === 'granted';/u);
+  assert.match(dialog, /const actionKey = granted \? 'ai_consent_withdraw' : 'ai_consent_grant';/u);
+  assert.match(dialog, /onPress=\{granted \? revoke : \(\) => \{ void apply\('granted'\); \}\}/u);
+  // Withdrawing is confirmed first, then written through the shared store.
+  assert.match(dialog, /onPress: \(\) => \{ void apply\('declined'\); \}/u);
+  assert.match(dialog, /await setAIConsent\(next\);/u);
+  // Whatever it writes comes from an explicit tap on that button: the dialog
+  // never grants on open and never routes through the implicit action prompt.
+  assert.doesNotMatch(dialog, /ensureAIConsentForUserAction/u);
 
   // The policy is still reachable from Settings → App Info, unchanged.
   const appInfo = settings.slice(settings.indexOf('// ── App Info sheet'));

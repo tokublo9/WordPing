@@ -261,9 +261,13 @@ test('10-11. the copy avoids "API" without touching internal identifiers', () =>
 
   // The replacement wording is the one the implementation actually matches:
   // requests go to an online service, and replays come from the device.
-  assert.match(i18n, /ai_voice_info_body:[\s\S]{0,400}online AI voice service/u);
-  assert.match(i18n, /ai_voice_info_body:[\s\S]{0,600}オンラインのAI音声サービス/u);
-  assert.match(i18n, /ai_voice_info_body:[\s\S]{0,400}monthly AI voice limit/u);
+  // It lives in the voice-picker explanation now rather than the About body,
+  // and the limit copy names the plan instead of a "monthly AI voice limit".
+  // The "no API" check above is the property; these pin where the replacement
+  // wording actually is, so it cannot quietly revert to API phrasing.
+  assert.match(i18n, /voice_pick_info_body:[\s\S]{0,900}online AI voice service/u);
+  assert.match(i18n, /voice_pick_info_body:[\s\S]{0,900}オンラインのAI音声サービス/u);
+  assert.match(i18n, /voice_limit_monthly:[\s\S]{0,300}played with AI Voice again/u);
 
   // Internal names, comments and network code are untouched: the term is only
   // wrong in front of a user.
@@ -347,9 +351,13 @@ test('18. on-device speech needs no entitlement and no consent', () => {
 
   // The device engine is reached without touching the network layer at all.
   const tts = read('src/lib/tts.ts');
-  assert.match(tts, /if \(canUseAIVoice\) return speakWithAI\(text, activeAIVoice, options\);\s*return speakFree\(/u);
+  assert.match(tts, /if \(canUseAIVoice\) \{\s*return speakWithAI\(text, activeAIVoice, options, undefined, forcedLocale\);\s*\}/u);
+  assert.match(tts, /return speakFree\(text, forcedLocale \?\? detectLocale\(text\), options\);/u);
   // speakFree drives expo-speech directly — no client, no gateway, no guard.
-  const speakFree = tts.slice(tts.indexOf('function speakFree('), tts.indexOf('// ── OpenAI TTS'));
+  const speakFree = tts.slice(
+    tts.indexOf('function speakFree('),
+    tts.indexOf('// ── Fetched AI audio playback'),
+  );
   assert.match(speakFree, /speechLib\(\)\.speak\(/u);
   assert.doesNotMatch(speakFree, /requireAI|ensureAIConsent|requestAISpeech|fetchAndCacheAudio/u);
 });
@@ -378,7 +386,7 @@ test('9. only the dedicated promo function can use the exempt classification', (
   const client = read('src/lib/api/client.ts');
 
   // The classification is internal — not exported, so no caller can name it.
-  assert.match(client, /^type AIRequestKind = 'user-content' \| 'fixed-promo';$/mu);
+  assert.match(client, /^type AIRequestKind = 'user-content' \| 'account-metadata' \| 'fixed-promo';$/mu);
   assert.doesNotMatch(client, /export type AIRequestKind|export const .*fixed-promo/u);
 
   // `post` defaults to user-content, and exactly one call site passes the
@@ -407,10 +415,9 @@ test('9. only the dedicated promo function can use the exempt classification', (
 test('5 & 6. the promo request creates and sends no identifier', () => {
   const client = read('src/lib/api/client.ts');
 
-  // Identity is resolved only for a user-content request. `getInstallId` mints
-  // an id when none exists, so calling it here would create one to play a
-  // public sample.
-  assert.match(client, /const identity = kind === 'user-content' \? await getIdentity\(\) : null;/u);
+  // Identity is resolved for user content and account verification. `getInstallId`
+  // mints an id when none exists, so fixed promo alone stays outside this branch.
+  assert.match(client, /const identity = kind !== 'fixed-promo' \? await getIdentity\(\) : null;/u);
   // ...and the two headers are attached only when there is an identity.
   assert.match(
     client,
@@ -509,10 +516,24 @@ test('16. the Privacy Policy is still reachable from App Info', () => {
     appInfo,
     /<SettingRow icon="document-text-outline" label=\{t\('privacy_policy'\)\} pal=\{pal\}\s*onPress=\{\(\) => void openExternal\(LEGAL_URLS\.privacy\)\} \/>/u,
   );
-  assert.doesNotMatch(appInfo, /canUseAI|isSubscribed && [\s\S]{0,80}privacy_policy/u);
+  // The row sits under no condition of its own. Scoped to the row's own block:
+  // `canUseAI` legitimately gates a *different* row in this sheet (About AI
+  // Voice), so forbidding the token across the whole sheet tested the wrong
+  // thing — what matters is that nothing gates the Privacy Policy link.
+  const privacyAt = appInfo.indexOf("label={t('privacy_policy')}");
+  assert.ok(privacyAt > -1, 'the Privacy Policy row is in App Info');
+  assert.doesNotMatch(
+    appInfo.slice(privacyAt - 300, privacyAt),
+    /canUseAI|isSubscribed|isPremium|backupVisible/u,
+  );
 
   // App Info itself is reachable from Settings on every plan.
-  assert.match(settings, /<SettingRow icon="information-circle-outline" label=\{t\('app_info'\)\} pal=\{pal\}\s*onPress=\{\(\) => setAppInfoVisible\(true\)\} \/>/u);
+  // It carries the nested feature marker now, so the props are asserted
+  // individually rather than as one exact tag.
+  assert.match(
+    settings,
+    /<SettingRow icon="information-circle-outline" label=\{t\('app_info'\)\} pal=\{pal\}\s*badge=\{aboutAIVoiceIsNew\}\s*themeColor=\{themeColor\}\s*onPress=\{\(\) => setAppInfoVisible\(true\)\} \/>/u,
+  );
 
   // The canonical URL is unchanged, and both locales resolve through it.
   assert.match(read('src/config/legalUrls.ts'), /privacy: 'https:\/\/word-ping-chi\.vercel\.app\/privacy'/u);
@@ -616,14 +637,15 @@ test('every locale carries all eight tutorial instructions', () => {
     welcome.indexOf('export const WELCOME_CARD_IDS'),
   );
 
-  // Same locales the onboarding picker offers, minus 'other', which is the one
-  // deliberate English fallback.
-  const onboarding = read('src/components/OnboardingModal.tsx');
-  const pickerLocales = [...onboarding
-    .slice(0, onboarding.indexOf('// ── Language picker'))
-    .matchAll(/\{ code: '([\w-]+)',/gu)]
-    .map(match => match[1])
-    .filter(code => code !== 'other');
+  // Same authoritative 20 BCP-47 locales the shared i18n/onboarding registry
+  // exposes. There is no catch-all language choice in either selector.
+  const i18n = read('src/i18n.ts');
+  const registry = i18n.slice(
+    i18n.indexOf('export const SUPPORTED_LANGUAGES'),
+    i18n.indexOf('export type OnboardingLanguageCode'),
+  );
+  const pickerLocales = [...registry.matchAll(/onboardingCode: '([\w-]+)'/gu)]
+    .map(match => match[1]);
 
   const entries = [...table.matchAll(/^ {2}'?([\w-]+)'?: \[\n((?: {4}.+\n)+) {2}\],$/gmu)];
   const covered = entries.map(entry => entry[1]);
@@ -647,6 +669,24 @@ test('every locale carries all eight tutorial instructions', () => {
       );
     }
   }
+});
+
+test('both onboarding language selectors share the 20-language registry without Other', () => {
+  const onboarding = read('src/components/OnboardingModal.tsx');
+  const picker = onboarding.slice(
+    onboarding.indexOf('function LangPicker'),
+    onboarding.indexOf('// ── Main component'),
+  );
+
+  assert.match(picker, /SUPPORTED_LANGUAGES\.map\(lang =>/u);
+  assert.match(picker, /onSelect\(lang\.onboardingCode\)/u);
+  assert.doesNotMatch(picker, /OB_LANGUAGES|ob_lang_other|['"]other['"]/u);
+  assert.match(onboarding, /showingLearnLang \? learningLang : nativeLang/u);
+  assert.match(onboarding, /showingLearnLang \? setLearningLang : setNativeLang/u);
+
+  // Unrelated category and discovery-source Other choices remain available.
+  assert.match(onboarding, /\{ id: 'other',\s+icon: '📦'/u);
+  assert.match(onboarding, /\{ id: 'other',\s+icon: 'ellipsis-horizontal'/u);
 });
 
 test('the tutorial cards map instructions onto both purposes', () => {
@@ -702,11 +742,18 @@ test('the introduction is one derived step, never a fired event', () => {
   // Derived in render, not raised from an effect: there is no "show" event for
   // a re-render, a repeated tap or Strict Mode to run twice.
   assert.match(screen, /const introStep = nextTestIntroStep\(\{/u);
-  const introBlock = screen.slice(
-    screen.indexOf('const introStep = nextTestIntroStep({'),
-    screen.indexOf('// ── Voice playback'),
-  );
-  assert.doesNotMatch(introBlock, /useEffect|setTimeout/u);
+  // Scoped to the derivation itself. The region below it also publishes the
+  // step to the parent and takes it back on unmount — effects by necessity,
+  // not a "show" event — so the old whole-block check no longer said what it
+  // meant. What matters is that the step is computed in render and that no
+  // state or timer anywhere decides it.
+  const derivationAt = screen.indexOf('const introStep = nextTestIntroStep({');
+  assert.ok(derivationAt > -1, 'the step is derived from the pure rule');
+  const derivationEnd = screen.indexOf('});', derivationAt);
+  assert.ok(derivationEnd > derivationAt, 'and the derivation is bounded');
+  assert.doesNotMatch(screen.slice(derivationAt, derivationEnd), /useEffect|setTimeout/u);
+  assert.doesNotMatch(screen, /setIntroStep|introStepRef/u,
+    'no state holds the current step, so nothing can raise one');
 
   // Each step is written when its popup is dismissed, so quitting mid-step
   // resumes there rather than swallowing it.
@@ -730,7 +777,11 @@ test('the introduction can never make the Test controls unpressable', () => {
   // Test icon that toggles it.
   assert.equal((screen.match(/<Modal/gu) ?? []).length, 1, 'exactly one native modal here');
   assert.doesNotMatch(dialog, /<Modal|from 'react-native'[\s\S]{0,120}Modal/u, 'the step dialog is an overlay');
-  assert.match(dialog, /if \(!visible\) return null;/u, 'nothing is left mounted when hidden');
+  assert.match(
+    dialog,
+    /if \(!visible \|\| !isMeasuredRect\(spotlight\)\) return null;/u,
+    'nothing is left mounted when hidden — nor before its target is measured',
+  );
 
   // The test screen publishes the step and takes it back when it unmounts, so
   // the overlay cannot outlive the session the X ends — which is what keeps
@@ -751,8 +802,20 @@ test('the introduction can never make the Test controls unpressable', () => {
   );
   // The toggle and the quit are untouched by any of it: no marker, seen state
   // or popup state appears in either.
-  const quit = app.slice(app.indexOf('const quitTestMode'), app.indexOf('// ── The Word List header'));
-  assert.doesNotMatch(quit, /discovery|FEATURE_MARKERS|intro/u, 'quitting reads no badge state');
+  // Scoped to the two callbacks themselves. The old bound ran to the next
+  // section heading and swept in the doc comment for the declaration after
+  // them, which mentions the introduction without either function touching it.
+  for (const name of ['const quitTestMode', 'const toggleTestMode']) {
+    const at = app.indexOf(name);
+    assert.ok(at > -1, `${name} exists`);
+    const end = app.indexOf('}, [', at);
+    assert.ok(end > at, `${name} is bounded`);
+    assert.doesNotMatch(
+      app.slice(at, end),
+      /discovery|FEATURE_MARKERS|intro/u,
+      `${name} reads no badge or introduction state`,
+    );
+  }
   // And nothing anywhere makes a press conditional on a seen flag.
   assert.doesNotMatch(app, /disabled=\{[^}]*(?:showTestMarker|showNotificationMarker)/u);
   assert.doesNotMatch(
@@ -804,8 +867,18 @@ test('the introduction spotlights measured targets and anchors below them', () =
   // anything under those insets leaves the status bar and the bottom strip
   // undimmed. The background colour moves out with it, since those two regions
   // are now the outer view's to paint.
-  assert.match(app, /<View style=\{\[s\.root, \{ backgroundColor: pal\.bg \}\]\}>\s*<SafeAreaView style=\{s\.root\}>/u);
-  assert.match(app, /<\/SafeAreaView>[\s\S]{0,2400}<TestIntroDialog[\s\S]{0,800}\/>\s*<\/View>/u);
+  // The window is the LangContext provider's own children now rather than a
+  // wrapper View, so the structural claim is stated as the relationship it was
+  // always about: the SafeAreaView bounds the inset area, and the overlay is a
+  // sibling *after* it rather than a child inside it.
+  assert.match(app, /<LangContext\.Provider value=\{t\}>/u);
+  const safeOpenAt = app.indexOf('<SafeAreaView style={s.root}>');
+  const safeCloseAt = app.indexOf('</SafeAreaView>');
+  const introAt = app.indexOf('<TestIntroDialog');
+  assert.ok(safeOpenAt > -1, 'the inset area is a SafeAreaView');
+  assert.ok(safeCloseAt > safeOpenAt, 'which closes before anything follows it');
+  assert.ok(introAt > safeCloseAt,
+    'the introduction overlay is hosted after the SafeAreaView, not inside it');
 
   // Both holes come from the real views in window coordinates. The card keeps
   // its own radius; the complete chip group is measured as one target.
@@ -893,15 +966,16 @@ test('Settings has no result-filter row, and no Help heading without a row', () 
   assert.doesNotMatch(settings, /help_result_filters/u);
   assert.doesNotMatch(settings, /ResultFilterTutorial/u);
   assert.doesNotMatch(settings, /resultFilterHelpVisible/u);
-  // About AI Voice is the only entry left, so the heading is drawn under the
-  // same condition rather than standing above nothing on a plan without it.
-  assert.match(settings, /t\('help_section'\)/u);
-  const help = settings.slice(
-    settings.indexOf("{/* ── Help ─"),
-    settings.indexOf("{/* ── App Info ─"),
-  );
-  assert.match(help, /\{canUseAI && \(\s*<>/u);
-  assert.match(help, /ai_voice_info_menu/u);
+  // About AI Voice moved into App Info, so Settings carries no Help heading at
+  // all. That is the same property stated at its limit: the heading can never
+  // stand above nothing, because there is no heading.
+  assert.doesNotMatch(settings, /t\('help_section'\)/u);
+  const appInfoAt = settings.indexOf('// ── App Info sheet');
+  assert.ok(appInfoAt > -1, 'the App Info sheet marker exists');
+  const appInfo = settings.slice(appInfoAt);
+  // And the entry it moved to is still behind the same entitlement gate.
+  assert.match(appInfo, /\{canUseAI && \(\s*<>/u);
+  assert.match(appInfo, /ai_voice_info_menu/u);
 });
 
 // ── 5. Duplicate words ───────────────────────────────────────────────────────
@@ -923,7 +997,9 @@ test('every creation path compares through the one duplicate rule', () => {
   // Moving between folders.
   const folders = read('src/features/folders/useFolders.ts');
   assert.match(folders, /import \{ planFolderMove \} from '\.\.\/cards\/duplicates';/u);
-  assert.match(folders, /planFolderMove\(prev, pendingMoveIds, targetFolderId\)/u);
+  // Computed against the card array directly rather than inside a setState
+  // updater, so the decision and the write still see identical data.
+  assert.match(folders, /planFolderMove\(cards, pendingMoveIds, targetFolderId\)/u);
 });
 
 test('the commit re-checks duplicates so the preview cannot be raced', () => {
@@ -942,7 +1018,13 @@ test('nothing is overwritten, merged or deleted to resolve a duplicate', () => {
   assert.doesNotMatch(bulk, /overwrite|replaceExisting/u);
   // A blocked move leaves the word where it is rather than dropping it.
   const folders = read('src/features/folders/useFolders.ts');
-  assert.match(folders, /if \(movableIds\.length === 0\) return prev;/u);
+  assert.match(folders, /if \(movableIds\.length === 0\) return;/u);
+  // And the write only ever reassigns folderId — no word is dropped from the
+  // array on the way, which is the property `return prev` used to imply.
+  assert.match(
+    folders,
+    /setCards\(prev => prev\.map\(c => moving\.has\(c\.id\) \? \{ \.\.\.c, folderId: targetFolderId \} : c\)\);/u,
+  );
 });
 
 // ── 6. The position counter ──────────────────────────────────────────────────
@@ -978,7 +1060,10 @@ test('the Test Mode icon holds its position whether or not the chips show', () =
   // Both branches put a `chipGroup` container in the row's first slot, so the
   // row always has two children and `space-between` keeps the Test button
   // pinned to the same right edge in either state.
-  assert.match(bar, /\{showResultFilters \? \(\s*<View style=\{filterStyles\.chipGroup\}>/u);
+  assert.match(
+    bar,
+    /\{showResultFilters \? \([\s\S]*?<View\s*ref=\{chipGroupRef\}\s*style=\{filterStyles\.chipGroup\}/u,
+  );
   assert.match(
     bar,
     /\) : \(\s*<View\s*style=\{filterStyles\.chipGroup\}\s*pointerEvents="none"[\s\S]*?\/>\s*\)\}/u,
@@ -1030,7 +1115,10 @@ test('the hidden filter placeholder is inert and invisible to assistive tech', (
 
 test('the colour chips are hidden before the first test answer', () => {
   const wordList = read('src/screens/WordListScreen/WordListScreen.tsx');
-  assert.match(wordList, /\{showResultFilters \? \(\s*<View style=\{filterStyles\.chipGroup\}>/u);
+  assert.match(
+    wordList,
+    /\{showResultFilters \? \([\s\S]*?<View\s*ref=\{chipGroupRef\}\s*style=\{filterStyles\.chipGroup\}/u,
+  );
 
   // Test Mode's own button is outside that condition — it is how a new user
   // produces the results these chips will filter by.
@@ -1268,14 +1356,46 @@ test('1-6. the consent offer is wired to a verified purchase and a closed sheet'
   assert.match(app, /entitlementSource,/u);
   assert.match(app, /consent: getAIConsent\(\),/u);
   assert.match(app, /alreadyPrompted: consentPromptShown,/u);
-  assert.match(app, /isUpgradeSheetClosed: !proSheetVisible && !settingsModalVisible,/u);
+  assert.match(app, /isUpgradeSheetClosed: !upgradeSheetVisible,/u);
 
   // Waits for the sheet's dismissal animation rather than guessing a duration.
   assert.match(app, /InteractionManager\.runAfterInteractions\(\(\) => \{/u);
   assert.doesNotMatch(app, /setTimeout\([^)]*shouldPromptConsentAfterSubscription/u);
 
-  // Recorded before the dialog opens, so a dismissal still counts as offered.
-  assert.match(app, /setConsentPromptShown\(true\);[\s\S]{0,300}ensureAIConsentForUserAction\(\)/u);
+  // Every "may we ask?" condition lives in the extracted helper, so they are
+  // asserted there rather than by matching two nearby statements in App.tsx.
+  const rule = read('src/features/onboarding/subscriptionOnboarding.ts');
+  const decisionAt = rule.indexOf('export function shouldPromptConsentAfterSubscription(');
+  assert.ok(decisionAt > -1, 'the decision is one extracted rule');
+  const decision = rule.slice(decisionAt);
+  // Only a completed purchase queues it. Every other way an entitlement is
+  // resolved — a cancelled or failed purchase, restore, startup, the customer
+  // info listener, a manual refresh, a logout — fails this line.
+  assert.match(decision, /if \(input\.entitlementSource !== 'after-purchase-refresh'\) return false;/u);
+  const sources = read('src/hooks/useSubscription.ts');
+  for (const other of [
+    'customer-info-listener', 'after-configure-refresh', 'after-restore-refresh',
+    'manual-refresh', 'after-logout-refresh', 'local-development-scenario',
+  ]) {
+    assert.ok(sources.includes(`'${other}'`), `${other} is a real source the rule excludes`);
+  }
+  // Eligibility is the AI rule, so Basic and Premium both qualify and Free does
+  // not — read from the entitlement module rather than a plan name here.
+  assert.match(decision, /if \(!planCanUseAI\(input\.plan\)\) return false;/u);
+  // Asked once, never while the sheet or another screen is up.
+  assert.match(decision, /if \(input\.alreadyPrompted\) return false;/u);
+  assert.match(decision, /return input\.isUpgradeSheetClosed && !input\.isScreenBusy;/u);
+
+  // Presentation order inside the effect: a host has to exist before the
+  // one-time marker is written, or the offer would be spent on a dialog nobody
+  // saw; and the marker is written before the prompt, so a dismissal still
+  // counts as offered and it cannot open twice.
+  const effectAt = app.indexOf('if (!hasAIConsentPromptHost()) return;');
+  assert.ok(effectAt > -1, 'a prompt host is required before anything is recorded');
+  const shownAt = app.indexOf('setConsentPromptShown(true);', effectAt);
+  const promptAt = app.indexOf('ensureAIConsentForUserAction()', effectAt);
+  assert.ok(shownAt > effectAt, 'the marker is written only after the host check');
+  assert.ok(promptAt > shownAt, 'and the prompt is requested only after the marker');
   // Persisted, and cleared on a verified downgrade so a resubscription re-asks.
   assert.match(app, /AsyncStorage\.setItem\(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown\(true\)\)/u);
   assert.match(
@@ -1304,22 +1424,26 @@ test('10. the standalone AI Data Sharing row is gone from Settings', () => {
 test('11-12. permission is withdrawn from About AI Voice, and takes effect at once', () => {
   const dialog = read('src/components/AboutAIVoiceDialog.tsx');
 
-  // Offered only while it is actually granted; otherwise a plain status.
-  assert.match(dialog, /consent === 'granted' \? \(/u);
-  assert.match(dialog, /accessibilityLabel=\{t\('ai_consent_withdraw'\)\}/u);
-  assert.match(dialog, /'ai_consent_status_declined' : 'ai_consent_status_unknown'/u);
+  // Offered only while it is actually granted; otherwise the same button reads
+  // Allow. The label is the state, so there is no separate status line to drift.
+  assert.match(dialog, /const granted = consent === 'granted';/u);
+  assert.match(dialog, /const actionKey = granted \? 'ai_consent_withdraw' : 'ai_consent_grant';/u);
+  assert.match(dialog, /accessibilityLabel=\{t\(actionKey\)\}/u);
 
   // Confirmed, then written straight to the shared consent state — which is
   // what the network guard reads, so the next request is blocked immediately.
   assert.match(dialog, /Alert\.alert\(\s*t\('ai_consent_withdraw'\),/u);
-  assert.match(dialog, /onPress: \(\) => \{ void setAIConsent\('declined'\); \}/u);
+  assert.match(dialog, /onPress: \(\) => \{ void apply\('declined'\); \}/u);
+  assert.match(dialog, /await setAIConsent\(next\);/u);
 
   // It destroys nothing and cannot touch the subscription.
   assert.doesNotMatch(dialog, /setCards|deleteCard|Paths\.|\.delete\(|purchase|restore/u);
 
   const i18n = read('src/i18n.ts');
-  assert.match(i18n, /ai_consent_withdraw: 'Withdraw AI Data Sharing Permission'/u);
-  assert.match(i18n, /ai_consent_withdraw: 'AIデータ共有の許可を取り消す'/u);
+  // The copy was shortened to fit the single action button; both locales still
+  // carry an explicit, non-English-placeholder string of their own.
+  assert.match(i18n, /ai_consent_withdraw: 'Revoke Permission'/u);
+  assert.match(i18n, /ai_consent_withdraw: '許可を取り消す'/u);
 });
 
 test('13. the Privacy Policy names the new withdrawal path', () => {
@@ -1334,10 +1458,12 @@ test('13. the Privacy Policy names the new withdrawal path', () => {
 
 test('14. the About AI Voice row has no description', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  const help = settings.slice(
-    settings.indexOf("t('help_section')"),
-    settings.indexOf('{/* ── App Info'),
-  );
+  // The row lives in App Info now. The marker is asserted before slicing: the
+  // old bound was "t('help_section')", which no longer exists, so indexOf
+  // returned -1 and the checks below ran against the whole file.
+  const appInfoAt = settings.indexOf('// ── App Info sheet');
+  assert.ok(appInfoAt > -1, 'the App Info sheet marker exists');
+  const help = settings.slice(appInfoAt);
   assert.match(help, /label=\{t\('ai_voice_info_menu'\)\}/u);
   assert.doesNotMatch(help, /ai_voice_info_desc|rowDescription/u);
   assert.doesNotMatch(read('src/i18n.ts'), /ai_voice_info_desc/u);
@@ -1372,7 +1498,13 @@ test('7. the markers are attached to the requested controls and nothing else', (
     settings.indexOf('// ── App Info sheet'),
     settings.indexOf('// ── Settings row'),
   );
-  assert.doesNotMatch(appInfo, /NewFeatureBadge|badge=/u);
+  // The About AI Voice row moved into App Info and brought its marker with it,
+  // so the sheet carries exactly one badge — on that row and nothing else. The
+  // Settings row above mirrors it without dismissing it (test 16).
+  assert.equal((appInfo.match(/badge=/gu) ?? []).length, 1,
+    'one marker inside App Info, and it is the About AI Voice row');
+  assert.match(appInfo, /label=\{t\('ai_voice_info_menu'\)\}\s*badge=\{aboutAIVoiceIsNew\}/u);
+  assert.doesNotMatch(appInfo, /NewFeatureBadge/u, 'drawn by SettingRow, not inline');
   assert.doesNotMatch(settings, /sectionLabel[\s\S]{0,120}NewFeatureBadge/u);
 });
 
@@ -1564,7 +1696,16 @@ test('8 & 26. markers are independent of consent and grant nothing', () => {
   // Opening About AI Voice dismisses its marker and opens a dialog — it does
   // not grant consent, and the dialog only ever withdraws.
   assert.doesNotMatch(settings, /dismiss\(FEATURE_MARKERS\.aboutAIVoice\)[\s\S]{0,200}setAIConsent\('granted'\)/u);
-  assert.doesNotMatch(read('src/components/AboutAIVoiceDialog.tsx'), /'granted'\)/u);
+  // The dialog can grant now, but only from an explicit press on its one action
+  // button — never as a side effect of the marker being dismissed or of the
+  // dialog being opened. That is the property; "it can never grant" was the
+  // old shape of it, not the substance.
+  const aboutDialog = read('src/components/AboutAIVoiceDialog.tsx');
+  assert.match(aboutDialog, /onPress=\{granted \? revoke : \(\) => \{ void apply\('granted'\); \}\}/u);
+  assert.equal((aboutDialog.match(/apply\('granted'\)/gu) ?? []).length, 1,
+    'exactly one grant path, and it is a press');
+  assert.doesNotMatch(aboutDialog, /useEffect\([\s\S]{0,200}apply\(/u,
+    'nothing grants on open');
 
   // Dismissing a marker only ever writes to the discovery set.
   const discovery = read('src/hooks/useFeatureDiscovery.ts');

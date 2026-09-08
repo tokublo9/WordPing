@@ -449,7 +449,10 @@ test('voice sample cache identity includes text, voice, model, speed, format, an
     { ...base, model: 'future-model' },
     { ...base, speed: 0.9 },
     { ...base, format: 'future-format' },
-    { ...base, contentVersion: 'natural-ai-voice-v2' },
+    // Derived from the base so it can never collide with the real constant
+    // again: this line used to hardcode 'natural-ai-voice-v2', which the
+    // shipped value was later bumped to, making the mutation a no-op.
+    { ...base, contentVersion: `${base.contentVersion}-changed` },
   ]) {
     assert.notEqual(serializeTTSCacheKey(changed), baseKey);
   }

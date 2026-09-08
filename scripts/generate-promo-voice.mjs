@@ -18,10 +18,10 @@
  * speaks, so the audio cannot drift from the text on screen.
  *
  * THE REQUEST MATCHES THE WORKER EXACTLY. `/v1/voice/promo` sends model, input,
- * voice and response_format and nothing else — no `instructions`, no `speed` —
- * so the synthesis here is the same synthesis a preview makes today. Only the
- * container changes: OpenAI returns wav, and ffmpeg converts it to the mp3 that
- * ships. See the format constants below.
+ * voice, response_format, and a server-owned pronunciation instruction selected
+ * from the normalized language key. The script reads the same allowlisted
+ * instruction map as the Worker. Only the container changes: OpenAI returns wav,
+ * and ffmpeg converts it to the mp3 that ships. See the format constants below.
  *
  * REGENERATE WHEN any of these change: the sample text, the voice, the model,
  * the encoding, or anything the Worker adds to its OpenAI request. Then bump
@@ -44,11 +44,12 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SAMPLES_TS = join(ROOT, 'src/lib/promoVoiceSamples.ts');
+const PRONUNCIATION_JSON = join(ROOT, 'cloudflare/wordping-api/src/promoVoicePronunciation.json');
 const AUDIO_MAP_TS = join(ROOT, 'src/lib/promoVoiceAudio.ts');
 const OUT_DIR = join(ROOT, 'assets/promo-voice');
 
 // Must match src/lib/promoVoiceAudio.ts and the Worker's promo voice.
-const LANGS = [
+export const PROMO_LANGS = [
   'en', 'ja', 'ko', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru',
   'ar', 'hi', 'tr', 'nl', 'vi', 'th', 'id', 'pl', 'el', 'sv',
 ];
@@ -60,9 +61,8 @@ const SAMPLES = ['spontaneous', 'vertical', 'merely', 'morning_light'];
 //   model            SPEECH_MODEL           config.ts:17
 //   voice            PROMO_SAMPLE_VOICE     = DEFAULT_VOICE = 'marin'
 //   response_format  'wav'                  passed as `format: 'wav'`
-//   instructions     NOT SENT               the promo route passes none, and
-//                                           requestSpeech omits the key entirely
-//                                           when it is absent
+//   instructions     server-owned           selected from the normalized promo
+//                                           language using the shared JSON map
 //   speed            NOT SENT               no route in openai.ts sends it
 //
 // Nothing else is in the request body. Keep these in step with the Worker: if it
@@ -91,14 +91,6 @@ const MARKER_END = '/* PROMO_SAMPLE_AUDIO:END */';
 // error body written to disk. Treated as invalid so `--force` is not needed to
 // replace it.
 const MIN_VALID_BYTES = 1_024;
-
-const args = process.argv.slice(2);
-const force = args.includes('--force');
-const dryRun = args.includes('--dry-run');
-const langArg = args.find(a => a.startsWith('--lang='));
-const targetLangs = langArg
-  ? langArg.slice('--lang='.length).split(',').map(s => s.trim()).filter(Boolean)
-  : LANGS;
 
 function fail(message) {
   console.error(`\n✖ ${message}\n`);
@@ -144,7 +136,7 @@ function readPromoSampleText() {
 
   for (const sample of SAMPLES) {
     if (!table[sample]) fail(`PROMO_SAMPLE_TEXT is missing the "${sample}" sample`);
-    for (const lang of LANGS) {
+    for (const lang of PROMO_LANGS) {
       const text = table[sample][lang];
       if (typeof text !== 'string' || text.trim() === '') {
         fail(`PROMO_SAMPLE_TEXT.${sample} has no text for "${lang}"`);
@@ -152,6 +144,67 @@ function readPromoSampleText() {
     }
   }
   return table;
+}
+
+/** Read the client content version that identifies this complete audio set. */
+function readPromoSampleVersion() {
+  const source = readFileSync(SAMPLES_TS, 'utf8');
+  const match = source.match(/export const PROMO_SAMPLE_VERSION = '([^']+)';/u);
+  if (!match) fail(`PROMO_SAMPLE_VERSION not found in ${SAMPLES_TS}`);
+  return match[1];
+}
+
+/** The version stamped by the last complete bundled-audio generation. */
+function readBundledAudioVersion() {
+  const source = readFileSync(AUDIO_MAP_TS, 'utf8');
+  const match = source.match(/export const PROMO_SAMPLE_AUDIO_VERSION: string = '([^']+)';/u);
+  if (!match) fail(`PROMO_SAMPLE_AUDIO_VERSION not found in ${AUDIO_MAP_TS}`);
+  return match[1];
+}
+
+/** Read and validate the one pronunciation map shared with the Worker. */
+function readPromoPronunciationInstructions() {
+  if (!existsSync(PRONUNCIATION_JSON)) fail(`Cannot find ${PRONUNCIATION_JSON}`);
+  let instructions;
+  try {
+    instructions = JSON.parse(readFileSync(PRONUNCIATION_JSON, 'utf8'));
+  } catch (error) {
+    fail(`Promo pronunciation map is invalid JSON: ${error instanceof Error ? error.message : 'unknown'}`);
+  }
+  const unknown = Object.keys(instructions).filter(lang => !PROMO_LANGS.includes(lang));
+  if (unknown.length > 0) fail(`Promo pronunciation map has unknown languages: ${unknown.join(', ')}`);
+  for (const lang of PROMO_LANGS) {
+    if (typeof instructions[lang] !== 'string' || instructions[lang].trim() === '') {
+      fail(`Promo pronunciation map has no instruction for "${lang}"`);
+    }
+  }
+  return instructions;
+}
+
+/**
+ * Build one independent generation entry for every language/sample pair.
+ * Text is deliberately not a key: identical spellings in different languages
+ * retain separate paths and pronunciation instructions.
+ */
+export function buildPromoGenerationPlan(table, instructions, languages = PROMO_LANGS) {
+  return languages.flatMap(lang => SAMPLES.map(sample => ({
+    lang,
+    sample,
+    path: join(OUT_DIR, lang, `${sample}.mp3`),
+    text: table[sample][lang],
+    instructions: instructions[lang],
+  })));
+}
+
+/** The exact OpenAI body shared by all four samples and all 20 languages. */
+export function promoSpeechRequestBody(text, instructions) {
+  return {
+    model: MODEL,
+    input: text,
+    voice: VOICE,
+    response_format: OPENAI_RESPONSE_FORMAT,
+    instructions,
+  };
 }
 
 function hasFfmpeg() {
@@ -188,21 +241,16 @@ function encodeBundle(wavPath, mp3Path) {
   return result.status === 0 && existsSync(mp3Path);
 }
 
-async function synthesize(text, apiKey) {
+async function synthesize(text, instructions, apiKey) {
   const response = await fetch(OPENAI_SPEECH_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    // The Worker's exact body. No `instructions`, no `speed`: adding either
-    // would produce audio that differs from the current previews.
-    body: JSON.stringify({
-      model: MODEL,
-      input: text,
-      voice: VOICE,
-      response_format: OPENAI_RESPONSE_FORMAT,
-    }),
+    // The Worker's exact body. The instruction is selected from the shared,
+    // server-owned language map; no command-line value can override it.
+    body: JSON.stringify(promoSpeechRequestBody(text, instructions)),
   });
   if (!response.ok) {
     // Status only. An upstream body can echo the request, so it is not printed.
@@ -217,14 +265,14 @@ function isValidExisting(path) {
 }
 
 /** Rewrites only the region between the two markers. */
-function writeAudioMap(produced) {
+function writeAudioMap(produced, version) {
   if (!existsSync(AUDIO_MAP_TS)) fail(`Cannot find ${AUDIO_MAP_TS}`);
   const source = readFileSync(AUDIO_MAP_TS, 'utf8');
   const begin = source.indexOf(MARKER_BEGIN);
   const end = source.indexOf(MARKER_END);
   if (begin === -1 || end === -1) fail(`Markers not found in ${AUDIO_MAP_TS}`);
 
-  const langs = LANGS.filter(lang => SAMPLES.every(sample => produced.has(`${lang}/${sample}`)));
+  const langs = PROMO_LANGS.filter(lang => SAMPLES.every(sample => produced.has(`${lang}/${sample}`)));
   const body = langs.map(lang => {
     const entries = SAMPLES
       .map(sample => `    ${sample}: require('../../assets/promo-voice/${lang}/${sample}.mp3'),`)
@@ -233,6 +281,7 @@ function writeAudioMap(produced) {
   }).join('\n');
 
   const block = `${MARKER_BEGIN}
+export const PROMO_SAMPLE_AUDIO_VERSION: string = '${version}';
 export const PROMO_SAMPLE_AUDIO: Readonly<Partial<Record<PromoAudioLang, PromoSampleAudioSet>>> = {
 ${body}
 };
@@ -242,19 +291,32 @@ ${body}
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const force = args.includes('--force');
+  const dryRun = args.includes('--dry-run');
+  const langArg = args.find(a => a.startsWith('--lang='));
+  const targetLangs = langArg
+    ? langArg.slice('--lang='.length).split(',').map(s => s.trim()).filter(Boolean)
+    : PROMO_LANGS;
   const table = readPromoSampleText();
+  const version = readPromoSampleVersion();
+  const bundledVersion = readBundledAudioVersion();
+  const instructions = readPromoPronunciationInstructions();
 
   for (const lang of targetLangs) {
-    if (!LANGS.includes(lang)) fail(`Unknown language "${lang}". Known: ${LANGS.join(', ')}`);
-  }
-
-  const planned = [];
-  for (const lang of targetLangs) {
-    for (const sample of SAMPLES) {
-      const path = join(OUT_DIR, lang, `${sample}.mp3`);
-      planned.push({ lang, sample, path, text: table[sample][lang] });
+    if (!PROMO_LANGS.includes(lang)) {
+      fail(`Unknown language "${lang}". Known: ${PROMO_LANGS.join(', ')}`);
     }
   }
+
+  // A global version stamp may advance only after every tracked clip has been
+  // regenerated under the new request contract. Otherwise a partial run would
+  // make untouched old-language files look current and re-enable stale audio.
+  if (bundledVersion !== version && (!force || langArg !== undefined)) {
+    fail(`Promo audio changed from ${bundledVersion} to ${version}; regenerate all languages with --force`);
+  }
+
+  const planned = buildPromoGenerationPlan(table, instructions, targetLangs);
 
   const missing = planned.filter(item => force || !isValidExisting(item.path));
   console.log(`Promo voice: ${planned.length} clips planned, ${missing.length} to generate${force ? ' (--force)' : ''}.`);
@@ -278,7 +340,7 @@ async function main() {
     mkdirSync(dirname(item.path), { recursive: true });
     const wavPath = `${item.path}.src.wav`;
     try {
-      const audio = await synthesize(item.text, apiKey);
+      const audio = await synthesize(item.text, item.instructions, apiKey);
       if (audio.byteLength < MIN_VALID_BYTES) throw new Error(`response too small (${audio.byteLength} bytes)`);
       writeFileSync(wavPath, audio);
       if (!encodeBundle(wavPath, item.path)) throw new Error('ffmpeg conversion to mp3 failed');
@@ -296,7 +358,7 @@ async function main() {
   const produced = new Set();
   let totalBytes = 0;
   const absent = [];
-  for (const lang of LANGS) {
+  for (const lang of PROMO_LANGS) {
     for (const sample of SAMPLES) {
       const path = join(OUT_DIR, lang, `${sample}.mp3`);
       if (isValidExisting(path)) {
@@ -308,9 +370,9 @@ async function main() {
     }
   }
 
-  const mappedLangs = writeAudioMap(produced);
+  const mappedLangs = writeAudioMap(produced, version);
 
-  console.log(`\nFiles present: ${produced.size} / ${LANGS.length * SAMPLES.length}`);
+  console.log(`\nFiles present: ${produced.size} / ${PROMO_LANGS.length * SAMPLES.length}`);
   console.log(`Total size:    ${(totalBytes / 1_048_576).toFixed(2)} MiB (${totalBytes.toLocaleString()} bytes)`);
   console.log(`Asset map:     ${mappedLangs} complete language${mappedLangs === 1 ? '' : 's'} written to src/lib/promoVoiceAudio.ts`);
 
@@ -323,4 +385,7 @@ async function main() {
   console.log('\n✓ All 80 clips present and mapped.');
 }
 
-main().catch(error => fail(error instanceof Error ? error.message : 'unknown error'));
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : null;
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  main().catch(error => fail(error instanceof Error ? error.message : 'unknown error'));
+}

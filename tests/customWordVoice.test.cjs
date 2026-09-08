@@ -37,10 +37,15 @@ test('the editor copies the picked file into persistent storage', () => {
 
 test('remove sits to the right of the always-available Custom Voice button', () => {
   const modal = read('src/components/WordModal.tsx');
-  const group = modal.slice(
-    modal.indexOf('<View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>'),
-    modal.indexOf('<View>\n                  {/* A hidden word is dimmed here'),
-  );
+  // Both bounds are asserted before slicing: the end marker used to include
+  // its exact indentation, stopped matching, and indexOf returned -1 — so the
+  // slice silently became the rest of the file and the checks below were
+  // reading unrelated JSX.
+  const groupStart = modal.indexOf('<View style={[styles.audioBtnGroup, styles.wordHeaderRight]}>');
+  const groupEnd = modal.indexOf('A hidden word is dimmed here');
+  assert.ok(groupStart > -1, 'the audio button group exists');
+  assert.ok(groupEnd > groupStart, 'the hidden-word comment still bounds it');
+  const group = modal.slice(groupStart, groupEnd);
 
   // The button that attaches or plays the file comes before the × that clears
   // it. Remove renders only once there is something to clear, so the Custom

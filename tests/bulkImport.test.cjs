@@ -375,10 +375,20 @@ test('reset button sits directly above the input and clears it back to the defau
   // Reset row sits directly above the text box. The file-import button is
   // allowed between the helper copy and it: choosing a file is an alternative
   // to typing, so it belongs with the introduction rather than with the box.
-  assert.match(
-    source,
-    /bulk_import_helper'\)\}<\/Text>[\s\S]*?<View style=\{styles\.resetRow\}>[\s\S]*?<\/View>\s*<View \{\.\.\.inputScrollPan\.panHandlers\}>\s*<TextInput/u,
-  );
+  // The box is wrapped in PostHogMaskView now, so what the user types is masked
+  // in Session Replay. Stated as order plus "nothing renders between" rather
+  // than one whitespace-joined regex: a JSX comment sits between the row and
+  // the box, which `\s*` cannot span but which renders nothing.
+  const helperAt = source.indexOf("bulk_import_helper')}</Text>");
+  const resetAt = source.indexOf('<View style={styles.resetRow}>');
+  const maskAt = source.indexOf('<PostHogMaskView {...inputScrollPan.panHandlers}>');
+  assert.ok(helperAt > -1, 'the helper copy is above');
+  assert.ok(resetAt > helperAt, 'the reset row comes after it');
+  assert.ok(maskAt > resetAt, 'and the masked input box after that');
+  assert.ok(source.indexOf('<TextInput', maskAt) > maskAt, 'with the TextInput inside the mask');
+  const between = source.slice(source.lastIndexOf('</View>', maskAt), maskAt);
+  assert.doesNotMatch(between, /<[A-Za-z]/u,
+    'nothing renders between the reset row and the input box');
   assert.match(source, /onPress=\{resetInput\}/u);
   assert.match(source, /const resetDisabled = input\.length === 0/u);
   assert.match(source, /disabled=\{resetDisabled\}/u);

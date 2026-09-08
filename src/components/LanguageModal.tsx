@@ -73,7 +73,11 @@ export function LanguageModal({
         <TouchableOpacity style={styles.backBtn} onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="chevron-back" size={24} color={pal.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: pal.text }]}>{t('language')}</Text>
+        {/* The same key the onboarding step asks the question with, so the
+            setting and the question that first established it are named the
+            same thing. `ob_native_lang` is that question — "Your explanation
+            language" — despite the key not spelling out "explanation". */}
+        <Text style={[styles.title, { color: pal.text }]}>{t('ob_native_lang')}</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -100,6 +104,12 @@ export function LanguageModal({
                   ]}
                   onPress={() => handlePick(lang.code)}
                   activeOpacity={0.55}
+                  accessibilityRole="button"
+                  // The same localized name the row draws, so the spoken label
+                  // cannot disagree with it — and so the flag is not announced
+                  // as an emoji in place of the language.
+                  accessibilityLabel={t(lang.nameKey)}
+                  accessibilityState={{ selected }}
                 >
                   <Text style={styles.flag}>{lang.flag}</Text>
                   <Text
@@ -110,7 +120,11 @@ export function LanguageModal({
                     ]}
                     numberOfLines={1}
                   >
-                    {lang.name}
+                    {/* Named in the language currently being explained in, not
+                        in each language's own script — the same `lang_name_*`
+                        key the onboarding picker uses. `useLang` is the active
+                        translator, so switching rebuilds the whole list. */}
+                    {t(lang.nameKey)}
                   </Text>
                   {selected && <Ionicons name="checkmark" size={16} color={themeColor} />}
                 </TouchableOpacity>

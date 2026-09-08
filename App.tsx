@@ -95,6 +95,7 @@ import { isThemeOwnedIndividually } from './src/features/themes/themeProducts';
 import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
 import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
 import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
+import { resolveAIVoiceSampleLanguage } from './src/features/onboarding/sampleLanguage';
 
 // Hide Labels is temporarily disabled, so every existing label surface stays visible.
 // The underlying useCards state is intentionally retained for a future restoration.
@@ -159,6 +160,8 @@ function AppContent() {
     foldersRef,
     learnLang, setLearnLang,
     nativeLang, setNativeLang,
+    onboardingPurpose, setOnboardingPurpose,
+    isFirstLaunch,
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
@@ -171,6 +174,12 @@ function AppContent() {
     setResultFilterTutorialSeen,
     setFirstTestAnswerRecorded,
   });
+
+  const sampleLanguage = useMemo(() => resolveAIVoiceSampleLanguage({
+    purpose: onboardingPurpose,
+    learningLang: learnLang,
+    nativeLang,
+  }), [onboardingPurpose, learnLang, nativeLang]);
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
   const cardsRef = useRef(cards);
@@ -250,17 +259,17 @@ function AppContent() {
   // `runAfterInteractions` keeps it behind bootstrap, navigation and any
   // animation in flight; it awaits nothing and a failure is swallowed inside the
   // helper, so neither startup nor the Upgrade Plan sheet can be delayed or
-  // blocked by it. It is keyed on `nativeLang` because that is the language the
-  // sheet will ask for, and a different language is a different clip.
+  // blocked by it. It is keyed on the already-resolved sample language because
+  // a purpose or source-language change selects a different group of clips.
   //
   // It spends nothing: `/v1/voice/promo` carries no text, no identity and no
   // entitlement, so this cannot touch Basic's credits or Premium's generation.
   useEffect(() => {
     const handle = InteractionManager.runAfterInteractions(() => {
-      preloadPromoVoiceSamples(nativeLang);
+      preloadPromoVoiceSamples(sampleLanguage);
     });
     return () => handle.cancel();
-  }, [nativeLang]);
+  }, [sampleLanguage]);
 
   // Consent is a live queue input, not a one-time read. A post-purchase sweep
   // that had to wait for the dialog begins in the same turn that Allow is
@@ -1344,6 +1353,7 @@ function AppContent() {
         settingsModal={{
           visible: settingsModalVisible,
           onClose: () => setSettingsModalVisible(false),
+          isFirstLaunch,
           appearance,
           onPickAppearance: pickAppearance,
           skinId,
@@ -1351,6 +1361,7 @@ function AppContent() {
           onUpgrade: () => { setSettingsModalVisible(false); setProSheetVisible(true); },
           onUpgradeSheetVisibleChange: setSettingsUpgradeSheetVisible,
           language,
+          sampleLanguage,
           onPickLanguage: pickLanguage,
           aiVoice,
           onPickAIVoice: handlePickAIVoice,
@@ -1375,8 +1386,7 @@ function AppContent() {
         proSheet={{
           visible: proSheetVisible,
           onClose: () => setProSheetVisible(false),
-          learningLang: learnLang ?? undefined,
-          nativeLang,
+          sampleLanguage,
           skinId,
           onPickSkin: setSkinId,
         }}
@@ -1404,14 +1414,15 @@ function AppContent() {
           visible: showOnboarding,
           onComplete: async (choices) => {
             await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(choices));
+            setOnboardingPurpose(choices.purpose);
             // The research answers exist for the first time here, and the
             // consent state has not changed, so nothing else would publish them
             // until the next launch. Reads back what was just written and sends
             // only the derived properties — the date of birth stays on device —
             // and returns immediately if analytics is off.
             publishAnalyticsResearchProperties();
-            if (choices.learningLang && choices.learningLang !== 'other') setLearnLang(choices.learningLang);
-            if (choices.nativeLang && choices.nativeLang !== 'other') setNativeLang(choices.nativeLang);
+            setLearnLang(choices.purpose === 'language' ? choices.learningLang ?? null : null);
+            setNativeLang(choices.nativeLang);
             const uiLang = BCP47_TO_UI_LANG[choices.nativeLang];
             if (uiLang) setLanguage(uiLang);
             setCards(prev => {

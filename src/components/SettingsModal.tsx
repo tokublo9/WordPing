@@ -1,4 +1,4 @@
-import { ActivityIndicator, Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -29,6 +29,7 @@ import type { PlanStoreProducts } from '../lib/planPricing';
 import { LanguageModal } from './LanguageModal';
 import { ProSheet } from './ProSheet';
 import { AnnouncementsSheet } from './AnnouncementsSheet';
+import { useAnnouncementReadState } from '../hooks/useAnnouncementReadState';
 import { CompactSwitch } from './CompactSwitch';
 import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
 import {
@@ -53,6 +54,11 @@ import {
   resolveAiVoiceLimit,
 } from '../lib/api/voiceLimitMessage';
 import { showTopBanner } from '../lib/topBanner';
+import type { PromoSampleLang } from '../lib/promoVoiceSamples';
+import { APP_STORE_REVIEW_URL, APP_STORE_URL } from '../config/appStore';
+import { requestReview } from '../features/appInfo/review';
+import { nativeReviewApi } from '../features/appInfo/nativeReview';
+import { buildRecommendationShareContent } from '../features/appInfo/share';
 
 const CONTACT_MAIL = 'mailto:daiki.studio9@gmail.com';
 
@@ -79,6 +85,8 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** Genuine-install result used only to initialize the welcome announcement. */
+  isFirstLaunch: boolean | null;
   themeColor: string;
   appearance: Appearance;
   onPickAppearance: (mode: Appearance) => void;
@@ -96,6 +104,8 @@ interface Props {
   onManageSubscription?: () => void;
   pal: Palette;
   language: string;
+  /** App-resolved key shared by both Upgrade Plan instances. */
+  sampleLanguage: PromoSampleLang;
   onPickLanguage: (code: string) => void;
   aiVoice: AIVoice;
   onPickAIVoice: (voice: AIVoice) => void;
@@ -135,10 +145,11 @@ interface Props {
 
 export function SettingsModal({
   visible, onClose, themeColor, appearance, onPickAppearance,
+  isFirstLaunch,
   skinId, onPickSkin, isSubscribed, isPremium, isSubscriptionLoaded,
   onUpgrade: _onUpgrade,
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription,
-  pal, language, onPickLanguage,
+  pal, language, sampleLanguage, onPickLanguage,
   aiVoice, onPickAIVoice,
   cardViewMode, onChangeCardViewMode,
   showFullCard, onToggleShowFullCard,
@@ -161,6 +172,7 @@ export function SettingsModal({
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
   const [voicePickerVisible, setVoicePickerVisible] = useState(false);
   const [aboutAIVoiceVisible, setAboutAIVoiceVisible] = useState(false);
+  const announcementReadState = useAnnouncementReadState(isFirstLaunch);
   // Mounted content and native Modal visibility are deliberately separate.
   // The content stays mounted throughout the fade-out and is cleared only once
   // the native dismissal has completed.
@@ -351,12 +363,26 @@ export function SettingsModal({
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
           <SettingRow icon="megaphone-outline" label={t('announcements')} pal={pal}
+            badge={announcementReadState.hasUnread}
+            themeColor={themeColor}
             onPress={() => setAnnouncementsVisible(true)} />
 
-          <TouchableOpacity style={styles.removeAdsRow} onPress={() => setLangModalVisible(true)} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.removeAdsRow}
+            onPress={() => setLangModalVisible(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('ob_native_lang')}: ${t(activeLang.nameKey)}`}
+          >
             <Ionicons name="language-outline" size={18} color={pal.sub} />
-            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('language')}</Text>
-            <Text style={[styles.rowValue, { color: pal.sub }]}>{activeLang.flag}  {activeLang.name}</Text>
+            {/* Named by the onboarding question that first asked for it —
+                `ob_native_lang` is the Explanation Language step — rather than
+                the generic `language`, which said nothing about which of the
+                two languages this row sets. */}
+            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('ob_native_lang')}</Text>
+            {/* The same localized name the picker lists it under, so the row and
+                the list can never name the current language differently. */}
+            <Text style={[styles.rowValue, { color: pal.sub }]}>{activeLang.flag}  {t(activeLang.nameKey)}</Text>
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
@@ -523,6 +549,7 @@ export function SettingsModal({
           onSubscribePremium={onSubscribePremium}
           onManageSubscription={onManageSubscription}
           language={language}
+          sampleLanguage={sampleLanguage}
           themeColor={themeColor}
           pal={pal}
           isSubscribed={isSubscribed}
@@ -534,9 +561,13 @@ export function SettingsModal({
 
         <AnnouncementsSheet
           visible={announcementsVisible}
-          onClose={() => setAnnouncementsVisible(false)}
+          onClose={() => {
+            announcementReadState.markVisibleRead();
+            setAnnouncementsVisible(false);
+          }}
           pal={pal}
           language={language}
+          unreadIds={announcementReadState.unreadIds}
         />
 
         <AppInfoSheet
@@ -958,6 +989,30 @@ function AppInfoSheet({
       Alert.alert(t('err_title_error'));
     }
   }, [t]);
+  const handleWriteReview = useCallback(async () => {
+    const opened = await requestReview({
+      // Null in this build: expo-store-review is not installed, so this opens
+      // the App Store review page directly. Installing it later needs no change
+      // here. Linking.openURL is wrapped rather than passed by reference —
+      // detached from Linking it loses `this` and throws before it opens.
+      nativeReview: nativeReviewApi,
+      reviewUrl: APP_STORE_REVIEW_URL,
+      openUrl: url => Linking.openURL(url),
+    });
+    if (!opened) Alert.alert(t('err_title_error'), t('review_open_failed'));
+  }, [t]);
+  const handleRecommend = useCallback(async () => {
+    // The localized message and the public App Store URL, nothing else.
+    try {
+      const result = await Share.share(buildRecommendationShareContent(
+        t('recommend_share_message'),
+        APP_STORE_URL,
+      ));
+      if (result.action === Share.dismissedAction) return;
+    } catch {
+      Alert.alert(t('err_title_error'), t('share_failed'));
+    }
+  }, [t]);
 
   useEffect(() => {
     if (visible) {
@@ -1005,6 +1060,21 @@ function AppInfoSheet({
             <View style={[styles.divider, { backgroundColor: pal.border }]} />
           </>
         )}
+        <SettingRow
+          icon="star-outline"
+          label={t('write_review')}
+          onPress={() => { void handleWriteReview(); }}
+          accessibilityRole="button"
+          pal={pal}
+        />
+        <SettingRow
+          icon="share-social-outline"
+          label={t('recommend_friends')}
+          onPress={() => { void handleRecommend(); }}
+          accessibilityRole="button"
+          pal={pal}
+        />
+        <View style={[styles.divider, { backgroundColor: pal.border }]} />
         <View style={{ marginBottom: 12 }}>
           <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('purchases_section')}</Text>
         </View>
@@ -1110,7 +1180,8 @@ function SettingRow({ icon, label, value, onPress, badge, themeColor, accessibil
     <TouchableOpacity style={styles.row} onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
-      accessibilityRole={accessibilityRole}>
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={label}>
       {/* The marker is anchored to the icon, not inserted between the label and
           the row's value — so it stays put whatever the label's length. */}
       <NewFeatureBadge

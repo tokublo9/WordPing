@@ -22,6 +22,7 @@ import {
   promoSampleText,
   resolvePromoLang,
   type PromoSampleId,
+  type PromoSampleLang,
 } from './promoVoiceSamples';
 import { bundledPromoAudio, bundledPromoAudioSet } from './promoVoiceAudio';
 import {
@@ -85,7 +86,7 @@ let activePlaybackKey: string | null = null;
 let stopActivePlayer: (() => void) | null = null;
 let focusToken: symbol | null = null;
 
-// Incremented on every speakWithAI call; lets us detect when a concurrent
+// Incremented on every fetched-audio playback; lets us detect when a concurrent
 // call superseded us during an async gap (e.g. the network fetch).
 let epoch = 0;
 let activeAIVoice: AIVoice = DEFAULT_AI_VOICE;
@@ -761,9 +762,9 @@ function speakFree(text: string, locale: string, options: TTSPlaybackOptions = {
   });
 }
 
-// ── OpenAI TTS (Basic and Premium users) ──────────────────────────────────────
+// ── Fetched AI audio playback ────────────────────────────────────────────────
 
-async function speakWithAI(
+async function speakFetchedAudio(
   text: string,
   voice: AIVoice = activeAIVoice,
   options: TTSPlaybackOptions = {},
@@ -784,7 +785,7 @@ async function speakWithAI(
     options.onPhaseChange?.(phase);
   };
 
-  const playbackKey = `ai:${voice}:${sampleVersion ?? 'card'}:${text}`;
+  const playbackKey = `ai:${voice}:${sampleVersion ?? 'card'}:${language ?? 'auto'}:${text}`;
   const myEpoch = beginPlayback(playbackKey);
   if (myEpoch == null) return;
   reportPhase('checking-cache');
@@ -893,7 +894,7 @@ async function speakWithAI(
     }
     reportPhase('failed');
     if (__DEV__) console.warn('[TTS playback diagnostic]', {
-      source: 'word-card',
+      source: promo ? 'fixed-promo' : 'user-content',
       phase: error instanceof Error && (error.name === 'AbortError' || error.message === 'cancelled')
         ? 'cancelled' : 'failed',
       cacheSource: loadingIndicatorDisplayed ? 'network' : 'unresolved',
@@ -912,6 +913,26 @@ async function speakWithAI(
     if (!cacheOnlyMissed) reportPhase('idle');
     finishPlayback(playbackKey, myEpoch);
   }
+}
+
+/** User-content and Natural AI Voice playback; never accepts promo metadata. */
+async function speakWithAI(
+  text: string,
+  voice: AIVoice = activeAIVoice,
+  options: TTSPlaybackOptions = {},
+  sampleVersion?: string,
+  language?: string,
+  cacheOnly = false,
+): Promise<void> {
+  return speakFetchedAudio(
+    text,
+    voice,
+    options,
+    sampleVersion,
+    undefined,
+    language,
+    cacheOnly,
+  );
 }
 
 // ── Custom audio (Basic plan, user-attached file) ─────────────────────────────
@@ -1033,7 +1054,7 @@ export function speak(
   options?: TTSPlaybackOptions,
 ): Promise<void> {
   if (canUseAIVoice) {
-    return speakWithAI(text, activeAIVoice, options, undefined, undefined, forcedLocale);
+    return speakWithAI(text, activeAIVoice, options, undefined, forcedLocale);
   }
 
   // Generation is off, but audio already paid for and sitting on this device is
@@ -1095,7 +1116,7 @@ async function speakCachedAIOrDevice(
   if (epoch !== epochBeforeProbe) return;
 
   if (cached) {
-    return speakWithAI(text, activeAIVoice, options, undefined, undefined, forcedLocale, true)
+    return speakWithAI(text, activeAIVoice, options, undefined, forcedLocale, true)
       // The file can still be evicted between the probe and the play. Losing
       // that race is a miss like any other, not a failure to report.
       .catch((error: unknown) => {
@@ -1164,10 +1185,17 @@ export function preloadPromoVoiceSamples(langCode?: string): void {
   // player's problem later, not startup's.
   const bundled = bundledPromoAudioSet(lang);
   if (bundled.length > 0) {
-    void Asset.loadAsync(bundled as number[]).catch(() => {});
+    void Asset.loadAsync(bundled as number[]).catch(() => {
+      preloadNetworkPromoVoiceSamples(lang);
+    });
     return;
   }
 
+  preloadNetworkPromoVoiceSamples(lang);
+}
+
+/** Fixed-promo network preload; never enters Natural AI Voice sample preloading. */
+function preloadNetworkPromoVoiceSamples(lang: PromoSampleLang): void {
   for (const sample of PROMO_SAMPLE_IDS) {
     const key = promoCacheKey(sample, lang);
     if (promoPreloadByKey.has(key)) continue;
@@ -1273,6 +1301,22 @@ async function speakBundledPromo(
   }
 }
 
+/** Network half of promo playback, structurally separated from `speakWithAI`. */
+function speakFixedPromoNetwork(
+  sample: PromoSampleId,
+  lang: PromoSampleLang,
+  options?: TTSPlaybackOptions,
+): Promise<void> {
+  return speakFetchedAudio(
+    promoSampleText(sample, lang),
+    PROMO_PREVIEW_VOICE,
+    options,
+    PROMO_SAMPLE_VERSION,
+    { sample, langCode: lang },
+    lang,
+  );
+}
+
 /** Play a one-off subscriber preview without changing the saved preference. */
 export function previewAIVoice(
   voice: AIVoice,
@@ -1301,7 +1345,14 @@ export function speakPromoSample(
   // The normal path: the clip ships with the app, so this reaches no network,
   // generates nothing and spends nothing.
   const bundled = bundledPromoAudio(sample, lang);
-  if (bundled !== null) return speakBundledPromo(bundled, sample, lang, options);
+  if (bundled !== null) {
+    return speakBundledPromo(bundled, sample, lang, options).catch(error => {
+      // Stopping or superseding a sample is intentional and must stay stopped.
+      if (error instanceof Error && error.message === 'cancelled') throw error;
+      if (__DEV__) console.warn('[promo voice] bundled clip failed, using fixed promo route', { sample, lang });
+      return speakFixedPromoNetwork(sample, lang, options);
+    });
+  }
 
   // Fallback for a genuinely missing asset — before the generation script has
   // run, or a language it did not produce. Identical to the old behaviour, and
@@ -1309,13 +1360,7 @@ export function speakPromoSample(
   // entitlement. Worth a warning because it should not happen in a shipped
   // build; sample id and language code only, both build constants.
   if (__DEV__) console.warn('[promo voice] no bundled clip, using network route', { sample, lang });
-  return speakWithAI(
-    promoSampleText(sample, lang),
-    PROMO_PREVIEW_VOICE,
-    options,
-    PROMO_SAMPLE_VERSION,
-    { sample, langCode: lang },
-  );
+  return speakFixedPromoNetwork(sample, lang, options);
 }
 
 /** Stop any active playback immediately (e.g. on component unmount). */

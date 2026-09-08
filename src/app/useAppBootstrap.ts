@@ -33,6 +33,7 @@ import {
 } from '../features/onboarding/tutorialState';
 import { loadAIConsent } from '../lib/aiConsent';
 import { parseOnboardingChoices } from '../features/onboarding/researchProperties';
+import type { OnboardingPurpose } from '../features/onboarding/sampleLanguage';
 import { createDefaultFolderNotifSettings } from '../features/notifications/defaultSettings';
 
 /**
@@ -107,6 +108,18 @@ export interface AppBootstrapState {
   setLearnLang: Dispatch<SetStateAction<string | null>>;
   nativeLang: string;
   setNativeLang: Dispatch<SetStateAction<string>>;
+  /**
+   * What the user said they were here for, restored from the stored onboarding
+   * answer. Null when there is no usable record.
+   *
+   * Kept in state rather than re-read at the point of use because it decides
+   * which language the Upgrade Plan samples speak, and that has to be known
+   * without an asynchronous read every time the sheet opens.
+   */
+  onboardingPurpose: OnboardingPurpose | null;
+  setOnboardingPurpose: Dispatch<SetStateAction<OnboardingPurpose | null>>;
+  /** Genuine-install result from the database bootstrap; null until it resolves. */
+  isFirstLaunch: boolean | null;
   currentFolderId: string | null;
   setCurrentFolderId: Dispatch<SetStateAction<string | null>>;
   showOnboarding: boolean;
@@ -138,6 +151,8 @@ export function useAppBootstrap({
   const [folders, setFolders] = useState<Folder[]>([]);
   const [learnLang, setLearnLang] = useState<string | null>(null);
   const [nativeLang, setNativeLang] = useState('en-US');
+  const [onboardingPurpose, setOnboardingPurpose] = useState<OnboardingPurpose | null>(null);
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [notificationGranted, setNotificationGranted] = useState(false);
@@ -196,6 +211,7 @@ export function useAppBootstrap({
       foldersRef.current = migratedFolders;
       setCards(migratedCards);
       setFolders(migratedFolders);
+      setIsFirstLaunch(local.isFirstLaunch);
       applySettings(local.settings);
       // Stored cards and settings are now in state, so persisting them back can only
       // write the same or newer data. Anything the user adds from here is saved.
@@ -285,13 +301,13 @@ export function useAppBootstrap({
       if (rawVertFlip !== null) setVerticalFlip(rawVertFlip === 'true');
       // Absent means the user never fell back, so Natural AI Voice applies.
       if (rawDeviceVoice !== null) setPreferDeviceVoice(rawDeviceVoice === 'true');
+      const storedOnboarding = obRaw === null ? null : parseOnboardingChoices(obRaw);
       if (rawHideAi !== null) {
         setHideAiTools(rawHideAi === 'true');
-      } else if (obRaw !== null) {
+      } else if (storedOnboarding !== null) {
         // First launch after this feature ships — derive default from onboarding purpose:
         // language learners see AI tools by default; other purposes hide them.
-        const ob = parseOnboardingChoices(obRaw);
-        if (ob) setHideAiTools(ob.purpose !== 'language');
+        setHideAiTools(storedOnboarding.purpose !== 'language');
       }
 
       // Mark settings ready as early as possible so the subscription enforcement
@@ -301,19 +317,24 @@ export function useAppBootstrap({
       markSettingsLoaded();
 
       // ── Phase 3: Onboarding state ──────────────────────────────────────────
-      if (obRaw !== null) {
-        const ob = parseOnboardingChoices(obRaw);
-        if (ob) {
-          if (ob.learningLang && ob.learningLang !== 'other') setLearnLang(ob.learningLang);
-          if (ob.nativeLang && ob.nativeLang !== 'other') setNativeLang(ob.nativeLang);
-        }
+      if (storedOnboarding !== null) {
+        // Restored unconditionally: `parseOnboardingChoices` returns null unless
+        // the purpose is one of the two known values, so anything that reaches
+        // here is the answer the user actually gave. It is what tells the
+        // Upgrade Plan sheet whether to sample the learning language or the
+        // Explanation Language, and it survives a restart because of this line.
+        setOnboardingPurpose(storedOnboarding.purpose);
+        setLearnLang(storedOnboarding.purpose === 'language'
+          ? storedOnboarding.learningLang ?? null
+          : null);
+        setNativeLang(storedOnboarding.nativeLang);
       }
 
       // ── Phase 4: Initial navigation decision ──────────────────────────────
       // Only navigate into the Welcome folder when onboarding won't be shown.
       // If onboarding will cover the screen, currentFolderId is set in onComplete
       // instead, so the Welcome folder becomes visible only after the modal closes.
-      const showingOnboarding = obRaw === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
+      const showingOnboarding = storedOnboarding === null || (__DEV__ && FORCE_SHOW_ONBOARDING);
       if (local.isFirstLaunch && !showingOnboarding) setCurrentFolderId(WELCOME_FOLDER_ID);
       if (showingOnboarding) setShowOnboarding(true);
     };
@@ -365,6 +386,8 @@ export function useAppBootstrap({
     foldersRef,
     learnLang, setLearnLang,
     nativeLang, setNativeLang,
+    onboardingPurpose, setOnboardingPurpose,
+    isFirstLaunch,
     currentFolderId, setCurrentFolderId,
     showOnboarding, setShowOnboarding,
     notificationGranted, setNotificationGranted,
