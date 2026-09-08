@@ -495,7 +495,7 @@ export function ThemeDetailsSheet({
                 <>
                   <View style={[StyleSheet.absoluteFill, { backgroundColor: displayItem.previewBg }]} />
                   <View style={[StyleSheet.absoluteFill, s.heroCardCenter]}>
-                    <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>WordCore</Text>
+                    <Text style={[s.heroCardWordPing, { color: displayItem.previewAccent }]}>{t('app_name')}</Text>
                   </View>
                 </>
               )}

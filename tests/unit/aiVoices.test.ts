@@ -5,7 +5,8 @@ import {
   AI_VOICES,
   DEFAULT_AI_VOICE,
   RETIRED_AI_VOICES,
-  getAIVoiceDescription,
+  getAIVoiceDescriptionKey,
+  getAIVoiceNameKey,
   isAIVoice,
 } from '../../src/lib/aiVoices';
 
@@ -34,7 +35,19 @@ test('retired and offered voices are disjoint, so a purge cannot reach a live cl
 
 test('every offered voice has its own copy, and appears once', () => {
   assert.equal(new Set(AI_VOICES).size, AI_VOICES.length, 'no voice is listed twice');
-  const descriptions = AI_VOICES.map(getAIVoiceDescription);
-  for (const description of descriptions) assert.match(description, /\S/u);
-  assert.equal(new Set(descriptions).size, descriptions.length, 'each voice reads differently');
+  // The copy itself lives in the dictionaries now; what must stay true here is
+  // that each voice points at its own key, so no two voices can share a line.
+  const descriptionKeys = AI_VOICES.map(getAIVoiceDescriptionKey);
+  for (const key of descriptionKeys) assert.match(key, /\S/u);
+  assert.equal(new Set(descriptionKeys).size, descriptionKeys.length, 'each voice reads differently');
+});
+
+test('each voice resolves to its own display name, not the other one', () => {
+  // Called for its result rather than read out of the source: a swapped pair
+  // still looks well-formed to a structural check, and would put Cedar's name
+  // on Marin in every language. The internal values are the ones stored, sent
+  // to the Worker and used in the cache key, so only the mapping is asserted
+  // here — nothing about it may rename `marin` or `cedar`.
+  assert.equal(getAIVoiceNameKey('marin'), 'voice_name_marin');
+  assert.equal(getAIVoiceNameKey('cedar'), 'voice_name_cedar');
 });

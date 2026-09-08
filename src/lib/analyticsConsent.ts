@@ -10,10 +10,10 @@ import type { KeyValueStore } from './sqlite/types';
  * policy as on by default. The two are kept apart on purpose — turning one off
  * says nothing about the other, and neither can be inferred from the plan.
  *
- * ONE SWITCH, THREE SURFACES. `posthog.optOut()` stops event capture and also
+ * ONE CONSENT, THREE SURFACES. `posthog.optOut()` stops event capture and also
  * calls the native Session Replay plugin's `setOptOut`, so there is no second
  * control to keep in step and no way to end up recording a user who opted out
- * of events. The same switch gates the onboarding research Person Properties —
+ * of events. The same consent gates the onboarding research Person Properties —
  * age, gender, discovery source and the three language/purpose answers — which
  * are published only on the enable path and never while this reads `disabled`.
  * `config/posthog.ts` is the only module that reads this one and drives all

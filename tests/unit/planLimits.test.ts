@@ -45,14 +45,18 @@ test('null carries both meanings, and a one-time grant is labelled as one', () =
   // Null for Premium means "included"; null for Free and Basic means "not
   // included". `planCanUseAI` is what tells the comparison table which is which,
   // so neither ever renders as the number zero.
-  assert.equal(formatVoiceMonthlyLimit('premium', 'en-US'), null);
-  assert.equal(formatVoiceMonthlyLimit('premium', 'ja'), null);
+  // The wording comes from the dictionaries, so the helper is given a stub
+  // translator here: what it owns is which key is chosen and how the number is
+  // substituted, not the sentence itself.
+  const t = (key: string) => (key === 'cmp_voice_one_time' ? '{n} one-time' : '{n} / month');
+  assert.equal(formatVoiceMonthlyLimit('premium', 'en-US', t as never), null);
+  assert.equal(formatVoiceMonthlyLimit('premium', 'ja', t as never), null);
   // Basic renders its grant, and says it is one-time: calling it monthly in
   // the comparison table would mislead at the moment of purchase.
-  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US'), '200 one-time');
-  assert.equal(formatVoiceMonthlyLimit('basic', 'ja'), '200回（1回限り）');
-  assert.equal(formatVoiceMonthlyLimit('free', 'en-US'), null);
-  assert.equal(formatVoiceMonthlyLimit('free', 'ja'), null);
+  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US', t as never), '200 one-time');
+  assert.equal(formatVoiceMonthlyLimit('basic', 'ja', t as never), '200 one-time');
+  assert.equal(formatVoiceMonthlyLimit('free', 'en-US', t as never), null);
+  assert.equal(formatVoiceMonthlyLimit('free', 'ja', t as never), null);
 });
 
 test('a Basic user at the voice limit gets the voice message and the upgrade', () => {

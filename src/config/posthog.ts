@@ -144,14 +144,15 @@ configureAnalyticsConsentStorage({
  * One call decides both halves.
  *
  * `optOut()` drops events *and* propagates to the native Session Replay plugin
- * (`_propagateNativeOptOut` → `setOptOut`), so a single switch cannot leave the
- * app recording a user who turned analytics off. `optIn()` restores both.
+ * (`_propagateNativeOptOut` → `setOptOut`), so a single consent change cannot
+ * leave the app recording a user who turned analytics off. `optIn()` restores
+ * both.
  *
  * Enabling also republishes the onboarding research Person Properties, with the
  * age recomputed from the locally stored date of birth. That is what makes this
  * the only path they can travel: they are sent when analytics is on and at no
- * other time, whether that is at launch or the moment the switch is flipped
- * back on. Disabling sends nothing and republishes nothing.
+ * other time, whether that is at launch or the moment sharing is turned back
+ * on. Disabling sends nothing and republishes nothing.
  *
  * Failures are swallowed: a preference that could not be applied must not take
  * the app down, and the next launch reapplies it from the same stored value.

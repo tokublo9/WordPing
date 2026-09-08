@@ -27,7 +27,14 @@ export interface QuotaMessage {
 }
 
 function formatLimit(limit: number, language: string): string {
-  return limit.toLocaleString(language.startsWith('ja') ? 'ja-JP' : 'en-US');
+  try {
+    // Grouping separators differ well beyond Japanese and English, so the
+    // active language decides rather than a two-way test.
+    return limit.toLocaleString(language);
+  } catch {
+    // An unsupported locale tag must not break the alert.
+    return limit.toLocaleString('en-US');
+  }
 }
 
 function formatResetDate(resetsAt: string, language: string): string {

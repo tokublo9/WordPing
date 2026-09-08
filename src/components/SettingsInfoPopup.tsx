@@ -22,8 +22,9 @@ import { useLang } from '../i18n';
  * ever be open. Visibility is separate from the mounted content so the native
  * fade-out cannot briefly lay out an empty, collapsed dialog.
  *
- * It reads nothing and writes nothing — it cannot change the setting it
- * describes, so closing it always leaves the toggle exactly as it was.
+ * By default it reads and writes nothing. A caller may supply one explicit
+ * action, while opening, closing, or dismissing the popup itself still cannot
+ * change the setting it describes.
  */
 
 export interface SettingsInfoContent {
@@ -33,24 +34,33 @@ export interface SettingsInfoContent {
   body: string;
 }
 
+export interface SettingsInfoAction {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone?: 'subdued' | 'primary';
+}
+
 interface Props {
   visible: boolean;
   content: SettingsInfoContent | null;
+  action?: SettingsInfoAction;
   onClose: () => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
   pal: Palette;
   themeColor: string;
 }
 
-export function SettingsInfoPopup({ visible, content, onClose, onDismiss, pal, themeColor }: Props) {
+export function SettingsInfoPopup({ visible, content, action, onClose, onDismiss, pal, themeColor }: Props) {
   const t = useLang();
   const insets = useSafeAreaInsets();
+  const actionIsPrimary = action?.tone === 'primary';
 
   // React Native's native onDismiss callback is iOS-only. On Android, Modal
   // stops rendering as soon as visible becomes false, so clearing in this
   // post-commit effect cannot collapse content during the native dismissal.
   useEffect(() => {
-    if (Platform.OS === 'android' && !visible && content !== null) onDismiss();
+    if (Platform.OS === 'android' && !visible && content !== null) onDismiss?.();
   }, [content, onDismiss, visible]);
 
   return (
@@ -102,6 +112,28 @@ export function SettingsInfoPopup({ visible, content, onClose, onDismiss, pal, t
             bounces={false}
           >
             <Text style={[styles.body, { color: pal.sub }]}>{content?.body ?? ''}</Text>
+            {action && (
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  {
+                    borderColor: actionIsPrimary ? themeColor : pal.border,
+                    backgroundColor: actionIsPrimary ? themeColor : pal.input,
+                  },
+                  action.disabled && styles.actionButtonDisabled,
+                ]}
+                onPress={action.onPress}
+                disabled={action.disabled}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+                accessibilityState={{ disabled: action.disabled === true }}
+              >
+                <Text style={[styles.actionLabel, { color: actionIsPrimary ? '#fff' : pal.sub }]}>
+                  {action.label}
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
           <TouchableOpacity
             style={[styles.okButton, { backgroundColor: themeColor }]}
@@ -139,6 +171,17 @@ const styles = StyleSheet.create({
   bodyScroll: { flexGrow: 0 },
   bodyContent: { paddingBottom: 4 },
   body: { fontSize: 14, lineHeight: 21 },
+  actionButton: {
+    marginTop: 16,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  actionButtonDisabled: { opacity: 0.5 },
+  actionLabel: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
   okButton: {
     marginTop: 18,
     minHeight: 44,

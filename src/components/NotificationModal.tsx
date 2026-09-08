@@ -178,7 +178,7 @@ export function NotificationModal({
                       adjustsFontSizeToFit
                       minimumFontScale={0.78}
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                     </Text>
                   </TouchableOpacity>
                 );

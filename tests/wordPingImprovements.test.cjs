@@ -163,26 +163,45 @@ test('the parser stays free of react-native so both formats are testable', () =>
 
 // ── 3. About AI Voice on Free ────────────────────────────────────────────────
 
-test('1-3, 5. About AI Voice is the Help section, only for an eligible plan', () => {
+test('1-3, 5. About AI Voice lives inside App Info, only for an eligible plan', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  const help = settings.slice(
-    settings.indexOf("t('help_section')"),
-    settings.indexOf('{/* ── App Info'),
-  );
 
-  // The section's rows, in the order they render: About AI Voice is the only
-  // one — the result-filter row was removed with its dialog.
-  const rowLabels = [...help.matchAll(/<SettingRow[\s\S]*?label=\{t\('(\w+)'\)\}/gu)]
-    .map(match => match[1]);
-  assert.deepEqual(rowLabels, ['ai_voice_info_menu']);
+  // It moved out of a standalone Help section and into the existing App Info
+  // surface, so there is no longer a Help heading in Settings at all — and no
+  // heading standing above an empty section for a Free user.
+  assert.doesNotMatch(settings, /t\('help_section'\)/u);
+
+  // Exactly one row in the navigable UI, and it is inside AppInfoSheet.
+  assert.equal((settings.match(/label=\{t\('ai_voice_info_menu'\)\}/gu) ?? []).length, 1);
+  const appInfoStart = settings.indexOf('function AppInfoSheet');
+  assert.ok(appInfoStart > -1, 'AppInfoSheet exists');
+  assert.ok(
+    settings.indexOf("label={t('ai_voice_info_menu')}") > appInfoStart,
+    'About AI Voice renders inside App Info, not in the Settings root',
+  );
 
   // Basic and Premium see it; Free does not, and neither does anyone while the
   // subscription is still loading — `canUseAI` is false until RevenueCat answers.
-  // The heading rides on the same condition, so it never stands above nothing.
   assert.match(
-    settings.slice(settings.indexOf('{/* ── Help ─'), settings.indexOf('{/* ── App Info')),
-    /\{canUseAI && \(\s*<>[\s\S]*?<SettingRow icon="mic-outline" label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?<\/>\s*\)\}/u,
+    settings.slice(appInfoStart),
+    /\{canUseAI && \(\s*<>[\s\S]*?label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?<\/>\s*\)\}/u,
   );
+
+  // The discovery indicator sits on the nested row, and the parent App Info row
+  // mirrors it so the marker is reachable — the feature is one level down and
+  // would otherwise be invisible until the sheet was opened by chance.
+  assert.match(settings, /const aboutAIVoiceIsNew = canUseAI && discovery\.isNew\(FEATURE_MARKERS\.aboutAIVoice\);/u);
+  assert.equal((settings.match(/badge=\{aboutAIVoiceIsNew\}/gu) ?? []).length, 2,
+    'the nested row and the App Info row that leads to it');
+
+  // Opening App Info alone must not mark the feature as viewed: its press
+  // handler only reveals the sheet. Only the nested row dismisses the marker.
+  const appInfoRow = settings.match(/<SettingRow\b(?:(?!\/>)[\s\S])*?t\('app_info'\)(?:(?!\/>)[\s\S])*?\/>/u)?.[0];
+  assert.ok(appInfoRow, 'the App Info row exists');
+  assert.match(appInfoRow, /onPress=\{\(\) => setAppInfoVisible\(true\)\}/u);
+  assert.doesNotMatch(appInfoRow, /discovery\.dismiss|FEATURE_MARKERS/u,
+    'opening App Info must not consume the About AI Voice marker');
+
   // The rule is not restated here.
   assert.doesNotMatch(settings, /planCanUseAI|VOICE_MONTHLY_LIMITS/u);
 });
@@ -204,11 +223,30 @@ test('6-8. the old location is gone and there is exactly one entry point', () =>
 
 test('9. opening About AI Voice makes no request and asks no permission', () => {
   const settings = read('src/components/SettingsModal.tsx');
+
+  // The row no longer inlines the state change: it delegates to one named
+  // handler, which is what the nested App Info row is given as `onPress`.
   const rowStart = settings.indexOf("label={t('ai_voice_info_menu')}");
   const row = settings.slice(rowStart, settings.indexOf('/>', rowStart));
-  // It dismisses its own marker and opens the explanation. Nothing else.
-  assert.match(row, /setAboutAIVoiceVisible\(true\);/u);
-  assert.doesNotMatch(row, /speak|preview|ensureAIConsent|requestAI|setAIConsent/u);
+  assert.match(row, /onPress=\{onOpenAboutAIVoice\}/u);
+  assert.doesNotMatch(row, /speak|preview|ensureAIConsent|requestAI|setAIConsent|purchase/u);
+  assert.match(settings, /onOpenAboutAIVoice=\{openAboutAIVoice\}/u);
+
+  // The handler itself dismisses its own marker and opens the explanation.
+  // Nothing else: no network call, no consent write, no speech, no purchase.
+  const handler = settings.match(/const openAboutAIVoice = useCallback\([\s\S]*?\}, \[[^\]]*\]\);/u)?.[0];
+  assert.ok(handler, 'openAboutAIVoice is the single entry point');
+  assert.match(handler, /discovery\.dismiss\(FEATURE_MARKERS\.aboutAIVoice\);/u);
+  assert.match(handler, /setAboutAIVoiceVisible\(true\);/u);
+  assert.doesNotMatch(
+    handler,
+    /speak|preview|ensureAIConsent|requestAI|setAIConsent|fetch|purchase|Purchases|generate/u,
+    'opening the explanation must not reach the network, consent, TTS or billing',
+  );
+
+  // And the dialog it opens is presentation only — it cannot start a request.
+  const dialog = read('src/components/AboutAIVoiceDialog.tsx');
+  assert.doesNotMatch(dialog, /fetch\(|requestAI|speakWithAI|Purchases\./u);
 });
 
 test('10-11. the copy avoids "API" without touching internal identifiers', () => {
@@ -1057,8 +1095,14 @@ test('the Perfect note is true whether or not result syncing is on', () => {
 
 // ── Localization ─────────────────────────────────────────────────────────────
 
-test('every new string ships in English and Japanese', () => {
+test('every new string ships in every locale', () => {
   const i18n = read('src/i18n.ts');
+  // Counted from the dictionaries themselves — `test_info_title` is required of
+  // every locale. This used to expect 2, from when the tutorial, duplicate and
+  // file-import copy existed only in English and Japanese.
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+
   const keys = [
     'help_section',
     'result_filter_title', 'result_filter_intro',
@@ -1072,9 +1116,15 @@ test('every new string ships in English and Japanese', () => {
     'import_file_error_shape', 'import_file_error_columns', 'import_file_error_unreadable',
   ];
   for (const key of keys) {
-    const occurrences = i18n.match(new RegExp(`^\\s{2}${key}:`, 'gmu')) ?? [];
-    assert.equal(occurrences.length, 2, `${key} needs an English and a Japanese entry`);
+    const occurrences = i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];
+    assert.equal(occurrences.length, locales, `${key} needs exactly one entry per locale`);
   }
+  // Arabic is the only right-to-left locale, and these are the surfaces where
+  // an English fallback would have been most visible.
+  assert.match(i18n, /duplicate_word_message: 'هذه الكلمة موجودة بالفعل في هذا المجلد\.'/u);
+  assert.match(i18n, /result_filter_got_it: 'فهمت'/u);
+  // "CSV" and "JSON" are format names and stay Latin inside the Arabic string.
+  assert.match(i18n, /import_from_file: 'استيراد CSV أو JSON'/u);
   // The duplicate message is the exact wording specified for each language.
   assert.match(i18n, /duplicate_word_message: 'This word already exists in this folder\.'/u);
   assert.match(i18n, /duplicate_word_message: 'この単語はすでにこのフォルダに登録されています。'/u);

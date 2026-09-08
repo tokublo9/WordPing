@@ -116,6 +116,7 @@ export interface AppModalsProps {
     skinId: string | null;
     onPickSkin: Dispatch<SetStateAction<string | null>>;
     onUpgrade(): void;
+    onUpgradeSheetVisibleChange?: (visible: boolean) => void;
     language: string;
     onPickLanguage(code: string): void;
     aiVoice: AIVoice;
@@ -293,6 +294,7 @@ export function AppModals({
         isPremium={isPremium}
         isSubscriptionLoaded={isSubscriptionLoaded}
         onUpgrade={settingsModal.onUpgrade}
+        onUpgradeSheetVisibleChange={settingsModal.onUpgradeSheetVisibleChange}
         onSubscribe={subscribe}
         onSubscribePremium={subscribePremium}
         onRestore={restore}

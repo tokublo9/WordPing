@@ -1,3 +1,7 @@
+// Type-only, so it is erased at compile time: nothing here gains a runtime
+// dependency on the dictionaries, and no import cycle is created.
+import type { TranslationKey } from './i18n';
+
 export interface FolderNotifSettings {
   intervalSeconds: number;  // 0 = off
   displayOnlyWord: boolean;
@@ -86,7 +90,11 @@ export interface WordCard {
 }
 
 export interface IntervalOption {
-  label: string;
+  /**
+   * Translation key for the displayed label. The stored value is `seconds`,
+   * so the label may be translated freely without touching what is persisted.
+   */
+  labelKey: TranslationKey;
   seconds: number;
 }
 

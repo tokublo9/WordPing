@@ -22,7 +22,7 @@ import { appNow } from '../lib/appClock';
 import { SYNC_WITH_TEST_RESULTS_ENABLED } from '../features/flags';
 import { gradeCard, type AnswerKind } from '../features/cards/grading';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BCP47_TO_UI_LANG, translate, useLang, type TranslationKey } from '../i18n';
+import { useLang, type TranslationKey } from '../i18n';
 import { WordCardVoiceButton } from './WordCardVoiceButton';
 import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
 import {
@@ -96,17 +96,21 @@ const INFO_ITEMS = ANSWERS.map(answer => ({
   expKey: INFO_DESCRIPTION_KEYS[answer.kind],
 }));
 
+/**
+ * "How Test Results Work".
+ *
+ * Every string here — heading included — comes from the bound translator, so
+ * the whole dialog is in the language the app is set to. The heading used to be
+ * resolved from the user's onboarding explanation language instead, which could
+ * put the title in one language and the four explanations beneath it in
+ * another.
+ */
 function InfoPopup({
-  visible, onClose, pal, explanationLang,
+  visible, onClose, pal,
 }: {
-  visible: boolean; onClose: () => void; pal: Palette; explanationLang: string;
+  visible: boolean; onClose: () => void; pal: Palette;
 }) {
   const t      = useLang();
-  const explanationUiLang = BCP47_TO_UI_LANG[explanationLang] ?? 'en-US';
-  const explanationT = useCallback(
-    (key: TranslationKey) => translate(explanationUiLang, key),
-    [explanationUiLang],
-  );
   const insets = useSafeAreaInsets();
 
   return (
@@ -144,7 +148,7 @@ function InfoPopup({
               style={[is.title, { color: pal.text }]}
               accessibilityRole="header"
             >
-              {explanationT('test_info_title')}
+              {t('test_info_title')}
             </Text>
             <TouchableOpacity
               style={[is.closeButton, { backgroundColor: pal.input }]}
@@ -310,7 +314,6 @@ interface Props {
   canUseAIVoice: boolean;
   /** Basic's one-time AI Voice grant is spent; App raises the dialog. */
   onVoiceCreditsExhausted?: (useFreeVoice: () => void) => void;
-  explanationLang: string;
   verticalFlip: boolean;
 }
 
@@ -320,7 +323,7 @@ export interface TestModeProgress {
   total: number;
 }
 
-export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, onProgressChange, onIntroChange, onCardSpotlightChange, pal, themeColor, canUseAIVoice, onVoiceCreditsExhausted, explanationLang, verticalFlip }: Props) {
+export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, onFirstAnswer, onAnswerRecorded, studyLog = {}, analyticsOpen, onCloseAnalytics, onOpenAnalytics, onProgressChange, onIntroChange, onCardSpotlightChange, pal, themeColor, canUseAIVoice, onVoiceCreditsExhausted, verticalFlip }: Props) {
   const t      = useLang();
 
   // The same rule the grey chip counts with, so the number on that chip is the
@@ -966,7 +969,6 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
         visible={infoPopupVisible}
         onClose={closeInfoPopup}
         pal={pal}
-        explanationLang={explanationLang}
       />
 
     </View>

@@ -873,7 +873,7 @@ export function WordListScreen({
           <TouchableOpacity
             style={s.iconBtn}
             onPress={actions.onOpenTextToSpeech}
-            accessibilityLabel="Text-to-Speech"
+            accessibilityLabel={t('tts_title')}
           >
             <Ionicons name="volume-high-outline" size={22} color={pal.sub} />
           </TouchableOpacity>
@@ -958,7 +958,7 @@ export function WordListScreen({
               style={[testHeaderStyles.title, { color: pal.text }]}
               accessibilityRole="header"
             >
-              TEST
+              {t('test_screen_title')}
             </Text>
             {testMode.progress ? (
               <Text style={[testHeaderStyles.progress, { color: pal.sub }]}>

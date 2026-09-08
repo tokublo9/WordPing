@@ -35,6 +35,37 @@ and anything else whose purpose is to test, build, typecheck or validate.
 Read-only inspection is always fine: `git diff`, `git status`, `grep`, reading
 files. The line is whether the command *executes* the project.
 
+## English and Japanese Only Until Final Localization
+
+Until the user explicitly authorizes the final multilingual localization pass, implement all new or revised user-facing copy only in English and Japanese.
+
+Requirements:
+
+- Update the English and Japanese locale entries only.
+- Do not create, translate, update, synchronize, or mechanically propagate copy to the other 18 supported locales.
+- Leave the other 18 locale dictionaries unchanged, even if this temporarily creates localization drift.
+- Do not copy English text into other locale dictionaries as a fallback.
+- Do not run bulk translation scripts.
+- Do not perform a complete multilingual localization update.
+- Do not infer multilingual permission from previous requests.
+- Multilingual permission must be explicitly granted in a future user message.
+- In the final report for every copy-related task, state that English and Japanese were updated and the other 18 locales were intentionally deferred.
+
+If the i18n type system requires every locale to contain a newly added key:
+
+- Prefer reusing or restructuring existing keys so that the other 18 dictionaries do not need modification.
+- Do not insert English placeholders into the other locale dictionaries.
+- If changing only English and Japanese is technically impossible without modifying the other locales, stop and explain the constraint before editing.
+
+The deferred 18-language localization pass will be completed immediately before release after explicit user authorization.
+
+This restriction does not prohibit:
+
+- Writing code, identifiers, and comments in English
+- Reading other locale dictionaries to understand the current implementation
+- Reporting translation gaps without modifying them
+- Fixing non-copy runtime behavior that is unrelated to translation
+
 ---
 
 ## Commands

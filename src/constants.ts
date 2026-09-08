@@ -1,15 +1,17 @@
 import { Dimensions } from 'react-native';
 import type { IntervalOption, Palette, ThemeColor, ThemeSkin } from './types';
 
+// `seconds` is what is stored and scheduled; `labelKey` is only what the sheet
+// draws. Translating a label can never move an interval.
 export const INTERVAL_OPTIONS: IntervalOption[] = [
-  { label: '30 min',  seconds: 1800 },
-  { label: '1 hour',  seconds: 3600 },
-  { label: '2 hours', seconds: 7200 },
-  { label: '3 hours', seconds: 10800 },
-  { label: '6 hours', seconds: 21600 },
-  { label: '12 hours', seconds: 43200 },
-  { label: '24 hours', seconds: 86400 },
-  { label: 'Off',      seconds: 0 },
+  { labelKey: 'notif_interval_30min',   seconds: 1800 },
+  { labelKey: 'notif_interval_1hour',   seconds: 3600 },
+  { labelKey: 'notif_interval_2hours',  seconds: 7200 },
+  { labelKey: 'notif_interval_3hours',  seconds: 10800 },
+  { labelKey: 'notif_interval_6hours',  seconds: 21600 },
+  { labelKey: 'notif_interval_12hours', seconds: 43200 },
+  { labelKey: 'notif_interval_24hours', seconds: 86400 },
+  { labelKey: 'notif_interval_off',     seconds: 0 },
 ];
 
 export const FREE_THEME_COLOR = '#3B82F6';

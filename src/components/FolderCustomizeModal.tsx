@@ -190,7 +190,7 @@ export function FolderCustomizeModal({
                 {(mode === 'edit' || mode === 'icon') && (
                   <>
                     {mode === 'edit' && (
-                      <Text style={[styles.gridLabel, { color: pal.sub }]}>Icon</Text>
+                      <Text style={[styles.gridLabel, { color: pal.sub }]}>{t('icon_label')}</Text>
                     )}
                     <View style={styles.iconGrid}>
                       {FOLDER_ICONS.map(icon => {

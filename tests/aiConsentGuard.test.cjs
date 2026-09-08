@@ -186,8 +186,15 @@ test('permission can still be withdrawn, from About AI Voice', () => {
   assert.match(appInfo, /openExternal\(LEGAL_URLS\.privacy\)/u);
 });
 
-test('the consent copy names the provider and ships in English and Japanese', () => {
+test('the consent copy names the provider and ships in every locale', () => {
   const i18n = read('src/i18n.ts');
+  // The number of dictionaries, read out of the file rather than written down.
+  // `test_info_title` is required of every locale, so counting it counts them.
+  // This assertion used to expect 2, from when consent copy was English and
+  // Japanese only; the point was always "one entry per locale", not "two".
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+
   const keys = [
     'ai_consent_title', 'ai_consent_body', 'ai_consent_allow', 'ai_consent_decline',
     'ai_consent_setting',
@@ -197,17 +204,29 @@ test('the consent copy names the provider and ships in English and Japanese', ()
     'ai_consent_withdraw', 'ai_consent_withdraw_confirm',
   ];
   for (const key of keys) {
-    const occurrences = i18n.match(new RegExp(`^\\s{2}${key}:`, 'gmu')) ?? [];
-    assert.equal(occurrences.length, 2, `${key} needs an English and a Japanese entry`);
+    const occurrences = i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];
+    assert.equal(occurrences.length, locales, `${key} needs exactly one entry per locale`);
   }
 
-  // The dialog must identify who receives the data, in both languages.
+  // The dialog must identify who receives the data — in every language, since
+  // this is the disclosure the permission rests on. "OpenAI" is a company name
+  // and is never translated, so one count covers all of them.
+  assert.equal(
+    (i18n.match(/^ {2}ai_consent_body:/gmu) ?? []).length,
+    (i18n.match(/^ {2}ai_consent_body:[\s\S]*?(?=\n {2}[a-z_]+:)/gmu) ?? [])
+      .filter(body => body.includes('OpenAI')).length,
+    'every locale names OpenAI in the consent body',
+  );
   assert.match(i18n, /ai_consent_body:[\s\S]{0,400}OpenAI/u);
   assert.match(i18n, /ai_consent_body:[\s\S]{0,600}OpenAIへ送信します/u);
   assert.match(i18n, /ai_consent_allow: 'Allow and Continue'/u);
   assert.match(i18n, /ai_consent_decline: 'Not Now'/u);
   assert.match(i18n, /ai_consent_allow: '許可して続ける'/u);
   assert.match(i18n, /ai_consent_decline: '今は許可しない'/u);
+  // Arabic is the one right-to-left locale, and the buttons a user presses to
+  // grant or refuse must read in Arabic rather than fall back to English.
+  assert.match(i18n, /ai_consent_allow: 'السماح والمتابعة'/u);
+  assert.match(i18n, /ai_consent_decline: 'عدم السماح الآن'/u);
 });
 
 test('consent is not part of any backup, so a file cannot grant it', () => {

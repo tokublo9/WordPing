@@ -40,6 +40,9 @@ import {
 import { PROMO_SAMPLE_TEXT, type PromoSampleId } from '../lib/promoVoiceSamples';
 import { AIRequestError } from '../lib/api/errors';
 import { speak, speakPromoSample, stopPlayback } from '../lib/tts';
+// The same gate every other AI surface uses. It opens the one consent dialog
+// and never grants consent by itself.
+import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
 import {
   PremiumSkinPreview,
   THEME_SCREENSHOTS,
@@ -575,7 +578,7 @@ const PlanLabels = React.memo(function PlanLabels({
     <View style={pl.row}>
       {basic && (
         <LinearGradient colors={BLUE_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pl.basic}>
-          <Text style={pl.basicText}>{t('basic')}</Text>
+          <Text style={pl.basicText}>{t('basic_plan_name')}</Text>
         </LinearGradient>
       )}
       {premium && (
@@ -1093,7 +1096,7 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
   // the two a null means.
   const voiceCell = (tier: 'basic' | 'premium'): CellValue => {
     if (!planCanUseAI(tier)) return 'cross';
-    return formatVoiceMonthlyLimit(tier, language) ?? 'circle';
+    return formatVoiceMonthlyLimit(tier, language, t) ?? 'circle';
   };
 
   const allRows: TableRowData[] = [
@@ -1279,7 +1282,7 @@ const FixedPurchaseBar = React.memo(({
           accessibilityLabel={basicOwned
             ? t('theme_details_owned_badge')
             : basicPrice.state === 'priced'
-              ? `${t('subscribe')} · ${basicPrice.priceString}${t('per_month')}`
+              ? `${t('subscribe')} · ${t('price_per_month').replace('{price}', basicPrice.priceString)}`
               : t('subscribe')}
           accessibilityState={{ selected: basicOwned, disabled: basicDisabled }}
         >
@@ -1305,7 +1308,7 @@ const FixedPurchaseBar = React.memo(({
                   {basicOwned
                     ? t('theme_details_owned_badge')
                     : basicPrice.state === 'priced'
-                      ? `${basicPrice.priceString}${t('per_month')}`
+                      ? t('price_per_month').replace('{price}', basicPrice.priceString)
                       : ''}
                 </Text>
               </>
@@ -1354,7 +1357,7 @@ const FixedPurchaseBar = React.memo(({
                   {premiumOwned
                     ? t('theme_details_owned_badge')
                     : premiumPrice.state === 'priced'
-                      ? `${premiumPrice.priceString}${t('per_month')}`
+                      ? t('price_per_month').replace('{price}', premiumPrice.priceString)
                       : ''}
                 </Text>
               </>
@@ -1571,6 +1574,20 @@ export function ProSheet({
       setLoadingDemo(null);
       return;
     }
+    const isAI = key.endsWith('ai');
+    // Every explicit AI Voice sample asks the same question the word card asks,
+    // before anything starts. The promo route needs no permission of its own —
+    // it carries no user content and no identifier, and the clip may even be
+    // bundled — but a user who has not agreed to AI data sharing should not
+    // hear an AI voice begin as though they had. Declining leaves playback
+    // untouched and returns here; the next tap asks again, because
+    // `ensureAIConsentForUserAction` re-asks after a decline.
+    //
+    // Deliberately before the sequence bump and before any state is set, so a
+    // refused sample never flashes the playing state and never stops a clip
+    // that is already running.
+    if (isAI && !await ensureAIConsentForUserAction()) return;
+
     // Starting one sample supersedes the other: the sequence bump invalidates
     // the previous call's finally block and stopPlayback releases its player.
     const sequence = ++demoSequence.current;
@@ -1578,17 +1595,12 @@ export function ProSheet({
     setPlayingDemo(key);
     setLoadingDemo(null);
 
-    const isAI = key.endsWith('ai');
     try {
       if (isAI) {
-        // No entitlement check and no consent prompt, and deliberately so: the
-        // promo request carries no user content and no identifier, so there is
-        // nothing to gate and nothing to ask permission for. `postPromoSpeech`
-        // is the only way to reach this route, and it cannot be handed text.
-        //
-        // Playing it grants nothing: it does not set consent, does not unlock
-        // card voice, and does not touch the entitlement. A Free user hears the
-        // comparison and nothing else changes.
+        // Still no entitlement check: consent is not entitlement. Playing this
+        // grants nothing — it does not unlock card voice, does not touch the
+        // entitlement and spends no credit. A Free user who has agreed to data
+        // sharing hears the comparison and nothing else changes.
         const sample = PROMO_SAMPLE_BY_DEMO[key as AIDemoKey];
         await speakPromoSample(sample, resolvedSampleLang, {
           onPhaseChange: phase => {
@@ -1661,7 +1673,7 @@ export function ProSheet({
             style={s.closeBtn}
             onPress={onClose}
             hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-            accessibilityLabel="Close"
+            accessibilityLabel={t('close')}
           >
             <Ionicons name="close" size={26} color={pal.text} />
           </TouchableOpacity>

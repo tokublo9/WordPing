@@ -13,6 +13,10 @@
  * request is allowed — it asks, and the Worker answers.
  */
 
+// Type-only, so this module still imports nothing at runtime and stays usable
+// from the unit test project.
+import type { TranslationKey } from '../i18n';
+
 export type PlanTier = 'free' | 'basic' | 'premium';
 
 /**
@@ -74,20 +78,35 @@ export const VOICE_LIFETIME_CREDITS: Readonly<Record<PlanTier, number | null>> =
  * A one-time grant is labelled as one. Calling Basic's 200 a monthly figure
  * would be the same mistake the Worker's comment used to make, except in front
  * of the customer at the moment they are deciding what to buy.
+ *
+ * The wording is a translation key rather than a string built here: this used to
+ * branch on Japanese and hand every other language an English phrase, which is
+ * exactly the kind of two-language branch a twenty-language app cannot carry.
+ * `language` is still taken, and is now used for the *number* — grouping
+ * separators differ by locale — while `t` supplies the sentence around it.
  */
-export function formatVoiceMonthlyLimit(tier: PlanTier, language: string): string | null {
-  const isJapanese = language.startsWith('ja');
-  const format = (value: number): string =>
-    value.toLocaleString(isJapanese ? 'ja-JP' : 'en-US');
+export function formatVoiceMonthlyLimit(
+  tier: PlanTier,
+  language: string,
+  t: (key: TranslationKey) => string,
+): string | null {
+  const format = (value: number): string => {
+    try {
+      return value.toLocaleString(language);
+    } catch {
+      // An unsupported tag must not take the comparison table down with it.
+      return value.toLocaleString('en-US');
+    }
+  };
 
   const monthly = VOICE_MONTHLY_LIMITS[tier];
   if (monthly !== null && monthly !== 0) {
-    return isJapanese ? `月${format(monthly)}回` : `${format(monthly)} / month`;
+    return t('cmp_voice_per_month').replace('{n}', format(monthly));
   }
 
   const lifetime = VOICE_LIFETIME_CREDITS[tier];
   if (lifetime !== null && lifetime !== 0) {
-    return isJapanese ? `${format(lifetime)}回（1回限り）` : `${format(lifetime)} one-time`;
+    return t('cmp_voice_one_time').replace('{n}', format(lifetime));
   }
 
   return null;

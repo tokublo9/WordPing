@@ -58,7 +58,7 @@ import {
   serializeConsentPromptShown,
   shouldPromptConsentAfterSubscription,
 } from './src/features/onboarding/subscriptionOnboarding';
-import { ensureAIConsentForUserAction } from './src/lib/aiConsentPrompt';
+import { ensureAIConsentForUserAction, hasAIConsentPromptHost } from './src/lib/aiConsentPrompt';
 import { getAIConsent, loadAIConsent } from './src/lib/aiConsent';
 import { shouldShowResultFilters } from './src/features/onboarding/tutorialState';
 import { AppOverlays } from './src/app/AppOverlays';
@@ -225,6 +225,10 @@ function AppContent() {
   const menuBtnRef = useRef<View>(null);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [proSheetVisible, setProSheetVisible] = useState(false);
+  // Settings owns a second ProSheet instance, so `proSheetVisible` alone does
+  // not answer "is the Upgrade sheet on screen". Settings reports its own.
+  const [settingsUpgradeSheetVisible, setSettingsUpgradeSheetVisible] = useState(false);
+  const upgradeSheetVisible = proSheetVisible || settingsUpgradeSheetVisible;
 
   useEffect(() => {
     if (!TEXT_TO_SPEECH_ENABLED) return;
@@ -881,9 +885,14 @@ function AppContent() {
 
 
   // Anything that owns the screen and must not be interrupted by a tutorial.
+  // Settings and the Upgrade sheet are deliberately absent. The Upgrade sheet has
+  // its own condition (`isUpgradeSheetClosed`), and Settings is the screen the
+  // user is returned to when it closes — requiring Settings to close as well is
+  // what kept the post-purchase offer waiting until the user left Settings
+  // entirely. The consent dialog is a native Modal and presents above Settings.
   const screenBusy = showOnboarding || wordModalVisible || bulkImportVisible
-    || settingsModalVisible || notificationModalVisible
-    || menuVisible || paywallVisible || proSheetVisible
+    || notificationModalVisible
+    || menuVisible || paywallVisible
     || selectionMode || reorderMode;
 
   // Offered once, after a verified purchase, and only once the Upgrade sheet
@@ -897,25 +906,33 @@ function AppContent() {
       entitlementSource,
       consent: getAIConsent(),
       alreadyPrompted: consentPromptShown,
-      isUpgradeSheetClosed: !proSheetVisible && !settingsModalVisible,
+      isUpgradeSheetClosed: !upgradeSheetVisible,
       isScreenBusy: screenBusy,
     })) return;
 
     let cancelled = false;
     const handle = InteractionManager.runAfterInteractions(() => {
       if (cancelled) return;
-      // Recorded before the dialog opens: whatever the user answers, and even
-      // if they dismiss it, the one-time offer has been made.
+      // Nowhere to ask means the offer has not been made. `requestAIConsentDecision`
+      // answers `unknown` immediately with no host mounted, which is correct for a
+      // request that must be refused but would silently spend this one-time offer
+      // on a dialog the user never saw. Leaving the marker unwritten lets a later
+      // render — once a host is mounted — try again.
+      if (!hasAIConsentPromptHost()) return;
+      // Written only now, once presentation is genuinely about to be requested.
+      // Whatever the user then answers, and even if they dismiss it, the offer
+      // has been made and is not repeated.
       setConsentPromptShown(true);
       AsyncStorage.setItem(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown(true))
         .catch(e => reportSideEffectFailure('setSubscriptionConsentPrompt', e));
-      // The same prompt every AI surface uses. It sends nothing by itself.
+      // The same prompt every AI surface uses. It sends nothing by itself, and
+      // joins an already-open question rather than stacking a second dialog.
       void loadAIConsent().then(() => ensureAIConsentForUserAction());
     });
     return () => { cancelled = true; handle.cancel(); };
   }, [
     consentPromptShown, entitlementSource, isSubscriptionLoaded, plan,
-    proSheetVisible, screenBusy, settingsModalVisible,
+    screenBusy, upgradeSheetVisible,
   ]);
 
   // Nothing is raised by leaving Test Mode any more. The three introduction
@@ -1056,7 +1073,6 @@ function AppContent() {
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
       onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
-      explanationLang={nativeLang}
       verticalFlip={verticalFlip}
     />
   ) : null;
@@ -1333,6 +1349,7 @@ function AppContent() {
           skinId,
           onPickSkin: setSkinId,
           onUpgrade: () => { setSettingsModalVisible(false); setProSheetVisible(true); },
+          onUpgradeSheetVisibleChange: setSettingsUpgradeSheetVisible,
           language,
           onPickLanguage: pickLanguage,
           aiVoice,

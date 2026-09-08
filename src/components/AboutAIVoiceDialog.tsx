@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -16,15 +16,26 @@ import { useAIConsent } from '../hooks/useAIConsent';
 import { setAIConsent } from '../lib/aiConsent';
 
 /**
- * About AI Voice, and the one place permission can be withdrawn.
+ * About AI Voice, and the one place permission can be given or taken back.
  *
  * The standalone "AI Data Sharing" row was removed from Settings, so this
- * dialog carries the withdrawal in its place — a subscriber must always be able
- * to take back a permission they gave, and burying that is not an option.
+ * dialog carries the permission control in its place — a subscriber must always
+ * be able to take back a permission they gave, and burying that is not an
+ * option.
  *
- * The action appears only while permission is actually granted. Offering
- * "Withdraw" to someone who has not granted anything would be a lie about the
- * current state, so a plain status line is shown instead.
+ * This dialog states the whole disclosure itself: what is sent, which voice
+ * model, that it goes to OpenAI through the WordCore server, that it is used for
+ * nothing else, which anonymous identifiers the server sees and that they never
+ * reach OpenAI, that nothing is sent without permission, and that permission can
+ * be taken back here. Its body is paragraph-for-paragraph the same text
+ * `AIConsentDialog` shows, so granting from here is granting from the same
+ * disclosure — which is why the button records the decision directly instead of
+ * opening a second dialog to repeat what the user is already reading.
+ *
+ * Exactly one action is shown, and it names what tapping it will do: Allow while
+ * permission is missing, Revoke Permission while it is held. It writes through
+ * the shared consent source of truth, so every guard in the app sees the change
+ * at once.
  *
  * Built on the same dialog shape as `SettingsInfoPopup`, which is what the
  * other explanation rows use.
@@ -42,15 +53,47 @@ export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props)
   const insets = useSafeAreaInsets();
   const consent = useAIConsent();
 
+  const granted = consent === 'granted';
+  const [busy, setBusy] = useState(false);
+  // The tap guard is a ref so a second tap in the same frame sees it, and the
+  // unmount flag stops a resolved write from setting state on a gone component.
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   /**
-   * Withdrawing takes effect immediately and destroys nothing.
+   * Writes the decision through the shared store and nothing else.
+   *
+   * The button is driven by `useAIConsent`, which subscribes to that store — so
+   * it flips only once the write has actually published, and stays as it was if
+   * the write throws. Granting sends no text, plays no audio and makes no
+   * request; it records permission for whatever the user does next.
+   */
+  const apply = useCallback(async (next: 'granted' | 'declined') => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await setAIConsent(next);
+    } catch {
+      // The store keeps the previous decision, so the action label is still
+      // correct and the user can try again.
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setBusy(false);
+    }
+  }, []);
+
+  /**
+   * Revoking takes effect immediately and destroys nothing.
    *
    * Confirmed first because it turns a working feature off. It writes
    * `declined` and stops there: no card, meaning, note or cached clip is
    * touched, the subscription is untouched, and the next AI Voice tap asks for
    * permission again through the ordinary prompt.
    */
-  const withdraw = useCallback(() => {
+  const revoke = useCallback(() => {
+    if (busyRef.current) return;
     Alert.alert(
       t('ai_consent_withdraw'),
       t('ai_consent_withdraw_confirm'),
@@ -59,11 +102,13 @@ export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props)
         {
           text: t('ai_consent_withdraw'),
           style: 'destructive',
-          onPress: () => { void setAIConsent('declined'); },
+          onPress: () => { void apply('declined'); },
         },
       ],
     );
-  }, [t]);
+  }, [apply, t]);
+
+  const actionKey = granted ? 'ai_consent_withdraw' : 'ai_consent_grant';
 
   return (
     <Modal
@@ -103,33 +148,33 @@ export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props)
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            {/* The same sentence, with the same weight, as the consent dialog:
-                the answer to "what leaves my device" should not be quieter
-                here than it was when permission was asked for. */}
-            <Text style={[styles.lead, { color: pal.text }]}>{t('ai_data_lead')}</Text>
+            {/* The privacy disclosure uses the same body treatment throughout
+                this dialog so no paragraph receives visual emphasis. */}
+            <Text style={[styles.body, styles.leadSpacing, { color: pal.sub }]}>
+              {t('ai_data_lead')}
+            </Text>
             <Text style={[styles.body, { color: pal.sub }]}>{t('ai_voice_info_body')}</Text>
 
-            {consent === 'granted' ? (
-              <TouchableOpacity
-                style={[styles.withdrawButton, { borderColor: pal.border, backgroundColor: pal.input }]}
-                onPress={withdraw}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={t('ai_consent_withdraw')}
-              >
-                <Text style={[styles.withdrawLabel, { color: pal.sub }]}>
-                  {t('ai_consent_withdraw')}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              // Nothing to withdraw. Stated plainly rather than offering an
-              // action that would do nothing.
-              <Text style={[styles.status, { color: pal.sub }]}>
-                {`${t('ai_consent_setting')}: ${t(
-                  consent === 'declined' ? 'ai_consent_status_declined' : 'ai_consent_status_unknown',
-                )}`}
+            {/* One action, in the same subdued style either way: the label is
+                the state. `unknown` and `declined` both read Allow, because
+                both mean permission is not held. */}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                { borderColor: pal.border, backgroundColor: pal.input },
+                busy && styles.actionButtonBusy,
+              ]}
+              onPress={granted ? revoke : () => { void apply('granted'); }}
+              disabled={busy}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={t(actionKey)}
+              accessibilityState={{ disabled: busy }}
+            >
+              <Text style={[styles.actionLabel, { color: pal.sub }]}>
+                {t(actionKey)}
               </Text>
-            )}
+            </TouchableOpacity>
           </ScrollView>
 
           <TouchableOpacity
@@ -167,9 +212,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '700', marginBottom: 10 },
   bodyScroll: { flexGrow: 0 },
   bodyContent: { paddingBottom: 4 },
-  lead: { fontSize: 16, fontWeight: '700', lineHeight: 23, marginBottom: 12 },
+  leadSpacing: { marginBottom: 12 },
   body: { fontSize: 14, lineHeight: 21 },
-  withdrawButton: {
+  actionButton: {
     marginTop: 16,
     minHeight: 44,
     borderRadius: 12,
@@ -178,8 +223,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  withdrawLabel: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
-  status: { fontSize: 13, lineHeight: 18, marginTop: 14 },
+  actionButtonBusy: { opacity: 0.5 },
+  actionLabel: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
   okButton: {
     marginTop: 18,
     minHeight: 44,

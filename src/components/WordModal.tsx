@@ -183,8 +183,11 @@ function StationaryTapTextInput({ onFocus, onBlur, ...props }: TextInputProps) {
 
 // ── TTS language options (BCP-47 codes supported by device TTS) ───────────────
 
-const TTS_LANGUAGES: { code: string | undefined; flag: string; label: string }[] = [
-  { code: undefined, flag: '🌐', label: 'Auto' },
+// Every label below is that language's own endonym, deliberately identical in
+// all 20 UI languages. "Auto" is UI copy rather than a language name, so it
+// carries no label here and is translated at render time.
+const TTS_LANGUAGES: { code: string | undefined; flag: string; label: string | null }[] = [
+  { code: undefined, flag: '🌐', label: null },
   { code: 'en-US',  flag: '🇺🇸', label: 'English (US)' },
   { code: 'ja-JP',  flag: '🇯🇵', label: '日本語' },
   { code: 'ko-KR',  flag: '🇰🇷', label: '한국어' },
@@ -877,7 +880,7 @@ export function WordModal({
                       activeOpacity={0.6}
                       style={styles.audioSettingsHeader}
                     >
-                      <Text style={[styles.audioSettingsTitle, { color: pal.sub }]}>Playback</Text>
+                      <Text style={[styles.audioSettingsTitle, { color: pal.sub }]}>{t('audio_playback')}</Text>
                       <Ionicons
                         name={audioSettingsExpanded ? 'chevron-up' : 'chevron-down'}
                         size={13}
@@ -889,7 +892,7 @@ export function WordModal({
                       <View style={styles.audioSettingsBody}>
                         {/* Speed row */}
                         <View style={styles.audioSettingRow}>
-                          <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>Speed</Text>
+                          <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>{t('audio_speed')}</Text>
                           <View style={styles.audioChipRow}>
                             {SPEED_OPTIONS.map(rate => {
                               const active = audioSpeed === rate;
@@ -913,7 +916,7 @@ export function WordModal({
                         </View>
                         {/* Volume row */}
                         <View style={[styles.audioSettingRow, { marginTop: 8 }]}>
-                          <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>Volume</Text>
+                          <Text style={[styles.audioSettingLabel, { color: pal.sub }]}>{t('audio_volume')}</Text>
                           <View style={styles.audioChipRow}>
                             {VOLUME_OPTIONS.map(v => {
                               const active = audioVolume === v;
@@ -1010,7 +1013,7 @@ export function WordModal({
                         >
                           {isTranslatingMeaning
                             ? <ActivityIndicator size="small" color={themeColor} />
-                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>Translate</Text>
+                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>{t('btn_translate')}</Text>
                           }
                         </TouchableOpacity>
                         <View style={[styles.aiDivider, { backgroundColor: themeColor + '40' }]} />
@@ -1047,7 +1050,7 @@ export function WordModal({
                         >
                           {isBreakingDown
                             ? <ActivityIndicator size="small" color={themeColor} />
-                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>Breakdown</Text>
+                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>{t('btn_breakdown')}</Text>
                           }
                         </TouchableOpacity>
                         <View style={[styles.aiDivider, { backgroundColor: themeColor + '40' }]} />
@@ -1113,7 +1116,7 @@ export function WordModal({
                         >
                           {isTranslatingNote
                             ? <ActivityIndicator size="small" color={themeColor} />
-                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>Translate</Text>
+                            : <Text style={[styles.aiSegmentText, { color: themeColor }]}>{t('btn_translate')}</Text>
                           }
                         </TouchableOpacity>
                         <View style={[styles.aiDivider, { backgroundColor: themeColor + '40' }]} />
@@ -1298,7 +1301,7 @@ export function WordModal({
                   },
                 ]}
               >
-                <Text style={[styles.bannerLabel, { color: pal.sub }]}>Advertisement</Text>
+                <Text style={[styles.bannerLabel, { color: pal.sub }]}>{t('ad_label')}</Text>
               </View>
             )}
 
@@ -1355,7 +1358,7 @@ export function WordModal({
                       onPress={() => onPickTTSLang(lang.code)}
                     >
                       <Text style={styles.pickerFlag}>{lang.flag}</Text>
-                      <Text style={[styles.pickerLabel, { color: pal.text }]}>{lang.label}</Text>
+                      <Text style={[styles.pickerLabel, { color: pal.text }]}>{lang.label ?? t('tts_lang_auto')}</Text>
                       {selected && <Ionicons name="checkmark" size={18} color={themeColor} />}
                     </TouchableOpacity>
                   );

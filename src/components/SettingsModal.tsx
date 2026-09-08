@@ -33,8 +33,8 @@ import { CompactSwitch } from './CompactSwitch';
 import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
 import {
   AI_VOICES,
-  getAIVoiceDescription,
-  getAIVoiceLabel,
+  getAIVoiceDescriptionKey,
+  getAIVoiceNameKey,
   type AIVoice,
 } from '../lib/aiVoices';
 import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
@@ -118,6 +118,15 @@ interface Props {
   discovery: FeatureDiscovery;
   /** Re-read cards and folders after a backup import, in either mode. */
   onDataImported: () => void;
+  /**
+   * Reports whether the Upgrade Plan sheet this screen owns is on screen.
+   *
+   * Settings opens its own ProSheet instance rather than the App-level one, so
+   * without this App cannot tell that the Upgrade sheet is up — it only sees
+   * that Settings is. The post-purchase consent offer waits on the Upgrade
+   * sheet alone, and must not wait for Settings to close behind it.
+   */
+  onUpgradeSheetVisibleChange?: (visible: boolean) => void;
   /** Theme prices, ownership and the buy action. Resolved once, by App. */
   themePurchases: ThemePurchasesState;
   /** The two subscription products as the store returned them. */
@@ -138,6 +147,7 @@ export function SettingsModal({
   canUseAI,
   discovery,
   onDataImported,
+  onUpgradeSheetVisibleChange,
   themePurchases,
   planProducts,
 }: Props) {
@@ -175,7 +185,21 @@ export function SettingsModal({
     infoPopupClosing.current = false;
   }, []);
 
+  // Mirrored upward, and cleared on unmount so a Settings screen that goes away
+  // with its sheet open cannot leave App believing the Upgrade sheet is still
+  // there.
+  useEffect(() => {
+    onUpgradeSheetVisibleChange?.(proSheetVisible);
+  }, [onUpgradeSheetVisibleChange, proSheetVisible]);
+  useEffect(() => () => onUpgradeSheetVisibleChange?.(false), [onUpgradeSheetVisibleChange]);
+
+  const openAboutAIVoice = useCallback(() => {
+    discovery.dismiss(FEATURE_MARKERS.aboutAIVoice);
+    setAboutAIVoiceVisible(true);
+  }, [discovery]);
+
   const activeLang = SUPPORTED_LANGUAGES.find(l => l.code === language) ?? SUPPORTED_LANGUAGES[0];
+  const aboutAIVoiceIsNew = canUseAI && discovery.isNew(FEATURE_MARKERS.aboutAIVoice);
 
   useEffect(() => {
     if (visible && canUseAI) return;
@@ -291,12 +315,12 @@ export function SettingsModal({
             <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('upgrade_plan')}</Text>
             {isSubscribed && !isPremium && (
               <View style={[styles.proBadge, { backgroundColor: '#3B82F618', borderColor: '#3B82F644' }]}>
-                <Text style={[styles.proBadgeText, { color: '#3B82F6' }]}>✓ Basic</Text>
+                <Text style={[styles.proBadgeText, { color: '#3B82F6' }]}>✓ {t('basic_plan_name')}</Text>
               </View>
             )}
             {isPremium && (
               <View style={[styles.proBadge, { backgroundColor: '#F5C84218', borderColor: '#F5C84244' }]}>
-                <Text style={[styles.proBadgeText, { color: '#D97706' }]}>✓ Premium</Text>
+                <Text style={[styles.proBadgeText, { color: '#D97706' }]}>✓ {t('cmp_premium')}</Text>
               </View>
             )}
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
@@ -355,7 +379,7 @@ export function SettingsModal({
               }}
               activeOpacity={0.7}
               accessibilityRole="button"
-              accessibilityLabel={`${t('feature_ai_voice')}: ${getAIVoiceLabel(aiVoice)}`}
+              accessibilityLabel={`${t('feature_ai_voice')}: ${t(getAIVoiceNameKey(aiVoice))}`}
             >
               {/* The marker rides the row's icon, so the info button, the voice
                   name on the right and any label length leave it where it is. */}
@@ -393,7 +417,7 @@ export function SettingsModal({
                 </TouchableOpacity>
               </View>
               <View style={styles.voiceRowControl}>
-                <Text style={[styles.rowValue, { color: pal.sub }]}>{getAIVoiceLabel(aiVoice)}</Text>
+                <Text style={[styles.rowValue, { color: pal.sub }]}>{t(getAIVoiceNameKey(aiVoice))}</Text>
                 <Ionicons name="chevron-forward" size={15} color={pal.sub} />
               </View>
             </TouchableOpacity>
@@ -446,37 +470,14 @@ export function SettingsModal({
             />
           )}
 
-          {/* ── Help ─────────────────────────────────────────────────────── */}
-          {/* About AI Voice is the only entry, and it belongs to a plan that has
-              AI Voice, so the heading and its divider are drawn with it rather
-              than left standing above nothing. */}
-          {canUseAI && (
-          <>
-          <View style={[styles.divider, { backgroundColor: pal.border }]} />
-
-          <View style={{ marginBottom: 12 }}>
-            <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('help_section')}</Text>
-          </View>
-          {/* About AI Voice. `canUseAI` comes from the one entitlement rule and
-              is false until RevenueCat has answered, so the row cannot appear
-              for a moment and then vanish.
-
-              Opening it dismisses its own marker and nothing else, and grants
-              no permission — it is where permission is *withdrawn*, not given. */}
-          <SettingRow icon="mic-outline" label={t('ai_voice_info_menu')} pal={pal}
-            badge={discovery.isNew(FEATURE_MARKERS.aboutAIVoice)}
-            themeColor={themeColor}
-            onPress={() => {
-              discovery.dismiss(FEATURE_MARKERS.aboutAIVoice);
-              setAboutAIVoiceVisible(true);
-            }} />
-          </>
-          )}
-
           {/* ── App Info ─────────────────────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
+          {/* Mirrors the nested feature marker without dismissing it. Only the
+              About AI Voice row inside App Info marks the feature as viewed. */}
           <SettingRow icon="information-circle-outline" label={t('app_info')} pal={pal}
+            badge={aboutAIVoiceIsNew}
+            themeColor={themeColor}
             onPress={() => setAppInfoVisible(true)} />
 
         </ScrollView>
@@ -543,6 +544,9 @@ export function SettingsModal({
           onClose={() => setAppInfoVisible(false)}
           pal={pal}
           themeColor={themeColor}
+          canUseAI={canUseAI}
+          aboutAIVoiceIsNew={aboutAIVoiceIsNew}
+          onOpenAboutAIVoice={openAboutAIVoice}
           onRestore={onRestore}
           isPremium={isPremium}
           isSubscriptionLoaded={isSubscriptionLoaded}
@@ -794,8 +798,8 @@ function VoiceSelectionScreen({
               const selected = voice === draftVoice;
               const previewing = voice === previewingVoice;
               const loading = voice === loadingVoice;
-              const label = getAIVoiceLabel(voice);
-              const description = getAIVoiceDescription(voice);
+              const label = t(getAIVoiceNameKey(voice));
+              const description = t(getAIVoiceDescriptionKey(voice));
               return (
                 <TouchableOpacity
                   key={voice}
@@ -829,7 +833,9 @@ function VoiceSelectionScreen({
                     style={[styles.previewButton, { backgroundColor: previewing ? themeColor : pal.chip }]}
                     onPress={() => preview(voice)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    accessibilityLabel={loading ? 'Loading audio' : `Preview ${label}`}
+                    accessibilityLabel={loading
+                      ? t('audio_loading')
+                      : t('voice_preview_action').replace('{voice}', label)}
                     accessibilityState={{ busy: loading }}
                   >
                     {loading ? (
@@ -865,16 +871,23 @@ function VoiceSelectionScreen({
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
   visible, onClose, pal, themeColor, onRestore,
-  isPremium, isSubscriptionLoaded, onDataImported,
+  isPremium, isSubscriptionLoaded, canUseAI, aboutAIVoiceIsNew,
+  onOpenAboutAIVoice, onDataImported,
 }: {
   visible: boolean;
   onClose: () => void;
   pal: Palette;
   themeColor: string;
+  // `language` used to be taken so the analytics row could test for English or
+  // Japanese and borrow other copy elsewhere. Every locale carries that copy
+  // now, so nothing in this sheet reads the language tag.
   /** The shared RevenueCat restore handler from useSubscription. */
   onRestore: () => Promise<void>;
   isPremium: boolean;
   isSubscriptionLoaded: boolean;
+  canUseAI: boolean;
+  aboutAIVoiceIsNew: boolean;
+  onOpenAboutAIVoice: () => void;
   onDataImported: () => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -884,6 +897,9 @@ function AppInfoSheet({
   // misdetected, who is exactly the person who needs it. It is deliberately
   // outside the Backup section and its subscription gate.
   const [restoring, setRestoring] = useState(false);
+  const [analyticsInfoVisible, setAnalyticsInfoVisible] = useState(false);
+  const [analyticsUpdating, setAnalyticsUpdating] = useState(false);
+  const analyticsUpdateInFlight = useRef(false);
   // Same entitlement rule the section itself applies, so the heading and its
   // divider can never appear above an empty body.
   const backupVisible = canUseBackup({ isPremium, isSubscriptionLoaded });
@@ -904,11 +920,10 @@ function AppInfoSheet({
     }
   }, [onRestore, restoring]);
 
-  // ── Analytics opt-out ───────────────────────────────────────────────────────
-  // Reflects the stored preference rather than a local default, so the switch
-  // shows what is actually in force. `config/posthog.ts` owns the effect of the
-  // value — one call there stops events and Session Replay together — and this
-  // row only records the decision.
+  // ── Analytics consent ───────────────────────────────────────────────────────
+  // Reflects the stored preference rather than a local default. The popup is
+  // the only control; `config/posthog.ts` owns the effect of the value, where
+  // one state-machine update starts or stops events and Session Replay together.
   const [analyticsEnabled, setAnalyticsEnabledState] = useState(isAnalyticsEnabled());
   useEffect(() => {
     let active = true;
@@ -920,11 +935,20 @@ function AppInfoSheet({
     });
     return () => { active = false; unsubscribe(); };
   }, []);
-  const handleToggleAnalytics = useCallback((next: boolean) => {
-    // Optimistic: the state machine publishes to every subscriber immediately
-    // and the write is best effort, so the switch never lags behind the tap.
-    void setAnalyticsConsent(next ? 'enabled' : 'disabled');
-  }, []);
+  const handleChangeAnalytics = useCallback(async () => {
+    if (analyticsUpdateInFlight.current) return;
+    analyticsUpdateInFlight.current = true;
+    setAnalyticsUpdating(true);
+    try {
+      await setAnalyticsConsent(analyticsEnabled ? 'disabled' : 'enabled');
+    } finally {
+      analyticsUpdateInFlight.current = false;
+      setAnalyticsUpdating(false);
+    }
+  }, [analyticsEnabled]);
+  // Every locale now carries its own sharing-action copy, so there is no
+  // language test here any more and no borrowed consent-withdrawal wording.
+  const analyticsActionLabel = t(analyticsEnabled ? 'analytics_turn_off' : 'analytics_turn_on');
   const slideX = useRef(new Animated.Value(SW)).current;
   const openExternal = useCallback(async (url: string) => {
     try {
@@ -939,6 +963,8 @@ function AppInfoSheet({
     if (visible) {
       slideX.setValue(SW);
       Animated.spring(slideX, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
+    } else {
+      setAnalyticsInfoVisible(false);
     }
   }, [visible]);
 
@@ -964,6 +990,21 @@ function AppInfoSheet({
         <View style={styles.backBtn} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {/* The feature remains under its existing entitlement gate. Its handler
+            owns both discovery dismissal and the existing popup state. */}
+        {canUseAI && (
+          <>
+            <SettingRow
+              icon="mic-outline"
+              label={t('ai_voice_info_menu')}
+              badge={aboutAIVoiceIsNew}
+              themeColor={themeColor}
+              onPress={onOpenAboutAIVoice}
+              pal={pal}
+            />
+            <View style={[styles.divider, { backgroundColor: pal.border }]} />
+          </>
+        )}
         <View style={{ marginBottom: 12 }}>
           <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('purchases_section')}</Text>
         </View>
@@ -1003,10 +1044,10 @@ function AppInfoSheet({
         )}
 
         {/* ── Privacy ──────────────────────────────────────────────────────
-            One switch for product analytics and Session Replay together: the
-            SDK's opt-out drives both, so there is no way to end up recording
-            someone who turned events off. It sits next to the Privacy Policy
-            link, which is where the same processing is described.
+            One consent state controls product analytics and Session Replay
+            together: the SDK's opt-out drives both, so there is no way to end
+            up recording someone who turned sharing off. It sits next to the
+            Privacy Policy link, which describes the same processing.
 
             Not gated on plan or entitlement — it is a privacy control, and it
             has to be reachable for everyone. Turning it off touches nothing
@@ -1016,18 +1057,13 @@ function AppInfoSheet({
         <View style={{ marginBottom: 12 }}>
           <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('privacy_controls_section')}</Text>
         </View>
-        <ToggleRow
+        <SettingRow
           icon="stats-chart-outline"
           label={t('analytics_setting')}
-          value={analyticsEnabled}
-          onToggle={handleToggleAnalytics}
-          themeColor={themeColor}
+          onPress={() => setAnalyticsInfoVisible(true)}
+          accessibilityRole="button"
           pal={pal}
         />
-        {/* The explanation is a paragraph rather than the information popup the
-            other toggles use: that popup is mounted by SettingsModal and this
-            sheet is presented over it, so it would open underneath. */}
-        <Text style={[styles.sectionNote, { color: pal.sub }]}>{t('analytics_setting_desc')}</Text>
 
         <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
@@ -1042,24 +1078,39 @@ function AppInfoSheet({
         <SettingRow icon="information-circle-outline" label={t('app_version')}
           value={APP_VERSION} pal={pal} />
       </ScrollView>
+      <SettingsInfoPopup
+        visible={analyticsInfoVisible}
+        content={{ title: t('analytics_setting'), body: t('analytics_setting_desc') }}
+        action={{
+          label: analyticsActionLabel,
+          onPress: () => { void handleChangeAnalytics(); },
+          disabled: analyticsUpdating,
+          tone: analyticsEnabled ? 'subdued' : 'primary',
+        }}
+        onClose={() => setAnalyticsInfoVisible(false)}
+        pal={pal}
+        themeColor={themeColor}
+      />
     </Animated.View>
   );
 }
 
 // ── Settings row ───────────────────────────────────────────────────────────────
-function SettingRow({ icon, label, value, onPress, badge, themeColor, pal }: {
+function SettingRow({ icon, label, value, onPress, badge, themeColor, accessibilityRole, pal }: {
   icon: IoniconName; label: string; value?: string;
   onPress?: () => void;
   /** Draws the "New feature" marker on the row's icon. */
   badge?: boolean;
   themeColor?: string;
+  accessibilityRole?: 'button';
   pal: Palette;
 }) {
   const t = useLang();
   return (
     <TouchableOpacity style={styles.row} onPress={onPress}
       disabled={!onPress}
-      activeOpacity={onPress ? 0.6 : 1}>
+      activeOpacity={onPress ? 0.6 : 1}
+      accessibilityRole={accessibilityRole}>
       {/* The marker is anchored to the icon, not inserted between the label and
           the row's value — so it stays put whatever the label's length. */}
       <NewFeatureBadge
@@ -1181,9 +1232,6 @@ const styles = StyleSheet.create({
   // Settings-only divider spacing. Scoped to this screen and its sub-sheets;
   // Word List, Test Mode and everything else keep their own.
   divider: { height: StyleSheet.hairlineWidth, marginVertical: SETTINGS_DIVIDER_MARGIN },
-  // Explanatory copy under a toggle. Scales with Dynamic Type like every other
-  // label here; no fixed height, so a long translation wraps instead of clipping.
-  sectionNote: { fontSize: 12, lineHeight: 17, marginTop: 2, marginBottom: 4 },
   infoButton: {
     width: INFO_BUTTON_TARGET,
     height: INFO_BUTTON_TARGET,

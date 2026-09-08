@@ -15,8 +15,9 @@ import {
 import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Palette } from '../types';
+import { useLang } from '../i18n';
 import {
-  getAIVoiceLabel,
+  getAIVoiceNameKey,
   type AIVoice,
 } from '../lib/aiVoices';
 import {
@@ -59,6 +60,7 @@ interface Props {
 export function TextToSpeechScreen({
   visible, onClose, pal, themeColor, voice, isPremium, onUpgrade, onHistoryAvailabilityChange,
 }: Props) {
+  const t = useLang();
   const [text, setText] = useState('');
   const [history, setHistory] = useState<SavedPrototypeSpeech[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -116,11 +118,11 @@ export function TextToSpeechScreen({
         }
       })
       .catch(() => {
-        if (!cancelled) Alert.alert('History unavailable', 'Saved audio history could not be loaded.');
+        if (!cancelled) Alert.alert(t('tts_history_unavailable_title'), t('tts_history_load_failed'));
       })
       .finally(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
-  }, [onHistoryAvailabilityChange, visible]);
+  }, [onHistoryAvailabilityChange, t, visible]);
 
   useEffect(() => {
     if (isPremium) return;
@@ -160,8 +162,8 @@ export function TextToSpeechScreen({
       } catch {
         if (controller.signal.aborted) return;
         Alert.alert(
-          'History unavailable',
-          'Speech was generated, but it could not be added to saved audio history.',
+          t('tts_history_unavailable_title'),
+          t('tts_history_save_failed'),
         );
       }
     } catch (error) {
@@ -169,34 +171,34 @@ export function TextToSpeechScreen({
       const code = error instanceof Error ? error.message : '';
       if (code === 'premium_required' || code === 'plan_required') {
         Alert.alert(
-          'Premium required',
-          'Text-to-Speech generation requires Premium.',
+          t('tts_premium_title'),
+          t('tts_premium_body'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'View Upgrade Plans', onPress: onUpgrade },
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('tts_view_plans'), onPress: onUpgrade },
           ],
         );
         return;
       }
       const message = code === 'rate_limit_exceeded'
-        ? 'You have generated speech too quickly. Please wait a minute before trying again.'
+        ? t('tts_err_rate_limit')
         : code === 'usage_limit_exceeded'
-        ? 'You have reached your Text-to-Speech usage limit for the current day or month.'
+        ? t('tts_err_usage_limit')
         : code === 'input_too_long'
-        ? `Text must be ${TEXT_TO_SPEECH_MAX_CHARS.toLocaleString()} characters or fewer.`
+        ? t('tts_err_input_too_long').replace('{n}', TEXT_TO_SPEECH_MAX_CHARS.toLocaleString())
         : code === 'quota_exceeded'
-        ? 'The speech service is temporarily at capacity. Please try again later.'
+        ? t('tts_err_quota')
         : code === 'service_unavailable' || code === 'authentication_failed'
-          ? 'The speech service is temporarily unavailable. Please try again later.'
-          : 'Speech could not be generated. Please check your connection and try again.';
-      Alert.alert('Text-to-Speech unavailable', message);
+          ? t('tts_err_unavailable')
+          : t('tts_err_generic');
+      Alert.alert(t('tts_error_title'), message);
     } finally {
       if (requestController.current === controller) {
         requestController.current = null;
         setGenerating(false);
       }
     }
-  }, [generating, isPremium, onHistoryAvailabilityChange, onUpgrade, stopAudio, text, voice]);
+  }, [generating, isPremium, onHistoryAvailabilityChange, onUpgrade, stopAudio, t, text, voice]);
 
   const togglePlayback = useCallback(async (uri: string, id: string) => {
     if (activePlaybackId === id) {
@@ -217,7 +219,7 @@ export function TextToSpeechScreen({
       });
     } catch (error) {
       if (!(error instanceof Error && error.message === 'cancelled')) {
-        Alert.alert('Playback unavailable', 'The generated audio could not be played.');
+        Alert.alert(t('tts_playback_error_title'), t('tts_playback_error_body'));
       }
     } finally {
       if (playbackSequence.current === sequence) {
@@ -226,14 +228,14 @@ export function TextToSpeechScreen({
         setPlayingId(null);
       }
     }
-  }, [activePlaybackId, stopAudio]);
+  }, [activePlaybackId, stopAudio, t]);
 
   const showInfo = useCallback(() => {
     Alert.alert(
-      'Create natural speech',
-      'Enter text, then generate and play natural AI audio. Text-to-Speech uses the Natural AI Voice selected in Settings.',
+      t('tts_info_title'),
+      t('tts_info_body'),
     );
-  }, []);
+  }, [t]);
 
   const openFilenameDialog = useCallback((action: FilenameAction) => {
     const filename = action.kind === 'export' ? action.filename : action.item.filename;
@@ -261,27 +263,27 @@ export function TextToSpeechScreen({
     } catch (error) {
       const unavailable = error instanceof Error && error.message === 'sharing_unavailable';
       Alert.alert(
-        action.kind === 'export' ? 'Download unavailable' : 'Rename unavailable',
+        action.kind === 'export' ? t('tts_download_error_title') : t('tts_rename_error_title'),
         action.kind === 'export'
           ? unavailable
-            ? 'Audio export is not available on this device.'
-            : 'The generated audio could not be exported. Please try again.'
-          : 'The saved audio file could not be renamed. Please try again.',
+            ? t('tts_export_unsupported')
+            : t('tts_export_failed')
+          : t('tts_rename_failed'),
       );
     } finally {
       setBusyAction(null);
     }
-  }, [busyAction, filenameAction, filenameInput, stopAudio]);
+  }, [busyAction, filenameAction, filenameInput, stopAudio, t]);
 
   const deleteHistoryItem = useCallback((item: SavedPrototypeSpeech) => {
     // The filename is the user's, and a native alert is an OS view Session
     // Replay captures but no React wrapper can mask — so it is not interpolated
     // here. The row the user tapped is still on screen behind the alert, so
     // which recording this is about stays obvious.
-    Alert.alert('Delete saved audio?', 'This audio will be permanently deleted.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('tts_delete_title'), t('tts_delete_body'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('delete'),
         style: 'destructive',
         onPress: () => {
           const key = `delete:${item.id}`;
@@ -294,12 +296,12 @@ export function TextToSpeechScreen({
               setHistory(next);
               onHistoryAvailabilityChange(next.length > 0);
             })
-            .catch(() => Alert.alert('Delete unavailable', 'The saved audio file could not be deleted.'))
+            .catch(() => Alert.alert(t('tts_delete_error_title'), t('tts_delete_error_body')))
             .finally(() => setBusyAction(null));
         },
       },
     ]);
-  }, [activePlaybackId, onHistoryAvailabilityChange, stopAudio]);
+  }, [activePlaybackId, onHistoryAvailabilityChange, stopAudio, t]);
 
   return (
     <FullScreenSheet
@@ -313,16 +315,16 @@ export function TextToSpeechScreen({
             style={styles.headerButton}
             onPress={close}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Close Text-to-Speech"
+            accessibilityLabel={t('tts_close')}
           >
             <Ionicons name="chevron-back" size={24} color={pal.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: pal.text }]}>Text-to-Speech</Text>
+          <Text style={[styles.headerTitle, { color: pal.text }]}>{t('tts_title')}</Text>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={showInfo}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="About Text-to-Speech"
+            accessibilityLabel={t('tts_about')}
           >
             <Ionicons name="information-circle-outline" size={23} color={pal.sub} />
           </TouchableOpacity>
@@ -332,7 +334,7 @@ export function TextToSpeechScreen({
           <View style={[styles.premiumError, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
             <Ionicons name="alert-circle" size={19} color="#DC2626" />
             <Text style={styles.premiumErrorText}>
-              Premium is required to generate new speech. You can still use your saved audio below.
+              {t('tts_premium_required_banner')}
             </Text>
           </View>
         )}
@@ -347,7 +349,7 @@ export function TextToSpeechScreen({
             showsVerticalScrollIndicator={false}
           >
             <View>
-              <Text style={[styles.sectionTitle, { color: pal.text }]}>Text</Text>
+              <Text style={[styles.sectionTitle, { color: pal.text }]}>{t('tts_text_section')}</Text>
               {/* Arbitrary text the user types to be spoken. */}
               <PostHogMaskView>
                 <TextInput
@@ -357,7 +359,7 @@ export function TextToSpeechScreen({
                   multiline
                   maxLength={TEXT_TO_SPEECH_MAX_CHARS}
                   textAlignVertical="top"
-                  placeholder="Enter text to turn into speech"
+                  placeholder={t('tts_input_placeholder')}
                   placeholderTextColor={pal.sub}
                   style={[
                     styles.input,
@@ -387,13 +389,13 @@ export function TextToSpeechScreen({
                 <MaterialCommunityIcons name="waveform" size={20} color="#fff" />
               )}
               <Text style={styles.generateButtonText}>
-                {generating ? 'Generating…' : 'Generate Speech'}
+                {generating ? t('tts_generating') : t('tts_generate')}
               </Text>
             </TouchableOpacity>
 
             <View style={styles.historySection}>
               <View style={styles.historyHeadingRow}>
-                <Text style={[styles.sectionTitle, styles.historyHeading, { color: pal.text }]}>Saved Audio</Text>
+                <Text style={[styles.sectionTitle, styles.historyHeading, { color: pal.text }]}>{t('tts_saved_audio')}</Text>
                 <Text style={[styles.historyCount, { color: pal.sub }]}>
                   {history.length} / {TEXT_TO_SPEECH_HISTORY_LIMIT}
                 </Text>
@@ -404,7 +406,7 @@ export function TextToSpeechScreen({
               ) : history.length === 0 ? (
                 <View style={[styles.emptyHistory, { borderColor: pal.border }]}>
                   <Ionicons name="musical-notes-outline" size={22} color={pal.sub} />
-                  <Text style={[styles.emptyHistoryText, { color: pal.sub }]}>Generated audio will be saved here.</Text>
+                  <Text style={[styles.emptyHistoryText, { color: pal.sub }]}>{t('tts_history_empty')}</Text>
                 </View>
               ) : (
                 <View style={styles.historyList}>
@@ -423,7 +425,7 @@ export function TextToSpeechScreen({
                             {item.filename}
                           </Text>
                           <Text style={[styles.historyMeta, { color: pal.sub }]}>
-                            {getAIVoiceLabel(item.voice)} · {new Date(item.createdAt).toLocaleString()}
+                            {t(getAIVoiceNameKey(item.voice))} · {new Date(item.createdAt).toLocaleString()}
                           </Text>
                         </View>
                         <View style={styles.historyActions}>
@@ -431,8 +433,9 @@ export function TextToSpeechScreen({
                             style={[styles.historyPlayButton, { backgroundColor: themeColor }]}
                             onPress={() => togglePlayback(item.uri, `history:${item.id}`)}
                             accessibilityLabel={itemLoading
-                              ? 'Loading audio'
-                              : itemPlaying ? `Stop ${item.filename}` : `Play ${item.filename}`}
+                              ? t('audio_loading')
+                              : t(itemPlaying ? 'tts_a11y_stop' : 'tts_a11y_play')
+                                  .replace('{name}', item.filename)}
                             accessibilityState={{ busy: itemLoading }}
                           >
                             {itemLoading
@@ -443,7 +446,7 @@ export function TextToSpeechScreen({
                             style={[styles.historyActionButton, { backgroundColor: pal.chip }]}
                             onPress={() => openFilenameDialog({ kind: 'rename', item })}
                             disabled={itemBusy}
-                            accessibilityLabel={`Rename ${item.filename}`}
+                            accessibilityLabel={t('tts_a11y_rename').replace('{name}', item.filename)}
                           >
                             <Ionicons name="create-outline" size={17} color={pal.sub} />
                           </TouchableOpacity>
@@ -456,7 +459,7 @@ export function TextToSpeechScreen({
                               busyKey: `export:${item.id}`,
                             })}
                             disabled={itemBusy}
-                            accessibilityLabel={`Download or share ${item.filename}`}
+                            accessibilityLabel={t('tts_a11y_share').replace('{name}', item.filename)}
                           >
                             {busyAction === `export:${item.id}`
                               ? <ActivityIndicator size="small" color={pal.sub} />
@@ -467,7 +470,7 @@ export function TextToSpeechScreen({
                             style={[styles.historyActionButton, { backgroundColor: pal.chip }]}
                             onPress={() => deleteHistoryItem(item)}
                             disabled={itemBusy}
-                            accessibilityLabel={`Delete ${item.filename}`}
+                            accessibilityLabel={t('tts_a11y_delete').replace('{name}', item.filename)}
                           >
                             {busyAction === `delete:${item.id}`
                               ? <ActivityIndicator size="small" color="#E05C5C" />
@@ -496,9 +499,9 @@ export function TextToSpeechScreen({
           >
             <View style={[styles.filenameDialog, { backgroundColor: pal.dialog }]}>
               <Text style={[styles.filenameTitle, { color: pal.text }]}>
-                {filenameAction?.kind === 'rename' ? 'Rename Audio' : 'Download Audio'}
+                {filenameAction?.kind === 'rename' ? t('tts_rename_title') : t('tts_download_title')}
               </Text>
-              <Text style={[styles.filenameDescription, { color: pal.sub }]}>Filename</Text>
+              <Text style={[styles.filenameDescription, { color: pal.sub }]}>{t('tts_filename_label')}</Text>
               {/* A filename the user chose. */}
               <PostHogMaskView>
                 <TextInput
@@ -527,7 +530,7 @@ export function TextToSpeechScreen({
                   onPress={() => setFilenameAction(null)}
                   disabled={!!busyAction}
                 >
-                  <Text style={[styles.filenameButtonText, { color: pal.text }]}>Cancel</Text>
+                  <Text style={[styles.filenameButtonText, { color: pal.text }]}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -540,7 +543,7 @@ export function TextToSpeechScreen({
                 >
                   {busyAction && <ActivityIndicator size="small" color="#fff" />}
                   <Text style={[styles.filenameButtonText, { color: '#fff' }]}>
-                    {filenameAction?.kind === 'rename' ? 'Save' : 'Download'}
+                    {filenameAction?.kind === 'rename' ? t('save') : t('tts_download')}
                   </Text>
                 </TouchableOpacity>
               </View>

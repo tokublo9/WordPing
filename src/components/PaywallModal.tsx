@@ -33,7 +33,10 @@ export function PaywallModal({
   // while the Upgrade sheet said ¥320 — so no key holds a number any more.
   const basicPrice = resolvePlanPrice(planProducts, 'basic');
   const subscribeLabel = basicPrice.state === 'priced'
-    ? `${t('subscribe')} · ${basicPrice.priceString}${t('per_month')}`
+    // The price and its "per month" wording are composed inside the translated
+    // string, not concatenated around it: in Arabic the two used to meet at a
+    // bare "/" whose rendered side is decided by the bidi algorithm.
+    ? `${t('subscribe')} · ${t('price_per_month').replace('{price}', basicPrice.priceString)}`
     : t('subscribe');
   const [busy, setBusy] = useState(false);
 

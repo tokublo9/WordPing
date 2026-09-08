@@ -92,7 +92,10 @@ const OB_LANGUAGES = [
   { code: 'pl-PL', flag: '🇵🇱', label: 'Polski' },
   { code: 'el-GR', flag: '🇬🇷', label: 'Ελληνικά' },
   { code: 'sv-SE', flag: '🇸🇪', label: 'Svenska' },
-  { code: 'other', flag: '🌐', label: 'Other' },
+  // Every label above is that language's own endonym, so it is deliberately
+  // the same in all 20 UI languages. "Other" is the one entry that is UI copy
+  // rather than a language name, so it is translated at render time.
+  { code: 'other', flag: '🌐', label: null },
 ];
 
 // ── Language picker ───────────────────────────────────────────────────────────
@@ -105,6 +108,7 @@ interface LangPickerProps {
 }
 
 function LangPicker({ selected, onSelect, pal, themeColor }: LangPickerProps) {
+  const t = useLang();
   return (
     <View style={ob.langList}>
       {OB_LANGUAGES.map(lang => {
@@ -127,7 +131,7 @@ function LangPicker({ selected, onSelect, pal, themeColor }: LangPickerProps) {
               style={[ob.langLabel, { color: active ? themeColor : isOther ? pal.sub : pal.text }]}
               numberOfLines={1}
             >
-              {lang.label}
+              {lang.label ?? t('ob_lang_other')}
             </Text>
             {active && <Ionicons name="checkmark-circle" size={16} color={themeColor} />}
           </TouchableOpacity>

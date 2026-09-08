@@ -70,8 +70,45 @@ test('the Settings row carries the info button beside its label', () => {
   assert.match(row, /showInfoPopup\(\{\s*title: t\('voice_pick_info_title'\),\s*body: t\('voice_pick_info_body'\),/u);
   // Its own tap target, and it cannot open the picker under it.
   assert.match(row, /onPress=\{event => \{\s*event\.stopPropagation\(\);/u);
-  // The value and chevron stay where they were, on the right.
-  assert.match(row, /<View style=\{styles\.voiceRowControl\}>[\s\S]*?getAIVoiceLabel\(aiVoice\)[\s\S]*?chevron-forward/u);
+  // The value and chevron stay where they were, on the right — but the value is
+  // now a localized display name, not the internal value spelled with a capital.
+  // The row asks aiVoices for the *key* and resolves it through the active
+  // translator, so switching language changes the name with no remount.
+  assert.match(
+    row,
+    /<View style=\{styles\.voiceRowControl\}>[\s\S]*?\{t\(getAIVoiceNameKey\(aiVoice\)\)\}[\s\S]*?chevron-forward/u,
+  );
+  assert.doesNotMatch(row, /getAIVoiceLabel/u, 'the row must not print the internal value');
+
+  // Display name and internal value are separate mappings in aiVoices.ts: one
+  // returns a translation key, the other is the tuple the rest of the app stores
+  // and sends. Neither `marin` nor `cedar` may be renamed to localize a label.
+  const voices = fs.readFileSync('src/lib/aiVoices.ts', 'utf8');
+  assert.match(voices, /export const AI_VOICES = \[\s*'marin',\s*'cedar',\s*\] as const;/u);
+  assert.match(voices, /export const DEFAULT_AI_VOICE: AIVoice = 'marin';/u);
+  assert.match(
+    voices,
+    /const AI_VOICE_NAME_KEYS: Record<AIVoice, TranslationKey> = \{\s*marin: 'voice_name_marin',\s*cedar: 'voice_name_cedar',\s*\};/u,
+  );
+  assert.match(voices, /export function getAIVoiceNameKey\(voice: AIVoice\): TranslationKey \{\s*return AI_VOICE_NAME_KEYS\[voice\];/u);
+
+  // Every locale carries both names, so no language falls back to English here.
+  const i18n = fs.readFileSync('src/i18n.ts', 'utf8');
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+  for (const key of ['voice_name_marin', 'voice_name_cedar']) {
+    assert.equal((i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? []).length, locales, key);
+  }
+
+  // Renaming the label cannot change what is spoken, cached or sent: the TTS
+  // request, the cache key and the fixed sample all still use the internal
+  // value, and the sample keeps its English label helper.
+  const samples = fs.readFileSync('src/lib/aiVoiceSamples.ts', 'utf8');
+  assert.match(samples, /text: `Welcome to WordCore\. This is the \$\{getAIVoiceLabel\(voice\)\} voice\.`/u);
+  assert.match(samples, /voice,/u, 'the request carries the internal value');
+  assert.doesNotMatch(samples, /getAIVoiceNameKey/u, 'the spoken sample never uses the display name');
+  const request = fs.readFileSync('src/lib/ttsRequest.ts', 'utf8');
+  assert.doesNotMatch(request, /getAIVoiceNameKey|voice_name_/u, 'the cache key never sees a display name');
 });
 
 test('the sweep is the sheet closing, not the row tap', () => {

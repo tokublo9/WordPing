@@ -47,6 +47,19 @@ export function isAIConsentPromptOpen(): boolean {
   return pending !== null;
 }
 
+/**
+ * Whether a mounted host could actually present the dialog right now.
+ *
+ * `requestAIConsentDecision` resolves `unknown` with no host rather than
+ * waiting, which is the right answer for a request that must be refused — but a
+ * caller offering a *one-time* prompt needs to tell "the user said no" apart
+ * from "there was nowhere to ask", or it spends the offer on a dialog nobody
+ * saw. Those callers check this first and try again on a later render.
+ */
+export function hasAIConsentPromptHost(): boolean {
+  return hosts.length > 0;
+}
+
 function settle(state: AIConsentState): void {
   const resolve = pending;
   pending = null;

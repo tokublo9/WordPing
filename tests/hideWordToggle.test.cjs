@@ -345,13 +345,28 @@ test('delete removes the attached audio and nothing else', () => {
 
 // ── Localization ─────────────────────────────────────────────────────────────
 
-test('every new string ships in English and Japanese', () => {
+test('every Hide Word string ships in every locale', () => {
   const i18n = read('src/i18n.ts');
+  // Derived from the dictionaries, not written down: `test_info_title` is
+  // required of every locale. The literal 2 this used to expect dated from the
+  // period when only English and Japanese carried this copy.
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+
   for (const key of ['hide_word', 'hide_word_on', 'hide_word_off']) {
-    const occurrences = i18n.match(new RegExp(`^\\s{2}${key}:`, 'gmu')) ?? [];
-    assert.equal(occurrences.length, 2, `${key} needs an English and a Japanese entry`);
+    const occurrences = i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];
+    assert.equal(occurrences.length, locales, `${key} needs exactly one entry per locale`);
   }
-  // Declared optional, so the remaining locales fall back to English rather
-  // than failing the build until they are translated.
+  // Still members of the key union.
   assert.match(i18n, /\| 'hide_word' \| 'hide_word_on' \| 'hide_word_off'/u);
+  // And no longer optional: `Dict` is total, so a locale that omitted one of
+  // these could not compile — which is what replaced the English fallback.
+  assert.match(i18n, /type Dict = Record<TranslationKey, string>;/u);
+
+  // The wording itself, so a locale cannot silently hold the English string.
+  assert.match(i18n, /hide_word:\s+'Hide front'/u);
+  assert.match(i18n, /hide_word:\s+'表を隠す'/u);
+  assert.match(i18n, /hide_word: 'إخفاء الوجه الأمامي'/u);
+  assert.match(i18n, /hide_word_on: 'الوجه الأمامي مخفي على البطاقات'/u);
+  assert.match(i18n, /hide_word_off: 'الوجه الأمامي ظاهر على البطاقات'/u);
 });

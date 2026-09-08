@@ -124,7 +124,7 @@ export function FolderPickerSheet({
                   </TouchableOpacity>
                 ))}
                 {targets.length === 0 && (
-                  <Text style={[styles.empty, { color: pal.sub }]}>No other folders</Text>
+                  <Text style={[styles.empty, { color: pal.sub }]}>{t('no_other_folders')}</Text>
                 )}
               </ScrollView>
             </View>

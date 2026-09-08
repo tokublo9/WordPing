@@ -89,7 +89,7 @@ export function BackupSection({
       const created = await createBackupFile(appVersion);
       // Offer the share sheet immediately: a backup that never leaves the
       // device does not protect against losing the device.
-      await shareBackupFile(created.uri);
+      await shareBackupFile(created.uri, t('backup_share_title'));
       posthog?.capture('backup_exported', {
         word_count: created.backup.data.words.length,
         folder_count: created.backup.data.folders.length,

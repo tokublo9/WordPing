@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { Palette } from '../types';
+import { useLang } from '../i18n';
 
 // ── Kill-switch ───────────────────────────────────────────────────────────────
 // Set to true to restore ads throughout the app.
@@ -12,11 +13,14 @@ export const AD_SQUARE_HEIGHT = ADS_ENABLED ? 167 : 0;
 
 // Replace with <BannerAd> from react-native-google-mobile-ads once a dev build is available.
 export function AdBannerPlaceholder({ pal, bottomInset = 0 }: { pal: Palette; bottomInset?: number }) {
+  // Called before the early return so the hook order is the same on every
+  // render, whichever way the kill switch is set.
+  const t = useLang();
   if (!ADS_ENABLED) return null;
   return (
     <View style={{ backgroundColor: pal.chip, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: pal.border }}>
       <View style={styles.banner}>
-        <Text style={[styles.label, { color: pal.sub }]}>Advertisement</Text>
+        <Text style={[styles.label, { color: pal.sub }]}>{t('ad_label')}</Text>
       </View>
       {bottomInset > 0 && <View style={{ height: bottomInset }} />}
     </View>
@@ -25,10 +29,11 @@ export function AdBannerPlaceholder({ pal, bottomInset = 0 }: { pal: Palette; bo
 
 // Replace with a medium-rectangle (300×250) ad unit when ready.
 export function AdSquarePlaceholder({ pal }: { pal: Palette }) {
+  const t = useLang();
   if (!ADS_ENABLED) return null;
   return (
     <View style={[styles.square, { backgroundColor: pal.chip, borderColor: pal.border }]}>
-      <Text style={[styles.label, { color: pal.sub }]}>Advertisement</Text>
+      <Text style={[styles.label, { color: pal.sub }]}>{t('ad_label')}</Text>
     </View>
   );
 }

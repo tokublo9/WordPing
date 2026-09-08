@@ -130,7 +130,10 @@ test('the empty state copy is shown when there are no announcements', () => {
   assert.match(i18n, /announcements_empty_title: 'No announcements yet'/u);
   assert.match(i18n, /announcements_empty_desc:  'Updates and important information from WordCore will appear here\.'/u);
   assert.match(i18n, /announcements_empty_title: 'お知らせはまだありません'/u);
-  assert.match(i18n, /announcements_empty_desc:  'WordCoreのアップデートや重要なお知らせがここに表示されます。'/u);
+  // The brand reads in the locale's own script; the English entry above keeps
+  // the Latin spelling, so this pair also pins that the two are distinct.
+  assert.match(i18n, /announcements_empty_desc:\s+'ワードコアのアップデートや重要なお知らせがここに表示されます。'/u);
+  assert.doesNotMatch(i18n, /announcements_empty_desc:\s+'WordCoreのアップデート/u);
 });
 
 test('the screen renders supplied announcements instead of the empty state', () => {
@@ -150,7 +153,8 @@ test('backup and announcement copy is translated in English and Japanese', () =>
   assert.match(i18n, /backup_desc:           'Export or restore your WordCore data\.',/u);
 
   assert.match(i18n, /backup:                'バックアップと復元',/u);
-  assert.match(i18n, /backup_desc:           'WordCoreのデータをエクスポートまたは復元できます。',/u);
+  assert.match(i18n, /backup_desc:\s+'ワードコアのデータをエクスポートまたは復元できます。',/u);
+  assert.doesNotMatch(i18n, /backup_desc:\s+'WordCoreのデータを/u);
   // The locked-state copy was removed with the locked UI: Free users see no
   // Backup section at all now, so there is nothing to describe.
   assert.doesNotMatch(i18n, /backup_locked_desc|backup_locked_badge/u);
@@ -526,7 +530,7 @@ test('the AI Voice row is read from the rule the app enforces', () => {
   // them — that is why the cell is a function rather than a `??`.
   assert.match(
     sheet,
-    /const voiceCell = \(tier: 'basic' \| 'premium'\): CellValue => \{\s*if \(!planCanUseAI\(tier\)\) return 'cross';\s*return formatVoiceMonthlyLimit\(tier, language\) \?\? 'circle';/u,
+    /const voiceCell = \(tier: 'basic' \| 'premium'\): CellValue => \{\s*if \(!planCanUseAI\(tier\)\) return 'cross';\s*return formatVoiceMonthlyLimit\(tier, language, t\) \?\? 'circle';/u,
   );
   assert.match(
     sheet,
@@ -539,6 +543,9 @@ test('the AI Voice row is read from the rule the app enforces', () => {
 
   // Values come from the shared plan definitions, never literals.
   assert.doesNotMatch(sheet, /'100 \/ month'|'月100回'|'1,000 \/ month'|'200 \/ month'/u);
+  // The label itself is dictionary copy in all twenty languages, never a phrase
+  // assembled from a Japanese-or-English branch.
+  assert.doesNotMatch(read('src/lib/planLimits.ts'), /isJapanese|回（1回限り）|one-time'/u);
   assert.match(sheet, /import \{ formatVoiceMonthlyLimit \} from '\.\.\/lib\/planLimits';/u);
   assert.doesNotMatch(sheet, /customVoiceAccess/u);
   assert.match(sheet, /import \{ planCanUseAI \} from '\.\.\/lib\/aiEntitlement';/u);
@@ -766,16 +773,35 @@ test('exactly the three visible Settings toggles use the compact control', () =>
   // instead. "Show result colour on cards" was removed with its preference —
   // the label is simply part of a card now.
   //
-  // `analytics_setting` is last because it lives in the App Info sheet's
-  // Privacy section rather than Card Behavior. It is the analytics/Session
-  // Replay opt-out, and it is here so that adding a toggle stays a conscious
-  // decision — it uses the same shared control as every other row.
+  // Share Usage Data is deliberately NOT in this list. It is no longer an
+  // inline switch: flipping analytics and Session Replay is consequential
+  // enough that it must be read about first, so the row only opens its
+  // explanation and the act of turning sharing on or off happens on the button
+  // inside that popup. Listing it here again would mean the switch came back.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
   assert.deepEqual(rows, [
-    'view_flip', 'show_full_card', 'vertical_flip', 'hide_ai_tools', 'analytics_setting',
+    'view_flip', 'show_full_card', 'vertical_flip', 'hide_ai_tools',
   ]);
+  assert.ok(!rows.includes('analytics_setting'), 'Share Usage Data must not be an inline toggle');
+
+  // Instead it is a tappable SettingRow that opens its information popup: the
+  // stats icon, no `value` (so SettingRow draws the chevron rather than a
+  // right-hand value), a button role, and an onPress that only opens the
+  // popup — it must not change the consent state on its own.
+  const analyticsRow = settings.match(/<SettingRow\b(?:(?!\/>)[\s\S])*?analytics_setting(?:(?!\/>)[\s\S])*?\/>/u)?.[0];
+  assert.ok(analyticsRow, 'Share Usage Data must be a SettingRow');
+  assert.match(analyticsRow, /icon="stats-chart-outline"/u);
+  assert.match(analyticsRow, /onPress=\{\(\) => setAnalyticsInfoVisible\(true\)\}/u);
+  assert.match(analyticsRow, /accessibilityRole="button"/u);
+  assert.doesNotMatch(analyticsRow, /value=|setAnalyticsConsent|handleChangeAnalytics/u);
+  // SettingRow renders the right-facing chevron exactly when it carries no
+  // value, which is what makes this row read as "opens something".
+  assert.match(
+    settings,
+    /\{value\s*\?\s*<Text[\s\S]{0,120}:\s*<Ionicons name="chevron-forward"/u,
+  );
   assert.doesNotMatch(settings, /show_result_color_on_cards/u);
   // hide_ai_tools is behind AI_TEXT_FEATURES_ENABLED (false), so three render.
   assert.match(settings, /\{AI_TEXT_FEATURES_ENABLED && isPremium && \(\s*<ToggleRow\s+label=\{t\('hide_ai_tools'\)\}/u);
@@ -864,8 +890,14 @@ test('no conflicting older Sync description survives', () => {
   assert.doesNotMatch(i18n, /hides it for 24 hours/u);
   assert.doesNotMatch(i18n, /Pretty goodでは24時間非表示/u);
   assert.doesNotMatch(i18n, /Pretty goodでは3日間、Not reallyでは1日間非表示/u);
-  // Exactly one definition per locale.
-  assert.equal((i18n.match(/sync_test_results_desc:/gu) ?? []).length, 2);
+  // Exactly one definition per locale. The expected number is derived from the
+  // dictionaries themselves rather than written down: `test_info_title` is
+  // required of every locale, so counting it is counting the dictionaries. The
+  // literal 2 this used to assert dated from when only English and Japanese
+  // carried the key.
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+  assert.equal((i18n.match(/^ {2}sync_test_results_desc:/gmu) ?? []).length, locales);
 });
 
 test('exactly three Settings rows carry an information button', () => {
@@ -904,16 +936,30 @@ test('the informational Card Behavior rows use the compact shared layout and ali
   // and has no icon prop.
   assert.match(settings, /style=\{styles\.cardBehaviorRow\}[\s\S]{0,500}t\('feature_ai_voice'\)/u);
   assert.match(settings, /<ToggleRow\s+icon="albums-outline"\s+label=\{t\('view_flip'\)\}/u);
-  // The analytics opt-out takes the same icon column, in the App Info sheet's
-  // Privacy section. It carries no `info` prop, so it is absent from the
-  // informational list asserted above and appears only here.
+  // The shared icon column belongs to the Card Behavior toggles alone. Share
+  // Usage Data used to sit here as a fourth compact toggle; it is no longer a
+  // toggle at all, so it must not reappear in this list.
   const iconRows = [...settings.matchAll(/<ToggleRow\s+icon="([^"]+)"\s+label=\{t\('([a-z_]+)'\)\}/gu)];
   assert.deepEqual(iconRows.map(match => [match[2], match[1]]), [
     ['view_flip', 'albums-outline'],
     ['show_full_card', 'reader-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
-    ['analytics_setting', 'stats-chart-outline'],
   ]);
+
+  // Share Usage Data keeps the same stats icon, but as a tappable SettingRow in
+  // the App Info sheet's Privacy section: it opens an explanation rather than
+  // flipping analytics and Session Replay under the user's finger. It passes no
+  // `value`, which is what makes SettingRow draw the chevron, and its press
+  // handler only opens the popup.
+  const analyticsRow = settings.match(/<SettingRow\b(?:(?!\/>)[\s\S])*?analytics_setting(?:(?!\/>)[\s\S])*?\/>/u)?.[0];
+  assert.ok(analyticsRow, 'Share Usage Data must be a SettingRow');
+  assert.match(analyticsRow, /icon="stats-chart-outline"/u);
+  assert.match(analyticsRow, /onPress=\{\(\) => setAnalyticsInfoVisible\(true\)\}/u);
+  assert.match(analyticsRow, /accessibilityRole="button"/u);
+  assert.doesNotMatch(analyticsRow, /value=|setAnalyticsConsent|handleChangeAnalytics/u);
+  assert.match(settings, /\{value\s*\?\s*<Text[\s\S]{0,120}:\s*<Ionicons name="chevron-forward"/u);
+  // The consent change lives on the popup's action button, and nowhere else.
+  assert.match(settings, /action=\{\{[\s\S]{0,200}onPress: \(\) => \{ void handleChangeAnalytics\(\); \}/u);
   // Same shared icon column; the badge prop is the new-feature marker, which is
   // pinned to this icon rather than dropped beside the label.
   assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\}\s*badge=\{\{/u);
@@ -1053,8 +1099,44 @@ test('only one popup can be open, and dismissal keeps content mounted until comp
   // while closing changes only visibility until native dismissal completes.
   assert.match(settings, /const \[infoContent, setInfoContent\] = useState<SettingsInfoContent \| null>\(null\);/u);
   assert.match(settings, /const \[infoPopupVisible, setInfoPopupVisible\] = useState\(false\);/u);
-  assert.equal((settings.match(/<SettingsInfoPopup/gu) ?? []).length, 1);
-  assert.match(settings, /visible=\{infoPopupVisible\}\s*content=\{infoContent\}\s*onClose=\{closeInfoPopup\}\s*onDismiss=\{dismissInfoPopup\}/u);
+
+  // Two popups exist, and both are legitimate. They are not variants of one
+  // another and cannot contend for a slot:
+  //
+  //   1. the Card Behavior popup, in SettingsModal, whose content is swapped
+  //      into a single slot so a second tap replaces the first;
+  //   2. the Share Usage Data popup, in AppInfoSheet, whose content is fixed
+  //      and written inline.
+  //
+  // Different components, different state, and AppInfoSheet is itself a
+  // separate screen — so neither can be raised while the other is showing.
+  const popups = [...settings.matchAll(/<SettingsInfoPopup\b([\s\S]*?)\/>/gu)].map(m => m[1]);
+  assert.equal(popups.length, 2, 'the Card Behavior popup and the Share Usage Data popup');
+  const [cardBehaviorPopup, analyticsPopup] = popups;
+
+  // Each is driven by its own visibility flag — no shared boolean to fight over.
+  assert.match(cardBehaviorPopup, /visible=\{infoPopupVisible\}/u);
+  assert.match(analyticsPopup, /visible=\{analyticsInfoVisible\}/u);
+  assert.notEqual(
+    cardBehaviorPopup.match(/visible=\{(\w+)\}/u)?.[1],
+    analyticsPopup.match(/visible=\{(\w+)\}/u)?.[1],
+    'the two popups must not share one visibility flag',
+  );
+  // They are owned by different components, which is what makes them disjoint.
+  const appInfoStart = settings.indexOf('function AppInfoSheet');
+  assert.ok(settings.indexOf('visible={infoPopupVisible}') < appInfoStart, 'Card Behavior popup is in SettingsModal');
+  assert.ok(settings.indexOf('visible={analyticsInfoVisible}') > appInfoStart, 'Share Usage Data popup is in AppInfoSheet');
+  // Leaving App Info takes its popup with it, so it can never outlive the
+  // screen that raised it and reappear over an unrelated one.
+  assert.match(settings, /\}\s*else\s*\{\s*setAnalyticsInfoVisible\(false\);\s*\}/u);
+  // Only the Card Behavior popup swaps content, so only it needs the deferred
+  // clear. The analytics popup carries fixed content and one explicit action.
+  assert.match(cardBehaviorPopup, /content=\{infoContent\}\s*onClose=\{closeInfoPopup\}\s*onDismiss=\{dismissInfoPopup\}/u);
+  assert.match(analyticsPopup, /content=\{\{ title: t\('analytics_setting'\), body: t\('analytics_setting_desc'\) \}\}/u);
+  assert.match(analyticsPopup, /action=\{\{[\s\S]*?onPress: \(\) => \{ void handleChangeAnalytics\(\); \}/u);
+  assert.match(analyticsPopup, /onClose=\{\(\) => setAnalyticsInfoVisible\(false\)\}/u);
+  // The Card Behavior popup describes settings and must never act on one.
+  assert.doesNotMatch(cardBehaviorPopup, /action=/u);
   assert.match(settings, /const closeInfoPopup = useCallback\(\(\) => \{\s*if \(infoPopupClosing\.current\) return;\s*infoPopupClosing\.current = true;\s*setInfoPopupVisible\(false\);/u);
   assert.doesNotMatch(
     settings.slice(settings.indexOf('const closeInfoPopup'), settings.indexOf('const activeLang')),
@@ -1096,26 +1178,37 @@ test('all information controls keep a 44x44 target and the switch styling is unc
   assert.match(control, /control: \{ transform: \[\{ scale: COMPACT_SWITCH_SCALE \}\] \}/u);
 });
 
-test('the info copy is present in English and Japanese, and optional elsewhere', () => {
+test('the Card Behavior rows and their info copy ship in every locale', () => {
   const i18n = read('src/i18n.ts');
-  for (const key of ['show_full_card_info', 'vertical_flip_info', 'info_button_label']) {
-    // Exactly two definitions: English and Japanese.
-    assert.equal((i18n.match(new RegExp(`${key}:`, 'gu')) ?? []).length, 2, key);
+  // One definition per dictionary. `test_info_title` is required of every
+  // locale, so its count is the number of dictionaries the file actually has.
+  const locales = (i18n.match(/^ {2}test_info_title:/gmu) ?? []).length;
+  assert.ok(locales >= 20, `expected every locale, found ${locales}`);
+  for (const key of [
+    'card_behavior', 'show_full_card', 'show_full_card_desc', 'show_full_card_info',
+    'vertical_flip', 'vertical_flip_desc', 'vertical_flip_info', 'info_button_label',
+  ]) {
+    assert.equal(
+      (i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? []).length,
+      locales,
+      `${key} is missing from a locale`,
+    );
   }
-  assert.match(i18n, /show_full_card_info:      'In the word list, tapping a card shows its word, meaning and note together/u);
-  assert.match(i18n, /vertical_flip_info:       'Changes the card-flip animation from horizontal to vertical/u);
-  assert.match(i18n, /show_full_card_info:      '単語リストでカードをタップしたとき/u);
-  assert.match(i18n, /vertical_flip_info:       'カードをめくるアニメーションを横方向から縦方向に変更します/u);
+  assert.match(i18n, /show_full_card_info:\s+'In the word list, tapping a card shows its front, back and note together/u);
+  assert.match(i18n, /vertical_flip_info:\s+'Changes the card-flip animation from horizontal to vertical/u);
+  assert.match(i18n, /show_full_card_info:\s+'単語リストでカードをタップしたとき/u);
+  assert.match(i18n, /vertical_flip_info:\s+'カードをめくるアニメーションを横方向から縦方向に変更します/u);
+  // Arabic and Hindi used to carry the English string verbatim for the four
+  // Card Behavior labels. Nothing in this section may be English again.
+  assert.match(i18n, /card_behavior: 'سلوك البطاقة'/u);
+  assert.match(i18n, /vertical_flip: 'قلب عمودي'/u);
+  assert.match(i18n, /card_behavior: 'कार्ड का व्यवहार'/u);
 
-  // Declared as optional keys, so the other locales fall back to English
-  // instead of failing to compile. Membership is what matters; the union is
-  // read out and searched rather than matched through a fixed-width window,
-  // which broke every time an unrelated key was added to it.
-  const appShellKey = /type AppShellKey =([\s\S]*?);/u.exec(i18n)?.[1];
-  assert.ok(appShellKey, 'AppShellKey union not found');
-  for (const key of ['show_full_card_info', 'vertical_flip_info', 'info_button_label']) {
-    assert.ok(appShellKey.includes(`'${key}'`), `${key} must be an optional key`);
-  }
+  // The optional-key machinery is gone: `Dict` is total, so a key that is
+  // missing from one locale cannot compile and can never fall back to English.
+  assert.match(i18n, /type Dict = Record<TranslationKey, string>;/u);
+  // Only the comment explaining why it is gone may still name it.
+  assert.doesNotMatch(i18n, /type OptionalTranslationKey|Exclude<TranslationKey|Partial<Record</u);
 });
 
 test('Settings dividers use one shared, tightened value', () => {

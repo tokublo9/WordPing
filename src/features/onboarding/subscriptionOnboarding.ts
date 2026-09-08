@@ -9,8 +9,11 @@ import type { PlanTier } from '../../lib/planLimits';
  * question is expected rather than intrusive. This offers it once at that
  * moment; every other route to it stays exactly as it was, at the point of use.
  *
- * "Paid for AI Voice" means Premium. A Basic purchase is not that moment;
- * upgrading Basic → Premium is, and the offer becomes available then.
+ * "Paid for AI Voice" is decided by `planCanUseAI`, not by a plan name, so it
+ * follows whichever plans actually have the feature. Both paying plans do
+ * today: Premium is unmetered, and Basic has its one-time credits. A later
+ * Basic → Premium upgrade does not ask again, because the offer is recorded
+ * once.
  *
  * The offer is deliberately narrow. It follows a *verified* purchase, it waits
  * until the Upgrade sheet is gone, and it is recorded so it cannot repeat on
@@ -73,9 +76,9 @@ export function shouldPromptConsentAfterSubscription(
   input: SubscriptionConsentPromptInput,
 ): boolean {
   if (!input.isSubscriptionLoaded) return false;
-  // The AI rule, not a plan name. Basic is a paying plan with no AI feature, so
-  // there is no data sharing to ask about. Asking anyway would be a permission
-  // dialog for something that plan cannot do.
+  // The AI rule, not a plan name, so a plan without the feature is never asked
+  // for permission it cannot use. Both Basic and Premium satisfy it today —
+  // Basic through its one-time credits — and both therefore queue the offer.
   if (!planCanUseAI(input.plan)) return false;
   if (input.entitlementSource !== 'after-purchase-refresh') return false;
   if (input.consent === 'granted') return false;

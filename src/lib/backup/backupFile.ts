@@ -52,12 +52,17 @@ export async function createBackupFile(appVersion: string): Promise<CreatedBacku
   return { uri: file.uri, fileName, backup, byteSize: serialized.length };
 }
 
-/** Opens the system share sheet so the user can move the file off the device. */
-export async function shareBackupFile(uri: string): Promise<boolean> {
+/**
+ * Opens the system share sheet so the user can move the file off the device.
+ *
+ * `dialogTitle` is supplied by the caller rather than built here: this module
+ * holds the expo bindings and has no access to the active language.
+ */
+export async function shareBackupFile(uri: string, dialogTitle: string): Promise<boolean> {
   if (!(await Sharing.isAvailableAsync())) return false;
   await Sharing.shareAsync(uri, {
     mimeType: 'application/json',
-    dialogTitle: 'Save your WordCore backup',
+    dialogTitle,
     UTI: 'public.json',
   });
   return true;
