@@ -343,3 +343,82 @@ test('nothing about the themes themselves moved', () => {
   const previews = read('src/components/ThemeSkinPreview.tsx');
   assert.match(previews, /solid_blue: +require\('\.\.\/\.\.\/screenshots\/theme\/blue\/blue1\.png'\),/u);
 });
+
+// ── 4. The Japanese name of Natural AI Voice ─────────────────────────────────
+
+/**
+ * One spelling for one product name.
+ *
+ * The Japanese dictionary had grown three: `自然なAI音声`, `ナチュラルAI音声`
+ * and `ナチュラルAIボイス`, sometimes two of them inside the same string. The
+ * feature is `ナチュラルAI音声`.
+ *
+ * The awkward part is that `自然な` is also an ordinary Japanese adjective, and
+ * this file legitimately says `自然な発音`, `自然な例文` and `自然な音声` about
+ * things that are not the product. So the rule is not "never say 自然な" — it is
+ * "never say 自然な immediately before AI音声 or AIボイス".
+ */
+
+/** The Japanese dictionary alone, so a match cannot come from another locale. */
+const japanese = i18n.slice(
+  i18n.indexOf('const ja: Dict = {'),
+  i18n.indexOf('const ko: Dict = {'),
+);
+
+test('the Japanese dictionary is where these assertions are measured', () => {
+  assert.ok(japanese.length > 1000);
+  assert.ok(japanese.includes('app_name:'), 'the slice should be a whole dictionary');
+});
+
+test('no Japanese copy calls the feature 自然なAI音声, in any spacing', () => {
+  // Half-width space, full-width space, or none; 音声 or ボイス.
+  const retired = /自然な[ 　]*AI[ 　]*(?:音声|ボイス)/gu;
+  const hits = japanese.match(retired) ?? [];
+  assert.deepEqual(hits, [], 'these are the retired product name');
+});
+
+test('every mention of the product name is ナチュラルAI音声', () => {
+  // `ナチュラル` introduces the product name and nothing else, so anything that
+  // follows it must be the one spelling.
+  const named = japanese.match(/ナチュラル[^、。」』\s']{0,10}/gu) ?? [];
+  assert.ok(named.length >= 5, `expected several mentions, found ${named.length}`);
+  for (const mention of named) {
+    assert.ok(
+      mention.startsWith('ナチュラルAI音声'),
+      `unexpected spelling of the product name: ${mention}`,
+    );
+  }
+  // The four surfaces that name it outright.
+  assert.ok(japanese.includes("feature_ai_voice: 'ナチュラルAI音声',"));
+  assert.ok(japanese.includes("voice_pick_info_title: 'ナチュラルAI音声',"));
+  assert.ok(japanese.includes('ナチュラルAI音声．AIツール'));
+  assert.ok(japanese.includes('すべてのカードをナチュラルAI音声で読み上げます。'));
+});
+
+test('ordinary Japanese uses of 自然な are left alone', () => {
+  // "natural pronunciation", "natural example sentences", "natural speech" —
+  // none of these is the product, and a blanket find-and-replace would have
+  // broken all three.
+  for (const phrase of ['より自然な発音', '自然な例文', '自然な音声に変換', '自然な音声をつくる']) {
+    assert.ok(japanese.includes(phrase), `${phrase} should survive the rename`);
+  }
+});
+
+test('the rename touched Japanese only, and no key or identifier', () => {
+  // Every other locale keeps its own wording; none gains a Japanese string.
+  const others = i18n.slice(i18n.indexOf('const ko: Dict = {'));
+  assert.doesNotMatch(others, /ナチュラルAI音声|自然なAI音声/u);
+  const english = i18n.slice(i18n.indexOf('const enUS: Dict = {'), i18n.indexOf('const ja: Dict = {'));
+  assert.match(english, /feature_ai_voice: 'Natural AI Voice',/u);
+
+  // Key names are untouched: the five that changed still exist under the same
+  // keys, in every locale. Counted as declarations rather than parsed values —
+  // `voice_credits_body` is a multi-line concatenation in English and Japanese,
+  // which `values()` deliberately does not try to read.
+  for (const key of ['feature_ai_voice', 'ai_voice_desc', 'plan_hero_subtitle', 'tts_info_body', 'voice_credits_body']) {
+    // The TranslationKey union writes `'key'` without a colon, so this counts
+    // dictionary entries alone.
+    const declarations = i18n.match(new RegExp(`(?:^|[ ,])${key}:`, 'gmu')) ?? [];
+    assert.equal(declarations.length, LOCALE_COUNT, `${key} needs one entry per locale`);
+  }
+});

@@ -13,6 +13,7 @@ import {
   type Announcement,
 } from '../../src/features/announcements/announcements';
 import { SUPPORTED_LANGUAGES, translate } from '../../src/i18n';
+import { fillTemplate } from '../../src/lib/fillTemplate';
 
 function make(overrides: Partial<Announcement> = {}): Announcement {
   return {
@@ -40,8 +41,18 @@ test('welcome copy is explicit in all 20 supported locales', () => {
       assert.notEqual(copy.trim(), '');
     }
   }
-  assert.equal(translate('en-US', 'announcement_welcome_title'), 'Thank you for installing WordCore!');
-  assert.equal(translate('ja', 'announcement_welcome_title'), 'WordCoreをインストールしていただきありがとうございます！');
+  // The copy interpolates the brand rather than spelling it out, so the twenty
+  // localized names live in `app_name` alone. What each locale actually shows is
+  // the filled form, which is what these assert.
+  const welcomeTitle = (code: string) => fillTemplate(
+    translate(code, 'announcement_welcome_title'),
+    { appName: translate(code, 'app_name') },
+  );
+  assert.match(translate('ja', 'announcement_welcome_title'), /\{appName\}/u);
+  assert.equal(welcomeTitle('en-US'), 'Thank you for installing WordCore!');
+  assert.equal(welcomeTitle('ja'), 'ワードコアをインストールしていただきありがとうございます！');
+  assert.equal(welcomeTitle('ko'), '워드코어를 설치해 주셔서 감사합니다!');
+  assert.equal(welcomeTitle('zh-CN'), '感谢安装沃德科尔！');
 });
 
 test('the screen can render locally supplied announcements', () => {

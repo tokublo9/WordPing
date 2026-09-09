@@ -88,13 +88,21 @@ test('both surfaces draw the same four outcomes, and neither invents a plan chec
   // theme the subscription covers.
   assert.match(details, /\{priceDisplay\.state === 'owned' \? \([\s\S]{0,200}t\('theme_owned'\)/u);
   assert.match(details, /\) : priceDisplay\.state === 'priced' \? \(/u);
-  // Condition and label asserted separately, so an edit to the comment between
-  // them cannot fail a test that is about the rendering rule.
-  assert.match(details, /\{\(!isUnlocked \|\| priceDisplay\.state === 'included'\) && \(/u);
+  // Two branches, not one condition: the locked upsell names Basic, and the
+  // subscriber status must not, or a Premium subscriber is told they hold a
+  // different plan. Asserted separately from the labels so a comment edit
+  // between them cannot fail a test about the rendering rule.
+  assert.match(details, /\{!isUnlocked && \(/u);
+  assert.match(details, /\{isUnlocked && priceDisplay\.state === 'included' && \(/u);
   assert.equal(
     (details.match(/t\('theme_details_included_basic'\)/gu) ?? []).length,
     1,
-    'the plan line must have exactly one call site',
+    'the upsell line must have exactly one call site',
+  );
+  assert.equal(
+    (details.match(/t\('theme_details_included_plan'\)/gu) ?? []).length,
+    1,
+    'the neutral status line must have exactly one call site',
   );
 
   // Buying stays tied to a real price, so a covered theme offers no purchase.
@@ -136,7 +144,7 @@ test('the status copy already exists in all twenty locales', () => {
 
   // Both labels are pre-existing keys. No key was added for this fix, so there
   // is no locale left holding an English placeholder.
-  for (const key of ['theme_owned', 'theme_details_included_basic']) {
+  for (const key of ['theme_owned', 'theme_details_included_basic', 'theme_details_included_plan']) {
     const entries = values(key);
     assert.equal(entries.length, localeCount, `${key} needs one entry per locale`);
     for (const entry of entries) assert.match(entry, /\S/u, `${key} must not be blank`);
@@ -144,14 +152,22 @@ test('the status copy already exists in all twenty locales', () => {
   assert.ok(values('theme_owned').includes('Owned'));
   assert.ok(values('theme_owned').includes('購入済み'));
   assert.ok(values('theme_details_included_basic').includes('Included in the Basic Plan'));
-  assert.ok(values('theme_details_included_basic').includes('Basicプランに含まれています'));
+  // Japanese now names the tier in its own script — see planNameLocalization.
+  assert.ok(values('theme_details_included_basic').includes('ベーシックプランに含まれています'));
+  assert.ok(values('theme_details_included_plan').includes('Included with your plan'));
+  assert.ok(values('theme_details_included_plan').includes('現在のプランに含まれています'));
 
   // Every locale writes its own, so none of the nineteen repeats the English.
-  const included = values('theme_details_included_basic');
-  assert.ok(
-    included.filter(value => value === 'Included in the Basic Plan').length === 1,
-    'no locale may fall back to the English plan line',
-  );
+  for (const key of ['theme_details_included_basic', 'theme_details_included_plan']) {
+    const english = key === 'theme_details_included_basic'
+      ? 'Included in the Basic Plan'
+      : 'Included with your plan';
+    assert.equal(
+      values(key).filter(value => value === english).length,
+      1,
+      `no locale may fall back to the English ${key}`,
+    );
+  }
 });
 
 test('nothing about purchasing, restoring or the product registry moved', () => {

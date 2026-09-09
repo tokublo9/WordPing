@@ -626,16 +626,29 @@ export function ThemeDetailsSheet({
               </TouchableOpacity>
             )}
 
-            {(!isUnlocked || priceDisplay.state === 'included') && (
-              // The plan line, in the two situations where the plan is the
-              // answer. Locked: it sits alongside the Buy button, because the
-              // subscription and the one-off purchase are both real ways to get
-              // this theme. Already covered by a subscription: it is the status
-              // that replaces the price, and there is no Buy button beside it.
-              // A theme bought outright reaches neither branch — it says Owned
-              // above, on every plan, which is the stronger and permanent fact.
+            {/* Two different sentences, because they answer two different
+                questions and only one of them may name a plan.
+
+                Locked: an upsell. It names Basic because Basic is the cheapest
+                plan that includes themes, and it sits alongside the Buy button
+                — the subscription and the one-off purchase are both real ways
+                to get this theme.
+
+                Already covered: a status, for someone who is *on* a plan. It
+                must not name Basic, or a Premium subscriber is told they have
+                something else. `theme_details_included_plan` says "your plan"
+                and is the same sentence for both paid tiers.
+
+                A theme bought outright reaches neither branch — it says Owned
+                above, on every plan, which is the stronger and permanent fact. */}
+            {!isUnlocked && (
               <Text style={[s.planIncludedText, { color: pal.sub }]}>
                 {t('theme_details_included_basic')}
+              </Text>
+            )}
+            {isUnlocked && priceDisplay.state === 'included' && (
+              <Text style={[s.planIncludedText, { color: pal.sub }]}>
+                {t('theme_details_included_plan')}
               </Text>
             )}
 

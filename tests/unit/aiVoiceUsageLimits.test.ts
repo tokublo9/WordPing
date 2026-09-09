@@ -71,9 +71,12 @@ test('the Basic allowance alert does not describe rate-limited Premium as unlimi
     i18n,
     /Premium has no such ceiling, but normal service limits apply\./u,
   );
+  // Japanese names the tier in katakana now — the plan-name audit removed the
+  // raw Latin from every non-English locale. The claim being pinned is the
+  // wording, not the spelling of the product name.
   assert.match(
     i18n,
-    /Premiumには月間上限はありませんが、通常のサービス利用制限が適用されます。/u,
+    /プレミアムには月間上限はありませんが、通常のサービス利用制限が適用されます。/u,
   );
   assert.doesNotMatch(i18n, /Premium for unlimited access|Premiumにアップグレードすると無制限/u);
 });

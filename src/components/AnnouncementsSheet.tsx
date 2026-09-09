@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
+import { fillTemplate } from '../lib/fillTemplate';
 import { visibleAnnouncements, type Announcement } from '../features/announcements/announcements';
 
 /**
@@ -52,6 +53,15 @@ export function AnnouncementsSheet({ visible, onClose, pal, language, announceme
   const slideX = useRef(new Animated.Value(SW)).current;
 
   const items = useMemo(() => visibleAnnouncements(announcements), [announcements]);
+  /**
+   * The brand name, in the language on screen right now.
+   *
+   * Announcement copy carries `{appName}` rather than the name itself, so the
+   * twenty localized spellings stay in `app_name` alone. Keyed on `t` so it
+   * re-resolves the moment the language changes; the announcement ids and the
+   * read state it is matched against never see this at all.
+   */
+  const brandValues = useMemo(() => ({ appName: t('app_name') }), [t]);
 
   useEffect(() => {
     if (visible) {
@@ -116,8 +126,14 @@ export function AnnouncementsSheet({ visible, onClose, pal, language, announceme
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           {items.map(item => {
             const unread = unreadIds?.has(item.id) === true;
-            const title = t(item.titleKey);
-            const body = t(item.bodyKey);
+            // Resolved here, on every render, from the translator the language
+            // context is currently handing down — not captured once at module
+            // load. Switching language re-renders this list and the brand name
+            // changes with it. `{appName}` is filled from `app_name`, so the
+            // twenty localized spellings live in one key rather than being
+            // copied into every announcement.
+            const title = fillTemplate(t(item.titleKey), brandValues);
+            const body = fillTemplate(t(item.bodyKey), brandValues);
             return (
               <View
                 key={item.id}
