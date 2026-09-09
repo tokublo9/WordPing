@@ -22,6 +22,7 @@ import {
   type MappingValidity,
   type NormalizedImport,
 } from './importMapping';
+import { BACKUP_FILE_KIND } from '../../lib/backup/format';
 
 export type ImportFileFormat = 'csv' | 'json';
 
@@ -54,7 +55,8 @@ export type ImportParseFailure =
   | 'invalid_json'
   | 'unsupported_shape'
   | 'no_columns'
-  | 'no_rows';
+  | 'no_rows'
+  | 'native_backup';
 
 export type ImportParseResult =
   | { ok: true; value: ParsedImportFile }
@@ -247,6 +249,25 @@ export function parseCsv(text: string): ImportParseResult {
  */
 export const JSON_LIST_KEYS = ['words', 'cards', 'items', 'entries', 'data'] as const;
 
+/**
+ * The authoritative native-backup signature written by `exportBackup`.
+ *
+ * All three markers are format metadata, not vocabulary field names. Requiring
+ * the exact kind plus both numeric versions avoids rejecting competitor files
+ * that happen to use generic wrappers such as `words`, `cards`, or `data`.
+ * This deliberately does not call the backup validator: Bulk Import only
+ * identifies the file and sends the user to the Premium-gated restore flow.
+ */
+export function isNativeWordCoreBackup(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const source = value as Record<string, unknown>;
+  return source.kind === BACKUP_FILE_KIND
+    && typeof source.formatVersion === 'number'
+    && Number.isInteger(source.formatVersion)
+    && typeof source.schemaVersion === 'number'
+    && Number.isInteger(source.schemaVersion);
+}
+
 /** The array of words in a parsed JSON document, or null if there is not one. */
 export function readWordList(parsed: unknown): unknown[] | null {
   if (Array.isArray(parsed)) return parsed;
@@ -283,6 +304,8 @@ export function parseJson(text: string): ImportParseResult {
   } catch {
     return { ok: false, error: 'invalid_json' };
   }
+
+  if (isNativeWordCoreBackup(parsed)) return { ok: false, error: 'native_backup' };
 
   const list = readWordList(parsed);
   if (list === null) return { ok: false, error: 'unsupported_shape' };
@@ -375,6 +398,9 @@ function jsonSource(text: string): ImportSourceResult {
   } catch {
     return { ok: false, error: 'invalid_json' };
   }
+  // Native backup recognition happens before wrappers, columns or rows are
+  // inspected, so no backup content can reach mapping, preview or planning.
+  if (isNativeWordCoreBackup(parsed)) return { ok: false, error: 'native_backup' };
   const list = readWordList(parsed);
   if (list === null) return { ok: false, error: 'unsupported_shape' };
 

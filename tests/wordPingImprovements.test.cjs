@@ -130,16 +130,17 @@ test('the import entry point is on the existing bulk-import screen', () => {
   assert.match(modal, /setStep\('file-preview'\)/u);
 });
 
-test('the preview reports valid, duplicate and invalid counts before saving', () => {
+test('the preview reports added, duplicate and skipped counts before saving', () => {
   const modal = read('src/components/BulkImportModal.tsx');
-  assert.match(modal, /formatCount\(t\('import_file_valid'\), filePlan\.validCount\)/u);
-  assert.match(modal, /formatCount\(t\('import_file_duplicates'\), filePlan\.duplicateCount\)/u);
-  assert.match(modal, /t\('import_file_invalid'\),\s*filePlan\.invalidCount \+ fileBlankSkippedCount/u);
+  assert.match(modal, /t\('import_preview_counts'\)/u);
+  assert.match(modal, /added: String\(filePlan\.validCount\)/u);
+  assert.match(modal, /duplicates: String\(filePlan\.duplicateCount\)/u);
+  assert.match(modal, /skipped: String\(filePlan\.invalidCount \+ fileBlankSkippedCount\)/u);
   // Back and confirm are both offered, and confirm is dead while nothing is valid.
   assert.match(modal, /onPress=\{backFromFilePreview\}/u);
   assert.match(modal, /disabled=\{importing \|\| filePlan\.validCount === 0\}/u);
-  // Only the first five normalized records are shown; rejected rows stay in the count.
-  assert.match(modal, /filePlan\.items\.slice\(0, 5\)\.map\(item =>/u);
+  // Only the bounded valid preview is shown; all accepted rows stay in the plan.
+  assert.match(modal, /filePlan\.validItems\.slice\(0, IMPORT_PREVIEW_LIMIT\)\.map\(\(item, index\) =>/u);
   assert.match(modal, /filePlan\.invalidCount \+ fileBlankSkippedCount/u);
 });
 
@@ -1210,6 +1211,10 @@ test('every new string ships in every locale', () => {
     'import_map_error_back', 'import_map_error_duplicate', 'import_map_continue',
     'import_map_choice_hint', 'import_map_preview_hint', 'import_map_continue_hint',
     'import_map_confirm_hint',
+    'import_preview_showing', 'import_preview_ready', 'import_preview_counts',
+    'import_preview_first_notice', 'import_confirm_count',
+    'import_backup_rejected_title', 'import_backup_rejected_body',
+    'import_backup_rejected_action',
   ];
   for (const key of keys) {
     const occurrences = i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];

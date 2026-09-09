@@ -568,7 +568,7 @@ test('preview delete button has a localized 44-point target and existing destruc
 
 test('ambiguous files map columns inside the existing Bulk Import modal', () => {
   const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
-  assert.match(source, /type Step = 'input' \| 'preview' \| 'file-mapping' \| 'file-preview'/u);
+  assert.match(source, /type Step = 'input' \| 'preview' \| 'file-mapping' \| 'file-preview' \| 'file-backup-rejected'/u);
   assert.match(source, /if \(!source\.analysis\.autoMappable\) \{\s*setStep\('file-mapping'\)/u);
   assert.match(source, /step === 'file-mapping' && fileSource !== null/u);
   assert.match(source, /fileSource\.analysis\.columns\.map\(column =>/u);
@@ -584,15 +584,87 @@ test('mapping validation and preview update directly from the selected roles', (
   const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
   assert.match(source, /normalizeImportSource\(fileSource, fileMapping\)/u);
   assert.match(source, /\[fileMapping, fileSource\]/u);
-  assert.match(source, /previewRecords\(mappedImport\?\.records \?\? \[\], 5\)/u);
+  assert.match(source, /previewRecords\(mappedImport\?\.records \?\? \[\], IMPORT_PREVIEW_LIMIT\)/u);
   assert.match(source, /mappedImport\.skippedBlank \+ mappedImport\.errors\.length/u);
   assert.match(source, /mappingErrorKey !== null[\s\S]*?accessibilityRole="alert"[\s\S]*?accessibilityLiveRegion="assertive"/u);
   assert.match(source, /disabled=\{!mappingCanContinue\}/u);
-  assert.match(source, /filePlan\.items\.slice\(0, 5\)\.map\(item =>/u);
+  assert.match(source, /filePlan\.validItems\.slice\(0, IMPORT_PREVIEW_LIMIT\)\.map\(\(item, index\) =>/u);
   for (const key of ['word_label', 'meaning_label', 'note_label']) {
     assert.match(source, new RegExp(`\\['${key}', (?:record|item)\\.`), `${key} labels normalized preview fields`);
   }
   assert.match(source, /numberOfLines=\{4\}[\s\S]*?ellipsizeMode="tail"/u);
+});
+
+test('file preview numbers 10 valid records from 1 and confirms the full count', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  const previewStart = source.indexOf("step === 'file-preview' && filePlan !== null");
+  const preview = source.slice(previewStart, source.indexOf("step === 'input'", previewStart));
+  assert.match(source, /IMPORT_PREVIEW_LIMIT/u);
+  assert.match(preview, /filePlan\.validItems\.slice\(0, IMPORT_PREVIEW_LIMIT\)/u);
+  assert.match(preview, /\{index \+ 1\}/u);
+  assert.doesNotMatch(preview, /\{item\.rowNumber\}/u);
+  assert.match(preview, /t\('bulk_import_preview'\)[\s\S]*?t\('import_file_summary'\)\.replace\('\{file\}', fileName\)/u);
+  assert.match(preview, /filePreviewCountsText/u);
+  assert.doesNotMatch(preview, /previewCountText\(filePlan\.validCount\)/u);
+  assert.doesNotMatch(preview, /import_map_records|import_file_valid|import_file_routed/u);
+  assert.match(preview, /filePlan\.validCount > IMPORT_PREVIEW_LIMIT[\s\S]*?filePreviewTruncationText/u);
+  assert.ok(
+    preview.indexOf('filePlan.validItems.slice(0, IMPORT_PREVIEW_LIMIT)')
+      < preview.indexOf('filePlan.validCount > IMPORT_PREVIEW_LIMIT'),
+    'the truncation notice follows every preview record',
+  );
+  assert.match(preview, /importCountText\(filePlan\.validCount\)/u);
+  assert.match(source, /fileImportDrafts\(filePlan\)/u, 'confirmation still imports every valid item');
+  assert.match(source, /total > IMPORT_PREVIEW_LIMIT \? 'import_preview_showing' : 'import_preview_ready'/u);
+  assert.equal(
+    translate('en-US', 'import_preview_counts'),
+    '{added} added · {duplicates} duplicates · {skipped} skipped',
+  );
+  assert.equal(
+    translate('en-US', 'import_preview_first_notice'),
+    '※Showing the first {shown} words',
+  );
+  assert.equal(
+    translate('ja', 'import_preview_counts'),
+    '追加{added}件・重複{duplicates}件・スキップ{skipped}件',
+  );
+  assert.equal(
+    translate('ja', 'import_preview_first_notice'),
+    '※最初の{shown}語を表示しています',
+  );
+  assert.equal(translate('en-US', 'import_confirm_count'), 'Import {total} Words');
+});
+
+test('file preview header preserves logical alignment, filename truncation, and accessibility', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  const previewStart = source.indexOf("step === 'file-preview' && filePlan !== null");
+  const preview = source.slice(previewStart, source.indexOf("step === 'input'", previewStart));
+  assert.match(preview, /previewHeaderRow, I18nManager\.isRTL && styles\.rowReverse/u);
+  assert.match(preview, /accessibilityRole="header"[\s\S]*?\{t\('bulk_import_preview'\)\}/u);
+  assert.match(preview, /styles\.previewFileName[\s\S]*?numberOfLines=\{1\}[\s\S]*?ellipsizeMode="tail"/u);
+  assert.match(preview, /accessibilityLabel=\{t\('import_file_summary'\)\.replace\('\{file\}', fileName\)\}/u);
+  assert.match(preview, /accessibilityLabel=\{filePreviewCountsText\}/u);
+  assert.match(preview, /accessibilityLabel=\{t\('import_map_preview'\)\}/u);
+  assert.match(preview, /accessibilityLabel=\{filePreviewTruncationText\}/u);
+  assert.match(source, /previewHeading:[^\n]*flexShrink: 0/u);
+  assert.match(source, /previewFileNameWrap: \{ flex: 1, minWidth: 0 \}/u);
+  assert.match(source, /rtlPreviewFileName: \{ textAlign: 'left' \}/u);
+});
+
+test('native backups stop before mapping and expose only the safe restore instruction', () => {
+  const modal = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  const parser = fs.readFileSync('src/features/cards/fileImport.ts', 'utf8');
+  assert.match(parser, /source\.kind === BACKUP_FILE_KIND[\s\S]*?source\.formatVersion[\s\S]*?source\.schemaVersion/u);
+  assert.match(parser, /if \(isNativeWordCoreBackup\(parsed\)\) return \{ ok: false, error: 'native_backup' \};[\s\S]*?const list = readWordList\(parsed\)/u);
+  assert.doesNotMatch(parser, /validateBackup|importBackup|restoreFromBackup/u);
+  assert.match(modal, /if \(picked\.result\.error === 'native_backup'\) \{\s*setStep\('file-backup-rejected'\);\s*return;/u);
+  assert.ok(
+    modal.indexOf("picked.result.error === 'native_backup'") < modal.indexOf('const source = picked.result.value'),
+    'native backup rejection must precede source analysis and planning',
+  );
+  assert.match(modal, /step === 'file-backup-rejected'[\s\S]*?accessibilityRole="alert"/u);
+  assert.match(modal, /accessibilityLabel=\{t\('import_backup_rejected_action'\)\}[\s\S]*?accessibilityHint=\{backupRejectedBody\}/u);
+  assert.match(modal, /step === 'file-backup-rejected'[\s\S]*?onPress=\{close\}/u);
 });
 
 test('mapping controls expose radio semantics, hints, selection, errors and confirmation', () => {
@@ -604,7 +676,7 @@ test('mapping controls expose radio semantics, hints, selection, errors and conf
   assert.match(source, /accessibilityHint=\{t\('import_map_preview_hint'\)\}/u);
   assert.match(source, /accessibilityLabel=\{t\('import_map_continue'\)\}/u);
   assert.match(source, /accessibilityHint=\{t\('import_map_continue_hint'\)\}/u);
-  assert.match(source, /accessibilityLabel=\{t\('bulk_import_import'\)\}[\s\S]*?accessibilityHint=\{t\('import_map_confirm_hint'\)\}/u);
+  assert.match(source, /accessibilityLabel=\{importCountText\(filePlan\.validCount\)\}[\s\S]*?accessibilityHint=\{t\('import_map_confirm_hint'\)\}/u);
 });
 
 test('mapping respects RTL and resets when the modal reopens or a file is replaced', () => {
@@ -626,6 +698,10 @@ test('all mapping copy and accessibility hints are explicit in all 20 locales', 
     'import_map_error_back', 'import_map_error_duplicate', 'import_map_continue',
     'import_map_choice_hint', 'import_map_preview_hint', 'import_map_continue_hint',
     'import_map_confirm_hint',
+    'import_preview_showing', 'import_preview_ready', 'import_preview_counts',
+    'import_preview_first_notice', 'import_confirm_count',
+    'import_backup_rejected_title', 'import_backup_rejected_body',
+    'import_backup_rejected_action',
   ];
   assert.equal(SUPPORTED_LANGUAGES.length, 20);
   for (const key of keys) {
@@ -636,6 +712,11 @@ test('all mapping copy and accessibility hints are explicit in all 20 locales', 
     const declarations = fs.readFileSync('src/i18n.ts', 'utf8')
       .match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];
     assert.equal(declarations.length, 20, `${key} must be declared in every dictionary`);
+  }
+  for (const { code } of SUPPORTED_LANGUAGES) {
+    const body = translate(code, 'import_backup_rejected_body');
+    assert.match(body, /\{appName\}/u, `${code} must insert its localized app_name`);
+    if (code !== 'en-US') assert.doesNotMatch(body, /WordCore/u, `${code} must not hardcode English branding`);
   }
 });
 

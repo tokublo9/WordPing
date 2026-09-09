@@ -51,6 +51,8 @@ export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_IMPORT_RECORDS = 5000;
 /** Matches nothing the app can usefully show; longer cells are truncated. */
 export const MAX_IMPORT_CELL_LENGTH = 2000;
+/** Preview stays bounded while confirmation and import still use every valid record. */
+export const IMPORT_PREVIEW_LIMIT = 10;
 
 // ── Aliases ──────────────────────────────────────────────────────────────────
 
@@ -276,10 +278,10 @@ export function applyImportMapping(
   return { records, errors, skippedBlank, truncated };
 }
 
-/** The first few records, for the preview. Content is shown as it will import. */
+/** The first ten records, for the preview. Content is shown as it will import. */
 export function previewRecords(
   records: readonly ImportWordRecord[],
-  count = 5,
+  count = IMPORT_PREVIEW_LIMIT,
 ): ImportWordRecord[] {
   return records.slice(0, Math.max(0, count));
 }

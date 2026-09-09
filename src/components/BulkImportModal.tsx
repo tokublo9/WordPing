@@ -41,10 +41,12 @@ import {
   type ImportSourceFailure,
 } from '../features/cards/fileImport';
 import {
+  IMPORT_PREVIEW_LIMIT,
   IMPORT_ROLES,
   previewRecords,
   type ImportFieldRole,
 } from '../features/cards/importMapping';
+import { fillTemplate } from '../lib/fillTemplate';
 import type { Folder, WordCard } from '../types';
 import {
   FULL_SCREEN_SHEET_HEADER,
@@ -67,7 +69,7 @@ interface Props {
   onImport(drafts: readonly BulkImportDraft[]): Promise<BulkImportResult> | BulkImportResult;
 }
 
-type Step = 'input' | 'preview' | 'file-mapping' | 'file-preview';
+type Step = 'input' | 'preview' | 'file-mapping' | 'file-preview' | 'file-backup-rejected';
 
 const PARSE_FAILURE_KEYS: Readonly<Record<ImportSourceFailure, TranslationKey>> = {
   empty_file: 'import_file_error_empty',
@@ -76,6 +78,7 @@ const PARSE_FAILURE_KEYS: Readonly<Record<ImportSourceFailure, TranslationKey>> 
   no_columns: 'import_file_error_columns',
   no_rows: 'import_file_error_empty',
   file_too_large: 'import_file_error_too_large',
+  native_backup: 'import_backup_rejected_body',
 };
 
 const ROLE_LABEL_KEYS: Readonly<Record<ImportFieldRole, TranslationKey>> = {
@@ -246,7 +249,7 @@ export function BulkImportModal({
     [fileMapping, fileSource],
   );
   const mappedPreview = useMemo(
-    () => previewRecords(mappedImport?.records ?? [], 5),
+    () => previewRecords(mappedImport?.records ?? [], IMPORT_PREVIEW_LIMIT),
     [mappedImport],
   );
   const mappingErrorKey: TranslationKey | null = !mappedImport || mappedImport.validity.ok
@@ -261,6 +264,37 @@ export function BulkImportModal({
     : mappedImport.skippedBlank + mappedImport.errors.length;
   const mappingCanContinue = mappedImport?.validity.ok === true
     && mappedImport.records.length > 0;
+  const previewCountText = (total: number) => fillTemplate(
+    t(total > IMPORT_PREVIEW_LIMIT ? 'import_preview_showing' : 'import_preview_ready'),
+    {
+      shown: String(Math.min(total, IMPORT_PREVIEW_LIMIT)),
+      total: String(total),
+    },
+  );
+  const importCountText = (total: number) => fillTemplate(
+    t('import_confirm_count'),
+    { total: String(total) },
+  );
+  const filePreviewCountsText = filePlan === null ? '' : fillTemplate(
+    t('import_preview_counts'),
+    {
+      added: String(filePlan.validCount),
+      duplicates: String(filePlan.duplicateCount),
+      skipped: String(filePlan.invalidCount + fileBlankSkippedCount),
+    },
+  );
+  const filePreviewTruncationText = fillTemplate(
+    t('import_preview_first_notice'),
+    { shown: String(IMPORT_PREVIEW_LIMIT) },
+  );
+  const backupRejectedTitle = fillTemplate(
+    t('import_backup_rejected_title'),
+    { appName: t('app_name') },
+  );
+  const backupRejectedBody = fillTemplate(
+    t('import_backup_rejected_body'),
+    { appName: t('app_name') },
+  );
 
   const close = () => {
     if (importing) return;
@@ -368,6 +402,10 @@ export function BulkImportModal({
       setFileName(picked.fileName);
       setFileBlankSkippedCount(0);
       if (!picked.result.ok) {
+        if (picked.result.error === 'native_backup') {
+          setStep('file-backup-rejected');
+          return;
+        }
         setFileErrorKey(PARSE_FAILURE_KEYS[picked.result.error]);
         return;
       }
@@ -520,7 +558,26 @@ export function BulkImportModal({
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {step === 'file-mapping' && fileSource !== null && mappedImport !== null ? (
+          {step === 'file-backup-rejected' ? (
+            <View style={styles.rejectionContent} accessibilityRole="alert">
+              <Ionicons name="shield-checkmark-outline" size={42} color={themeColor} />
+              <Text style={[styles.mappingTitle, { color: pal.text }]} accessibilityRole="header">
+                {backupRejectedTitle}
+              </Text>
+              <Text style={[styles.rejectionBody, { color: pal.sub }]}>
+                {backupRejectedBody}
+              </Text>
+              <TouchableOpacity
+                style={[styles.primaryButton, styles.rejectionButton, { backgroundColor: themeColor }]}
+                onPress={close}
+                accessibilityRole="button"
+                accessibilityLabel={t('import_backup_rejected_action')}
+                accessibilityHint={backupRejectedBody}
+              >
+                <Text style={styles.primaryButtonText}>{t('import_backup_rejected_action')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : step === 'file-mapping' && fileSource !== null && mappedImport !== null ? (
             <View style={styles.flex}>
               <ScrollView
                 style={styles.flex}
@@ -622,31 +679,49 @@ export function BulkImportModal({
                 >
                   {t('bulk_import_preview')}
                 </Text>
+                <Text style={[styles.count, { color: pal.sub }]}>
+                  {previewCountText(mappedImport.records.length)}
+                </Text>
                 <View style={styles.mappingPreviewList}>
                   {mappedPreview.map((record, index) => (
                     <View
                       key={`mapped-preview-${index}`}
-                      style={[styles.mappingPreviewCard, { backgroundColor: pal.card, borderColor: pal.border }]}
+                      style={[
+                        styles.mappingPreviewCard,
+                        I18nManager.isRTL && styles.rowReverse,
+                        { backgroundColor: pal.card, borderColor: pal.border },
+                      ]}
                     >
-                      {([
-                        ['word_label', record.front],
-                        ['meaning_label', record.back],
-                        ['note_label', record.note],
-                      ] as const).map(([labelKey, value]) => (
-                        <View key={labelKey} style={styles.filePreviewField}>
-                          <Text style={[styles.fileFieldLabel, { color: pal.sub }]}>{t(labelKey)}</Text>
-                          <PostHogMaskView>
-                            <Text
-                              style={[styles.fileFieldValue, { color: pal.text }]}
-                              numberOfLines={4}
-                              ellipsizeMode="tail"
-                              accessibilityLabel={`${t(labelKey)}: ${value}`}
-                            >
-                              {value}
-                            </Text>
-                          </PostHogMaskView>
-                        </View>
-                      ))}
+                      <Text
+                        style={[
+                          styles.itemNumber,
+                          I18nManager.isRTL && styles.rtlItemNumber,
+                          { color: pal.sub },
+                        ]}
+                      >
+                        {index + 1}
+                      </Text>
+                      <View style={styles.itemBody}>
+                        {([
+                          ['word_label', record.front],
+                          ['meaning_label', record.back],
+                          ['note_label', record.note],
+                        ] as const).map(([labelKey, value]) => (
+                          <View key={labelKey} style={styles.filePreviewField}>
+                            <Text style={[styles.fileFieldLabel, { color: pal.sub }]}>{t(labelKey)}</Text>
+                            <PostHogMaskView>
+                              <Text
+                                style={[styles.fileFieldValue, { color: pal.text }]}
+                                numberOfLines={4}
+                                ellipsizeMode="tail"
+                                accessibilityLabel={`${t(labelKey)}: ${value}`}
+                              >
+                                {value}
+                              </Text>
+                            </PostHogMaskView>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -683,44 +758,46 @@ export function BulkImportModal({
           ) : step === 'file-preview' && filePlan !== null ? (
             <View style={styles.flex}>
               <View style={[styles.previewSummary, { borderBottomColor: pal.border }]}>
-                <PostHogMaskView>
-                  <Text style={[styles.previewHeading, { color: pal.text }]} numberOfLines={1}>
-                    {t('import_file_summary').replace('{file}', fileName)}
+                <View style={[styles.previewHeaderRow, I18nManager.isRTL && styles.rowReverse]}>
+                  <Text
+                    style={[styles.previewHeading, { color: pal.text }]}
+                    accessibilityRole="header"
+                    accessibilityHint={t('import_map_preview_hint')}
+                  >
+                    {t('bulk_import_preview')}
                   </Text>
-                </PostHogMaskView>
+                  <View style={styles.previewFileNameWrap}>
+                    <PostHogMaskView>
+                      <Text
+                        style={[
+                          styles.previewFileName,
+                          I18nManager.isRTL && styles.rtlPreviewFileName,
+                          { color: pal.sub },
+                        ]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        accessibilityLabel={t('import_file_summary').replace('{file}', fileName)}
+                      >
+                        {t('import_file_summary').replace('{file}', fileName)}
+                      </Text>
+                    </PostHogMaskView>
+                  </View>
+                </View>
                 <Text
-                  style={[styles.previewSubheading, { color: pal.text }]}
-                  accessibilityRole="header"
-                  accessibilityHint={t('import_map_preview_hint')}
+                  style={[styles.previewCounts, { color: pal.sub }]}
+                  accessibilityLabel={filePreviewCountsText}
                 >
-                  {t('bulk_import_preview')}
+                  {filePreviewCountsText}
                 </Text>
-                {/* Valid, duplicate and skipped are always all three, so a zero
-                    is visible rather than the row silently disappearing. */}
-                <Text style={[styles.count, { color: pal.sub }]}>
-                  {[
-                    formatCount(t('import_map_records'), fileSource?.rows.length ?? filePlan.items.length),
-                    formatCount(t('import_file_valid'), filePlan.validCount),
-                    formatCount(t('import_file_duplicates'), filePlan.duplicateCount),
-                    formatCount(
-                      t('import_file_invalid'),
-                      filePlan.invalidCount + fileBlankSkippedCount,
-                    ),
-                  ].join(' · ')}
-                </Text>
-                {filePlan.routedElsewhereCount > 0 && (
-                  <Text style={[styles.count, { color: pal.sub }]}>
-                    {formatCount(t('import_file_routed'), filePlan.routedElsewhereCount)}
-                  </Text>
-                )}
               </View>
 
               <ScrollView
                 style={styles.flex}
                 contentContainerStyle={styles.previewList}
                 showsVerticalScrollIndicator={false}
+                accessibilityLabel={t('import_map_preview')}
               >
-                {filePlan.items.slice(0, 5).map(item => (
+                {filePlan.validItems.slice(0, IMPORT_PREVIEW_LIMIT).map((item, index) => (
                   <View
                     key={item.id}
                     style={[
@@ -736,7 +813,7 @@ export function BulkImportModal({
                         { color: pal.sub },
                       ]}
                     >
-                      {item.rowNumber}
+                      {index + 1}
                     </Text>
                     <View style={styles.itemBody}>
                       {([
@@ -758,19 +835,17 @@ export function BulkImportModal({
                         </PostHogMaskView>
                         </View>
                       ))}
-                      <View style={styles.badgeRow}>
-                        {item.status !== 'valid' && (
-                          <Text style={styles.duplicateBadge}>
-                            {item.status === 'invalid'
-                              ? t('import_file_invalid').replace('{n} ', '')
-                              : t('bulk_import_duplicate')}
-                          </Text>
-                        )}
-                      </View>
                     </View>
                   </View>
                 ))}
-
+                {filePlan.validCount > IMPORT_PREVIEW_LIMIT && (
+                  <Text
+                    style={[styles.previewTruncationNotice, { color: pal.sub }]}
+                    accessibilityLabel={filePreviewTruncationText}
+                  >
+                    {filePreviewTruncationText}
+                  </Text>
+                )}
               </ScrollView>
 
               <View style={[styles.previewFooter, { borderTopColor: pal.border, backgroundColor: pal.bg }]}>
@@ -797,12 +872,12 @@ export function BulkImportModal({
                     onPress={() => { void runFileImport(); }}
                     disabled={importing || filePlan.validCount === 0}
                     accessibilityRole="button"
-                    accessibilityLabel={t('bulk_import_import')}
+                    accessibilityLabel={importCountText(filePlan.validCount)}
                     accessibilityHint={t('import_map_confirm_hint')}
                     accessibilityState={{ disabled: importing || filePlan.validCount === 0, busy: importing }}
                   >
                     {importing && <ActivityIndicator size="small" color="#fff" />}
-                    <Text style={styles.primaryButtonText}>{t('bulk_import_import')}</Text>
+                    <Text style={styles.primaryButtonText}>{importCountText(filePlan.validCount)}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1123,15 +1198,24 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' },
   errorText: { color: DESTRUCTIVE_ACTION_COLOR, fontSize: 13, lineHeight: 18, marginTop: 8 },
   previewSummary: {
-    alignItems: 'flex-start',
-    gap: 3,
+    gap: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
-  previewHeading: { fontSize: 16, fontWeight: '700' },
-  previewSubheading: { fontSize: 14, fontWeight: '700', marginTop: 3 },
+  previewHeaderRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 12,
+  },
+  previewHeading: { fontSize: 18, lineHeight: 24, fontWeight: '700', flexShrink: 0 },
+  previewFileNameWrap: { flex: 1, minWidth: 0 },
+  previewFileName: { fontSize: 12, lineHeight: 17, textAlign: 'right' },
+  rtlPreviewFileName: { textAlign: 'left' },
+  previewCounts: { fontSize: 13, lineHeight: 18 },
   previewList: { padding: 14, paddingBottom: 28, gap: 9 },
+  previewTruncationNotice: { fontSize: 12, lineHeight: 18, marginTop: 3 },
   previewItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1181,6 +1265,15 @@ const styles = StyleSheet.create({
   },
   fileButtonText: { fontSize: 15, fontWeight: '600' },
   fileName: { fontSize: 13, lineHeight: 18, marginBottom: 4 },
+  rejectionContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+  },
+  rejectionBody: { fontSize: 15, lineHeight: 23, textAlign: 'center', marginTop: 8 },
+  rejectionButton: { flex: 0, width: '100%', marginTop: 24 },
   mappingContent: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 },
   mappingTitle: { fontSize: 21, lineHeight: 27, fontWeight: '700', marginBottom: 5 },
   mappingColumns: { gap: 10, marginTop: 16 },
@@ -1205,6 +1298,8 @@ const styles = StyleSheet.create({
   mappingPreviewTitle: { fontSize: 17, lineHeight: 23, fontWeight: '700', marginTop: 24 },
   mappingPreviewList: { gap: 9, marginTop: 10 },
   mappingPreviewCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
     paddingHorizontal: 12,
