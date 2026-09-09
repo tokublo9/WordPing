@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const { resolve } = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
@@ -15,7 +16,20 @@ const WORKER_CONFIG = 'cloudflare/wordping-api/src/config.ts';
 
 test('the promo samples include the ordered Upgrade sheet examples', () => {
   const samples = read(APP_SAMPLES);
-  assert.match(samples, /export const PROMO_SAMPLE_IDS = \['spontaneous', 'vertical', 'merely', 'morning_light'\] as const;/u);
+  assert.match(
+    samples,
+    /export const PROMO_SAMPLE_IDS = \[\s*'spontaneous', 'vertical', 'merely', 'morning_light', 'voice_marin', 'voice_cedar',\s*\] as const;/u,
+  );
+  // The sheet's four and the picker's two are named groups, so preparing or
+  // playing one group can never reach into the other's language.
+  assert.match(
+    samples,
+    /export const UPGRADE_PROMO_SAMPLE_IDS: readonly PromoSampleId\[\] = \[\s*'spontaneous', 'vertical', 'merely', 'morning_light',\s*\];/u,
+  );
+  assert.match(
+    samples,
+    /export const VOICE_PROMO_SAMPLE_IDS: readonly PromoSampleId\[\] = \['voice_marin', 'voice_cedar'\];/u,
+  );
   // The original copy is unchanged and the two inserted words are in order.
   assert.match(samples, /en: 'Spontaneous',/u);
   assert.match(samples, /vertical: \{[\s\S]*?en: 'Vertical',/u);
@@ -73,7 +87,9 @@ test('identical vertical spellings have distinct bundled asset paths', () => {
 test('the bundle generator keeps identical text separate by language', async () => {
   const generator = await import(pathToFileURL(resolve('scripts/generate-promo-voice.mjs')).href);
   const instructions = JSON.parse(read('cloudflare/wordping-api/src/promoVoicePronunciation.json'));
-  const samples = ['spontaneous', 'vertical', 'merely', 'morning_light'];
+  const samples = [
+    'spontaneous', 'vertical', 'merely', 'morning_light', 'voice_marin', 'voice_cedar',
+  ];
   const table = Object.fromEntries(samples.map(sample => [sample, {
     en: sample === 'vertical' ? 'Vertical' : `${sample}-en`,
     es: sample === 'vertical' ? 'Vertical' : `${sample}-es`,
@@ -87,10 +103,103 @@ test('the bundle generator keeps identical text separate by language', async () 
   assert.equal(new Set(vertical.map(item => item.path)).size, 3);
   assert.equal(new Set(vertical.map(item => item.instructions)).size, 3);
   for (const item of plan) {
-    const request = generator.promoSpeechRequestBody(item.text, item.instructions);
+    const request = generator.promoSpeechRequestBody(item.text, item.instructions, item.voice);
     assert.equal(request.input, item.text, 'the instruction must not alter audible text');
     assert.equal(request.instructions, instructions[item.lang]);
+    assert.equal(request.voice, item.voice);
   }
+
+  // Every language is generated for every sample, and the picker's two are
+  // generated in the voice they preview rather than in the default one.
+  assert.equal(plan.length, samples.length * 3);
+  const voiceOf = sample => plan.find(item => item.sample === sample).voice;
+  assert.equal(voiceOf('voice_marin'), 'marin');
+  assert.equal(voiceOf('voice_cedar'), 'cedar');
+  for (const sample of ['spontaneous', 'vertical', 'merely', 'morning_light']) {
+    assert.equal(voiceOf(sample), 'marin', sample);
+  }
+});
+
+test('the v3 to v4 generator migration selects only 40 missing voice clips', async t => {
+  const generator = await import(pathToFileURL(resolve('scripts/generate-promo-voice.mjs')).href);
+  const outDir = fs.mkdtempSync(`${os.tmpdir()}/wordping-promo-migration-`);
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+
+  const languages = [
+    'en', 'ja', 'ko', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru',
+    'ar', 'hi', 'tr', 'nl', 'vi', 'th', 'id', 'pl', 'el', 'sv',
+  ];
+  const legacySamples = ['spontaneous', 'vertical', 'merely', 'morning_light'];
+  const addedSamples = ['voice_marin', 'voice_cedar'];
+  const allSamples = [...legacySamples, ...addedSamples];
+  const plan = languages.flatMap(lang => allSamples.map(sample => ({
+    lang,
+    sample,
+    path: resolve(outDir, lang, `${sample}.mp3`),
+  })));
+
+  const validMp3 = seed => Buffer.concat([
+    Buffer.from('ID3'),
+    Buffer.alloc(1_021, seed),
+  ]);
+  for (const item of plan.filter(entry => legacySamples.includes(entry.sample))) {
+    fs.mkdirSync(resolve(outDir, item.lang), { recursive: true });
+    fs.writeFileSync(item.path, validMp3(item.lang.charCodeAt(0)));
+  }
+
+  assert.equal(
+    generator.isMissingOnlyMigration('upgrade-promo-v3', 'upgrade-promo-v4', false, false),
+    true,
+  );
+  assert.equal(
+    generator.isMissingOnlyMigration('upgrade-promo-v3', 'upgrade-promo-v4', true, false),
+    false,
+    '--force must never enter missing-only mode',
+  );
+  const protectedItems = plan.filter(entry => legacySamples.includes(entry.sample));
+  const before = generator.aggregatePromoFilesSha256(protectedItems, outDir);
+  const missing = generator.selectMissingPromoEntries(plan, outDir);
+  assert.equal(missing.length, 40);
+  assert.deepEqual([...new Set(missing.map(item => item.sample))].sort(), [...addedSamples].sort());
+
+  for (const item of missing) fs.writeFileSync(item.path, validMp3(item.sample.charCodeAt(6)));
+  assert.equal(generator.selectMissingPromoEntries(plan, outDir).length, 0);
+  assert.equal(generator.aggregatePromoFilesSha256(protectedItems, outDir), before);
+  assert.equal(plan.filter(item => generator.validatePromoAudioFile(item, outDir).valid).length, 120);
+});
+
+test('promo validation rejects short, malformed, and wrongly placed MP3 files', async t => {
+  const generator = await import(pathToFileURL(resolve('scripts/generate-promo-voice.mjs')).href);
+  const outDir = fs.mkdtempSync(`${os.tmpdir()}/wordping-promo-validation-`);
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  fs.mkdirSync(resolve(outDir, 'en'), { recursive: true });
+
+  const item = { lang: 'en', sample: 'voice_marin', path: resolve(outDir, 'en/voice_marin.mp3') };
+  fs.writeFileSync(item.path, Buffer.alloc(1_024));
+  assert.equal(generator.validatePromoAudioFile(item, outDir).reason, 'invalid MP3 header');
+  fs.writeFileSync(item.path, Buffer.concat([Buffer.from('ID3'), Buffer.alloc(100)]));
+  assert.match(generator.validatePromoAudioFile(item, outDir).reason, /smaller than/u);
+  fs.writeFileSync(item.path, Buffer.concat([Buffer.from([0xff, 0xfb, 0x90]), Buffer.alloc(1_021)]));
+  assert.equal(generator.validatePromoAudioFile(item, outDir).valid, true, 'frame-sync MP3 is valid');
+
+  const wrongPath = { ...item, path: resolve(outDir, 'en/not_voice_marin.mp3') };
+  fs.writeFileSync(wrongPath.path, Buffer.concat([Buffer.from('ID3'), Buffer.alloc(1_021)]));
+  assert.match(generator.validatePromoAudioFile(wrongPath, outDir).reason, /unexpected path/u);
+});
+
+test('the bundled marker is written only after full validation and preservation checks', () => {
+  const generator = read('scripts/generate-promo-voice.mjs');
+  const validateAll = generator.indexOf('if (absent.length > 0)');
+  const preserveAll = generator.indexOf('const changed = changedSnapshotPaths(protectedSnapshot)');
+  const updateMarker = generator.indexOf('const mappedLangs = writeAudioMap(produced, version)');
+  assert.ok(validateAll !== -1 && preserveAll > validateAll);
+  assert.ok(updateMarker > preserveAll, 'the v4 marker must be the final mutation');
+  assert.equal(
+    (generator.match(/if \(!force && isValidExisting\(item\)\)/gu) ?? []).length,
+    2,
+    'valid destinations are guarded before and after synthesis',
+  );
+  assert.match(generator, /copyFileSync\(encodedPath, item\.path, fsConstants\.COPYFILE_EXCL\)/u);
 });
 
 test('the Upgrade sheet renders its demo text from the shared table', () => {
@@ -113,7 +222,7 @@ test('the app and the Worker speak exactly the same words', () => {
     const out = {};
     let sample = null;
     for (const line of body.split('\n')) {
-      const head = line.match(/^\s{2}(spontaneous|vertical|merely|morning_light): \{/u);
+      const head = line.match(/^\s{2}(spontaneous|vertical|merely|morning_light|voice_marin|voice_cedar): \{/u);
       if (head) { sample = head[1]; out[sample] = {}; continue; }
       const entry = line.match(/^\s{4}([a-z]{2}): '(.*)',$/u);
       if (entry && sample) out[sample][entry[1]] = entry[2];
@@ -124,13 +233,23 @@ test('the app and the Worker speak exactly the same words', () => {
   const app = table(read(APP_SAMPLES));
   const worker = table(read(WORKER_CONFIG));
 
-  assert.deepEqual(Object.keys(app).sort(), ['merely', 'morning_light', 'spontaneous', 'vertical']);
+  assert.deepEqual(Object.keys(app).sort(), [
+    'merely', 'morning_light', 'spontaneous', 'vertical', 'voice_cedar', 'voice_marin',
+  ]);
   assert.deepEqual(app, worker, 'promo sample text has drifted between app and Worker');
-  // Both cover every language the sheet can display.
-  assert.equal(Object.keys(app.spontaneous).length, 20);
-  assert.equal(Object.keys(app.vertical).length, 20);
-  assert.equal(Object.keys(app.merely).length, 20);
-  assert.equal(Object.keys(app.morning_light).length, 20);
+  // Both cover every language the app can display, previews included.
+  for (const sample of Object.keys(app)) {
+    assert.equal(Object.keys(app[sample]).length, 20, sample);
+  }
+
+  // No preview may quietly ship the English sentence in another language.
+  for (const sample of ['voice_marin', 'voice_cedar']) {
+    for (const [lang, text] of Object.entries(app[sample])) {
+      if (lang === 'en') continue;
+      assert.notEqual(text, app[sample].en, `${sample}:${lang} is the English sentence`);
+    }
+  }
+  assert.notEqual(app.voice_marin.en, app.voice_cedar.en, 'each voice names itself');
 
   // And the cache version is bumped together, or a stale clip would be served.
   const appVersion = read(APP_SAMPLES).match(/PROMO_SAMPLE_VERSION = '([^']+)'/u)[1];
@@ -200,8 +319,15 @@ test('a free preview cannot carry text or choose a voice', () => {
     voice.indexOf('/** POST /v1/voice/custom'),
   );
   assert.match(handler, /const text = promoSampleText\(sample, lang\);/u);
-  assert.match(handler, /voice: PROMO_SAMPLE_VOICE,/u);
+  // The voice is resolved from the allowlisted sample id, server-side — the
+  // schema has no voice field for a caller to influence it with.
+  assert.match(handler, /const voice = promoSampleVoice\(sample\);/u);
+  assert.match(handler, /^\s+voice,$/mu);
   assert.doesNotMatch(handler, /body\.text|body\.voice/u);
+  assert.match(
+    read(WORKER_CONFIG),
+    /export const PROMO_SAMPLE_VOICES: Readonly<Record<PromoSampleId, Voice>> = \{[\s\S]*?voice_marin: 'marin',\s*voice_cedar: 'cedar',\s*\};/u,
+  );
 
   // And the client never puts text in the body either. The promo body is now
   // built inside `postPromoSpeech`, from arguments it validates itself, so no
@@ -254,7 +380,9 @@ test('the promo route stays rate limited and cached', () => {
   const voice = read('cloudflare/wordping-api/src/routes/voice.ts');
   const handler = voice.slice(voice.indexOf('export async function handleVoicePromo'));
   // Shared KV cache: repeated playback across all users costs nothing upstream.
-  assert.match(handler, /const cacheKey = `promo:\$\{PROMO_SAMPLE_VERSION\}:\$\{sample\}:\$\{lang\}\.wav`;/u);
+  // Voice and language are both in the key: a Cedar preview can never be
+  // answered with the Marin clip, nor a Korean one with the English clip.
+  assert.match(handler, /const cacheKey = `promo:\$\{PROMO_SAMPLE_VERSION\}:\$\{sample\}:\$\{voice\}:\$\{lang\}\.wav`;/u);
   assert.match(handler, /WORDPING_KV\s*\.get\(cacheKey, 'arrayBuffer'\)/u);
   assert.match(handler, /'X-WordPing-Cache': 'hit'/u);
   assert.match(handler, /\.put\(cacheKey, toCache, \{ expirationTtl: PROMO_SAMPLE_CACHE_TTL_SECONDS \}\)/u);
@@ -289,20 +417,29 @@ test('previews reuse the on-device cache without entering normal speakWithAI', (
   const tts = read('src/lib/tts.ts');
   const promoPlayback = tts.slice(
     tts.indexOf('function speakFixedPromoNetwork('),
-    tts.indexOf('/** Play a one-off subscriber preview'),
+    tts.indexOf('export function previewAIVoice('),
   );
   assert.match(promoPlayback, /return speakFetchedAudio\(\s*promoSampleText\(sample, lang\),/u);
   assert.match(promoPlayback, /PROMO_SAMPLE_VERSION,\s*\{ sample, langCode: lang \},\s*lang,/u);
-  assert.doesNotMatch(promoPlayback, /\bspeakWithAI\(|previewAIVoice|speech_sample|speech_card/u);
+  assert.doesNotMatch(promoPlayback, /\bspeakWithAI\(|speech_sample|speech_card/u);
 
-  // The persistent cache and in-flight registry retain the language and promo
-  // version even when different languages use the same visible spelling.
-  assert.match(tts, /normalizeTTSRequest\(promoSampleText\(sample, lang\), PROMO_PREVIEW_VOICE, PROMO_SAMPLE_VERSION, lang\)/u);
+  // The persistent cache and in-flight registry retain the voice, the language
+  // and the promo version, even when different languages use the same visible
+  // spelling and both voices speak the same language.
+  assert.match(
+    tts,
+    /normalizeTTSRequest\(\s*promoSampleText\(sample, lang\),\s*promoSampleVoice\(sample\),\s*PROMO_SAMPLE_VERSION,\s*lang,\s*\)/u,
+  );
   assert.match(tts, /const key = promoCacheKey\(sample, lang\);\s*if \(promoPreloadByKey\.has\(key\)\) continue;/u);
   assert.match(tts, /const pending = networkRequests\.run\(key,/u);
   assert.match(tts, /options\.promo \? 'speech_promo' :/u);
-  // A fixed voice, so the cached clip is the same one the Worker cached.
-  assert.match(tts, /const PROMO_PREVIEW_VOICE: AIVoice = DEFAULT_AI_VOICE;/u);
+  // The voice comes from the sample, never from the user's saved preference,
+  // so the cached clip is the same one the Worker cached.
+  assert.doesNotMatch(tts, /PROMO_PREVIEW_VOICE/u);
+  assert.match(
+    read(APP_SAMPLES),
+    /export function promoSampleVoice\(sample: PromoSampleId\): AIVoice \{\s*return PROMO_SAMPLE_VOICES\[sample\];/u,
+  );
 });
 
 test('a missing or failed localized bundle falls back only through fixed promo', () => {
@@ -319,9 +456,15 @@ test('a missing or failed localized bundle falls back only through fixed promo',
   const preloadEnd = tts.indexOf('Play a bundled promotional clip');
   assert.ok(preloadEnd > -1, 'the promo playback section still marks the end of the preload path');
   const preload = tts.slice(tts.indexOf('export function preloadPromoVoiceSamples('), preloadEnd);
-  assert.match(preload, /Asset\.loadAsync\([\s\S]*?\.catch\(\(\) => \{\s*preloadNetworkPromoVoiceSamples\(lang\);/u);
+  assert.match(preload, /Asset\.loadAsync\([\s\S]*?\.catch\(\(\) => \{\s*preloadNetworkPromoVoiceSamples\(samples, lang\);/u);
   assert.match(preload, /promo: \{ sample, langCode: lang \}/u);
-  assert.doesNotMatch(preload, /syncAIVoiceSamplePreloading|getAIVoiceSample|previewAIVoice|speech_sample/u);
+  assert.doesNotMatch(preload, /syncAIVoiceSamplePreloading|getAIVoiceSample|speech_sample/u);
+  // The two groups are prepared separately, each under its own language.
+  assert.match(preload, /preloadFixedPromoSamples\(UPGRADE_PROMO_SAMPLE_IDS, langCode\);/u);
+  assert.match(preload, /preloadFixedPromoSamples\(VOICE_PROMO_SAMPLE_IDS, langCode\);/u);
+  // A partially generated language uses the network rather than playing the
+  // clips it does have and silently skipping the rest.
+  assert.match(preload, /if \(bundled\.length === samples\.length\) \{/u);
 
   const playback = tts.slice(
     tts.indexOf('export function speakPromoSample('),
@@ -372,7 +515,14 @@ test('ordinary voice playback remains consent gated and promo cannot mark a purc
     settings.indexOf('const close = useCallback'),
   );
   assert.match(pickerFlow, /ensureConsent: \(\) => ensureAIConsentForUserAction\(\),/u);
-  assert.match(pickerFlow, /play: \(voice, report\) => previewAIVoice\(voice, \{ onPhaseChange: report \}\),/u);
+  // The language is read from the ref at the tap, so a change in Settings →
+  // Language reaches the very next sample without a relaunch.
+  assert.match(
+    pickerFlow,
+    /play: \(voice, report\) => previewAIVoice\(voice, sampleLanguageRef\.current, \{ onPhaseChange: report \}\),/u,
+  );
+  assert.match(settings, /const sampleLanguageRef = useRef\(sampleLanguage\);\s*sampleLanguageRef\.current = sampleLanguage;/u);
+  assert.match(settings, /sampleLanguage=\{voiceSampleLanguage\}/u);
   assert.match(settings, /\{AI_VOICES\.map\(voice => \{[\s\S]*?onPress=\{\(\) => preview\(voice\)\}/u);
 
   // And the flow asks before it plays, in that order, with nothing generated
@@ -395,6 +545,45 @@ test('ordinary voice playback remains consent gated and promo cannot mark a purc
   const app = read('App.tsx');
   assert.match(app, /entitlementSource,[\s\S]*?consentPromptShown,[\s\S]*?isUpgradeSheetClosed: !upgradeSheetVisible/u);
   assert.match(app, /AsyncStorage\.setItem\(SUBSCRIPTION_CONSENT_PROMPT_KEY, serializeConsentPromptShown\(true\)\)/u);
+});
+
+test('a picker preview is a fixed promo clip, so it can spend no credit', () => {
+  const tts = read('src/lib/tts.ts');
+  const preview = tts.slice(
+    tts.indexOf('export function previewAIVoice('),
+    tts.indexOf('export function speakPromoSample('),
+  );
+  // One line: the sample id for the voice, the language it was tapped in, and
+  // the promo path. Nothing entitled, nothing metered, nothing remembered.
+  assert.match(preview, /return speakPromoSample\(voiceSampleId\(voice\), langCode, options\);/u);
+  assert.doesNotMatch(preview, /speakWithAI|contentVersion|getAIVoiceSample|activeAIVoice/u);
+
+  // The old entitled English preview is gone, along with the preload that
+  // generated it on every launch for a subscriber.
+  assert.doesNotMatch(tts, /syncAIVoiceSamplePreloading|AI_VOICE_SAMPLES|Welcome to WordCore/u);
+  assert.equal(fs.existsSync('src/lib/aiVoiceSamples.ts'), false);
+  assert.doesNotMatch(read('App.tsx'), /syncAIVoiceSamplePreloading/u);
+  assert.doesNotMatch(read('src/lib/aiVoices.ts'), /getAIVoiceLabel/u);
+});
+
+test('the picker samples follow the tutorial language, then Settings → Language', () => {
+  const app = read('App.tsx');
+  assert.match(
+    app,
+    /const voiceSampleLanguage = useMemo\(\(\) => resolveVoiceSampleLanguage\(\{\s*onboardingActive: showOnboarding,\s*nativeLang,\s*appLanguage: language,\s*\}\), \[language, nativeLang, showOnboarding\]\);/u,
+  );
+  // Never the language being studied: that is the Upgrade sheet's rule, and it
+  // has its own resolver. Comments are stripped first — the prose explains why
+  // the field is absent, and it is the code that has to stay free of it.
+  const resolver = read('src/features/voice/voiceSampleLanguage.ts')
+    .replace(/\/\*[\s\S]*?\*\//gu, '')
+    .replace(/\/\/.*$/gmu, '');
+  assert.doesNotMatch(resolver, /learn(ing)?Lang|purpose/u);
+  assert.match(resolver, /onboardingActive: boolean;/u);
+  assert.match(app, /voiceSampleLanguage,\s*onPickLanguage: pickLanguage,/u);
+  assert.match(app, /preloadVoiceSampleAudio\(voiceSampleLanguage\);/u);
+  // The sheet's four keep their own, unchanged rule.
+  assert.match(app, /preloadPromoVoiceSamples\(sampleLanguage\);/u);
 });
 
 test('each sample has its own loading state and starting one stops the other', () => {

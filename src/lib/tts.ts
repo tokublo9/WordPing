@@ -10,26 +10,25 @@ import { isLocalAiVoiceScenarioActive } from '../dev/localAiVoiceScenario';
 import { resolveCardVoiceSource } from '../features/voice/cardVoiceSource';
 
 /**
- * Promotional previews always use the app's default voice, matching the voice
- * the Worker speaks them in. The user's saved voice preference is irrelevant
- * here: the clip is a fixed marketing asset shared by every caller and cached
- * server-side, so it must not vary per user.
+ * The voice a fixed clip is spoken in is the sample's, never the user's.
+ *
+ * A promo clip is a fixed asset shared by every caller and cached server-side,
+ * so it must not vary with a saved preference. The four marketing clips use the
+ * default voice; each picker preview uses the voice it previews. The table is
+ * the shared one — the Worker resolves the same voice from the same sample id.
  */
-const PROMO_PREVIEW_VOICE: AIVoice = DEFAULT_AI_VOICE;
 import {
-  PROMO_SAMPLE_IDS,
+  UPGRADE_PROMO_SAMPLE_IDS,
+  VOICE_PROMO_SAMPLE_IDS,
   PROMO_SAMPLE_VERSION,
   promoSampleText,
+  promoSampleVoice,
   resolvePromoLang,
+  voiceSampleId,
   type PromoSampleId,
   type PromoSampleLang,
 } from './promoVoiceSamples';
 import { bundledPromoAudio, bundledPromoAudioSet } from './promoVoiceAudio';
-import {
-  AI_VOICE_SAMPLES,
-  AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
-  getAIVoiceSample,
-} from './aiVoiceSamples';
 import {
   hasReachedAISpeechAudibleEnd,
   safeAudibleStartSeconds,
@@ -166,7 +165,6 @@ interface AudioCacheLookupOptions {
 const fileUriIndex = new Map<string, string>();
 const networkRequests = new DeduplicatedRequestRegistry<CachedAudio>();
 const preloadQueue = new ControlledTTSPreloadQueue(DEFAULT_TTS_PRELOAD_CONCURRENCY);
-const voiceSamplePreloadQueue = new ControlledTTSPreloadQueue(AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY);
 const timingByFileUri = new Map<string, AISpeechTimingDiagnostics>();
 const validatedFileUris = new Set<string>();
 let activeGenerationController: AbortController | null = null;
@@ -573,78 +571,6 @@ function isSpeakingCardText(voice: AIVoice, normalizedText: string): boolean {
 export function cancelAIPronunciationPreload(entryId: string): void {
   if (!entryId) return;
   preloadQueue.cancelOwner(entryId);
-}
-
-export interface AIVoiceSamplePreloadOptions {
-  hasAIAccess: boolean;
-  activeEntitlement?: 'basic' | 'premium';
-  triggerReason: string;
-}
-
-const VOICE_SAMPLE_PRELOAD_OWNER = 'natural-ai-voice-samples';
-const failedVoiceSampleKeys = new Set<string>();
-let voiceSamplePreloadEligible = false;
-let activeVoiceSamplePreload: Promise<void> | null = null;
-let pendingVoiceSamplePreloadTrigger: AIVoiceSamplePreloadOptions | null = null;
-
-/**
- * Preload the fixed Natural AI Voice previews without creating a player or
- * changing any button state. Disk files are the persisted completion state and
- * are structurally validated before they are trusted after an app restart.
- */
-export function syncAIVoiceSamplePreloading(options: AIVoiceSamplePreloadOptions): void {
-  const wasEligible = voiceSamplePreloadEligible;
-  // Consent is part of eligibility, not an extra early return: passing it
-  // through the existing flag means revoking consent cancels queued sample work
-  // exactly the way losing the entitlement does.
-  voiceSamplePreloadEligible = options.hasAIAccess && isAIConsentGranted();
-  if (!voiceSamplePreloadEligible) {
-    voiceSamplePreloadQueue.cancelOwner(VOICE_SAMPLE_PRELOAD_OWNER);
-    return;
-  }
-
-  if (activeVoiceSamplePreload) {
-    if (!wasEligible) pendingVoiceSamplePreloadTrigger = options;
-    return;
-  }
-
-  const work = AI_VOICE_SAMPLES.map((sample, index) => {
-    const request = normalizeTTSRequest(sample.text, sample.voice, sample.contentVersion);
-    const key = serializeTTSCacheKey(request);
-    if (failedVoiceSampleKeys.has(key)) return Promise.resolve();
-
-    const queued = voiceSamplePreloadQueue.enqueue(key, VOICE_SAMPLE_PRELOAD_OWNER, async () => {
-      if (!voiceSamplePreloadEligible) return;
-      try {
-        await fetchAndCacheAudio(sample.text, sample.voice, {
-          trackAsActiveGeneration: false,
-          sampleVersion: sample.contentVersion,
-        });
-      } catch (error) {
-        failedVoiceSampleKeys.add(key);
-        if (__DEV__) console.warn('[AI voice sample preload]', {
-          phase: 'sample-failed',
-          sampleId: sample.id,
-          queueProgress: `${index + 1}/${AI_VOICE_SAMPLES.length}`,
-          errorName: error instanceof Error ? error.name : 'UnknownError',
-          errorMessage: error instanceof Error ? error.message : 'unknown_error',
-          loadingIndicatorDisplayed: false,
-        });
-      }
-    });
-    return queued.promise;
-  });
-
-  const run = Promise.allSettled(work).then(() => undefined);
-  const trackedRun = run.finally(() => {
-    if (activeVoiceSamplePreload !== trackedRun) return;
-    activeVoiceSamplePreload = null;
-    const nextTrigger = pendingVoiceSamplePreloadTrigger;
-    pendingVoiceSamplePreloadTrigger = null;
-    if (voiceSamplePreloadEligible && nextTrigger) syncAIVoiceSamplePreloading(nextTrigger);
-  });
-  activeVoiceSamplePreload = trackedRun;
-  void activeVoiceSamplePreload.catch(() => {});
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -1157,9 +1083,12 @@ export function setAIVoicePreference(voice: AIVoice): void {
 const promoPreloadByKey = new Map<string, Promise<void>>();
 
 function promoCacheKey(sample: PromoSampleId, lang: string): string {
-  return serializeTTSCacheKey(
-    normalizeTTSRequest(promoSampleText(sample, lang), PROMO_PREVIEW_VOICE, PROMO_SAMPLE_VERSION, lang),
-  );
+  return serializeTTSCacheKey(normalizeTTSRequest(
+    promoSampleText(sample, lang),
+    promoSampleVoice(sample),
+    PROMO_SAMPLE_VERSION,
+    lang,
+  ));
 }
 
 /**
@@ -1177,29 +1106,53 @@ function promoCacheKey(sample: PromoSampleId, lang: string): string {
  * leaves the tap to behave exactly as it does today.
  */
 export function preloadPromoVoiceSamples(langCode?: string): void {
+  preloadFixedPromoSamples(UPGRADE_PROMO_SAMPLE_IDS, langCode);
+}
+
+/**
+ * Prepare the voice picker's two previews, in the language the picker will
+ * speak them in.
+ *
+ * Separate from the Upgrade sheet's four because the two groups resolve their
+ * language differently — the picker follows the Explanation Language during the
+ * tutorial and Settings → Language afterwards, while the sheet's samples follow
+ * what the user said they were here for. Preparing them together would prepare
+ * one of them under the other's language.
+ */
+export function preloadVoiceSampleAudio(langCode?: string): void {
+  preloadFixedPromoSamples(VOICE_PROMO_SAMPLE_IDS, langCode);
+}
+
+function preloadFixedPromoSamples(
+  samples: readonly PromoSampleId[],
+  langCode: string | undefined,
+): void {
   const lang = resolvePromoLang(langCode);
 
   // Bundled: nothing to fetch. In a release build the files are already in the
   // app bundle; in development Metro serves them, and resolving them now means
   // the first tap does not wait on that. Fire-and-forget, and a failure is the
   // player's problem later, not startup's.
-  const bundled = bundledPromoAudioSet(lang);
-  if (bundled.length > 0) {
+  const bundled = bundledPromoAudioSet(lang, samples);
+  if (bundled.length === samples.length) {
     void Asset.loadAsync(bundled as number[]).catch(() => {
-      preloadNetworkPromoVoiceSamples(lang);
+      preloadNetworkPromoVoiceSamples(samples, lang);
     });
     return;
   }
 
-  preloadNetworkPromoVoiceSamples(lang);
+  preloadNetworkPromoVoiceSamples(samples, lang);
 }
 
-/** Fixed-promo network preload; never enters Natural AI Voice sample preloading. */
-function preloadNetworkPromoVoiceSamples(lang: PromoSampleLang): void {
-  for (const sample of PROMO_SAMPLE_IDS) {
+/** Fixed-promo network preload; never enters entitled word-card generation. */
+function preloadNetworkPromoVoiceSamples(
+  samples: readonly PromoSampleId[],
+  lang: PromoSampleLang,
+): void {
+  for (const sample of samples) {
     const key = promoCacheKey(sample, lang);
     if (promoPreloadByKey.has(key)) continue;
-    const run = fetchAndCacheAudio(promoSampleText(sample, lang), PROMO_PREVIEW_VOICE, {
+    const run = fetchAndCacheAudio(promoSampleText(sample, lang), promoSampleVoice(sample), {
       trackAsActiveGeneration: false,
       sampleVersion: PROMO_SAMPLE_VERSION,
       language: lang,
@@ -1235,7 +1188,7 @@ async function speakBundledPromo(
 
   // Same shape as the network path's key, so tapping the playing sample stops it
   // and tapping another supersedes it, exactly as before.
-  const playbackKey = `ai:${PROMO_PREVIEW_VOICE}:${PROMO_SAMPLE_VERSION}:${sample}:${lang}`;
+  const playbackKey = `ai:${promoSampleVoice(sample)}:${PROMO_SAMPLE_VERSION}:${sample}:${lang}`;
   const myEpoch = beginPlayback(playbackKey);
   if (myEpoch == null) return;
   options.onPhaseChange?.('checking-cache');
@@ -1309,7 +1262,7 @@ function speakFixedPromoNetwork(
 ): Promise<void> {
   return speakFetchedAudio(
     promoSampleText(sample, lang),
-    PROMO_PREVIEW_VOICE,
+    promoSampleVoice(sample),
     options,
     PROMO_SAMPLE_VERSION,
     { sample, langCode: lang },
@@ -1317,13 +1270,26 @@ function speakFixedPromoNetwork(
   );
 }
 
-/** Play a one-off subscriber preview without changing the saved preference. */
+/**
+ * Play the picker's preview of one voice, in one language.
+ *
+ * The language is an argument rather than module state because it has to be the
+ * language at the moment of the tap: the user can change Settings → Language
+ * with the picker one screen away, and the next tap must speak the new one
+ * without a relaunch. Nothing here remembers it.
+ *
+ * Routed through the fixed promo path, so the preview is a bundled clip when
+ * one exists, and otherwise the free, identity-less `/v1/voice/promo` route. It
+ * changes no saved preference, spends no AI Voice credit, and is unaffected by
+ * the plan. The consent question in front of it is the caller's — see
+ * `features/voice/voicePreviewFlow.ts`.
+ */
 export function previewAIVoice(
   voice: AIVoice,
+  langCode: string | undefined,
   options?: TTSPlaybackOptions,
 ): Promise<void> {
-  const sample = getAIVoiceSample(voice);
-  return speakWithAI(sample.text, voice, options, sample.contentVersion);
+  return speakPromoSample(voiceSampleId(voice), langCode, options);
 }
 
 /**

@@ -101,12 +101,14 @@ test('the Settings row carries the info button beside its label', () => {
   }
 
   // Renaming the label cannot change what is spoken, cached or sent: the TTS
-  // request, the cache key and the fixed sample all still use the internal
-  // value, and the sample keeps its English label helper.
-  const samples = fs.readFileSync('src/lib/aiVoiceSamples.ts', 'utf8');
-  assert.match(samples, /text: `Welcome to WordCore\. This is the \$\{getAIVoiceLabel\(voice\)\} voice\.`/u);
-  assert.match(samples, /voice,/u, 'the request carries the internal value');
-  assert.doesNotMatch(samples, /getAIVoiceNameKey/u, 'the spoken sample never uses the display name');
+  // request and the cache key still use the internal value, and the spoken
+  // sentence comes from the localized promo table rather than from a display
+  // key — the two agree on the name because each locale writes it that way,
+  // not because one is built from the other.
+  const samples = fs.readFileSync('src/lib/promoVoiceSamples.ts', 'utf8');
+  assert.match(samples, /voice_marin: \{\s*en: 'This is Marin’s voice\.',/u);
+  assert.match(samples, /voice_cedar: \{\s*en: 'This is Cedar’s voice\.',/u);
+  assert.doesNotMatch(samples, /getAIVoiceNameKey|TranslationKey/u, 'the spoken sample never uses the display key');
   const request = fs.readFileSync('src/lib/ttsRequest.ts', 'utf8');
   assert.doesNotMatch(request, /getAIVoiceNameKey|voice_name_/u, 'the cache key never sees a display name');
 });

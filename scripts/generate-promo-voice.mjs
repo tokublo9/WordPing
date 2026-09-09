@@ -5,11 +5,11 @@
  *   node scripts/generate-promo-voice.mjs [--force] [--lang=en,ja] [--dry-run]
  *
  * Run once, offline, by a developer. The app never calls OpenAI for these
- * samples: the whole point of this script is that the four clips ship with the
+ * samples: the whole point of this script is that every clip ships with the
  * binary, so the first tap plays immediately on a fresh install and offline.
  *
  * WHAT IT PRODUCES
- *   assets/promo-voice/<lang>/<sample>.mp3     — 80 files (20 languages × 4)
+ *   assets/promo-voice/<lang>/<sample>.mp3     — 120 files (20 languages × 6)
  *   src/lib/promoVoiceAudio.ts                 — the static require() map,
  *                                                rewritten between its markers
  *
@@ -37,7 +37,15 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
-  existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync,
+  constants as fsConstants,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  unlinkSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,13 +61,48 @@ export const PROMO_LANGS = [
   'en', 'ja', 'ko', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru',
   'ar', 'hi', 'tr', 'nl', 'vi', 'th', 'id', 'pl', 'el', 'sv',
 ];
-const SAMPLES = ['spontaneous', 'vertical', 'merely', 'morning_light'];
+const SAMPLES = ['spontaneous', 'vertical', 'merely', 'morning_light', 'voice_marin', 'voice_cedar'];
+const V3_SAMPLES = ['spontaneous', 'vertical', 'merely', 'morning_light'];
+const V4_ADDED_SAMPLES = ['voice_marin', 'voice_cedar'];
+
+/**
+ * The only version mismatch that may be completed without `--force`.
+ *
+ * v4 adds two samples without changing the request contract for v3's four, so
+ * the 80 already-generated clips are immutable migration inputs. Future
+ * transitions must be reviewed and added explicitly instead of inheriting this
+ * exception accidentally.
+ */
+const MISSING_ONLY_MIGRATION = Object.freeze({
+  from: 'upgrade-promo-v3',
+  to: 'upgrade-promo-v4',
+  preservedSamples: V3_SAMPLES,
+  addedSamples: V4_ADDED_SAMPLES,
+});
+
+/**
+ * The voice each sample is spoken in — the Worker's PROMO_SAMPLE_VOICES.
+ *
+ * The four marketing clips demonstrate the feature and keep the default voice.
+ * The two picker previews are each spoken by the voice they preview, which is
+ * the whole point of them, so the voice is per sample rather than global.
+ */
+const SAMPLE_VOICES = {
+  spontaneous: 'marin',
+  vertical: 'marin',
+  merely: 'marin',
+  morning_light: 'marin',
+  voice_marin: 'marin',
+  voice_cedar: 'cedar',
+};
 
 // Exactly what the Worker's /v1/voice/promo route sends to OpenAI. Traced from
 // routes/voice.ts -> handleVoicePromo -> requestSpeech -> OPENAI_SPEECH_URL.
 //
 //   model            SPEECH_MODEL           config.ts:17
-//   voice            PROMO_SAMPLE_VOICE     = DEFAULT_VOICE = 'marin'
+//   voice            PROMO_SAMPLE_VOICES    per sample; 'marin' for the four
+//                                           marketing clips, the previewed
+//                                           voice for voice_marin/voice_cedar
 //   response_format  'wav'                  passed as `format: 'wav'`
 //   instructions     server-owned           selected from the normalized promo
 //                                           language using the shared JSON map
@@ -70,15 +113,14 @@ const SAMPLES = ['spontaneous', 'vertical', 'merely', 'morning_light'];
 // stop matching what users hear and must be regenerated.
 const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
 const MODEL = 'gpt-4o-mini-tts';
-const VOICE = 'marin';
 
 /**
  * Two different formats, deliberately.
  *
  * OPENAI_RESPONSE_FORMAT is what is *generated*: `wav`, the same as the Worker
  * asks for, so the synthesis is byte-for-byte the request users' previews make
- * today. BUNDLE_FORMAT is what is *shipped*: mp3, because 80 wavs would be
- * ~6 MB against ~1 MB compressed. The conversion is local and changes the
+ * today. BUNDLE_FORMAT is what is *shipped*: mp3, because the full set of wavs
+ * would be several megabytes against a fraction of that compressed. The conversion is local and changes the
  * container and codec, never the words or the voice.
  */
 const OPENAI_RESPONSE_FORMAT = 'wav';
@@ -192,16 +234,17 @@ export function buildPromoGenerationPlan(table, instructions, languages = PROMO_
     sample,
     path: join(OUT_DIR, lang, `${sample}.mp3`),
     text: table[sample][lang],
+    voice: SAMPLE_VOICES[sample],
     instructions: instructions[lang],
   })));
 }
 
-/** The exact OpenAI body shared by all four samples and all 20 languages. */
-export function promoSpeechRequestBody(text, instructions) {
+/** The exact OpenAI body for one sample in one language. */
+export function promoSpeechRequestBody(text, instructions, voice) {
   return {
     model: MODEL,
     input: text,
-    voice: VOICE,
+    voice,
     response_format: OPENAI_RESPONSE_FORMAT,
     instructions,
   };
@@ -222,7 +265,7 @@ function hasFfmpeg() {
  * the network path — `wavSilence.ts` measures the leading silence and
  * `safeAudibleStartSeconds` skips it — because a bundled clip carries no timing
  * metadata and plays from position 0. Loudness normalisation is the one thing
- * the runtime does not do; it makes the 80 clips consistent with each other.
+ * the runtime does not do; it makes the 120 clips consistent with each other.
  */
 function encodeBundle(wavPath, mp3Path) {
   const result = spawnSync('ffmpeg', [
@@ -241,7 +284,7 @@ function encodeBundle(wavPath, mp3Path) {
   return result.status === 0 && existsSync(mp3Path);
 }
 
-async function synthesize(text, instructions, apiKey) {
+async function synthesize(text, instructions, voice, apiKey) {
   const response = await fetch(OPENAI_SPEECH_URL, {
     method: 'POST',
     headers: {
@@ -250,7 +293,7 @@ async function synthesize(text, instructions, apiKey) {
     },
     // The Worker's exact body. The instruction is selected from the shared,
     // server-owned language map; no command-line value can override it.
-    body: JSON.stringify(promoSpeechRequestBody(text, instructions)),
+    body: JSON.stringify(promoSpeechRequestBody(text, instructions, voice)),
   });
   if (!response.ok) {
     // Status only. An upstream body can echo the request, so it is not printed.
@@ -259,9 +302,100 @@ async function synthesize(text, instructions, apiKey) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-function isValidExisting(path) {
-  if (!existsSync(path)) return false;
-  return statSync(path).size >= MIN_VALID_BYTES;
+/** An MP3 must begin with an ID3 tag or an MPEG audio frame-sync word. */
+export function hasValidMp3Header(bytes) {
+  if (!bytes || bytes.length < 3) return false;
+  const id3 = bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33;
+  const frameSync = bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
+  return id3 || frameSync;
+}
+
+/** Validate the bytes and the exact allowlisted destination of one clip. */
+export function validatePromoAudioFile(item, outDir = OUT_DIR) {
+  if (!PROMO_LANGS.includes(item.lang) || !SAMPLES.includes(item.sample)) {
+    return { valid: false, reason: 'unknown locale or sample' };
+  }
+  const expectedPath = join(outDir, item.lang, `${item.sample}.mp3`);
+  if (resolve(item.path) !== resolve(expectedPath)) {
+    return { valid: false, reason: `unexpected path (expected ${expectedPath})` };
+  }
+  if (!existsSync(item.path)) return { valid: false, reason: 'missing' };
+
+  try {
+    const stat = statSync(item.path);
+    if (!stat.isFile()) return { valid: false, reason: 'not a regular file' };
+    if (stat.size === 0) return { valid: false, reason: 'empty' };
+    if (stat.size < MIN_VALID_BYTES) {
+      return { valid: false, reason: `smaller than ${MIN_VALID_BYTES} bytes` };
+    }
+    if (!hasValidMp3Header(readFileSync(item.path).subarray(0, 3))) {
+      return { valid: false, reason: 'invalid MP3 header' };
+    }
+  } catch (error) {
+    return {
+      valid: false,
+      reason: `unreadable (${error instanceof Error ? error.message : 'unknown error'})`,
+    };
+  }
+  return { valid: true, reason: null };
+}
+
+function isValidExisting(item) {
+  return validatePromoAudioFile(item).valid;
+}
+
+export function isMissingOnlyMigration(bundledVersion, version, force, hasLangArg) {
+  return !force
+    && !hasLangArg
+    && bundledVersion === MISSING_ONLY_MIGRATION.from
+    && version === MISSING_ONLY_MIGRATION.to;
+}
+
+/** Select only absent or invalid files; valid files are immutable in this mode. */
+export function selectMissingPromoEntries(planned, outDir = OUT_DIR) {
+  return planned.filter(item => !validatePromoAudioFile(item, outDir).valid);
+}
+
+/**
+ * One deterministic digest over sorted relative paths and file bytes.
+ * Including paths makes the aggregate sensitive to swapped locale/sample files.
+ */
+export function aggregatePromoFilesSha256(items, outDir = OUT_DIR) {
+  const hash = createHash('sha256');
+  const sorted = [...items].sort((a, b) => a.path.localeCompare(b.path));
+  for (const item of sorted) {
+    const validation = validatePromoAudioFile(item, outDir);
+    if (!validation.valid) {
+      throw new Error(`Cannot hash invalid promo clip ${item.lang}/${item.sample}: ${validation.reason}`);
+    }
+    hash.update(`${item.lang}/${item.sample}.mp3\0`);
+    hash.update(readFileSync(item.path));
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
+function fileSha256(path) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function snapshotFiles(items) {
+  return new Map(items.map(item => [item.path, fileSha256(item.path)]));
+}
+
+function changedSnapshotPaths(snapshot) {
+  return [...snapshot].filter(([path, digest]) => (
+    !existsSync(path) || fileSha256(path) !== digest
+  )).map(([path]) => path);
+}
+
+function listMp3Files(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return listMp3Files(path);
+    return entry.isFile() && entry.name.endsWith('.mp3') ? [path] : [];
+  });
 }
 
 /** Rewrites only the region between the two markers. */
@@ -312,13 +446,43 @@ async function main() {
   // A global version stamp may advance only after every tracked clip has been
   // regenerated under the new request contract. Otherwise a partial run would
   // make untouched old-language files look current and re-enable stale audio.
-  if (bundledVersion !== version && (!force || langArg !== undefined)) {
+  const missingOnlyMigration = isMissingOnlyMigration(
+    bundledVersion,
+    version,
+    force,
+    langArg !== undefined,
+  );
+  if (bundledVersion !== version && !missingOnlyMigration && (!force || langArg !== undefined)) {
     fail(`Promo audio changed from ${bundledVersion} to ${version}; regenerate all languages with --force`);
   }
 
-  const planned = buildPromoGenerationPlan(table, instructions, targetLangs);
+  const fullPlan = buildPromoGenerationPlan(table, instructions, PROMO_LANGS);
+  const planned = langArg === undefined
+    ? fullPlan
+    : buildPromoGenerationPlan(table, instructions, targetLangs);
 
-  const missing = planned.filter(item => force || !isValidExisting(item.path));
+  let protectedItems = [];
+  let protectedSnapshot = new Map();
+  let protectedAggregate = null;
+  if (missingOnlyMigration) {
+    protectedItems = planned.filter(item => MISSING_ONLY_MIGRATION.preservedSamples.includes(item.sample));
+    if (protectedItems.length !== PROMO_LANGS.length * MISSING_ONLY_MIGRATION.preservedSamples.length) {
+      fail(`Missing-only ${bundledVersion} → ${version} migration expected exactly 80 protected clips`);
+    }
+    const invalidProtected = protectedItems
+      .map(item => ({ item, validation: validatePromoAudioFile(item) }))
+      .filter(({ validation }) => !validation.valid);
+    if (invalidProtected.length > 0) {
+      const first = invalidProtected[0];
+      fail(`Cannot preserve the v3 set: ${first.item.lang}/${first.item.sample}.mp3 is ${first.validation.reason}`);
+    }
+    protectedSnapshot = snapshotFiles(protectedItems);
+    protectedAggregate = aggregatePromoFilesSha256(protectedItems);
+    console.log(`Missing-only migration ${bundledVersion} → ${version}.`);
+    console.log(`Protected v3 clips: ${protectedItems.length}; aggregate sha256:${protectedAggregate}`);
+  }
+
+  const missing = force ? planned : selectMissingPromoEntries(planned);
   console.log(`Promo voice: ${planned.length} clips planned, ${missing.length} to generate${force ? ' (--force)' : ''}.`);
 
   if (dryRun) {
@@ -336,21 +500,42 @@ async function main() {
     fail('ffmpeg is required: OpenAI returns wav and the app bundles mp3. Install ffmpeg and re-run.');
   }
 
+  const created = [];
   for (const item of missing) {
     mkdirSync(dirname(item.path), { recursive: true });
-    const wavPath = `${item.path}.src.wav`;
+    const wavPath = `${item.path}.src-${process.pid}.wav`;
+    const encodedPath = `${item.path}.generated-${process.pid}.mp3`;
     try {
-      const audio = await synthesize(item.text, item.instructions, apiKey);
+      if (!force && isValidExisting(item)) {
+        throw new Error('refusing to overwrite a valid existing MP3');
+      }
+      const audio = await synthesize(item.text, item.instructions, item.voice, apiKey);
       if (audio.byteLength < MIN_VALID_BYTES) throw new Error(`response too small (${audio.byteLength} bytes)`);
       writeFileSync(wavPath, audio);
-      if (!encodeBundle(wavPath, item.path)) throw new Error('ffmpeg conversion to mp3 failed');
+      if (!encodeBundle(wavPath, encodedPath)) throw new Error('ffmpeg conversion to mp3 failed');
+      const encodedBytes = readFileSync(encodedPath);
+      if (encodedBytes.byteLength < MIN_VALID_BYTES || !hasValidMp3Header(encodedBytes.subarray(0, 3))) {
+        throw new Error('encoded output is not a valid MP3 of at least 1,024 bytes');
+      }
+
+      // Re-check after synthesis closes the race between planning and writing.
+      // COPYFILE_EXCL is the final guard: a valid file can never be overwritten.
+      if (!force && isValidExisting(item)) {
+        throw new Error('refusing to overwrite a valid existing MP3');
+      }
+      if (existsSync(item.path)) unlinkSync(item.path); // invalid files alone may be replaced
+      copyFileSync(encodedPath, item.path, fsConstants.COPYFILE_EXCL);
+      const validation = validatePromoAudioFile(item);
+      if (!validation.valid) throw new Error(`final output validation failed: ${validation.reason}`);
+      created.push(item.path);
       const { size } = statSync(item.path);
       console.log(`  ✓ ${item.lang}/${item.sample}.${BUNDLE_FORMAT}  ${size.toLocaleString()} bytes  sha256:${createHash('sha256').update(readFileSync(item.path)).digest('hex').slice(0, 12)}`);
     } catch (error) {
-      fail(`${item.lang}/${item.sample}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      throw new Error(`${item.lang}/${item.sample}: ${error instanceof Error ? error.message : 'unknown error'}`);
     } finally {
       // The wav is an intermediate only; nothing but the mp3 is bundled.
       if (existsSync(wavPath)) unlinkSync(wavPath);
+      if (existsSync(encodedPath)) unlinkSync(encodedPath);
     }
   }
 
@@ -361,20 +546,19 @@ async function main() {
   for (const lang of PROMO_LANGS) {
     for (const sample of SAMPLES) {
       const path = join(OUT_DIR, lang, `${sample}.mp3`);
-      if (isValidExisting(path)) {
+      const item = { lang, sample, path };
+      const validation = validatePromoAudioFile(item);
+      if (validation.valid) {
         produced.add(`${lang}/${sample}`);
         totalBytes += statSync(path).size;
       } else {
-        absent.push(`${lang}/${sample}.mp3`);
+        absent.push(`${lang}/${sample}.mp3 (${validation.reason})`);
       }
     }
   }
 
-  const mappedLangs = writeAudioMap(produced, version);
-
   console.log(`\nFiles present: ${produced.size} / ${PROMO_LANGS.length * SAMPLES.length}`);
   console.log(`Total size:    ${(totalBytes / 1_048_576).toFixed(2)} MiB (${totalBytes.toLocaleString()} bytes)`);
-  console.log(`Asset map:     ${mappedLangs} complete language${mappedLangs === 1 ? '' : 's'} written to src/lib/promoVoiceAudio.ts`);
 
   if (absent.length > 0) {
     console.error(`\n✖ Missing ${absent.length} file(s):`);
@@ -382,7 +566,36 @@ async function main() {
     console.error('\nLanguages with an incomplete set are omitted from the asset map and fall back to the network route.');
     process.exit(1);
   }
-  console.log('\n✓ All 80 clips present and mapped.');
+
+  const expectedPaths = new Set(fullPlan.map(item => resolve(item.path)));
+  const actualMp3Paths = listMp3Files(OUT_DIR).map(path => resolve(path));
+  const unexpectedPaths = actualMp3Paths.filter(path => !expectedPaths.has(path));
+  if (actualMp3Paths.length !== PROMO_LANGS.length * SAMPLES.length || unexpectedPaths.length > 0) {
+    fail(`Expected exactly 120 MP3 paths; found ${actualMp3Paths.length}${unexpectedPaths.length ? ` including ${unexpectedPaths.length} unexpected` : ''}`);
+  }
+
+  if (missingOnlyMigration) {
+    const changed = changedSnapshotPaths(protectedSnapshot);
+    const afterAggregate = aggregatePromoFilesSha256(protectedItems);
+    if (changed.length > 0 || afterAggregate !== protectedAggregate) {
+      fail(`Protected v3 audio changed (${changed.length} modified file${changed.length === 1 ? '' : 's'})`);
+    }
+    if (created.length !== missing.length) {
+      fail(`Expected to create ${missing.length} missing v4 clips; created ${created.length}`);
+    }
+    console.log(`Created files:  ${created.length} / ${PROMO_LANGS.length * MISSING_ONLY_MIGRATION.addedSamples.length}`);
+    console.log('Modified v3:    0 / 80');
+    console.log(`Protected hash: sha256:${afterAggregate} (unchanged)`);
+  }
+
+  // This is deliberately the last mutation. Any generation, validation, count,
+  // or preservation failure above exits with the bundled marker still at v3.
+  const mappedLangs = writeAudioMap(produced, version);
+  const finalBundledVersion = readBundledAudioVersion();
+  if (finalBundledVersion !== version) fail('Bundled-audio version marker did not update');
+  console.log(`Asset map:      ${mappedLangs} complete languages written to src/lib/promoVoiceAudio.ts`);
+  console.log(`Version gate:   open (${finalBundledVersion} = ${version})`);
+  console.log(`\n✓ All ${PROMO_LANGS.length * SAMPLES.length} clips present and mapped.`);
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : null;

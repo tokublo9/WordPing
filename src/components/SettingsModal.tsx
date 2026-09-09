@@ -113,6 +113,14 @@ interface Props {
   language: string;
   /** App-resolved key shared by both Upgrade Plan instances. */
   sampleLanguage: PromoSampleLang;
+  /**
+   * The language the voice picker's Marin and Cedar samples speak.
+   *
+   * Resolved by App from live state — the Explanation Language during the
+   * tutorial, Settings → Language afterwards — so a language change reaches the
+   * next tap through this prop rather than through anything cached in here.
+   */
+  voiceSampleLanguage: PromoSampleLang;
   onPickLanguage: (code: string) => void;
   aiVoice: AIVoice;
   onPickAIVoice: (voice: AIVoice) => void;
@@ -156,7 +164,7 @@ export function SettingsModal({
   skinId, onPickSkin, isSubscribed, isPremium, isSubscriptionLoaded,
   onUpgrade: _onUpgrade,
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription,
-  pal, language, sampleLanguage, onPickLanguage,
+  pal, language, sampleLanguage, voiceSampleLanguage, onPickLanguage,
   aiVoice, onPickAIVoice,
   cardViewMode, onChangeCardViewMode,
   showFullCard, onToggleShowFullCard,
@@ -613,6 +621,7 @@ export function SettingsModal({
           pal={pal}
           themeColor={themeColor}
           language={language}
+          sampleLanguage={voiceSampleLanguage}
         />
 
         {/* Appearance-disabled hint toast — slides in below the header */}
@@ -659,8 +668,9 @@ export function SettingsModal({
  * genuine failure (offline, timeout, a service outage) was reported to the user
  * as a quota they had not actually hit.
  *
- * A preview is a fixed, server-authored sentence on the sample route. It spends
- * no lifetime voice credit, so no credit message belongs here.
+ * A preview is a fixed, server-authored sentence on the promo route — usually a
+ * clip that ships with the app and reaches no network at all. It spends no
+ * lifetime voice credit, so no credit message belongs here.
  */
 function previewFailureMessageKey(error: unknown): TranslationKey {
   if (!isAIRequestError(error)) return 'err_generation_failed';
@@ -684,7 +694,7 @@ function previewFailureMessageKey(error: unknown): TranslationKey {
 
 // ── AI voice selection screen ────────────────────────────────────────────────
 function VoiceSelectionScreen({
-  visible, onClose, selectedVoice, onSelect, pal, themeColor, language,
+  visible, onClose, selectedVoice, onSelect, pal, themeColor, language, sampleLanguage,
 }: {
   visible: boolean;
   onClose(): void;
@@ -694,6 +704,8 @@ function VoiceSelectionScreen({
   themeColor: string;
   /** BCP-47 tag, for the usage-limit banner's date and time formatting. */
   language: string;
+  /** The language the samples are spoken in. Read at the tap, never at mount. */
+  sampleLanguage: PromoSampleLang;
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
@@ -749,6 +761,19 @@ function VoiceSelectionScreen({
   const reportPreviewFailureRef = useRef(reportPreviewFailure);
   reportPreviewFailureRef.current = reportPreviewFailure;
 
+  /**
+   * The sample language, refreshed on every render.
+   *
+   * The flow below is built once and keeps its `play` callback for the life of
+   * the screen, so anything read when that closure was created would be the
+   * language at mount. Someone who changes Settings → Language and comes back
+   * would then hear the previous one until they relaunched — which is the bug
+   * this pins. Reading the ref at the tap makes the current value the one that
+   * is spoken.
+   */
+  const sampleLanguageRef = useRef(sampleLanguage);
+  sampleLanguageRef.current = sampleLanguage;
+
   // A run can settle after this screen has gone — a consent dialog answered on
   // the way out, a request that was already in flight. The guard keeps that
   // from publishing into a component that is no longer mounted.
@@ -767,7 +792,7 @@ function VoiceSelectionScreen({
     // The same call the Word List's AI Voice button makes, reading and writing
     // the one consent decision. Not a second dialog and not a second store.
     ensureConsent: () => ensureAIConsentForUserAction(),
-    play: (voice, report) => previewAIVoice(voice, { onPhaseChange: report }),
+    play: (voice, report) => previewAIVoice(voice, sampleLanguageRef.current, { onPhaseChange: report }),
     stop: () => { stopPlayback(); },
     onChange: snapshot => { if (mounted.current) setPreviewState(snapshot); },
     onError: error => { reportPreviewFailureRef.current(error); },

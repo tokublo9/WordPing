@@ -37,7 +37,10 @@ test('manual playback bypasses reads without deleting audio and background prelo
   assert.match(tts, /if \(indexed && !options\.bypassCache\)/u);
   assert.match(tts, /if \(!options\.bypassCache && await validateCachedAudioFile\(cachedFile\)\)/u);
   assert.doesNotMatch(tts, /bypassCache[\s\S]{0,180}(delete|invalidateCachedAudioFile)/u);
-  assert.match(app, /if \(entitlementSource === 'local-development-scenario'\) return;[\s\S]{0,180}syncAIVoiceSamplePreloading/u);
+  // Fixed promo clips are exempt from the scenario's cache bypass by
+  // construction — `sampleVersion === undefined && promo === undefined` — so
+  // the picker's previews need no scenario guard of their own.
+  assert.match(tts, /bypassCache: isLocalAiVoiceScenarioActive\(\) && sampleVersion === undefined && promo === undefined,/u);
   assert.match(app, /entitlementSource === 'local-development-scenario'[\s\S]{0,180}preloadedLibraryKeyRef\.current = null/u);
   assert.match(app, /entitlementSource !== 'local-development-scenario'/u);
 });

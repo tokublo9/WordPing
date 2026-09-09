@@ -450,8 +450,9 @@ test('7 & 8. the promo body carries no user content and an allowlisted id', () =
   // Both allowlists agree, and the Worker's schema has no text or voice field.
   const clientList = read('src/lib/promoVoiceSamples.ts');
   const workerList = read('cloudflare/wordping-api/src/config.ts');
-  assert.match(clientList, /PROMO_SAMPLE_IDS = \['spontaneous', 'vertical', 'merely', 'morning_light'\]/u);
-  assert.match(workerList, /PROMO_SAMPLE_IDS = \['spontaneous', 'vertical', 'merely', 'morning_light'\]/u);
+  const ids = /PROMO_SAMPLE_IDS = \[\s*'spontaneous', 'vertical', 'merely', 'morning_light', 'voice_marin', 'voice_cedar',\s*\]/u;
+  assert.match(clientList, ids);
+  assert.match(workerList, ids);
   const schema = read('cloudflare/wordping-api/src/schemas.ts');
   const promoSchema = schema.slice(schema.indexOf('export const voicePromoSchema'), schema.indexOf('export type VoicePromoRequest'));
   assert.match(promoSchema, /sample: z\.enum\(PROMO_SAMPLE_IDS\)/u);
@@ -464,8 +465,9 @@ test('the promo clip is served from the shared cache, not regenerated per user',
   // KV is consulted first and answered without touching OpenAI on a hit.
   assert.match(promo, /const cached = await context\.env\.WORDPING_KV\.get\(cacheKey, 'arrayBuffer'\)/u);
   assert.match(promo, /if \(cached\) \{[\s\S]*?return audioResponse\(/u);
-  // The cache key is the sample and language only — nothing per-user.
-  assert.match(promo, /const cacheKey = `promo:\$\{PROMO_SAMPLE_VERSION\}:\$\{sample\}:\$\{lang\}\.wav`/u);
+  // The cache key is the sample, its server-resolved voice and the language —
+  // nothing per-user, and nothing a caller supplied.
+  assert.match(promo, /const cacheKey = `promo:\$\{PROMO_SAMPLE_VERSION\}:\$\{sample\}:\$\{voice\}:\$\{lang\}\.wav`/u);
   assert.match(promo, /expirationTtl: PROMO_SAMPLE_CACHE_TTL_SECONDS/u);
   // The spoken text comes from the server's own table, never from the request.
   assert.match(promo, /const text = promoSampleText\(sample, lang\);/u);

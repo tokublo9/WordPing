@@ -48,6 +48,8 @@ import {
 } from '../features/cards/importMapping';
 import { fillTemplate } from '../lib/fillTemplate';
 import type { Folder, WordCard } from '../types';
+import { bulkImportPlaceholder } from '../features/cards/bulkImportExamples';
+import type { PromoSampleLang } from '../lib/promoVoiceSamples';
 import {
   FULL_SCREEN_SHEET_HEADER,
   FULL_SCREEN_SHEET_HEADER_ACTION,
@@ -57,6 +59,8 @@ import {
 
 interface Props {
   visible: boolean;
+  /** Resolved from live onboarding purpose + Learning/Explanation Language. */
+  exampleLanguage: PromoSampleLang;
   pal: Palette;
   themeColor: string;
   existingTexts: readonly string[];
@@ -114,6 +118,7 @@ function formatCount(template: string, count: number): string {
 
 export function BulkImportModal({
   visible,
+  exampleLanguage,
   pal,
   themeColor,
   existingTexts,
@@ -961,7 +966,7 @@ export function BulkImportModal({
                   textAlignVertical="top"
                   autoCapitalize="sentences"
                   autoCorrect={false}
-                  placeholder={t('bulk_import_placeholder')}
+                  placeholder={bulkImportPlaceholder(exampleLanguage)}
                   placeholderTextColor={pal.sub}
                   accessibilityLabel={t('bulk_import_input_label')}
                   style={[

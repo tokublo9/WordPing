@@ -216,7 +216,9 @@ export const MAX_LANG_CODE_LENGTH = 16;
  * in the app); a source test asserts the two tables agree, because audio that
  * does not match the words on screen is worse than no preview.
  */
-export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
+export const PROMO_SAMPLE_IDS = [
+  'spontaneous', 'vertical', 'merely', 'morning_light', 'voice_marin', 'voice_cedar',
+] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
 
 /** The normalized keys shared by promo text, pronunciation, assets, and caches. */
@@ -241,8 +243,30 @@ export function isPromoSampleId(value: unknown): value is PromoSampleId {
 /** Fixed server-side. The client cannot choose a voice for a promo preview. */
 export const PROMO_SAMPLE_VOICE: Voice = DEFAULT_VOICE;
 
+/**
+ * The voice each fixed sample is spoken in, keyed on the allowlisted sample id.
+ *
+ * Still entirely server-side: the schema has no voice field, so the only thing
+ * a caller selects is which row of this table applies. The four marketing clips
+ * demonstrate the feature and keep the default voice; the two picker previews
+ * are each spoken by the voice they preview, which is why the voice also enters
+ * the cache key below — a Cedar preview must never be served a Marin clip.
+ */
+export const PROMO_SAMPLE_VOICES: Readonly<Record<PromoSampleId, Voice>> = {
+  spontaneous: PROMO_SAMPLE_VOICE,
+  vertical: PROMO_SAMPLE_VOICE,
+  merely: PROMO_SAMPLE_VOICE,
+  morning_light: PROMO_SAMPLE_VOICE,
+  voice_marin: 'marin',
+  voice_cedar: 'cedar',
+};
+
+export function promoSampleVoice(sample: PromoSampleId): Voice {
+  return PROMO_SAMPLE_VOICES[sample];
+}
+
 /** Bump with the client after promo content or cache identity changes. */
-export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v3';
+export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v4';
 export const PROMO_SAMPLE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<PromoSampleLang, string>>>> = {
@@ -333,6 +357,50 @@ export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<P
     pl: 'Poranne światło przesączało się przez drzewa.',
     el: 'Το πρωινό φως διαπερνούσε τα δέντρα.',
     sv: 'Morgonljuset filtrerades genom träden.',
+  },
+  voice_marin: {
+    en: 'This is Marin’s voice.',
+    ja: 'これがマリンの声です。',
+    ko: '이것이 마린의 목소리입니다.',
+    zh: '这是马林的声音。',
+    es: 'Esta es la voz de Marin.',
+    fr: 'Voici la voix de Marin.',
+    de: 'Das ist die Stimme von Marin.',
+    it: 'Questa è la voce di Marin.',
+    pt: 'Esta é a voz de Marin.',
+    ru: 'Это голос Марин.',
+    ar: 'هذا هو صوت مارين.',
+    hi: 'यह मारिन की आवाज़ है।',
+    tr: 'Bu, Marin’in sesi.',
+    nl: 'Dit is de stem van Marin.',
+    vi: 'Đây là giọng của Marin.',
+    th: 'นี่คือเสียงของมาริน',
+    id: 'Ini suara Marin.',
+    pl: 'To jest głos Marin.',
+    el: 'Αυτή είναι η φωνή της Μαρίν.',
+    sv: 'Det här är Marins röst.',
+  },
+  voice_cedar: {
+    en: 'This is Cedar’s voice.',
+    ja: 'これがシダーの声です。',
+    ko: '이것이 시더의 목소리입니다.',
+    zh: '这是西达的声音。',
+    es: 'Esta es la voz de Cedar.',
+    fr: 'Voici la voix de Cedar.',
+    de: 'Das ist die Stimme von Cedar.',
+    it: 'Questa è la voce di Cedar.',
+    pt: 'Esta é a voz de Cedar.',
+    ru: 'Это голос Седара.',
+    ar: 'هذا هو صوت سيدار.',
+    hi: 'यह सीडर की आवाज़ है।',
+    tr: 'Bu, Cedar’ın sesi.',
+    nl: 'Dit is de stem van Cedar.',
+    vi: 'Đây là giọng của Cedar.',
+    th: 'นี่คือเสียงของซีดาร์',
+    id: 'Ini suara Cedar.',
+    pl: 'To jest głos Cedara.',
+    el: 'Αυτή είναι η φωνή του Σίνταρ.',
+    sv: 'Det här är Cedars röst.',
   },
 };
 

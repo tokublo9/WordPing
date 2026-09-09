@@ -53,7 +53,7 @@ test('identical promo text has an independent client identity per language', () 
     speed: 1,
     model: 'gpt-4o-mini-tts',
     format: 'wav',
-    contentVersion: 'upgrade-promo-v3',
+    contentVersion: PROMO_SAMPLE_VERSION,
   });
   assert.equal(identity('en'), expected('en'));
   assert.equal(identity('es'), expected('es'));

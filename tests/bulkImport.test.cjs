@@ -44,6 +44,13 @@ const {
   resolveBulkImportDestination,
 } = loadTypeScriptModule('src/features/cards/bulkImport.ts');
 const { SUPPORTED_LANGUAGES, translate } = loadTypeScriptModule('src/i18n.ts');
+const {
+  BULK_IMPORT_EXAMPLES,
+  bulkImportPlaceholder,
+} = loadTypeScriptModule('src/features/cards/bulkImportExamples.ts');
+const {
+  resolveAIVoiceSampleLanguage,
+} = loadTypeScriptModule('src/features/onboarding/sampleLanguage.ts');
 
 const BULK_LABELS = {
   'en-US': 'Bulk Import', ja: '一括登録', ko: '일괄 등록', 'zh-CN': '批量导入',
@@ -243,7 +250,7 @@ test('rapid repeated Import taps share one operation', async () => {
 test('every supported language contains localized bulk-import UI and accessibility strings', () => {
   assert.equal(SUPPORTED_LANGUAGES.length, Object.keys(BULK_LABELS).length);
   const keys = [
-    'bulk_import', 'bulk_import_helper', 'bulk_import_placeholder', 'bulk_import_input_label',
+    'bulk_import', 'bulk_import_helper', 'bulk_import_input_label',
     'bulk_import_parsed_count', 'bulk_import_preview', 'bulk_import_valid_count',
     'bulk_import_duplicate', 'bulk_import_remove_item',
     'bulk_import_importing', 'bulk_import_import',
@@ -251,7 +258,6 @@ test('every supported language contains localized bulk-import UI and accessibili
   ];
   for (const { code } of SUPPORTED_LANGUAGES) {
     assert.equal(translate(code, 'bulk_import'), BULK_LABELS[code], code);
-    assert.equal(translate(code, 'bulk_import_placeholder'), 'spontaneous\nengage\nrecession', code);
     for (const key of keys) {
       const value = translate(code, key);
       assert.ok(value && value !== key, `${code}:${key}`);
@@ -259,11 +265,11 @@ test('every supported language contains localized bulk-import UI and accessibili
   }
   assert.equal(
     translate('ja', 'bulk_import_helper'),
-    'まとめて単語を追加できます。1行が1つの単語として追加され、改行すると次の単語として認識されます。',
+    '表の単語をまとめて追加できます。1行につき1語として追加されます。',
   );
   assert.equal(
     translate('en-US', 'bulk_import_helper'),
-    'Add several words at once. Each line is added as one word, and a new line starts the next word.',
+    'You can add multiple front-side words at once. Each line is added as one word.',
   );
   // Every locale carries its own translation of the line-per-word explanation — no
   // locale is left on the Japanese source string or on a copy of another language.
@@ -278,13 +284,77 @@ test('every supported language contains localized bulk-import UI and accessibili
     assert.equal(sharedWith, undefined, `${code}: helper duplicates ${sharedWith}`);
     helpers.set(helper, code);
   }
+  const declarations = fs.readFileSync('src/i18n.ts', 'utf8')
+    .match(/\bbulk_import_helper:/gu) ?? [];
+  assert.equal(declarations.length, SUPPORTED_LANGUAGES.length);
 });
 
-test('placeholder examples remain display-only and input starts empty', () => {
+test('purpose and live source language select the manual placeholder, never UI language', () => {
+  const selected = input => bulkImportPlaceholder(resolveAIVoiceSampleLanguage(input));
+
+  assert.equal(selected({
+    purpose: 'language', learningLang: 'ko-KR', nativeLang: 'ja-JP', appLanguage: 'en-US',
+  }), '사과\n강\n밝다');
+  assert.equal(selected({
+    purpose: 'language', learningLang: 'de-DE', nativeLang: 'ja-JP', appLanguage: 'ko',
+  }), 'Apfel\nFluss\nhell');
+  assert.equal(selected({
+    purpose: 'words', learningLang: 'de-DE', nativeLang: 'ja-JP', appLanguage: 'en-US',
+  }), 'りんご\n川\n明るい');
+  assert.equal(selected({
+    purpose: 'words', learningLang: 'ko-KR', nativeLang: 'zh-CN', appLanguage: 'de',
+  }), '苹果\n河流\n明亮');
+
+  // Re-resolving models the next React render: relevant changes move the row,
+  // while a change to the purpose-unrelated language cannot win.
+  const languageLearner = { purpose: 'language', learningLang: 'ko-KR', nativeLang: 'ja-JP' };
+  assert.notEqual(selected(languageLearner), selected({ ...languageLearner, learningLang: 'de-DE' }));
+  assert.equal(selected(languageLearner), selected({ ...languageLearner, nativeLang: 'zh-CN' }));
+  const wordLearner = { purpose: 'words', learningLang: 'de-DE', nativeLang: 'ja-JP' };
+  assert.notEqual(selected(wordLearner), selected({ ...wordLearner, nativeLang: 'zh-CN' }));
+  assert.equal(selected(wordLearner), selected({ ...wordLearner, learningLang: 'ko-KR' }));
+});
+
+test('every supported language has exactly three native, non-English example words', () => {
+  const resolvedLanguages = new Set(SUPPORTED_LANGUAGES.map(({ onboardingCode }) => (
+    resolveAIVoiceSampleLanguage({
+      purpose: 'language',
+      learningLang: onboardingCode,
+      nativeLang: 'en-US',
+    })
+  )));
+  assert.deepEqual([...resolvedLanguages].sort(), Object.keys(BULK_IMPORT_EXAMPLES).sort());
+
+  const english = bulkImportPlaceholder('en');
+  for (const [language, examples] of Object.entries(BULK_IMPORT_EXAMPLES)) {
+    assert.equal(examples.length, 3, language);
+    for (const example of examples) {
+      assert.equal(example.trim(), example, `${language}: surrounding whitespace`);
+      assert.ok(example.length > 0, `${language}: empty example`);
+      assert.doesNotMatch(example, /\s/u, `${language}: examples must be single words`);
+    }
+    const placeholder = bulkImportPlaceholder(language);
+    assert.equal(placeholder.split('\n').length, 3, language);
+    if (language !== 'en') assert.notEqual(placeholder, english, `${language}: English fallback`);
+  }
+});
+
+test('placeholder examples remain display-only, live, and input starts empty', () => {
   const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  const app = fs.readFileSync('App.tsx', 'utf8');
+  const modals = fs.readFileSync('src/app/AppModals.tsx', 'utf8');
   assert.match(source, /useState\(''\)/u);
   assert.match(source, /value=\{input\}/u);
-  assert.match(source, /placeholder=\{t\('bulk_import_placeholder'\)\}/u);
+  assert.match(source, /placeholder=\{bulkImportPlaceholder\(exampleLanguage\)\}/u);
+  assert.doesNotMatch(source, /setInput\(bulkImportPlaceholder|useState\([^)]*bulkImportPlaceholder/u);
+  assert.match(app, /exampleLanguage: sampleLanguage/u);
+  assert.match(
+    app,
+    /resolveAIVoiceSampleLanguage\(\{\s*purpose: onboardingPurpose,\s*learningLang: learnLang,\s*nativeLang,\s*\}\), \[onboardingPurpose, learnLang, nativeLang\]\)/u,
+  );
+  assert.match(modals, /exampleLanguage=\{bulkImport\.exampleLanguage\}/u);
+  assert.equal(parseBulkImportText('').length, 0);
+  assert.equal(analyzeBulkImport(parseBulkImportText(''), []).items.length, 0);
 });
 
 test('multiline input sits at its default height and auto-grows to fit overflowing text', () => {

@@ -101,7 +101,7 @@ describe('free access', () => {
 });
 
 describe('the allowlist', () => {
-  it('rejects a sample id that is not one of the two approved clips', async () => {
+  it('rejects a sample id that is not on the allowlist', async () => {
     mockFetch(upstreams());
     for (const sample of ['welcome', 'spontaneous_v2', 'SPONTANEOUS', '', 'morning light']) {
       const response = await post(makeEnv(), { sample });
@@ -174,7 +174,7 @@ describe('language-specific pronunciation', () => {
     }
   });
 
-  it('gives all four samples guidance without changing their localized text', async () => {
+  it('gives every sample guidance without changing its localized text', async () => {
     const { calls } = mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
     for (const sample of PROMO_SAMPLE_IDS) {
       await post(makeEnv(), { sample, langCode: 'fr' });
@@ -199,10 +199,75 @@ describe('language-specific pronunciation', () => {
     }
 
     expect([...env.WORDPING_KV.store.keys()].filter(key => key.startsWith('promo:'))).toEqual([
-      `promo:${PROMO_SAMPLE_VERSION}:vertical:en.wav`,
-      `promo:${PROMO_SAMPLE_VERSION}:vertical:es.wav`,
-      `promo:${PROMO_SAMPLE_VERSION}:vertical:fr.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:vertical:marin:en.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:vertical:marin:es.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:vertical:marin:fr.wav`,
     ]);
+  });
+});
+
+describe('the voice picker previews', () => {
+  it('speaks each preview in the voice it previews', async () => {
+    const { calls } = mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
+
+    await post(makeEnv(), { sample: 'voice_marin', langCode: 'en' });
+    await post(makeEnv(), { sample: 'voice_cedar', langCode: 'en' });
+
+    const sent = speechRequests(calls);
+    expect(sent.map(request => request.voice)).toEqual(['marin', 'cedar']);
+    expect(sent.map(request => request.input)).toEqual([
+      PROMO_SAMPLE_TEXT.voice_marin.en,
+      PROMO_SAMPLE_TEXT.voice_cedar.en,
+    ]);
+    // Distinct sentences, so a swapped mapping cannot pass this.
+    expect(sent[0]!.input).not.toBe(sent[1]!.input);
+  });
+
+  it('speaks the localized sentence, never the English one, for every language', async () => {
+    for (const sample of ['voice_marin', 'voice_cedar'] as const) {
+      for (const lang of PROMO_SAMPLE_LANGS) {
+        const { calls } = mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
+        await post(makeEnv(), { sample, langCode: lang });
+
+        const sent = speechRequests(calls)[0]!;
+        expect(sent.input, `${sample}/${lang}`).toBe(PROMO_SAMPLE_TEXT[sample][lang]);
+        expect(sent.instructions).toBe(PROMO_SAMPLE_PRONUNCIATION[lang]);
+        if (lang !== 'en') {
+          expect(sent.input, `${sample}/${lang} fell back to English`)
+            .not.toBe(PROMO_SAMPLE_TEXT[sample].en);
+        }
+      }
+    }
+  });
+
+  it('keys the shared cache by voice and language together', async () => {
+    mockFetch([{ match: '/audio/speech', respond: () => wavBody() }]);
+    const env = makeEnv();
+    for (const [sample, langCode] of [
+      ['voice_marin', 'ko-KR'],
+      ['voice_cedar', 'ko-KR'],
+      ['voice_marin', 'ja-JP'],
+    ] as const) {
+      const ctx = makeCtx();
+      await post(env, { sample, langCode }, ctx);
+      await settle(ctx);
+    }
+
+    // Three entries, not one: neither the voice nor the language may be
+    // dropped from the key, or one of these would answer with another's clip.
+    expect([...env.WORDPING_KV.store.keys()].filter(key => key.startsWith('promo:'))).toEqual([
+      `promo:${PROMO_SAMPLE_VERSION}:voice_marin:marin:ko.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:voice_cedar:cedar:ko.wav`,
+      `promo:${PROMO_SAMPLE_VERSION}:voice_marin:marin:ja.wav`,
+    ]);
+  });
+
+  it('serves a preview with no subscription and no RevenueCat call', async () => {
+    const { calls } = mockFetch(upstreams());
+    const response = await post(makeEnv(), { sample: 'voice_cedar', langCode: 'ko-KR' });
+
+    expect(response.status).toBe(200);
+    expect(calls.some(call => call.url.includes('revenuecat'))).toBe(false);
   });
 });
 
@@ -228,7 +293,7 @@ describe('cost and abuse controls', () => {
     expect(speechCalls).toBe(1);
 
     // One shared object per sample and language, versioned.
-    expect(env.WORDPING_KV.keysStartingWith(`promo:${PROMO_SAMPLE_VERSION}:spontaneous:en`)).toHaveLength(1);
+    expect(env.WORDPING_KV.keysStartingWith(`promo:${PROMO_SAMPLE_VERSION}:spontaneous:marin:en`)).toHaveLength(1);
   });
 
   it('never consumes the Basic monthly voice allowance', async () => {

@@ -74,6 +74,8 @@ export interface AppModalsProps {
   bulkImport: {
     visible: boolean;
     onClose(): void;
+    /** Live language selected by the persisted onboarding-purpose rule. */
+    exampleLanguage: PromoSampleLang;
     existingTexts: readonly string[];
     /** Every card and folder: a CSV/JSON row can name a folder of its own. */
     existingCards: readonly WordCard[];
@@ -121,6 +123,8 @@ export interface AppModalsProps {
     onUpgradeSheetVisibleChange?: (visible: boolean) => void;
     language: string;
     sampleLanguage: PromoSampleLang;
+    /** The voice picker's own sample language — Explanation, then Settings. */
+    voiceSampleLanguage: PromoSampleLang;
     onPickLanguage(code: string): void;
     aiVoice: AIVoice;
     onPickAIVoice(voice: AIVoice): void;
@@ -245,6 +249,7 @@ export function AppModals({
       <BulkImportModal
         visible={bulkImport.visible}
         onClose={bulkImport.onClose}
+        exampleLanguage={bulkImport.exampleLanguage}
         pal={pal}
         themeColor={themeColor}
         existingTexts={bulkImport.existingTexts}
@@ -305,6 +310,7 @@ export function AppModals({
         pal={pal}
         language={settingsModal.language}
         sampleLanguage={settingsModal.sampleLanguage}
+        voiceSampleLanguage={settingsModal.voiceSampleLanguage}
         onPickLanguage={settingsModal.onPickLanguage}
         aiVoice={settingsModal.aiVoice}
         onPickAIVoice={settingsModal.onPickAIVoice}

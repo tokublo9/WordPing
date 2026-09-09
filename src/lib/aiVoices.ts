@@ -37,19 +37,6 @@ export function isAIVoice(value: unknown): value is AIVoice {
 }
 
 /**
- * The English voice name, capitalised from the internal value.
- *
- * **Not for display.** Its only caller is the fixed sample sentence in
- * `aiVoiceSamples.ts`, which is spoken English audio, cache-keyed by
- * `AI_VOICE_SAMPLE_CONTENT_VERSION` and validated by the Worker — translating
- * it would change the cache key and the text the server expects. Use
- * `getAIVoiceNameKey` for anything a user reads.
- */
-export function getAIVoiceLabel(voice: AIVoice): string {
-  return voice.charAt(0).toUpperCase() + voice.slice(1);
-}
-
-/**
  * Translation key for the voice name shown in the UI.
  *
  * "Marin" and "Cedar" are proper names, so each locale carries a reading of the

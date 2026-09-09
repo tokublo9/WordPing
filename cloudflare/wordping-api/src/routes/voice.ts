@@ -3,13 +3,13 @@ import {
   MAX_AUDIO_RESPONSE_BYTES,
   PROMO_SAMPLE_CACHE_TTL_SECONDS,
   PROMO_SAMPLE_VERSION,
-  PROMO_SAMPLE_VOICE,
   SPEECH_MODEL,
   VOICE_SAMPLE_CACHE_TTL_SECONDS,
   VOICE_SAMPLE_TEXT,
   VOICE_SAMPLE_VERSION,
   promoSamplePronunciationInstruction,
   promoSampleText,
+  promoSampleVoice,
   resolvePromoLang,
   resolveVoice,
   type AudioFormat,
@@ -229,8 +229,9 @@ export async function handleVoiceSample(context: GuardContext): Promise<Response
  * The only speech route reachable without a subscription. What makes that safe
  * is not a flag but the shape of the request: there is no text field and no
  * voice field, so a caller picks one server-authored sample and nothing else.
- * Its normalized language selects both server-authored text and a server-owned
- * pronunciation instruction; neither value can be supplied by the client.
+ * The sample id selects the voice from a server-side table, and its normalized
+ * language selects both server-authored text and a server-owned pronunciation
+ * instruction; none of those values can be supplied by the client.
  * Every clip lives in KV, shared by every user, which means the entire feature
  * costs one OpenAI generation per clip per cache lifetime.
  *
@@ -252,12 +253,16 @@ export async function handleVoicePromo(context: GuardContext): Promise<Response>
   const { sample } = result.value.body;
   const lang = resolvePromoLang(result.value.body.langCode);
   const text = promoSampleText(sample, lang);
+  const voice = promoSampleVoice(sample);
   const instructions = promoSamplePronunciationInstruction(lang);
-  const cacheKey = `promo:${PROMO_SAMPLE_VERSION}:${sample}:${lang}.wav`;
+  // Voice and language are both in the key, and both are server-resolved: a
+  // Cedar preview can never be answered with the Marin clip, and a Korean one
+  // can never be answered with the English clip.
+  const cacheKey = `promo:${PROMO_SAMPLE_VERSION}:${sample}:${voice}:${lang}.wav`;
 
   const cached = await context.env.WORDPING_KV.get(cacheKey, 'arrayBuffer').catch(() => null);
   if (cached) {
-    log('info', 'voice_promo_cache_hit', context.response.requestId, { sample, lang });
+    log('info', 'voice_promo_cache_hit', context.response.requestId, { sample, voice, lang });
     return audioResponse(context.response, cached, contentTypeFor('wav'), {
       'X-WordPing-Cache': 'hit',
       'Content-Length': String(cached.byteLength),
@@ -271,7 +276,7 @@ export async function handleVoicePromo(context: GuardContext): Promise<Response>
     {
       apiKey: context.env.OPENAI_API_KEY,
       text,
-      voice: PROMO_SAMPLE_VOICE,
+      voice,
       format: 'wav',
       instructions,
       timeoutMs: context.resolved.speechTimeoutMs,
@@ -289,11 +294,11 @@ export async function handleVoicePromo(context: GuardContext): Promise<Response>
     context.env.WORDPING_KV
       .put(cacheKey, toCache, { expirationTtl: PROMO_SAMPLE_CACHE_TTL_SECONDS })
       .catch(() => {
-        log('warn', 'voice_promo_cache_write_failed', context.response.requestId, { sample, lang });
+        log('warn', 'voice_promo_cache_write_failed', context.response.requestId, { sample, voice, lang });
       }),
   );
 
-  log('info', 'voice_promo_ok', context.response.requestId, { sample, lang });
+  log('info', 'voice_promo_ok', context.response.requestId, { sample, voice, lang });
   return relay(context.response, upstream, 'wav', 'miss', toClient);
 }
 

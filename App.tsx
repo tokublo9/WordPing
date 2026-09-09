@@ -82,11 +82,11 @@ import {
   preloadAIPronunciation,
   preloadAIPronunciationLibrary,
   preloadPromoVoiceSamples,
+  preloadVoiceSampleAudio,
   cancelAIPronunciationPreload,
   purgeRetiredVoiceCaches,
   releaseAIPronunciationCache,
   setAIVoicePreference,
-  syncAIVoiceSamplePreloading,
 } from './src/lib/tts';
 import { normalizedTTSText } from './src/lib/ttsRequest';
 import { fetchVoiceCreditBalance } from './src/lib/api/client';
@@ -97,6 +97,7 @@ import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
 import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
 import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
 import { resolveAIVoiceSampleLanguage } from './src/features/onboarding/sampleLanguage';
+import { resolveVoiceSampleLanguage } from './src/features/voice/voiceSampleLanguage';
 
 // Hide Labels is temporarily disabled, so every existing label surface stays visible.
 // The underlying useCards state is intentionally retained for a future restoration.
@@ -181,6 +182,16 @@ function AppContent() {
     learningLang: learnLang,
     nativeLang,
   }), [onboardingPurpose, learnLang, nativeLang]);
+
+  // The voice picker's own samples, which follow the language the app speaks to
+  // the user in rather than the one being studied: the Explanation Language
+  // while the tutorial is up, and Settings → Language from then on. Recomputed
+  // from live state, so changing the language changes the next tap.
+  const voiceSampleLanguage = useMemo(() => resolveVoiceSampleLanguage({
+    onboardingActive: showOnboarding,
+    nativeLang,
+    appLanguage: language,
+  }), [language, nativeLang, showOnboarding]);
 
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
   const cardsRef = useRef(cards);
@@ -272,6 +283,17 @@ function AppContent() {
     return () => handle.cancel();
   }, [sampleLanguage]);
 
+  // The voice picker's two previews, prepared the same way and on the same
+  // terms — fixed promo clips, no entitlement, no credit, no consent — but keyed
+  // on their own language, so switching Settings → Language prepares the new
+  // one rather than replaying the old.
+  useEffect(() => {
+    const handle = InteractionManager.runAfterInteractions(() => {
+      preloadVoiceSampleAudio(voiceSampleLanguage);
+    });
+    return () => handle.cancel();
+  }, [voiceSampleLanguage]);
+
   // Consent is a live queue input, not a one-time read. A post-purchase sweep
   // that had to wait for the dialog begins in the same turn that Allow is
   // persisted; declining or withdrawing continues to prevent every preload.
@@ -357,15 +379,13 @@ function AppContent() {
     if (isSubscriptionLoaded && plan === 'premium') setPreferDeviceVoice(false);
   }, [isSubscriptionLoaded, plan, setPreferDeviceVoice]);
 
-  useEffect(() => {
-    if (!isSubscriptionLoaded) return;
-    if (entitlementSource === 'local-development-scenario') return;
-    syncAIVoiceSamplePreloading({
-      hasAIAccess: planCanUseAI(plan),
-      activeEntitlement: plan === 'premium' ? plan : undefined,
-      triggerReason: entitlementSource ?? 'subscription-state-loaded',
-    });
-  }, [aiConsentState, entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
+  /*
+   * The picker's previews used to be preloaded here, gated on the entitlement
+   * and on consent, because they were entitled generations of a fixed English
+   * sentence. They are localized promo clips now: bundled with the app, free
+   * on their fallback route, and prepared by the effect above with no plan and
+   * no consent to wait for. There is nothing left for this effect to do.
+   */
 
   // Whether the server-side half of AI Voice is ready to be used.
   //
@@ -1331,6 +1351,10 @@ function AppContent() {
         bulkImport={{
           visible: bulkImportVisible,
           onClose: () => setBulkImportVisible(false),
+          // Purpose + both source languages are live dependencies of
+          // `sampleLanguage`, so an applicable Settings change reaches the
+          // next render even when this modal is already mounted.
+          exampleLanguage: sampleLanguage,
           existingTexts: cards
             .filter(card => card.folderId === bulkImportFolderId)
             .map(card => card.word),
@@ -1376,6 +1400,7 @@ function AppContent() {
           onUpgradeSheetVisibleChange: setSettingsUpgradeSheetVisible,
           language,
           sampleLanguage,
+          voiceSampleLanguage,
           onPickLanguage: pickLanguage,
           aiVoice,
           onPickAIVoice: handlePickAIVoice,

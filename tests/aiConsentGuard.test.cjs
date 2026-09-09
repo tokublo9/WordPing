@@ -136,8 +136,13 @@ test('background preloads never transmit and never prompt', () => {
   const library = tts.slice(tts.indexOf('export function preloadAIPronunciationLibrary('));
   assert.match(library.slice(0, 800), /if \(!isAIConsentGranted\(\)\) return;/u);
 
-  const samples = tts.slice(tts.indexOf('export function syncAIVoiceSamplePreloading('));
-  assert.match(samples.slice(0, 800), /voiceSamplePreloadEligible = options\.hasAIAccess && isAIConsentGranted\(\);/u);
+  // The picker's previews are fixed promo clips now: bundled, or fetched from
+  // the one route that carries no identity and no user text. There is nothing
+  // to consent to, so preparing them asks nothing — and, being unattended, it
+  // still may not raise a dialog either.
+  const samples = tts.slice(tts.indexOf('function preloadFixedPromoSamples('));
+  assert.doesNotMatch(samples.slice(0, 800), /ensureAIConsentForUserAction|requireAIConsent/u);
+  assert.match(samples.slice(0, 800), /promo: \{ sample, langCode: lang \}|preloadNetworkPromoVoiceSamples/u);
 
   // None of them may raise a dialog: there is no user action behind them.
   assert.doesNotMatch(tts, /ensureAIConsentForUserAction/u);

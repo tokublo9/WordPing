@@ -109,6 +109,10 @@ describe('what spends a credit', () => {
 
     await handleRequest(speak('/v1/voice/sample', { voice: 'marin' }), env, makeCtx());
     await handleRequest(speak('/v1/voice/promo', { sample: 'spontaneous' }), env, makeCtx());
+    // The voice picker's own previews, which are promo clips now: playing
+    // either voice, in any language, still spends nothing.
+    await handleRequest(speak('/v1/voice/promo', { sample: 'voice_marin', langCode: 'ko-KR' }), env, makeCtx());
+    await handleRequest(speak('/v1/voice/promo', { sample: 'voice_cedar', langCode: 'ja-JP' }), env, makeCtx());
     expect(env.VOICE_CREDITS.remaining(name)).toBe(5);
   });
 

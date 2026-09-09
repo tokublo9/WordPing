@@ -1,5 +1,6 @@
 /**
- * The promotional voice samples shown in the Upgrade Plan sheet.
+ * The fixed voice samples: the Upgrade Plan sheet's four, and one preview per
+ * offered voice for the Settings voice picker.
  *
  * Free users can play these; they are the only speech the app produces without
  * a subscription. That is safe because the Worker owns the words: the app sends
@@ -14,8 +15,65 @@
  * Pure module: no react-native or expo imports, so it is unit-tested directly.
  */
 
-export const PROMO_SAMPLE_IDS = ['spontaneous', 'vertical', 'merely', 'morning_light'] as const;
+import { DEFAULT_AI_VOICE, type AIVoice } from './aiVoices';
+
+export const PROMO_SAMPLE_IDS = [
+  'spontaneous', 'vertical', 'merely', 'morning_light', 'voice_marin', 'voice_cedar',
+] as const;
 export type PromoSampleId = (typeof PROMO_SAMPLE_IDS)[number];
+
+/** The four words and the sentence shown in the Upgrade Plan sheet. */
+export const UPGRADE_PROMO_SAMPLE_IDS: readonly PromoSampleId[] = [
+  'spontaneous', 'vertical', 'merely', 'morning_light',
+];
+
+/**
+ * The voice-picker previews — one per offered voice.
+ *
+ * They are promo clips rather than `/v1/voice/sample` generations for three
+ * reasons: they ship with the app, so the first tap is immediate and works
+ * offline; the route they fall back to spends no credit and needs no
+ * entitlement; and, unlike the old fixed English sentence, the words come from
+ * the localized table below. The consent question in front of the tap is
+ * unchanged — see `features/voice/voicePreviewFlow.ts`.
+ */
+export const VOICE_PROMO_SAMPLE_IDS: readonly PromoSampleId[] = ['voice_marin', 'voice_cedar'];
+
+/**
+ * Which sample each voice previews, and which voice speaks each sample.
+ *
+ * One table, read in both directions, so a preview can never be spoken by the
+ * other voice: the sample id carries the voice identity into the local cache
+ * key, the bundled asset path and the Worker's KV key.
+ */
+const VOICE_SAMPLE_ID_BY_VOICE = {
+  marin: 'voice_marin',
+  cedar: 'voice_cedar',
+} as const satisfies Record<AIVoice, PromoSampleId>;
+
+export function voiceSampleId(voice: AIVoice): PromoSampleId {
+  return VOICE_SAMPLE_ID_BY_VOICE[voice];
+}
+
+/**
+ * The voice a promo clip is spoken in. Mirrors the Worker's own table.
+ *
+ * The four marketing clips keep the default voice — they demonstrate the
+ * feature, not a particular voice — and each picker preview is spoken by the
+ * voice it previews.
+ */
+const PROMO_SAMPLE_VOICES: Readonly<Record<PromoSampleId, AIVoice>> = {
+  spontaneous: DEFAULT_AI_VOICE,
+  vertical: DEFAULT_AI_VOICE,
+  merely: DEFAULT_AI_VOICE,
+  morning_light: DEFAULT_AI_VOICE,
+  voice_marin: 'marin',
+  voice_cedar: 'cedar',
+};
+
+export function promoSampleVoice(sample: PromoSampleId): AIVoice {
+  return PROMO_SAMPLE_VOICES[sample];
+}
 
 /** The twenty normalized keys shared by the text, audio and cache tables. */
 export const PROMO_SAMPLE_LANGS = [
@@ -54,7 +112,7 @@ const BCP47_LANGUAGE_TAG = /^(?:[a-z]{2,3}(?:-[a-z]{3}){0,3}(?:-[a-z]{4})?(?:-(?
  * that marker matches this value, bundle lookup deliberately uses the corrected
  * network path instead of playing stale generated audio.
  */
-export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v3';
+export const PROMO_SAMPLE_VERSION = 'upgrade-promo-v4';
 
 export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<PromoSampleLang, string>>>> = {
   spontaneous: {
@@ -144,6 +202,55 @@ export const PROMO_SAMPLE_TEXT: Readonly<Record<PromoSampleId, Readonly<Record<P
     pl: 'Poranne światło przesączało się przez drzewa.',
     el: 'Το πρωινό φως διαπερνούσε τα δέντρα.',
     sv: 'Morgonljuset filtrerades genom träden.',
+  },
+  // The two picker previews. Each locale names the voice the way its dictionary
+  // does (`voice_name_marin` / `voice_name_cedar`), so the sentence heard and
+  // the name read on the row are the same name. No row is English by default:
+  // a locale with no line here would be a silent English preview, which is the
+  // bug these replaced.
+  voice_marin: {
+    en: 'This is Marin’s voice.',
+    ja: 'これがマリンの声です。',
+    ko: '이것이 마린의 목소리입니다.',
+    zh: '这是马林的声音。',
+    es: 'Esta es la voz de Marin.',
+    fr: 'Voici la voix de Marin.',
+    de: 'Das ist die Stimme von Marin.',
+    it: 'Questa è la voce di Marin.',
+    pt: 'Esta é a voz de Marin.',
+    ru: 'Это голос Марин.',
+    ar: 'هذا هو صوت مارين.',
+    hi: 'यह मारिन की आवाज़ है।',
+    tr: 'Bu, Marin’in sesi.',
+    nl: 'Dit is de stem van Marin.',
+    vi: 'Đây là giọng của Marin.',
+    th: 'นี่คือเสียงของมาริน',
+    id: 'Ini suara Marin.',
+    pl: 'To jest głos Marin.',
+    el: 'Αυτή είναι η φωνή της Μαρίν.',
+    sv: 'Det här är Marins röst.',
+  },
+  voice_cedar: {
+    en: 'This is Cedar’s voice.',
+    ja: 'これがシダーの声です。',
+    ko: '이것이 시더의 목소리입니다.',
+    zh: '这是西达的声音。',
+    es: 'Esta es la voz de Cedar.',
+    fr: 'Voici la voix de Cedar.',
+    de: 'Das ist die Stimme von Cedar.',
+    it: 'Questa è la voce di Cedar.',
+    pt: 'Esta é a voz de Cedar.',
+    ru: 'Это голос Седара.',
+    ar: 'هذا هو صوت سيدار.',
+    hi: 'यह सीडर की आवाज़ है।',
+    tr: 'Bu, Cedar’ın sesi.',
+    nl: 'Dit is de stem van Cedar.',
+    vi: 'Đây là giọng của Cedar.',
+    th: 'นี่คือเสียงของซีดาร์',
+    id: 'Ini suara Cedar.',
+    pl: 'To jest głos Cedara.',
+    el: 'Αυτή είναι η φωνή του Σίνταρ.',
+    sv: 'Det här är Cedars röst.',
   },
 };
 

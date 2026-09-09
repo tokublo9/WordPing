@@ -52,16 +52,13 @@ const {
 } = loadTypeScriptModule('src/lib/ttsPreloadQueue.ts');
 const ttsRequestModule = loadTypeScriptModule('src/lib/ttsRequest.ts');
 const {
-  AI_VOICE_SAMPLES,
-  AI_VOICE_SAMPLE_CONTENT_VERSION,
-  AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY,
-  isAIVoiceSamplePreloadEligible,
-} = loadTypeScriptModule('src/lib/aiVoiceSamples.ts', {
-  './ttsRequest': ttsRequestModule,
-  './aiVoices': {
-    AI_VOICES: ['marin', 'cedar'],
-    getAIVoiceLabel: voice => voice[0].toUpperCase() + voice.slice(1),
-  },
+  PROMO_SAMPLE_TEXT,
+  PROMO_SAMPLE_VERSION,
+  VOICE_PROMO_SAMPLE_IDS,
+  promoSampleVoice,
+  voiceSampleId,
+} = loadTypeScriptModule('src/lib/promoVoiceSamples.ts', {
+  './aiVoices': { AI_VOICES: ['marin', 'cedar'], DEFAULT_AI_VOICE: 'marin' },
 });
 
 function pcm16Wav(segments) {
@@ -398,27 +395,32 @@ test('AI preload eligibility allows Basic and Premium access but excludes Free, 
   assert.equal(isAIPronunciationPreloadEligible({ ...eligible, hasAIAccess: true, hasCustomAudio: true }), false);
 });
 
-test('Natural AI Voice preload is entitlement-gated and covers every offered voice', () => {
-  assert.equal(isAIVoiceSamplePreloadEligible('basic'), true);
-  assert.equal(isAIVoiceSamplePreloadEligible('premium'), true);
-  assert.equal(isAIVoiceSamplePreloadEligible('free'), false);
-  // One sample per offered voice, derived from AI_VOICES rather than a second
-  // list — trimming the voices trimmed these without anyone editing them.
-  assert.equal(AI_VOICE_SAMPLES.length, 2);
-  assert.equal(new Set(AI_VOICE_SAMPLES.map(sample => sample.voice)).size, 2);
-  assert.ok(AI_VOICE_SAMPLES.every(sample => sample.contentVersion === AI_VOICE_SAMPLE_CONTENT_VERSION));
+test('each offered voice previews its own sample, spoken by itself', () => {
+  // One sample per offered voice, and the mapping is read in both directions:
+  // the id selects the sentence, and the id selects the voice that speaks it.
+  assert.deepEqual([...VOICE_PROMO_SAMPLE_IDS], ['voice_marin', 'voice_cedar']);
+  assert.equal(voiceSampleId('marin'), 'voice_marin');
+  assert.equal(voiceSampleId('cedar'), 'voice_cedar');
+  assert.equal(promoSampleVoice('voice_marin'), 'marin');
+  assert.equal(promoSampleVoice('voice_cedar'), 'cedar');
+  // The four marketing clips are unaffected and stay on the default voice.
+  for (const sample of ['spontaneous', 'vertical', 'merely', 'morning_light']) {
+    assert.equal(promoSampleVoice(sample), 'marin', sample);
+  }
 });
 
-test('client and Worker keep the fixed sample version, voices, and copy synchronized', () => {
+test('client and Worker keep the fixed sample version and copy synchronized', () => {
   const workerConfig = fs.readFileSync('cloudflare/wordping-api/src/config.ts', 'utf8');
-  assert.match(workerConfig, new RegExp(`VOICE_SAMPLE_VERSION = '${AI_VOICE_SAMPLE_CONTENT_VERSION}'`));
-  for (const sample of AI_VOICE_SAMPLES) {
-    // The sample sentence is chosen server-side; a mismatch would mean the
-    // client bills for a preview whose text it did not expect.
-    assert.ok(
-      workerConfig.includes(`${sample.voice}: '${sample.text}'`),
-      `Worker is missing the ${sample.voice} sample sentence`,
-    );
+  assert.match(workerConfig, new RegExp(`PROMO_SAMPLE_VERSION = '${PROMO_SAMPLE_VERSION}'`));
+  // The sentence is chosen server-side, so a mismatch would mean the app draws
+  // one thing and the Worker speaks another.
+  for (const sample of VOICE_PROMO_SAMPLE_IDS) {
+    for (const [lang, text] of Object.entries(PROMO_SAMPLE_TEXT[sample])) {
+      assert.ok(
+        workerConfig.includes(`${lang}: '${text}',`),
+        `Worker is missing ${sample} in ${lang}`,
+      );
+    }
   }
 });
 
@@ -440,8 +442,12 @@ test('the Worker voice allowlist is a superset of the voices the app offers', ()
 });
 
 test('voice sample cache identity includes text, voice, model, speed, format, and content version', () => {
-  const sample = AI_VOICE_SAMPLES[0];
-  const base = normalizeTTSRequest(sample.text, sample.voice, sample.contentVersion);
+  const base = normalizeTTSRequest(
+    PROMO_SAMPLE_TEXT.voice_marin.en,
+    promoSampleVoice('voice_marin'),
+    PROMO_SAMPLE_VERSION,
+    'en',
+  );
   const baseKey = serializeTTSCacheKey(base);
   for (const changed of [
     { ...base, text: `${base.text}!` },
@@ -453,28 +459,21 @@ test('voice sample cache identity includes text, voice, model, speed, format, an
     // again: this line used to hardcode 'natural-ai-voice-v2', which the
     // shipped value was later bumped to, making the mutation a no-op.
     { ...base, contentVersion: `${base.contentVersion}-changed` },
+    // The language is part of the identity too, so the Korean preview can
+    // never be served the English clip that happens to share everything else.
+    { ...base, language: 'ko' },
   ]) {
     assert.notEqual(serializeTTSCacheKey(changed), baseKey);
   }
-});
 
-test('eight voice samples are preloaded with conservative concurrency two', async () => {
-  assert.equal(AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY, 2);
-  const queue = new ControlledTTSPreloadQueue(AI_VOICE_SAMPLE_PRELOAD_CONCURRENCY);
-  let active = 0;
-  let maximumActive = 0;
-  const jobs = AI_VOICE_SAMPLES.map(sample => queue.enqueue(
-    sample.voice,
-    'voice-sample-owner',
-    async () => {
-      active++;
-      maximumActive = Math.max(maximumActive, active);
-      await new Promise(resolve => setImmediate(resolve));
-      active--;
-    },
-  ).promise);
-  await Promise.all(jobs);
-  assert.equal(maximumActive, 2);
+  // And the two previews differ by both of the things that identify them.
+  const cedar = serializeTTSCacheKey(normalizeTTSRequest(
+    PROMO_SAMPLE_TEXT.voice_cedar.en,
+    promoSampleVoice('voice_cedar'),
+    PROMO_SAMPLE_VERSION,
+    'en',
+  ));
+  assert.notEqual(cedar, baseKey);
 });
 
 test('background preload queue limits rapid registrations to conservative concurrency', async () => {
