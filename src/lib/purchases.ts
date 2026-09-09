@@ -1,6 +1,11 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Purchases, { LOG_LEVEL, CustomerInfo } from 'react-native-purchases';
+import {
+  resolveRevenueCatApiKey,
+  TEST_STORE_KEY_PREFIX,
+  TEST_STORE_MISSING_KEY_MESSAGE,
+} from '../features/purchases/revenueCatKey';
 
 export const ENTITLEMENT_IDS = {
   BASIC: 'basic',
@@ -50,18 +55,41 @@ export function configureRevenueCat(): Promise<boolean> {
   configurationRequest = (async () => {
     if (await Purchases.isConfigured()) return true;
 
-    const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '';
+    // TEMPORARY (Simulator recordings): the key may come from the Test Store
+    // variable instead, but only in a development build with the switch
+    // explicitly on — see `revenueCatKey.ts`. `__DEV__` is handed in rather
+    // than read there, which is what lets a test prove a release build cannot
+    // reach the Test Store branch.
+    const resolution = resolveRevenueCatApiKey(__DEV__, {
+      EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
+      EXPO_PUBLIC_USE_REVENUECAT_TEST_STORE: process.env.EXPO_PUBLIC_USE_REVENUECAT_TEST_STORE,
+      EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY: process.env.EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY,
+    });
 
-    if (!apiKey) {
-      console.error('[RC] EXPO_PUBLIC_REVENUECAT_IOS_API_KEY is not set');
+    if (!resolution.ok) {
+      // Each reason is a configuration fault that leaves purchases off rather
+      // than configured with the wrong key.
+      switch (resolution.reason) {
+        case 'missing_app_store_key':
+          console.error('[RC] EXPO_PUBLIC_REVENUECAT_IOS_API_KEY is not set');
+          break;
+        case 'test_store_requested_without_key':
+          // Only reachable in a development build, so the message is too.
+          console.error(TEST_STORE_MISSING_KEY_MESSAGE);
+          break;
+        case 'test_store_key_in_release':
+          console.error('[RC] CRITICAL: RevenueCat test key detected in non-dev build. Purchases disabled.');
+          break;
+      }
       return false;
     }
 
-    const usesTestStore = apiKey.startsWith('test_');
-    if (usesTestStore && !__DEV__) {
-      console.error('[RC] CRITICAL: RevenueCat test key detected in non-dev build. Purchases disabled.');
-      return false;
-    }
+    const { apiKey } = resolution;
+    // Either route to a test key counts: the new switch, or a `test_` key still
+    // pasted into the production variable. Both warnings below are about what
+    // the key *is*, so neither may depend on which variable carried it.
+    const usesTestStore = resolution.source === 'test-store'
+      || apiKey.startsWith(TEST_STORE_KEY_PREFIX);
 
     // Both are real configuration faults, not narration of a healthy launch.
     if (usesTestStore) {

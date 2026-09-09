@@ -73,11 +73,11 @@ export function LanguageModal({
         <TouchableOpacity style={styles.backBtn} onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="chevron-back" size={24} color={pal.text} />
         </TouchableOpacity>
-        {/* The same key the onboarding step asks the question with, so the
-            setting and the question that first established it are named the
-            same thing. `ob_native_lang` is that question — "Your explanation
-            language" — despite the key not spelling out "explanation". */}
-        <Text style={[styles.title, { color: pal.text }]}>{t('ob_native_lang')}</Text>
+        {/* The same key as the Settings row that opens this screen, so the row
+            and the screen it leads to are never named differently. Onboarding
+            still asks with `ob_native_lang` ("Your explanation language"); this
+            is the ordinary setting, and it is just the language. */}
+        <Text style={[styles.title, { color: pal.text }]}>{t('language')}</Text>
         <View style={styles.backBtn} />
       </View>
 

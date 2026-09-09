@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   isThemeUnlocked,
+  isThemeUnlockOverrideEnabled,
   resolveThemeAccess,
   type ThemeAccessInput,
 } from '../../src/features/themes/themeAccess';
@@ -118,4 +119,131 @@ test('owning one theme never unlocks another', () => {
     access({ price: 480, isSubscribed: false, isSubscriptionLoaded: true, ownedIndividually: false }),
     { state: 'locked' },
   );
+});
+
+// ── The temporary Simulator recording override ───────────────────────────────
+
+/**
+ * TEMPORARY. What matters is that a release build cannot reach it, which is
+ * provable here only because `isDev` is an argument rather than a read of
+ * `__DEV__` — see src/dev/themeAccessOverride.ts.
+ */
+
+test('__DEV__ false never unlocks a theme, however the flag is set', () => {
+  assert.equal(isThemeUnlockOverrideEnabled(false, true), false, 'a release build must ignore the flag');
+  assert.equal(isThemeUnlockOverrideEnabled(false, false), false);
+
+  // And the access rule with it resolved off is exactly the pre-existing rule.
+  assert.deepEqual(
+    resolveThemeAccess({
+      price: 480, isSubscribed: false, isSubscriptionLoaded: true, devUnlockOverride: false,
+    }),
+    { state: 'locked' },
+  );
+});
+
+test('both terms are required, and the default is off', () => {
+  assert.equal(isThemeUnlockOverrideEnabled(true, false), false, 'off by default in development too');
+  assert.equal(isThemeUnlockOverrideEnabled(true, true), true);
+  // Absent behaves as false, so every pre-existing caller is unaffected.
+  assert.deepEqual(
+    resolveThemeAccess({ price: 480, isSubscribed: false, isSubscriptionLoaded: true }),
+    { state: 'locked' },
+  );
+});
+
+test('the override unlocks a paid theme under its own distinct reason', () => {
+  assert.deepEqual(
+    resolveThemeAccess({
+      price: 480, isSubscribed: false, isSubscriptionLoaded: true, devUnlockOverride: true,
+    }),
+    { state: 'unlocked', reason: 'dev-override' },
+    'never reported as a subscription the user does not hold',
+  );
+  // It works before RevenueCat has answered, which is the state a Simulator
+  // launch often sits in.
+  assert.deepEqual(
+    resolveThemeAccess({
+      price: 480, isSubscribed: false, isSubscriptionLoaded: false, devUnlockOverride: true,
+    }),
+    { state: 'unlocked', reason: 'dev-override' },
+  );
+});
+
+test('the override never masks a real purchase or a real subscription', () => {
+  // Ownership is permanent and outranks it, so the label a recording shows for
+  // a genuinely bought theme is still the truthful one.
+  assert.deepEqual(
+    resolveThemeAccess({
+      price: 480, isSubscribed: false, isSubscriptionLoaded: true,
+      ownedIndividually: true, devUnlockOverride: true,
+    }),
+    { state: 'unlocked', reason: 'purchased' },
+  );
+  assert.deepEqual(
+    resolveThemeAccess({
+      price: 480, isSubscribed: true, isSubscriptionLoaded: true, devUnlockOverride: true,
+    }),
+    { state: 'unlocked', reason: 'subscription' },
+  );
+  // A free theme is still free, not overridden.
+  assert.deepEqual(
+    resolveThemeAccess({
+      price: 0, isSubscribed: false, isSubscriptionLoaded: true, devUnlockOverride: true,
+    }),
+    { state: 'unlocked', reason: 'free' },
+  );
+});
+
+// ── What the renderer asks, for each kind of theme ───────────────────────────
+
+/**
+ * `useThemeController` resolves the stored skin id into an actual wallpaper,
+ * palette and colour, and it asks this rule to decide whether to. That is the
+ * gate that made a selected theme "not apply": the shop unlocked every theme,
+ * the plan stayed Free, and the controller resolved `activeSkin` to null.
+ *
+ * The hook itself imports react-native, so what is exercised here is the rule
+ * it now delegates to, in the exact shape it passes — `price: 0` for a free
+ * skin, `1` for a paid one, and `isSubscriptionLoaded: true` because the caller
+ * has already resolved `isSubscribed`.
+ */
+function skinUnlocked(isFreeSkin: boolean, overrides: Partial<ThemeAccessInput> = {}) {
+  return isThemeUnlocked({
+    price: isFreeSkin ? 0 : 1,
+    isSubscribed: false,
+    isSubscriptionLoaded: true,
+    ...overrides,
+  });
+}
+
+test('the override applies a paid image or video theme, exactly as a subscription would', () => {
+  // A wallpaper/video skin: paid, unowned, no subscription.
+  assert.equal(skinUnlocked(false), false, 'without the override it stays refused');
+  assert.equal(skinUnlocked(false, { devUnlockOverride: true }), true);
+  // Identical answer to a genuinely entitled subscriber, which is the point:
+  // the renderer takes the same branch either way.
+  assert.equal(skinUnlocked(false, { isSubscribed: true }), true);
+});
+
+test('the override applies a paid solid-colour theme too', () => {
+  // Solid skins carry their own themeColor, so unlocking one is what changes
+  // the app's accent colour. Same rule, same answer.
+  assert.equal(skinUnlocked(false, { devUnlockOverride: true }), true);
+  // And the two genuinely free skins never needed it.
+  assert.equal(skinUnlocked(true), true);
+  assert.equal(skinUnlocked(true, { devUnlockOverride: false }), true);
+});
+
+test('with the override off, a paid skin is refused again and Free resumes', () => {
+  assert.equal(skinUnlocked(false, { devUnlockOverride: false }), false);
+  assert.equal(skinUnlocked(false), false);
+  // A theme genuinely bought outright is unaffected in both directions.
+  assert.equal(skinUnlocked(false, { ownedIndividually: true, devUnlockOverride: false }), true);
+});
+
+test('a release build renders no overridden theme, whatever is stored', () => {
+  // The flag cannot resolve true there, so the renderer is never handed one.
+  assert.equal(isThemeUnlockOverrideEnabled(false, true), false);
+  assert.equal(skinUnlocked(false, { devUnlockOverride: isThemeUnlockOverrideEnabled(false, true) }), false);
 });

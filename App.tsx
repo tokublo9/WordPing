@@ -92,6 +92,7 @@ import { normalizedTTSText } from './src/lib/ttsRequest';
 import { fetchVoiceCreditBalance } from './src/lib/api/client';
 import { useThemePurchases } from './src/hooks/useThemePurchases';
 import { isThemeOwnedIndividually } from './src/features/themes/themeProducts';
+import { themeUnlockOverrideActive } from './src/dev/themeAccessOverride';
 import { loadPrototypeSpeechHistory } from './src/lib/prototypeTextToSpeech';
 import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
 import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
@@ -958,6 +959,10 @@ function AppContent() {
     appearance,
     isSubscribed,
     ownedEntitlementIds: ownedThemeEntitlementIds,
+    // TEMPORARY, development builds only. This is what makes a selected theme
+    // actually render while the recording override is on; without it the shop
+    // unlocks every theme and this hook still resolves activeSkin to null.
+    devUnlockOverride: themeUnlockOverrideActive(),
   });
 
   useAppPersistence({
@@ -989,7 +994,16 @@ function AppContent() {
     // would reset a purchased theme to blue *and persist it* — destroying the
     // user's choice on every cold start.
     if (!themePurchases.ownershipLoaded) return;
-    if (!isSubscribed) {
+    // TEMPORARY, development builds only: while the recording override is on
+    // the plan is deliberately still Free, so both resets below would undo the
+    // chosen theme a frame after it was picked. Suppressing them is what makes
+    // the selection survive a re-render and a reload.
+    //
+    // Scoped to exactly these two Free-plan resets. It guards no other effect,
+    // no data validation and no safety fallback, it writes nothing in their
+    // place, and both return the moment the flag goes back to false — there is
+    // no state left behind to clean up.
+    if (!isSubscribed && !themeUnlockOverrideActive()) {
       // Reset a paid skin to the default free theme — unless this exact theme
       // was bought outright, which survives the subscription ending.
       if (

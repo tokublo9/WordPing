@@ -2,6 +2,7 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  I18nManager,
   Image,
   Modal,
   ScrollView,
@@ -22,7 +23,21 @@ import type { ThemePriceDisplay } from '../features/themes/themeProducts';
 
 /** Shared instance, so an omitted price keeps a stable prop identity. */
 const UNPRICED: ThemePriceDisplay = { state: 'unavailable' };
-import { type ShopItem, PremiumSkinPreview, THEME_SCREENSHOTS, THEME_SCREENSHOTS_FLIP, THEME_VIDEOS, THEME_VIDEOS_FLIP } from './ThemeSkinPreview';
+import {
+  type ShopItem,
+  PremiumSkinPreview,
+  THEME_SCREENSHOTS,
+  THEME_SCREENSHOTS_TEST,
+  THEME_VIDEOS,
+  THEME_VIDEOS_TEST,
+} from './ThemeSkinPreview';
+import { resolvePreviewBackdrop } from '../features/themes/previewBackdrop';
+import {
+  GALLERY_PAGE_COUNT,
+  galleryPageAtOffsetX,
+  galleryPageOffsetX,
+  type GalleryPageIndex,
+} from '../features/themes/galleryPaging';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const H_PAD = 20;
@@ -53,7 +68,13 @@ type FullscreenEntry =
   | { type: 'video'; source: number }
   | null;
 
-type ViewerState = { pages: [FullscreenEntry, FullscreenEntry]; startIndex: 0 | 1 } | null;
+/** Both gallery pages, which one the tap opened on, and whose theme it is. */
+type ViewerState = {
+  pages: [FullscreenEntry, FullscreenEntry];
+  startIndex: GalleryPageIndex;
+  /** Decides the backdrop. Carried here so it is resolved once, not per page. */
+  themeId: string;
+} | null;
 
 const FullscreenImage = memo(function FullscreenImage({ source }: { source: number }) {
   const [loaded, setLoaded] = useState(false);
@@ -105,9 +126,10 @@ function FullscreenViewer({
   viewerState: ViewerState;
   onClose: () => void;
 }) {
+  const t = useLang();
   const insets = useSafeAreaInsets();
   const [pagerKey, setPagerKey] = useState(0);
-  const [activePage, setActivePage] = useState<0 | 1>(0);
+  const [activePage, setActivePage] = useState<GalleryPageIndex>(0);
   const prevOpenRef = useRef(false);
 
   const open = viewerState !== null;
@@ -124,7 +146,13 @@ function FullscreenViewer({
   const bottomH   = insets.bottom + 32;
   const mediaH    = SCREEN_H - topBarH - bottomH;
   const pages     = viewerState?.pages ?? ([null, null] as [FullscreenEntry, FullscreenEntry]);
-  const startX    = (viewerState?.startIndex ?? 0) * SCREEN_W;
+  // The pager is exactly the gallery: same two screens, same order.
+  const pageCount = GALLERY_PAGE_COUNT;
+  // Mirrored under RTL, where page 0 sits at the far right rather than at zero.
+  const startX    = galleryPageOffsetX(viewerState?.startIndex ?? 0, SCREEN_W, I18nManager.isRTL, pageCount);
+  // One lookup for the whole viewer: the field behind both pages and the
+  // colours the close control needs to stay legible on it.
+  const backdrop  = resolvePreviewBackdrop(viewerState?.themeId);
 
   return (
     <Modal
@@ -134,19 +162,19 @@ function FullscreenViewer({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={fsStyles.backdrop}>
+      <View style={[fsStyles.backdrop, { backgroundColor: backdrop.background }]}>
         {/* Top bar — tapping anywhere in it (including close icon) closes the viewer */}
         <TouchableOpacity
           style={[fsStyles.topBar, { paddingTop: insets.top }]}
           onPress={onClose}
           activeOpacity={1}
         >
-          <View style={fsStyles.closeBtn}>
-            <Ionicons name="close" size={22} color="#fff" />
+          <View style={[fsStyles.closeBtn, { backgroundColor: backdrop.controlBackground }]}>
+            <Ionicons name="close" size={22} color={backdrop.controlTint} />
           </View>
         </TouchableOpacity>
 
-        {/* Swipeable pager — scrolling between the two screens */}
+        {/* Swipeable pager — the Word List screen, then the Test screen. */}
         <ScrollView
           key={pagerKey}
           horizontal
@@ -156,13 +184,18 @@ function FullscreenViewer({
           bounces={false}
           contentOffset={{ x: startX, y: 0 }}
           onMomentumScrollEnd={e => {
-            const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W) as 0 | 1;
-            setActivePage(page);
+            setActivePage(galleryPageAtOffsetX(e.nativeEvent.contentOffset.x, SCREEN_W, I18nManager.isRTL, pageCount));
           }}
           style={{ width: SCREEN_W, height: mediaH }}
         >
           {pages.map((entry, i) => (
-            <View key={i} style={{ width: SCREEN_W, height: mediaH }}>
+            <View
+              key={i}
+              style={{ width: SCREEN_W, height: mediaH }}
+              accessible
+              accessibilityLabel={t(i === 0 ? 'theme_preview_wordlist' : 'theme_preview_testmode')}
+            >
+              {/* Only the page on screen plays; the other is paused by `active`. */}
               {entry?.type === 'video' && (
                 <FullscreenVideo source={entry.source} active={open && activePage === i} />
               )}
@@ -182,11 +215,18 @@ function FullscreenViewer({
 
 // ── Mini screen gallery ───────────────────────────────────────────────────────
 
-type GalleryScreen = 'wordlist' | 'flipmode';
+/**
+ * The two screens a theme is previewed on, in order.
+ *
+ * Page 1 is the Word List, page 2 the Test screen — both reachable in the app.
+ * The second page is keyed `test`, never `flipmode`: the withdrawn mode is not
+ * what it shows, and the old name was what made it look removable.
+ */
+type GalleryScreen = 'wordlist' | 'test';
 
 const GALLERY_SCREENS: { key: GalleryScreen; labelKey: TranslationKey }[] = [
   { key: 'wordlist', labelKey: 'theme_preview_wordlist' },
-  { key: 'flipmode', labelKey: 'theme_preview_flipmode' },
+  { key: 'test', labelKey: 'theme_preview_testmode' },
 ];
 
 // Renders a looping, muted video preview. `active` mirrors whether the parent
@@ -249,7 +289,7 @@ const MiniScreen = memo(function MiniScreen({
   /** False = skip mounting media; frame renders empty until enabled. */
   enabled: boolean;
   onReady?: () => void;
-  onPress: (startIndex: 0 | 1) => void;
+  onPress: (startIndex: GalleryPageIndex) => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const onReadyRef = useRef(onReady);
@@ -261,13 +301,13 @@ const MiniScreen = memo(function MiniScreen({
   const headerBg = item.previewAccent + '50';
   const video = screenKey === 'wordlist'
     ? THEME_VIDEOS[item.id]
-    : THEME_VIDEOS_FLIP[item.id];
+    : THEME_VIDEOS_TEST[item.id];
   const screenshot = screenKey === 'wordlist'
     ? THEME_SCREENSHOTS[item.id]
-    : THEME_SCREENSHOTS_FLIP[item.id];
+    : THEME_SCREENSHOTS_TEST[item.id];
 
   const hasMedia = video != null || screenshot != null;
-  const startIndex: 0 | 1 = screenKey === 'wordlist' ? 0 : 1;
+  const startIndex: GalleryPageIndex = screenKey === 'wordlist' ? 0 : 1;
   const handlePress = useCallback(() => {
     if (hasMedia) onPress(startIndex);
   }, [hasMedia, startIndex, onPress]);
@@ -287,6 +327,8 @@ const MiniScreen = memo(function MiniScreen({
         onPress={handlePress}
         activeOpacity={hasMedia ? 0.85 : 1}
         disabled={!hasMedia}
+        accessibilityRole="button"
+        accessibilityLabel={label}
       >
         {!enabled ? null : video != null ? (
           <VideoFrame source={video} width={PREVIEW_W} height={PREVIEW_H} active={active} onReady={onReady} />
@@ -320,7 +362,7 @@ const MiniScreen = memo(function MiniScreen({
                   </View>
                 )}
 
-                {screenKey === 'flipmode' && (
+                {screenKey === 'test' && (
                   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <View style={{ width: PREVIEW_W - 24, height: 80, borderRadius: 10, backgroundColor: cardBg }} />
                   </View>
@@ -399,15 +441,22 @@ export function ThemeDetailsSheet({
 
   const [viewerState, setViewerState] = useState<ViewerState>(null);
 
-  const handleMiniPress = useCallback((startIndex: 0 | 1) => {
+  const handleMiniPress = useCallback((startIndex: GalleryPageIndex) => {
     if (!displayItem) return;
-    const wlVideo      = THEME_VIDEOS[displayItem.id];
-    const wlShot       = THEME_SCREENSHOTS[displayItem.id];
-    const flipVideo    = THEME_VIDEOS_FLIP[displayItem.id];
-    const flipShot     = THEME_SCREENSHOTS_FLIP[displayItem.id];
-    const wlEntry: FullscreenEntry   = wlVideo   != null ? { type: 'video', source: wlVideo }   : wlShot   != null ? { type: 'image', source: wlShot }   : null;
-    const flipEntry: FullscreenEntry = flipVideo  != null ? { type: 'video', source: flipVideo }  : flipShot  != null ? { type: 'image', source: flipShot }  : null;
-    setViewerState({ pages: [wlEntry, flipEntry], startIndex });
+    // Video wins over a still on either page, which is why the animated themes
+    // need no page-2 screenshot.
+    const entryFor = (clip?: number, shot?: number): FullscreenEntry =>
+      clip != null ? { type: 'video', source: clip }
+        : shot != null ? { type: 'image', source: shot }
+          : null;
+    setViewerState({
+      pages: [
+        entryFor(THEME_VIDEOS[displayItem.id], THEME_SCREENSHOTS[displayItem.id]),
+        entryFor(THEME_VIDEOS_TEST[displayItem.id], THEME_SCREENSHOTS_TEST[displayItem.id]),
+      ],
+      startIndex,
+      themeId: displayItem.id,
+    });
   }, [displayItem]);
 
   // Close fullscreen viewer when the sheet itself is dismissed
@@ -415,21 +464,21 @@ export function ThemeDetailsSheet({
     if (!item) setViewerState(null);
   }, [item]);
 
-  // Sequential gallery loading: Wordlist loads first; Flipmode only after Wordlist is ready.
-  // Using an id-keyed value means flipmodeEnabled resets automatically when displayItem changes
-  // — no separate reset effect needed.
-  const [flipmodeEnabledForId, setFlipmodeEnabledForId] = useState<string | null>(null);
-  const flipmodeEnabled = flipmodeEnabledForId === displayItem?.id;
+  // Sequential gallery loading: the Word List frame loads first, and the Test
+  // frame only once it is ready. Keying it by id resets it automatically when
+  // the displayed theme changes — no separate reset effect needed.
+  const [testViewEnabledForId, setTestViewEnabledForId] = useState<string | null>(null);
+  const testViewEnabled = testViewEnabledForId === displayItem?.id;
 
   const handleWordlistReady = useCallback(() => {
-    if (displayItem) setFlipmodeEnabledForId(displayItem.id);
+    if (displayItem) setTestViewEnabledForId(displayItem.id);
   }, [displayItem]);
 
   const skinData = SKINS.find(s => s.id === displayItem?.id);
   const isApplied = displayItem ? effectiveSkinId === displayItem.id : false;
   const isFreeItem = displayItem ? !displayItem.price && displayItem.category === 'solid' : false;
   const isAnimated = displayItem
-    ? THEME_VIDEOS[displayItem.id] != null || THEME_VIDEOS_FLIP[displayItem.id] != null
+    ? THEME_VIDEOS[displayItem.id] != null || THEME_VIDEOS_TEST[displayItem.id] != null
     : false;
 
   if (!displayItem) return null;
@@ -577,10 +626,14 @@ export function ThemeDetailsSheet({
               </TouchableOpacity>
             )}
 
-            {!isUnlocked && (
-              // The plan context a locked theme needs. It sits alongside the
-              // Buy button rather than replacing it: the subscription and the
-              // one-off purchase are both real ways to get this theme.
+            {(!isUnlocked || priceDisplay.state === 'included') && (
+              // The plan line, in the two situations where the plan is the
+              // answer. Locked: it sits alongside the Buy button, because the
+              // subscription and the one-off purchase are both real ways to get
+              // this theme. Already covered by a subscription: it is the status
+              // that replaces the price, and there is no Buy button beside it.
+              // A theme bought outright reaches neither branch — it says Owned
+              // above, on every plan, which is the stronger and permanent fact.
               <Text style={[s.planIncludedText, { color: pal.sub }]}>
                 {t('theme_details_included_basic')}
               </Text>
@@ -602,7 +655,7 @@ export function ThemeDetailsSheet({
                 item={displayItem}
                 skinData={skinData}
                 active={item !== null}
-                enabled={key === 'wordlist' ? true : flipmodeEnabled}
+                enabled={key === 'wordlist' ? true : testViewEnabled}
                 onReady={key === 'wordlist' ? handleWordlistReady : undefined}
                 onPress={handleMiniPress}
               />
@@ -717,9 +770,12 @@ const s = StyleSheet.create({
 });
 
 const fsStyles = StyleSheet.create({
+  // Overridden per theme by `resolvePreviewBackdrop`; the literal is the
+  // default every theme outside the six still gets.
   backdrop:  { flex: 1, backgroundColor: '#000' },
   layout:    { flex: 1 },
   topBar:    { paddingBottom: 8, paddingHorizontal: 16, alignItems: 'flex-start' },
+  // `backgroundColor` is supplied per theme so the disc stays visible on white.
   closeBtn:  { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   mediaArea: { flex: 1 },
   mediaFill: { flex: 1, width: '100%' },

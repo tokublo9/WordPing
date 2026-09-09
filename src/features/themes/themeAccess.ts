@@ -21,10 +21,30 @@
  */
 
 export type ThemeAccessState =
-  /** Usable now: free for everyone, bought outright, or in the active plan. */
-  | { state: 'unlocked'; reason: 'free' | 'purchased' | 'subscription' }
+  /**
+   * Usable now.
+   *
+   * `dev-override` is the temporary Simulator recording switch and is reachable
+   * only from a development build — see `src/dev/themeAccessOverride.ts`. It is
+   * a distinct reason rather than a fourth way to say `subscription`, so that
+   * nothing downstream can mistake it for a plan the user actually holds.
+   */
+  | { state: 'unlocked'; reason: 'free' | 'purchased' | 'subscription' | 'dev-override' }
   /** Paid, and the caller has no active subscription. Opens the Upgrade sheet. */
   | { state: 'locked' };
+
+/**
+ * Whether the temporary theme-unlock override applies to this launch.
+ *
+ * TEMPORARY. Both terms are required, and `isDev` is passed in rather than read
+ * from `__DEV__` here: this module is compiled by the test project, where that
+ * bundler constant does not exist, and taking it as an argument is what lets a
+ * test *prove* that a release build cannot unlock anything. The same shape as
+ * `resolveRevenueCatApiKey`, for the same reason.
+ */
+export function isThemeUnlockOverrideEnabled(isDev: boolean, forceUnlockAllThemes: boolean): boolean {
+  return isDev === true && forceUnlockAllThemes === true;
+}
 
 export interface ThemeAccessInput {
   /** Price in the shop data. Zero means the theme is free for everyone. */
@@ -41,6 +61,14 @@ export interface ThemeAccessInput {
    * could be bought at all.
    */
   ownedIndividually?: boolean;
+  /**
+   * The already-resolved temporary override — `__DEV__ && FORCE_UNLOCK_ALL_THEMES`.
+   *
+   * A resolved boolean rather than the raw flag, so this module never has to
+   * know what `__DEV__` is. Absent means off, which is what every existing
+   * caller gets and what a release build always gets.
+   */
+  devUnlockOverride?: boolean;
 }
 
 export function resolveThemeAccess({
@@ -48,6 +76,7 @@ export function resolveThemeAccess({
   isSubscribed,
   isSubscriptionLoaded,
   ownedIndividually = false,
+  devUnlockOverride = false,
 }: ThemeAccessInput): ThemeAccessState {
   if (price <= 0) return { state: 'unlocked', reason: 'free' };
   // Ownership is permanent, so it is answered before the subscription and
@@ -55,6 +84,10 @@ export function resolveThemeAccess({
   // itself while an entitlement lookup is in flight, or when it later fails.
   if (ownedIndividually) return { state: 'unlocked', reason: 'purchased' };
   if (isSubscriptionLoaded && isSubscribed) return { state: 'unlocked', reason: 'subscription' };
+  // Last, so it can only ever turn `locked` into unlocked. A real purchase and
+  // a real subscription keep reporting themselves, which is what stops the
+  // override from disguising either one while it is on.
+  if (devUnlockOverride) return { state: 'unlocked', reason: 'dev-override' };
   return { state: 'locked' };
 }
 

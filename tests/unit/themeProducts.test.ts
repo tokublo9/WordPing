@@ -8,6 +8,7 @@ import {
   isThemeOwnedIndividually,
   resolveThemePrice,
   resolveThemePriceForProduct,
+  resolveThemeStatus,
   themeProductRefs,
   type ThemeProductRefs,
   type ThemeStoreProduct,
@@ -26,6 +27,8 @@ const REFS: ThemeProductRefs = {
 };
 const NO_PRODUCTS: ReadonlyMap<string, ThemeStoreProduct> = new Map();
 const NOBODY: ReadonlySet<string> = new Set();
+/** No subscription, and RevenueCat has answered — the pre-existing baseline. */
+const FREE_PLAN = { isSubscribed: false, isSubscriptionLoaded: true } as const;
 
 /** Keyed by package id, which is what the shop resolves a theme through. */
 function withPackage(priceString: string): ReadonlyMap<string, ThemeStoreProduct> {
@@ -35,7 +38,7 @@ function withPackage(priceString: string): ReadonlyMap<string, ThemeStoreProduct
 test('a free theme never shows a price', () => {
   assert.deepEqual(
     resolveThemePriceForProduct({
-      price: 0, refs: undefined, products: NO_PRODUCTS, ownedEntitlementIds: NOBODY,
+      price: 0, refs: undefined, products: NO_PRODUCTS, ownedEntitlementIds: NOBODY, ...FREE_PLAN,
     }),
     { state: 'free' },
   );
@@ -46,6 +49,7 @@ test('the localized string is passed through exactly, in any currency', () => {
     assert.deepEqual(
       resolveThemePriceForProduct({
         price: 480, refs: REFS, products: withPackage(priceString), ownedEntitlementIds: NOBODY,
+        ...FREE_PLAN,
       }),
       { state: 'priced', priceString },
       'the app must not reformat or re-symbol what StoreKit returned',
@@ -60,6 +64,7 @@ test('an owned theme shows ownership instead of a price', () => {
       refs: REFS,
       products: withPackage('¥480'),
       ownedEntitlementIds: new Set([REFS.entitlementId]),
+      ...FREE_PLAN,
     }),
     { state: 'owned' },
     'never re-price something already bought',
@@ -79,7 +84,7 @@ test('nothing is shown, and nothing is sellable, when the package is unresolved'
   ];
   for (const { label, refs, products } of cases) {
     assert.deepEqual(
-      resolveThemePriceForProduct({ price: 480, refs, products, ownedEntitlementIds: NOBODY }),
+      resolveThemePriceForProduct({ price: 480, refs, products, ownedEntitlementIds: NOBODY, ...FREE_PLAN }),
       { state: 'unavailable' },
       label,
     );
@@ -90,7 +95,7 @@ test('the shop integer never reaches the screen', () => {
   // 480 is a paid/free flag with no currency attached. `unavailable` carries no
   // value at all, which is what guarantees it cannot be rendered as a price.
   const display = resolveThemePriceForProduct({
-    price: 480, refs: REFS, products: NO_PRODUCTS, ownedEntitlementIds: NOBODY,
+    price: 480, refs: REFS, products: NO_PRODUCTS, ownedEntitlementIds: NOBODY, ...FREE_PLAN,
   });
   assert.equal(JSON.stringify(display).includes('480'), false);
 });
@@ -108,6 +113,7 @@ test('a real theme resolves through the registry', () => {
       price: 480,
       products: new Map([[refs!.packageId, { identifier: refs!.packageId, priceString: '¥480' }]]),
       ownedEntitlementIds: NOBODY,
+      ...FREE_PLAN,
     }),
     { state: 'priced', priceString: '¥480' },
   );
@@ -169,4 +175,199 @@ test('ownership is answered by entitlement, never by theme or product id', () =>
   // A plan entitlement can never mark a theme owned.
   assert.equal(isThemeOwnedIndividually('skin_aurora', new Set(['premium'])), false);
   assert.equal(isThemeOwnedIndividually('not_a_theme', NOBODY), false);
+});
+
+// ── Subscription coverage: the TestFlight price regression ───────────────────
+
+/**
+ * A Basic or Premium subscriber could use every theme and was still shown an
+ * individual price under each one.
+ *
+ * The cause was two lookups rather than one. `resolveThemeAccess` was told
+ * about the plan and unlocked the theme; `resolveThemePrice` was not, so it
+ * went on resolving a StoreKit price for something that was no longer for sale.
+ * `resolveThemeStatus` now answers both from a single set of facts, and these
+ * cases pin the answers.
+ */
+
+const AURORA = 'skin_aurora';
+const AURORA_ENTITLEMENT = 'theme_aurora';
+const PRICED: ReadonlyMap<string, ThemeStoreProduct> =
+  new Map([['theme_aurora', { identifier: 'theme_aurora', priceString: '¥480' }]]);
+
+function status(plan: 'free' | 'basic' | 'premium', owned: boolean, loaded = true) {
+  return resolveThemeStatus({
+    themeId: AURORA,
+    price: 480,
+    products: PRICED,
+    ownedEntitlementIds: owned ? new Set([AURORA_ENTITLEMENT]) : NOBODY,
+    isSubscribed: plan !== 'free',
+    isSubscriptionLoaded: loaded,
+  });
+}
+
+test('Free and unowned: the localized price is shown, and the theme stays locked', () => {
+  const { access, price } = status('free', false);
+  assert.deepEqual(price, { state: 'priced', priceString: '¥480' });
+  assert.deepEqual(access, { state: 'locked' });
+});
+
+test('Free and individually owned: no price, owned instead, and usable', () => {
+  const { access, price } = status('free', true);
+  assert.deepEqual(price, { state: 'owned' });
+  assert.deepEqual(access, { state: 'unlocked', reason: 'purchased' });
+});
+
+for (const plan of ['basic', 'premium'] as const) {
+  test(`${plan} and unowned: no individual price, included instead, and usable`, () => {
+    const { access, price } = status(plan, false);
+    assert.deepEqual(price, { state: 'included' }, 'a subscriber must never be shown a price');
+    assert.deepEqual(access, { state: 'unlocked', reason: 'subscription' });
+    // The theme is still selectable — hiding the price must never lock anything.
+    assert.equal(access.state, 'unlocked');
+    // And nothing here may read as a permanent purchase.
+    assert.notEqual(price.state, 'owned');
+    assert.equal(isThemeOwnedIndividually(AURORA, NOBODY), false);
+  });
+
+  test(`${plan} and individually owned: still owned, not merely included`, () => {
+    // The permanent fact outranks the subscription, so the label survives the
+    // subscription ending rather than changing with it.
+    assert.deepEqual(status(plan, true).price, { state: 'owned' });
+    assert.deepEqual(status(plan, true).access, { state: 'unlocked', reason: 'purchased' });
+  });
+}
+
+test('the subscription expiring brings the price back, except where it was bought', () => {
+  // The same account, one renewal later. Nothing was written when the plan
+  // covered the theme, so there is nothing to un-write.
+  assert.deepEqual(status('premium', false).price, { state: 'included' });
+  assert.deepEqual(status('free', false).price, { state: 'priced', priceString: '¥480' });
+
+  // A theme bought outright is unaffected by the plan in either direction.
+  assert.deepEqual(status('premium', true).price, { state: 'owned' });
+  assert.deepEqual(status('free', true).price, { state: 'owned' });
+});
+
+test('an unresolved entitlement shows no price rather than one about to vanish', () => {
+  // Relaunch, restore, or a RevenueCat refresh in flight. A subscriber would
+  // otherwise see a price flash and disappear; fail closed like access does.
+  assert.deepEqual(status('premium', false, false).price, { state: 'unavailable' });
+  assert.deepEqual(status('free', false, false).price, { state: 'unavailable' });
+  assert.deepEqual(status('free', false, false).access, { state: 'locked' });
+
+  // Ownership needs no entitlement lookup, so it is answered even then.
+  assert.deepEqual(status('free', true, false).price, { state: 'owned' });
+  assert.deepEqual(status('free', true, false).access, { state: 'unlocked', reason: 'purchased' });
+});
+
+test('a free theme is free on every plan, and never priced or included', () => {
+  for (const plan of ['free', 'basic', 'premium'] as const) {
+    assert.deepEqual(
+      resolveThemeStatus({
+        themeId: 'solid_blue',
+        price: 0,
+        products: NO_PRODUCTS,
+        ownedEntitlementIds: NOBODY,
+        isSubscribed: plan !== 'free',
+        isSubscriptionLoaded: true,
+      }),
+      { access: { state: 'unlocked', reason: 'free' }, price: { state: 'free' } },
+      plan,
+    );
+  }
+});
+
+test('access and price can never contradict each other, for any combination', () => {
+  // The invariant the split lookups broke: if the plan unlocked it, no price.
+  for (const plan of ['free', 'basic', 'premium'] as const) {
+    for (const owned of [false, true]) {
+      for (const loaded of [false, true]) {
+        const { access, price } = status(plan, owned, loaded);
+        if (access.state === 'unlocked' && access.reason !== 'free') {
+          assert.notEqual(price.state, 'priced', `${plan}/${owned}/${loaded} priced an unlocked theme`);
+        }
+        if (price.state === 'priced') {
+          assert.deepEqual(access, { state: 'locked' }, `${plan}/${owned}/${loaded}`);
+        }
+        // `included` is reachable only from a live subscription, never a purchase.
+        if (price.state === 'included') {
+          assert.deepEqual(access, { state: 'unlocked', reason: 'subscription' });
+        }
+      }
+    }
+  }
+});
+
+// ── The temporary Simulator recording override ───────────────────────────────
+
+test('the override hides the price and shows the included state, without owning it', () => {
+  const overridden = resolveThemeStatus({
+    themeId: AURORA,
+    price: 480,
+    products: PRICED,
+    ownedEntitlementIds: NOBODY,
+    isSubscribed: false,
+    isSubscriptionLoaded: true,
+    devUnlockOverride: true,
+  });
+
+  // Selectable, priced at nothing, and offering no Buy button — `priced` is the
+  // only state the details sheet renders a purchase for.
+  assert.deepEqual(overridden.access, { state: 'unlocked', reason: 'dev-override' });
+  assert.deepEqual(overridden.price, { state: 'included' });
+  assert.notEqual(overridden.price.state, 'owned', 'the override must never look like a purchase');
+  assert.notEqual(overridden.price.state, 'priced');
+
+  // Nothing was written: ownership is still read from the receipt alone.
+  assert.equal(isThemeOwnedIndividually(AURORA, NOBODY), false);
+});
+
+test('with the override off, everything is exactly as before', () => {
+  const off = resolveThemeStatus({
+    themeId: AURORA,
+    price: 480,
+    products: PRICED,
+    ownedEntitlementIds: NOBODY,
+    isSubscribed: false,
+    isSubscriptionLoaded: true,
+    devUnlockOverride: false,
+  });
+  assert.deepEqual(off.access, { state: 'locked' });
+  assert.deepEqual(off.price, { state: 'priced', priceString: '¥480' });
+  // Omitting it entirely is the same as off.
+  assert.deepEqual(off, status('free', false));
+});
+
+test('a genuinely bought theme still says owned while the override is on', () => {
+  const bought = resolveThemeStatus({
+    themeId: AURORA,
+    price: 480,
+    products: PRICED,
+    ownedEntitlementIds: new Set([AURORA_ENTITLEMENT]),
+    isSubscribed: false,
+    isSubscriptionLoaded: true,
+    devUnlockOverride: true,
+  });
+  assert.deepEqual(bought.access, { state: 'unlocked', reason: 'purchased' });
+  assert.deepEqual(bought.price, { state: 'owned' });
+});
+
+test('access and price still cannot contradict each other with the override on', () => {
+  for (const owned of [false, true]) {
+    for (const loaded of [false, true]) {
+      const { access, price } = resolveThemeStatus({
+        themeId: AURORA,
+        price: 480,
+        products: PRICED,
+        ownedEntitlementIds: owned ? new Set([AURORA_ENTITLEMENT]) : NOBODY,
+        isSubscribed: false,
+        isSubscriptionLoaded: loaded,
+        devUnlockOverride: true,
+      });
+      assert.equal(access.state, 'unlocked', 'the override must always make it usable');
+      assert.notEqual(price.state, 'priced', 'an unlocked theme is never priced');
+      assert.notEqual(price.state, 'unavailable', 'an unlocked theme must still show its status');
+    }
+  }
 });

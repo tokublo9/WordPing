@@ -19,7 +19,7 @@ function voiceScreen() {
 
 test('tapping a voice row only updates the draft, never the saved preference', () => {
   const body = voiceScreen();
-  const rowPress = /onPress=\{\(\) => \{\s*previewSequence\.current\+\+;[\s\S]*?\}\}/u.exec(body)?.[0];
+  const rowPress = /onPress=\{\(\) => \{\s*previewFlow\.cancel\(\);[\s\S]*?\}\}/u.exec(body)?.[0];
   assert.ok(rowPress, 'row press handler not found');
   assert.match(rowPress, /setDraftVoice\(voice\)/u);
   assert.doesNotMatch(rowPress, /onSelect/u, 'a row tap must not publish the choice');

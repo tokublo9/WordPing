@@ -364,12 +364,24 @@ test('ordinary voice playback remains consent gated and promo cannot mark a purc
   assert.match(voices, /export const AI_VOICES = \[\s*'marin',\s*'cedar',\s*\] as const;/u);
 
   const settings = read('src/components/SettingsModal.tsx');
-  const pickerPreview = settings.slice(
-    settings.indexOf('const preview = useCallback(async (voice: AIVoice)'),
-    settings.indexOf('useEffect(() => () => {', settings.indexOf('const preview = useCallback')),
+  // The picker's play buttons run through the shared flow, and the flow is
+  // handed the same consent call the Word List makes — not a copy of it, and
+  // not a second dialog of its own.
+  const pickerFlow = settings.slice(
+    settings.indexOf('const previewFlowRef = useRef'),
+    settings.indexOf('const close = useCallback'),
   );
-  assert.match(pickerPreview, /if \(!await ensureAIConsentForUserAction\(\)\) return;[\s\S]*?await previewAIVoice\(voice,/u);
+  assert.match(pickerFlow, /ensureConsent: \(\) => ensureAIConsentForUserAction\(\),/u);
+  assert.match(pickerFlow, /play: \(voice, report\) => previewAIVoice\(voice, \{ onPhaseChange: report \}\),/u);
   assert.match(settings, /\{AI_VOICES\.map\(voice => \{[\s\S]*?onPress=\{\(\) => preview\(voice\)\}/u);
+
+  // And the flow asks before it plays, in that order, with nothing generated
+  // for any answer other than an explicit grant.
+  const flow = read('src/features/voice/voicePreviewFlow.ts');
+  assert.match(
+    flow,
+    /const granted = await options\.ensureConsent\(\);[\s\S]*?if \(!granted\) return 'consent_refused';[\s\S]*?await options\.play\(voice,/u,
+  );
 
   const card = read('src/hooks/useWordCardVoicePlayback.ts');
   assert.match(card, /if \(usesAI && !await ensureAIConsentForUserAction\(\)\) return;/u);

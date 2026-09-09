@@ -540,10 +540,20 @@ test('an expired subscription falls back to a free theme without losing the pref
   // A paid skin resolves to null (default palette) the moment isSubscribed is
   // false — unless it was bought outright, which is what makes that purchase
   // permanent rather than merely a way to unlock it while subscribed.
+  //
+  // That used to be an inline predicate here, the third copy of the rule in the
+  // app. It now delegates to `resolveThemeAccess` via `isThemeUnlocked`, so the
+  // behaviour is asserted directly in tests/unit/themeAccess.test.ts and what
+  // is pinned here is that the renderer still asks, and still passes ownership
+  // and the free-skin flag.
+  assert.match(controller, /import \{ isThemeUnlocked \} from '\.\/themeAccess';/u);
+  assert.match(controller, /SKINS\.find\(s => s\.id === skinId && isThemeUnlocked\(\{/u);
+  assert.match(controller, /price: FREE_SKIN_IDS\.has\(s\.id\) \? 0 : 1,/u);
   assert.match(
     controller,
-    /isSubscribed\s*\|\| FREE_SKIN_IDS\.has\(s\.id\)\s*\|\| \(ownedEntitlementIds !== undefined && isThemeOwnedIndividually\(s\.id, ownedEntitlementIds\)\)/u,
+    /ownedIndividually: ownedEntitlementIds !== undefined\s*&& isThemeOwnedIndividually\(s\.id, ownedEntitlementIds\),/u,
   );
+  assert.match(controller, /isSubscribed,/u);
   // And the downgrade effect must not undo a purchase either.
   assert.match(
     read('App.tsx'),
@@ -740,10 +750,15 @@ test('Owned replaces the price, and Buy is offered only at a real price', () => 
     assert.match(source, /priceDisplay\.state === 'owned'[\s\S]{0,220}t\('theme_owned'\)/u);
   }
   // Ownership is checked before price, so a bought theme is never re-priced.
-  assert.match(
-    products,
-    /if \(ownedEntitlementIds\.has\(refs\.entitlementId\)\) return \{ state: 'owned' \};\s*\n\s*const product = products\.get\(refs\.packageId\);/u,
-  );
+  // It is no longer the line immediately above the product lookup — the
+  // subscription check sits between them now — so the ordering is asserted by
+  // position rather than by adjacency.
+  const rule = products.slice(products.indexOf('export function resolveThemePriceForProduct('));
+  const ownedAt = rule.indexOf("if (ownedIndividually) return { state: 'owned' };");
+  const productAt = rule.indexOf('const product = products.get(refs.packageId);');
+  assert.ok(ownedAt > -1 && productAt > -1);
+  assert.ok(ownedAt < productAt, 'ownership must be answered before any price lookup');
+  assert.match(products, /const ownedIndividually = ownedEntitlementIds\.has\(refs\.entitlementId\);/u);
   // A purchase is never offered without a price to charge.
   assert.match(details, /\{priceDisplay\.state === 'priced' && onBuy && \(/u);
 });

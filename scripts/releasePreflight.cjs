@@ -44,6 +44,11 @@ const issues = [
   ...checks.checkWranglerConfig(
     fs.readFileSync(path.join(root, 'cloudflare/wordping-api/wrangler.toml'), 'utf8'),
   ),
+  // TEMPORARY: the Simulator theme-recording override. Read as text, because
+  // what matters is the constant the bundler would compile.
+  ...checks.checkDevOverrides(
+    fs.readFileSync(path.join(root, 'src/dev/themeAccessOverride.ts'), 'utf8'),
+  ),
 ];
 
 const errors = issues.filter(issue => issue.severity === 'error');

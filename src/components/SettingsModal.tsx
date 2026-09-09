@@ -38,7 +38,14 @@ import {
   getAIVoiceNameKey,
   type AIVoice,
 } from '../lib/aiVoices';
-import { previewAIVoice, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
+import { previewAIVoice, stopPlayback } from '../lib/tts';
+import {
+  createVoicePreviewFlow,
+  voicePreviewBusyVoice,
+  voicePreviewPlayingVoice,
+  type VoicePreviewFlow,
+  type VoicePreviewSnapshot,
+} from '../features/voice/voicePreviewFlow';
 import { isAIRequestError } from '../lib/api/errors';
 import { AIConsentDialog } from './AIConsentDialog';
 import { AboutAIVoiceDialog } from './AboutAIVoiceDialog';
@@ -372,14 +379,15 @@ export function SettingsModal({
             onPress={() => setLangModalVisible(true)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`${t('ob_native_lang')}: ${t(activeLang.nameKey)}`}
+            accessibilityLabel={`${t('language')}: ${t(activeLang.nameKey)}`}
           >
             <Ionicons name="language-outline" size={18} color={pal.sub} />
-            {/* Named by the onboarding question that first asked for it —
-                `ob_native_lang` is the Explanation Language step — rather than
-                the generic `language`, which said nothing about which of the
-                two languages this row sets. */}
-            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('ob_native_lang')}</Text>
+            {/* The plain `language`. This row had borrowed `ob_native_lang`,
+                the onboarding step's wording — "Explanation Language" — which
+                reads as a setting of its own in Settings rather than as the
+                app's language. Onboarding keeps that key; only this row and the
+                picker it opens are named here. */}
+            <Text style={[styles.removeAdsLabel, { color: pal.text }]}>{t('language')}</Text>
             {/* The same localized name the picker lists it under, so the row and
                 the list can never name the current language differently. */}
             <Text style={[styles.rowValue, { color: pal.sub }]}>{activeLang.flag}  {t(activeLang.nameKey)}</Text>
@@ -689,10 +697,16 @@ function VoiceSelectionScreen({
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
-  const [previewingVoice, setPreviewingVoice] = useState<AIVoice | null>(null);
-  const [loadingVoice, setLoadingVoice] = useState<AIVoice | null>(null);
-  const [activePreviewVoice, setActivePreviewVoice] = useState<AIVoice | null>(null);
-  const previewSequence = useRef(0);
+  // One value rather than three flags, so "which row" and "what is it doing"
+  // can never disagree — the state that used to be left behind when a consent
+  // dialog was answered somewhere the screen could not see.
+  const [previewState, setPreviewState] = useState<VoicePreviewSnapshot<AIVoice>>(
+    { voice: null, phase: 'idle' },
+  );
+  // Both derived by the flow module rather than spelled out here, so what the
+  // rows draw and what the flow clears are the same rule.
+  const previewingVoice = voicePreviewPlayingVoice(previewState);
+  const loadingVoice = voicePreviewBusyVoice(previewState);
 
   /**
    * The choice being browsed, committed only on the way out.
@@ -714,67 +728,70 @@ function VoiceSelectionScreen({
     if (visible) setDraftVoice(selectedVoice);
   }
 
+  /**
+   * What a failed preview says. Never a cancellation, which is not a failure.
+   *
+   * Held in a ref and refreshed every render so the flow below can be created
+   * once and still reach the current translator and language tag.
+   */
+  const reportPreviewFailure = useCallback((error: unknown) => {
+    if (error instanceof Error && error.message === 'cancelled') return;
+    // A usage limit hit from the voice picker gets the same non-blocking banner
+    // as one hit from a card, so the two entry points do not disagree.
+    const limit = isAIRequestError(error) ? resolveAiVoiceLimit(error, Date.now()) : null;
+    if (limit) {
+      const { key, values } = buildAiVoiceLimitMessage(limit, language);
+      showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
+      return;
+    }
+    Alert.alert(t('ai_voice_unavailable'), t(previewFailureMessageKey(error)));
+  }, [language, t]);
+  const reportPreviewFailureRef = useRef(reportPreviewFailure);
+  reportPreviewFailureRef.current = reportPreviewFailure;
+
+  // A run can settle after this screen has gone — a consent dialog answered on
+  // the way out, a request that was already in flight. The guard keeps that
+  // from publishing into a component that is no longer mounted.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  /**
+   * Created once and kept in a ref: it owns the run sequence, so rebuilding it
+   * on a render would lose track of the request already in flight.
+   */
+  const previewFlowRef = useRef<VoicePreviewFlow<AIVoice> | null>(null);
+  previewFlowRef.current ??= createVoicePreviewFlow<AIVoice>({
+    // The same call the Word List's AI Voice button makes, reading and writing
+    // the one consent decision. Not a second dialog and not a second store.
+    ensureConsent: () => ensureAIConsentForUserAction(),
+    play: (voice, report) => previewAIVoice(voice, { onPhaseChange: report }),
+    stop: () => { stopPlayback(); },
+    onChange: snapshot => { if (mounted.current) setPreviewState(snapshot); },
+    onError: error => { reportPreviewFailureRef.current(error); },
+  });
+  const previewFlow = previewFlowRef.current;
+
   const close = useCallback(() => {
-    previewSequence.current++;
-    stopPlayback();
-    setPreviewingVoice(null);
-    setLoadingVoice(null);
-    setActivePreviewVoice(null);
+    previewFlow.cancel();
     // Leaving the screen is the confirmation. Only a real change is published,
     // so backing out without picking anything cannot trigger a library sweep.
     if (draftVoice !== selectedVoice) onSelect(draftVoice);
     onClose();
-  }, [draftVoice, onClose, onSelect, selectedVoice]);
+  }, [draftVoice, onClose, onSelect, previewFlow, selectedVoice]);
 
   const preview = useCallback(async (voice: AIVoice) => {
-    if (activePreviewVoice === voice) {
-      previewSequence.current++;
-      stopPlayback();
-      setPreviewingVoice(null);
-      setLoadingVoice(null);
-      setActivePreviewVoice(null);
-      return;
-    }
-
-    // Previews are generated by OpenAI like any other AI voice, so the same
-    // permission applies here as on a word card.
-    if (!await ensureAIConsentForUserAction()) return;
-
-    const sequence = ++previewSequence.current;
-    setActivePreviewVoice(voice);
-    setPreviewingVoice(null);
-    setLoadingVoice(null);
-    const onPhaseChange = (phase: TTSPlaybackPhase) => {
-      if (previewSequence.current !== sequence) return;
-      setLoadingVoice(phase === 'generating-or-downloading' ? voice : null);
-      setPreviewingVoice(phase === 'playing' ? voice : null);
-    };
-    try {
-      await previewAIVoice(voice, { onPhaseChange });
-    } catch (error) {
-      if (error instanceof Error && error.message === 'cancelled') return;
-      // A usage limit hit from the voice picker gets the same non-blocking banner
-      // as one hit from a card, so the two entry points do not disagree.
-      const limit = isAIRequestError(error) ? resolveAiVoiceLimit(error, Date.now()) : null;
-      if (limit) {
-        const { key, values } = buildAiVoiceLimitMessage(limit, language);
-        showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
-        return;
-      }
-      Alert.alert(t('ai_voice_unavailable'), t(previewFailureMessageKey(error)));
-    } finally {
-      if (previewSequence.current === sequence) {
-        setPreviewingVoice(null);
-        setLoadingVoice(null);
-        setActivePreviewVoice(null);
-      }
-    }
-  }, [activePreviewVoice, t]);
+    // Consent, playback and the return to a tappable row all live in the flow,
+    // which settles on every answer — including a dialog that is dismissed and
+    // a host that has gone away.
+    await previewFlow.request(voice);
+  }, [previewFlow]);
 
   useEffect(() => () => {
-    previewSequence.current++;
-    stopPlayback();
-  }, []);
+    previewFlow.cancel();
+  }, [previewFlow]);
 
   return (
     <Modal
@@ -844,11 +861,7 @@ function VoiceSelectionScreen({
                   // Selection only — never onSelect, and never a generation.
                   // The choice is published once, by close().
                   onPress={() => {
-                    previewSequence.current++;
-                    stopPlayback();
-                    setPreviewingVoice(null);
-                    setLoadingVoice(null);
-                    setActivePreviewVoice(null);
+                    previewFlow.cancel();
                     setDraftVoice(voice);
                   }}
                   activeOpacity={0.75}
@@ -894,6 +907,17 @@ function VoiceSelectionScreen({
             <Text style={styles.voiceDoneLabel}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* The picker is presented from its own native controller, so a consent
+            dialog declared out in Settings is presented on a controller that is
+            already presenting this one — it never appears, and the request that
+            asked for it waits for an answer nobody can give. On a debug build
+            that shows up as a warning in the log; in TestFlight it is silent,
+            and every Marin and Cedar sample simply stops working. Its own host,
+            inside its own modal, is what puts the dialog above the sheet the
+            user is actually looking at. Registered only while the picker is on
+            screen, so closing it hands the question back to Settings. */}
+        <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
       </View>
     </Modal>
   );

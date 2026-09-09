@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
+  checkDevOverrides,
   checkAppConfig,
   checkEasProduction,
   checkWranglerConfig,
@@ -182,5 +184,39 @@ test('placeholder detection covers the common spellings', () => {
   }
   for (const value of ['appl_abcdefghijk', 'https://wordping-api.wordping-daiki.workers.dev', 'a2e62680a8d9438db17c0480206c42c0']) {
     assert.equal(isPlaceholder(value), false, `${value} should read as real`);
+  }
+});
+
+// ── The temporary Simulator recording override ───────────────────────────────
+
+test('a theme override left on blocks the release', () => {
+  const on = 'export const FORCE_UNLOCK_ALL_THEMES = true;\n';
+  const issues = checkDevOverrides(on);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].severity, 'error');
+  assert.equal(issues[0].where, 'src/dev/themeAccessOverride.ts');
+  assert.match(issues[0].message, /FORCE_UNLOCK_ALL_THEMES is true/u);
+  assert.equal(hasBlockingIssues(issues), true);
+});
+
+test('the committed default passes, and the real file is that default', () => {
+  const off = 'export const FORCE_UNLOCK_ALL_THEMES = false;\n';
+  assert.deepEqual(checkDevOverrides(off), []);
+
+  // The file as it stands in the repo, not a fixture: this is what proves the
+  // switch ships off rather than merely being able to.
+  const source = readFileSync('src/dev/themeAccessOverride.ts', 'utf8');
+  assert.match(source, /^export const FORCE_UNLOCK_ALL_THEMES = false;$/mu);
+  assert.deepEqual(checkDevOverrides(source), []);
+});
+
+test('a flag it cannot read is itself blocking', () => {
+  // Rewriting the constant into something the check cannot parse would silently
+  // disable the gate, so an unreadable flag fails rather than passes.
+  for (const source of ['', 'export let FORCE_UNLOCK_ALL_THEMES = true;', 'const FORCE_UNLOCK_ALL_THEMES = true;']) {
+    const issues = checkDevOverrides(source);
+    assert.equal(issues.length, 1, source);
+    assert.equal(issues[0].severity, 'error');
+    assert.match(issues[0].message, /could not be read/u);
   }
 });

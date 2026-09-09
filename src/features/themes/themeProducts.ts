@@ -20,6 +20,8 @@
  * below is unit-tested directly.
  */
 
+import { resolveThemeAccess, type ThemeAccessState } from './themeAccess';
+
 /** The three identifiers one theme is sold under, all set in the dashboard. */
 export interface ThemeProductRefs {
   /** App Store Connect product. Non-Consumable. */
@@ -103,8 +105,17 @@ export interface ThemeStoreProduct {
 export type ThemePriceDisplay =
   /** Free for everyone; no price line. */
   | { state: 'free' }
-  /** Bought outright. Shown instead of the price. */
+  /** Bought outright. Shown instead of the price, on every plan. */
   | { state: 'owned' }
+  /**
+   * Covered by an active Basic or Premium subscription.
+   *
+   * Distinct from `owned` on purpose: this access lasts as long as the
+   * subscription does, so nothing here may be recorded as a purchase. What it
+   * means for the UI is that there is nothing to sell — and therefore no price
+   * to print and no Buy button to offer.
+   */
+  | { state: 'included' }
   /** A real, localized price from StoreKit. */
   | { state: 'priced'; priceString: string }
   /** Not sold, not loaded, or the lookup failed. Draw nothing, sell nothing. */
@@ -118,28 +129,50 @@ export interface ThemePriceInput {
   products: ReadonlyMap<string, ThemeStoreProduct>;
   /** Entitlement ids currently active on this account. */
   ownedEntitlementIds: ReadonlySet<string>;
+  /** An active Basic or Premium subscription is in effect. */
+  isSubscribed: boolean;
+  /** False until RevenueCat has answered. */
+  isSubscriptionLoaded: boolean;
+  /**
+   * The temporary Simulator recording override, already resolved against
+   * `__DEV__`. Absent means off — see `src/dev/themeAccessOverride.ts`.
+   */
+  devUnlockOverride?: boolean;
 }
 
 /**
  * What to draw under a theme's name.
  *
- * Ownership is checked before price so a bought theme never shows a price it
- * would be wrong to charge again. A Basic or Premium subscriber is deliberately
- * not "owned": their access comes from the subscription and ends with it, while
- * `owned` means the theme is theirs permanently. The two are answered by
- * different modules on purpose — see `themeAccess.ts`.
+ * Ownership is checked before everything else so a bought theme never shows a
+ * price it would be wrong to charge again, and keeps saying "owned" on every
+ * plan. A subscriber is deliberately not "owned": their access comes from the
+ * subscription and ends with it, so it resolves to `included` — same silence
+ * about price, different fact, and nothing that could be mistaken for a
+ * permanent purchase.
+ *
+ * The subscription half of this is not decided here. It is delegated to
+ * `resolveThemeAccess`, the module that owns "who may use which theme", so the
+ * shop cannot draw a price for a theme the very same data says is unlocked.
+ * That disagreement is exactly the bug this replaced: the access lookup knew
+ * about the plan and the price lookup did not.
  */
 export function resolveThemePrice({
   themeId,
   price,
   products,
   ownedEntitlementIds,
+  isSubscribed,
+  isSubscriptionLoaded,
+  devUnlockOverride = false,
 }: ThemePriceInput): ThemePriceDisplay {
   return resolveThemePriceForProduct({
     price,
     refs: themeProductRefs(themeId),
     products,
     ownedEntitlementIds,
+    isSubscribed,
+    isSubscriptionLoaded,
+    devUnlockOverride,
   });
 }
 
@@ -154,15 +187,41 @@ export function resolveThemePriceForProduct({
   refs,
   products,
   ownedEntitlementIds,
+  isSubscribed,
+  isSubscriptionLoaded,
+  devUnlockOverride = false,
 }: {
   price: number;
   refs: ThemeProductRefs | undefined;
   products: ReadonlyMap<string, ThemeStoreProduct>;
   ownedEntitlementIds: ReadonlySet<string>;
+  isSubscribed: boolean;
+  isSubscriptionLoaded: boolean;
+  devUnlockOverride?: boolean;
 }): ThemePriceDisplay {
   if (price <= 0) return { state: 'free' };
   if (refs === undefined) return { state: 'unavailable' };
-  if (ownedEntitlementIds.has(refs.entitlementId)) return { state: 'owned' };
+
+  const ownedIndividually = ownedEntitlementIds.has(refs.entitlementId);
+  // Permanent and plan-independent, so it is answered first and without waiting
+  // for an entitlement lookup — the same order `resolveThemeAccess` uses.
+  if (ownedIndividually) return { state: 'owned' };
+
+  const access = resolveThemeAccess({
+    price, isSubscribed, isSubscriptionLoaded, ownedIndividually, devUnlockOverride,
+  });
+  // Both non-purchase unlocks print the same line and offer no Buy button: in
+  // each case there is nothing to sell right now. They stay separate reasons so
+  // the override cannot be read anywhere as a subscription the user holds.
+  if (access.state === 'unlocked' && (access.reason === 'subscription' || access.reason === 'dev-override')) {
+    return { state: 'included' };
+  }
+
+  // RevenueCat has not answered yet. Saying nothing costs a Free user a price
+  // for a moment; saying a price costs a subscriber the sight of one that is
+  // about to vanish, which is the flicker this avoids. Fail closed, the same
+  // way access does.
+  if (!isSubscriptionLoaded) return { state: 'unavailable' };
 
   const product = products.get(refs.packageId);
   // A package with no usable priceString is treated as absent rather than
@@ -170,6 +229,45 @@ export function resolveThemePriceForProduct({
   if (!product || product.priceString.trim() === '') return { state: 'unavailable' };
 
   return { state: 'priced', priceString: product.priceString };
+}
+
+/** Access and price for one theme, decided together from one set of facts. */
+export interface ThemeStatus {
+  access: ThemeAccessState;
+  price: ThemePriceDisplay;
+}
+
+/**
+ * The shop's single entry point: both answers, from one set of inputs.
+ *
+ * Every surface that draws a theme needs to know two things — may this person
+ * use it, and what should be printed under its name — and the two must agree.
+ * Resolving them in one call is what makes "unlocked by the subscription" and
+ * "priced" impossible to render at the same time, however many labels the shop
+ * grows. Callers pass facts, not conclusions.
+ */
+export function resolveThemeStatus({
+  themeId,
+  price,
+  products,
+  ownedEntitlementIds,
+  isSubscribed,
+  isSubscriptionLoaded,
+  devUnlockOverride = false,
+}: ThemePriceInput): ThemeStatus {
+  return {
+    access: resolveThemeAccess({
+      price,
+      isSubscribed,
+      isSubscriptionLoaded,
+      ownedIndividually: isThemeOwnedIndividually(themeId, ownedEntitlementIds),
+      devUnlockOverride,
+    }),
+    price: resolveThemePrice({
+      themeId, price, products, ownedEntitlementIds, isSubscribed, isSubscriptionLoaded,
+      devUnlockOverride,
+    }),
+  };
 }
 
 /**

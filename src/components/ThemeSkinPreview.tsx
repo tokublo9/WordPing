@@ -122,7 +122,18 @@ export const THEME_SCREENSHOTS: Partial<Record<string, number>> = {
   skin_sunset:     require('../../screenshots/theme/sunset/sunset1.png'),
 };
 
-export const THEME_SCREENSHOTS_FLIP: Partial<Record<string, number>> = {
+/**
+ * Page 2 of the preview gallery: the Test screen.
+ *
+ * Every theme ships two captures. The first is the Word List, the second is the
+ * Test screen, and both are screens the app can actually open — the gallery
+ * briefly showed only the first while the second frame was mistaken for the
+ * withdrawn Flip Mode.
+ *
+ * `skin_deep_sea` is absent on purpose: it ships `deepsea2.mov` rather than a
+ * still, and video takes priority over a screenshot for both pages.
+ */
+export const THEME_SCREENSHOTS_TEST: Partial<Record<string, number>> = {
   solid_blue:      require('../../screenshots/theme/blue/blue2.png'),
   solid_gray:      require('../../screenshots/theme/gray/gray2.png'),
   solid_green:     require('../../screenshots/theme/green/green2.png'),
@@ -135,7 +146,6 @@ export const THEME_SCREENSHOTS_FLIP: Partial<Record<string, number>> = {
   solid_yellow:    require('../../screenshots/theme/yellow/yellow2.png'),
   solid_beige:     require('../../screenshots/theme/beige/beige2.png'),
   solid_teal:      require('../../screenshots/theme/teal/teal2.png'),
-  skin_deep_sea:   require('../../screenshots/theme/deepsea/deepsea2.png'),
   skin_leaf_blur:  require('../../screenshots/theme/greennature/greennature2.png'),
   skin_sakura:     require('../../screenshots/theme/sakura/sakura2.png'),
   skin_snow:       require('../../screenshots/theme/snowmountain/snowmountain2.png'),
@@ -159,25 +169,40 @@ export const THEME_VIDEOS: Partial<Record<string, number>> = {
 /**
  * A still frame of each theme video, used as its poster.
  *
- * Every one is the source video's own **first frame**, extracted from the
- * bundled `.mov` — not artwork invented for the purpose. That matters twice
- * over: it is what the theme genuinely looks like, and it is the exact frame the
- * looping player shows when it starts, so swapping the poster for the video
- * cannot produce a visible jump.
+ * Every one is a still of the theme itself, and it is what the player shows
+ * before the first video frame arrives — so it has to be the same picture the
+ * video opens on, or swapping poster for video produces a visible jump.
  *
- * JPEG rather than PNG: these are photographic frames, and JPEG keeps each one
- * under 100 KB at the videos' native 1260x2736.
+ * These are now the edited PNGs that live beside each `.mov`, replacing the
+ * generated `*-poster.jpg` files. They are the only copy: nothing regenerates
+ * them, so they are edited in place and committed as-is. PNG is larger than the
+ * JPEGs were — 122–432 KB each rather than under 100 KB — which is the cost of
+ * them being hand-edited rather than machine-extracted.
+ *
+ * `skin_deep_sea` deliberately points at the same file as its `THEME_SCREENSHOTS`
+ * entry. One asset referenced twice is one asset in the bundle.
  */
 export const THEME_VIDEO_POSTERS: Partial<Record<string, number>> = {
-  skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea1-poster.jpg'),
-  skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy1-poster.jpg'),
-  skin_aurora:    require('../../screenshots/theme/aurora/aurora1-poster.jpg'),
-  skin_cyber:     require('../../screenshots/theme/cyberneon/cyberneon1-poster.jpg'),
-  shop_woods:     require('../../screenshots/theme/beautifulwoods/beautifulwoods1-poster.jpg'),
-  skin_rain:      require('../../screenshots/theme/rainywindow/rainywindow1-poster.jpg'),
+  skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea1.png'),
+  skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy1.png'),
+  skin_aurora:    require('../../screenshots/theme/aurora/aurora1.png'),
+  skin_cyber:     require('../../screenshots/theme/cyberneon/cyberneon1.png'),
+  shop_woods:     require('../../screenshots/theme/beautifulwoods/beautifulwoods1.png'),
+  skin_rain:      require('../../screenshots/theme/rainywindow/rainywindow1.png'),
 };
 
-export const THEME_VIDEOS_FLIP: Partial<Record<string, number>> = {
+/**
+ * Page 2 for the animated themes: the second clip.
+ *
+ * NO PAGE-2 POSTERS EXIST. Each of these six folders holds `X1.mov`, `X1.png`
+ * and `X2.mov` — there is no `X2.png`, so there is nothing to point a second
+ * poster map at, and inventing one from an unrelated image would show the wrong
+ * screen. Nothing needs it: the gallery's `VideoFrame` and the fullscreen
+ * `FullscreenVideo` both take a source alone and stay hidden until the player
+ * reports ready, which is the flash-free path they already used. Only the
+ * Upgrade sheet carousel reads `THEME_VIDEO_POSTERS`, and that shows page 1.
+ */
+export const THEME_VIDEOS_TEST: Partial<Record<string, number>> = {
   skin_deep_sea:  require('../../screenshots/theme/deepsea/deepsea2.mov'),
   skin_galaxy:    require('../../screenshots/theme/galaxy/galaxy2.mov'),
   skin_aurora:    require('../../screenshots/theme/aurora/aurora2.mov'),

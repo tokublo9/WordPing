@@ -157,6 +157,64 @@ test('a consent dialog host is mounted wherever one can be asked for', () => {
   }
 });
 
+test('the voice picker carries its own host, so the dialog is above it in a release build', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+
+  // The bug this pins: the picker is presented from Settings' own controller,
+  // and iOS refuses to present a second modal from a controller that is already
+  // presenting one. A host declared out in Settings therefore opened a dialog
+  // that could never appear — a logged warning on a debug build, silence in
+  // TestFlight — and the sample tap waited forever on an answer nobody could
+  // give. There are two hosts in this file for that reason, and the picker's
+  // must be inside the picker's own <Modal>.
+  assert.equal((settings.match(/<AIConsentDialog active=\{visible\}/gu) ?? []).length, 2);
+
+  const picker = /function VoiceSelectionScreen\(\{[\s\S]*?\n\}\n/u.exec(settings)?.[0];
+  assert.ok(picker, 'VoiceSelectionScreen not found');
+  assert.match(picker, /<AIConsentDialog active=\{visible\} pal=\{pal\} themeColor=\{themeColor\} \/>/u);
+  // Inside the picker's Modal, not beside it: the closing </Modal> comes after.
+  const hostAt = picker.indexOf('<AIConsentDialog');
+  assert.ok(hostAt > picker.indexOf('<Modal'), 'the host must be inside the picker modal');
+  assert.ok(hostAt < picker.indexOf('</Modal>'), 'the host must be inside the picker modal');
+
+  // Nothing on this path is conditional on the build. A guard that only held in
+  // development is exactly how this reached TestFlight in the first place.
+  const dialog = read('src/components/AIConsentDialog.tsx');
+  for (const [path, source] of [['SettingsModal.tsx', picker], ['AIConsentDialog.tsx', dialog]]) {
+    assert.doesNotMatch(source, /__DEV__/u, `${path} must behave the same in a release build`);
+  }
+
+  // The host registers while its screen is on top and unregisters when it goes,
+  // which is what settles a question the user closed the screen on.
+  assert.match(dialog, /return registerAIConsentPromptHost\(\{/u);
+  const prompt = read('src/lib/aiConsentPrompt.ts');
+  assert.match(prompt, /if \(pending !== null && !hosts\.includes\(host\)\) settle\('unknown'\);/u);
+  assert.match(prompt, /if \(host === undefined\) return Promise\.resolve\('unknown'\);/u);
+  // A second tap joins the open question rather than stacking a dialog on it.
+  assert.match(prompt, /if \(pending !== null\) \{\s*const previous = pending;/u);
+});
+
+test('a sample preview always releases the row it was started from', () => {
+  const flow = read('src/features/voice/voicePreviewFlow.ts');
+  // Every exit — Allow, Not Now, a dismissal, a missing host, an outage, a
+  // cancellation — passes through one cleanup, so no answer can leave a row
+  // spinning behind a dialog that is gone.
+  assert.match(flow, /\} finally \{[\s\S]*?if \(run === sequence\) publish\(null, 'idle'\);/u);
+  // The consent await is inside the try, or the refusal path would skip it.
+  const body = flow.slice(flow.indexOf('async function request('));
+  assert.ok(
+    body.indexOf('await options.ensureConsent()') > body.indexOf('try {'),
+    'the consent wait must be covered by the cleanup',
+  );
+
+  // The picker feeds that cleanup straight into its only preview state, and
+  // guards the write so a run settling after the screen has gone is harmless.
+  const settings = read('src/components/SettingsModal.tsx');
+  assert.match(settings, /onChange: snapshot => \{ if \(mounted\.current\) setPreviewState\(snapshot\); \},/u);
+  assert.match(settings, /const previewingVoice = voicePreviewPlayingVoice\(previewState\);/u);
+  assert.match(settings, /const loadingVoice = voicePreviewBusyVoice\(previewState\);/u);
+});
+
 test('dismissing the dialog is wired to the no-consent path, not to Allow', () => {
   const dialog = read('src/components/AIConsentDialog.tsx');
   // Backdrop tap and the hardware back button both dismiss without deciding.

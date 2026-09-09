@@ -19,13 +19,13 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
 import { SKINS, THEME_PRICE_COLOR } from '../constants';
-import { resolveThemeAccess } from '../features/themes/themeAccess';
 import { type ShopItem, PremiumSkinPreview } from './ThemeSkinPreview';
 import {
-  isThemeOwnedIndividually,
-  resolveThemePrice,
+  resolveThemeStatus,
   type ThemePriceDisplay,
+  type ThemeStatus,
 } from '../features/themes/themeProducts';
+import { themeUnlockOverrideActive } from '../dev/themeAccessOverride';
 import type { ThemePurchasesState } from '../hooks/useThemePurchases';
 import { ThemeDetailsSheet } from './ThemeDetailsSheet';
 
@@ -107,6 +107,8 @@ const FREE_TAB_IDS = new Set(['solid_blue', 'solid_gray']);
 
 // One shared instance, so a card with no resolved product keeps a stable prop.
 const UNAVAILABLE_PRICE: ThemePriceDisplay = { state: 'unavailable' };
+/** Locked and unpriced: what an id outside the shop table resolves to. */
+const UNRESOLVED_STATUS: ThemeStatus = { access: { state: 'locked' }, price: UNAVAILABLE_PRICE };
 
 
 // ── SkinCard ──────────────────────────────────────────────────────────────────
@@ -325,31 +327,42 @@ export function KisekaeShopSheet({
    * map keeps each card's prop identity stable until StoreKit actually says
    * something different.
    */
-  const priceByThemeId = useMemo(() => {
-    const resolved = new Map<string, ThemePriceDisplay>();
+  const statusByThemeId = useMemo(() => {
+    const resolved = new Map<string, ThemeStatus>();
     for (const item of SHOP_ITEMS) {
-      resolved.set(item.id, resolveThemePrice({
+      resolved.set(item.id, resolveThemeStatus({
         themeId: item.id,
         price: FREE_TAB_IDS.has(item.id) ? 0 : item.price,
         products,
         ownedEntitlementIds,
+        isSubscribed,
+        isSubscriptionLoaded,
+        // TEMPORARY, development builds only. Off in every shipped build, and
+        // off by default here too — see src/dev/themeAccessOverride.ts.
+        devUnlockOverride: themeUnlockOverrideActive(),
       }));
     }
     return resolved;
-  }, [ownedEntitlementIds, products]);
+  }, [isSubscribed, isSubscriptionLoaded, ownedEntitlementIds, products]);
 
-  const priceFor = useCallback(
-    (item: ShopItem): ThemePriceDisplay =>
-      priceByThemeId.get(item.id) ?? UNAVAILABLE_PRICE,
-    [priceByThemeId],
+  /**
+   * Access and price come from the same entry, never two lookups.
+   *
+   * They used to be resolved separately, and only the access half was told
+   * about the subscription — so a Basic or Premium subscriber saw every theme
+   * unlocked with an individual price still printed under its name.
+   */
+  const statusFor = useCallback(
+    (item: ShopItem): ThemeStatus => statusByThemeId.get(item.id) ?? UNRESOLVED_STATUS,
+    [statusByThemeId],
   );
 
-  const accessFor = useCallback((item: ShopItem) => resolveThemeAccess({
-    price: FREE_TAB_IDS.has(item.id) ? 0 : item.price,
-    isSubscribed,
-    isSubscriptionLoaded,
-    ownedIndividually: isThemeOwnedIndividually(item.id, ownedEntitlementIds),
-  }), [isSubscribed, isSubscriptionLoaded, ownedEntitlementIds]);
+  const priceFor = useCallback(
+    (item: ShopItem): ThemePriceDisplay => statusFor(item).price,
+    [statusFor],
+  );
+
+  const accessFor = useCallback((item: ShopItem) => statusFor(item).access, [statusFor]);
 
   const isUnlocked = useCallback(
     (item: ShopItem): boolean => accessFor(item).state === 'unlocked',

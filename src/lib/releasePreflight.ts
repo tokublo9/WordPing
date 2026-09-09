@@ -31,6 +31,10 @@ export interface EasProfileEnv {
   EXPO_PUBLIC_WORDPING_API_BASE_URL?: string;
   EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN?: string;
   EXPO_PUBLIC_POSTHOG_HOST?: string;
+  /** TEMPORARY: DEV-only Simulator switch. Must be absent in production. */
+  EXPO_PUBLIC_USE_REVENUECAT_TEST_STORE?: string;
+  /** TEMPORARY: DEV-only Test Store key. Must be absent in production. */
+  EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY?: string;
   [key: string]: string | undefined;
 }
 
@@ -65,6 +69,18 @@ export function checkEasProduction(eas: EasConfig): PreflightIssue[] {
     issues.push({ severity: 'error', where, message: 'EXPO_PUBLIC_REVENUECAT_IOS_API_KEY is a RevenueCat Test Store key — configureRevenueCat() refuses it in a non-dev build, disabling all purchases' });
   } else if (!rcKey.startsWith('appl_')) {
     issues.push({ severity: 'warning', where, message: `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY does not look like an Apple key (${rcKey.slice(0, 5)}…)` });
+  }
+
+  // TEMPORARY, alongside the Simulator Test Store switch. `resolveRevenueCatApiKey`
+  // already ignores both of these in a non-dev build, so neither can change which
+  // key a release configures — but a production profile carrying them at all means
+  // someone copied a local recording setup into the build, and that is worth
+  // stopping here rather than discovering later. Never print the value.
+  if (env.EXPO_PUBLIC_USE_REVENUECAT_TEST_STORE !== undefined) {
+    issues.push({ severity: 'error', where, message: 'EXPO_PUBLIC_USE_REVENUECAT_TEST_STORE is set — the Simulator Test Store switch is DEV-only and must never appear in a production profile' });
+  }
+  if (env.EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY !== undefined) {
+    issues.push({ severity: 'error', where, message: 'EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY is set — the Test Store key belongs in .env.local only' });
   }
 
   const apiUrl = env.EXPO_PUBLIC_WORDPING_API_BASE_URL;
@@ -168,6 +184,39 @@ export function checkWranglerConfig(toml: string): PreflightIssue[] {
     if (new RegExp(`^\\s*${secret}\\s*=`, 'm').test(toml)) {
       issues.push({ severity: 'error', where, message: `${secret} is declared in wrangler.toml — it must be a Worker secret, not committed config` });
     }
+  }
+
+  return issues;
+}
+
+/**
+ * TEMPORARY development switches that must be off before a build.
+ *
+ * Read from the source text rather than by importing the module: these are
+ * bundler-time constants, and the point is to catch one left `true` in the file
+ * a build would compile. `__DEV__` already makes such a flag inert in a release
+ * bundle, so this is the second line of defence, not the first — but a flag
+ * left on is a mistake worth naming out loud rather than shipping quietly.
+ */
+export function checkDevOverrides(themeAccessOverrideSource: string): PreflightIssue[] {
+  const issues: PreflightIssue[] = [];
+  const where = 'src/dev/themeAccessOverride.ts';
+
+  const value = /^export const FORCE_UNLOCK_ALL_THEMES = (true|false);/mu
+    .exec(themeAccessOverrideSource)?.[1];
+
+  if (value === undefined) {
+    issues.push({
+      severity: 'error',
+      where,
+      message: 'FORCE_UNLOCK_ALL_THEMES could not be read — the recording override must be a plain `true`/`false` constant so this check can see it',
+    });
+  } else if (value === 'true') {
+    issues.push({
+      severity: 'error',
+      where,
+      message: 'FORCE_UNLOCK_ALL_THEMES is true — the Simulator theme-recording override is still on. Set it back to false before building',
+    });
   }
 
   return issues;

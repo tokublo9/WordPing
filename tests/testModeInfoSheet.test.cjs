@@ -74,17 +74,19 @@ test('popup indicators reuse the exact Test Mode answer icons and colors', () =>
 
 test('English and Japanese contain all four grading descriptions exactly', () => {
   const i18n = read('src/i18n.ts');
+  // Flip Mode is gone from the app, so it is gone from the sentence. What the
+  // three timed results describe is the Word List and nothing else.
   const expected = [
     "test_info_title:       'How test results work'",
     "test_info_perfect_exp: 'The word is immediately and permanently deleted.'",
-    "test_info_good_exp:    'The word is hidden from the regular Word List and Flip Mode, then shown again after 3 days. You can still view it using the blue filter.'",
-    "test_info_slightly_exp:'The word is hidden from the regular Word List and Flip Mode, then shown again after 1 day. You can still view it using the yellow filter.'",
-    "test_info_unknown_exp: 'The word is hidden from the regular Word List and Flip Mode, then shown again after 1 hour. You can still view it using the red filter.'",
+    "test_info_good_exp:    'The word is hidden from the Word List, then shown again after 3 days. You can still view it using the blue filter.'",
+    "test_info_slightly_exp:'The word is hidden from the Word List, then shown again after 1 day. You can still view it using the yellow filter.'",
+    "test_info_unknown_exp: 'The word is hidden from the Word List, then shown again after 1 hour. You can still view it using the red filter.'",
     "test_info_title:       'テスト結果の仕組み'",
     "test_info_perfect_exp: '単語はすぐに完全に削除されます。'",
-    "test_info_good_exp:    '通常の単語リストとフリップモードでは一時的に非表示になり、3日後に再表示されます。青色のフィルターからいつでも確認できます。'",
-    "test_info_slightly_exp:'通常の単語リストとフリップモードでは一時的に非表示になり、1日後に再表示されます。黄色のフィルターからいつでも確認できます。'",
-    "test_info_unknown_exp: '通常の単語リストとフリップモードでは一時的に非表示になり、1時間後に再表示されます。赤色のフィルターからいつでも確認できます。'",
+    "test_info_good_exp:    '単語リストでは一時的に非表示になり、3日後に再表示されます。青色のフィルターからいつでも確認できます。'",
+    "test_info_slightly_exp:'単語リストでは一時的に非表示になり、1日後に再表示されます。黄色のフィルターからいつでも確認できます。'",
+    "test_info_unknown_exp: '単語リストでは一時的に非表示になり、1時間後に再表示されます。赤色のフィルターからいつでも確認できます。'",
   ];
 
   for (const copy of expected) assert.ok(i18n.includes(copy), `Missing localized copy: ${copy}`);
