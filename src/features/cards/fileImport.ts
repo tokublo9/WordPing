@@ -11,6 +11,18 @@
  * Pure — no react-native or expo import — so both formats are tested directly.
  */
 
+import {
+  applyImportMapping,
+  analyzeImportColumns,
+  detectHeaderRole,
+  validateMapping,
+  MAX_IMPORT_BYTES,
+  type ImportColumnAnalysis,
+  type ImportFieldRole,
+  type MappingValidity,
+  type NormalizedImport,
+} from './importMapping';
+
 export type ImportFileFormat = 'csv' | 'json';
 
 /** The fields a row can carry, before mapping onto the word model. */
@@ -72,9 +84,25 @@ export function normalizeColumnName(raw: string): string {
   return raw.replace(/^﻿/u, '').trim().toLowerCase().replace(/[\s-]+/gu, '');
 }
 
+/**
+ * Roles from `importMapping`, expressed in this module's older vocabulary.
+ *
+ * The two tables exist for different jobs: this one carries `folder`, `example`
+ * and `label`, which are WordCore's own export columns, while `importMapping`
+ * carries the far wider set of names other apps use. Consulting it second is
+ * what let a file headed `FrontText,BackText,Comment` start importing without
+ * changing anything about how a WordCore export is read.
+ */
+const ROLE_TO_COLUMN: Readonly<Record<ImportFieldRole, 'word' | 'meaning' | 'note' | null>> = {
+  front: 'word', back: 'meaning', note: 'note', ignore: null,
+};
+
 export function resolveColumn(raw: string): 'word' | 'meaning' | 'note' | 'example' | 'folder' | 'label' | null {
   const normalized = normalizeColumnName(raw);
-  return COLUMN_ALIASES[normalized] ?? COLUMN_ALIASES[normalized.replace(/_/gu, '')] ?? null;
+  const own = COLUMN_ALIASES[normalized] ?? COLUMN_ALIASES[normalized.replace(/_/gu, '')];
+  if (own) return own;
+  const role = detectHeaderRole(raw);
+  return role ? ROLE_TO_COLUMN[role] : null;
 }
 
 /**
@@ -211,6 +239,26 @@ export function parseCsv(text: string): ImportParseResult {
 
 // ── JSON ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Keys an export may wrap its array under.
+ *
+ * A bare array is the common case; the rest are what tools that also emit
+ * metadata alongside the words use.
+ */
+export const JSON_LIST_KEYS = ['words', 'cards', 'items', 'entries', 'data'] as const;
+
+/** The array of words in a parsed JSON document, or null if there is not one. */
+export function readWordList(parsed: unknown): unknown[] | null {
+  if (Array.isArray(parsed)) return parsed;
+  if (!parsed || typeof parsed !== 'object') return null;
+  const source = parsed as Record<string, unknown>;
+  for (const key of JSON_LIST_KEYS) {
+    const value = source[key];
+    if (Array.isArray(value)) return value;
+  }
+  return null;
+}
+
 function readString(source: Record<string, unknown>, keys: readonly string[]): string {
   for (const key of keys) {
     const value = source[key];
@@ -236,12 +284,7 @@ export function parseJson(text: string): ImportParseResult {
     return { ok: false, error: 'invalid_json' };
   }
 
-  // Either a bare array of words, or an object wrapping one under `words`.
-  const list = Array.isArray(parsed)
-    ? parsed
-    : parsed && typeof parsed === 'object' && Array.isArray((parsed as { words?: unknown }).words)
-      ? (parsed as { words: unknown[] }).words
-      : null;
+  const list = readWordList(parsed);
   if (list === null) return { ok: false, error: 'unsupported_shape' };
 
   const rows: ImportedRow[] = [];
@@ -284,4 +327,126 @@ export function parseImportFile(text: string, fileName = ''): ImportParseResult 
   if (lower.endsWith('.csv') || lower.endsWith('.tsv')) return parseCsv(text);
   // No usable extension: JSON announces itself unambiguously.
   return /^\s*[[{]/u.test(text) ? parseJson(text) : parseCsv(text);
+}
+
+// ── Tabular source, for the column-mapping screen ────────────────────────────
+
+/**
+ * A file reduced to a header row and cell rows, whatever format it arrived in.
+ *
+ * This is what the mapping screen works from. It deliberately stops short of
+ * deciding anything: no role is applied, no record is built, nothing is
+ * rejected for a missing field. That all happens in `importMapping` once the
+ * mapping — auto-detected or chosen by hand — is known.
+ */
+export interface ImportSource {
+  format: ImportFileFormat;
+  headers: string[];
+  /** Header excluded. Rows are aligned to `headers` by index. */
+  rows: string[][];
+  analysis: ImportColumnAnalysis;
+}
+
+export type ImportSourceFailure = ImportParseFailure | 'file_too_large';
+
+export type ImportSourceResult =
+  | { ok: true; value: ImportSource }
+  | { ok: false; error: ImportSourceFailure };
+
+/**
+ * A JSON value flattened to a cell.
+ *
+ * A string, number or boolean is content. An object or array is not: writing
+ * one into a card yields `[object Object]`, so the cell is left empty and the
+ * record fails the missing-field check rather than importing nonsense.
+ */
+function cellFromJsonValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function jsonSource(text: string): ImportSourceResult {
+  if (text.trim() === '') return { ok: false, error: 'empty_file' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'invalid_json' };
+  }
+  const list = readWordList(parsed);
+  if (list === null) return { ok: false, error: 'unsupported_shape' };
+
+  // Union of keys in first-seen order, so a file whose later entries carry an
+  // extra field still offers that field for mapping.
+  const headers: string[] = [];
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    for (const key of Object.keys(entry as Record<string, unknown>)) {
+      if (!headers.includes(key)) headers.push(key);
+    }
+  }
+  if (headers.length === 0) return { ok: false, error: 'no_columns' };
+
+  const rows = list.map(entry => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return headers.map(() => '');
+    const source = entry as Record<string, unknown>;
+    return headers.map(key => cellFromJsonValue(source[key]));
+  });
+
+  return { ok: true, value: { format: 'json', headers, rows, analysis: analyzeImportColumns(headers) } };
+}
+
+function csvSource(text: string): ImportSourceResult {
+  if (text.trim() === '') return { ok: false, error: 'empty_file' };
+  const rows = parseDelimitedRows(text, detectDelimiter(text));
+  const header = rows[0];
+  if (!header || header.length === 0) return { ok: false, error: 'no_columns' };
+  const headers = header.map(name => name.replace(/^﻿/u, '').trim());
+  return {
+    ok: true,
+    value: { format: 'csv', headers, rows: rows.slice(1), analysis: analyzeImportColumns(headers) },
+  };
+}
+
+/**
+ * Reads any supported file into the mapping screen's source table.
+ *
+ * Size is checked first and in characters — the file is already in memory by
+ * the time this runs, so the ceiling is about what the UI can survive laying
+ * out, not about the read itself.
+ */
+export function parseImportSource(text: string, fileName = ''): ImportSourceResult {
+  if (text.length > MAX_IMPORT_BYTES) return { ok: false, error: 'file_too_large' };
+  const lower = fileName.trim().toLowerCase();
+  if (lower.endsWith('.json')) return jsonSource(text);
+  if (lower.endsWith('.csv') || lower.endsWith('.tsv')) return csvSource(text);
+  return /^\s*[[{]/u.test(text) ? jsonSource(text) : csvSource(text);
+}
+
+/**
+ * The whole external-file path in one call: read, detect, normalize.
+ *
+ * `mapping` overrides detection, which is what the mapping screen passes once
+ * the user has assigned the columns. Without it the source's own proposal is
+ * used — and that proposal is deliberately left *invalid* when detection was
+ * ambiguous, so a caller that forgot to check `autoMappable` gets zero records
+ * and a reason rather than a silent import of whichever column came first.
+ */
+export function normalizeImportSource(
+  source: ImportSource,
+  mapping: readonly ImportFieldRole[] = source.analysis.mapping,
+): NormalizedImport & { validity: MappingValidity } {
+  const validity = validateMapping(mapping);
+  if (!validity.ok) {
+    return { records: [], errors: [], skippedBlank: 0, truncated: false, validity };
+  }
+  return {
+    ...applyImportMapping(source.rows, mapping, {
+      // A CSV header occupies row 1; a JSON array's first entry is item 1.
+      firstRowNumber: source.format === 'csv' ? 2 : 1,
+    }),
+    validity,
+  };
 }

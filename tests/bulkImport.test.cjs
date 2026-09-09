@@ -565,3 +565,93 @@ test('preview delete button has a localized 44-point target and existing destruc
   assert.match(source, /size=\{25\}/u);
   assert.match(source, /color=\{DESTRUCTIVE_ACTION_COLOR\}/u);
 });
+
+test('ambiguous files map columns inside the existing Bulk Import modal', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  assert.match(source, /type Step = 'input' \| 'preview' \| 'file-mapping' \| 'file-preview'/u);
+  assert.match(source, /if \(!source\.analysis\.autoMappable\) \{\s*setStep\('file-mapping'\)/u);
+  assert.match(source, /step === 'file-mapping' && fileSource !== null/u);
+  assert.match(source, /fileSource\.analysis\.columns\.map\(column =>/u);
+  assert.match(source, /IMPORT_ROLES\.map\(role =>/u);
+  assert.match(source, /setFileMapping\(current => current\.map\(\(assigned, index\) => \{/u);
+  assert.match(source, /if \(role !== 'ignore' && assigned === role\) return 'ignore'/u);
+  // The source table remains in memory from mapping through final preview:
+  // there is only the initial picker read, never another one on Continue/Back.
+  assert.equal((source.match(/pickWordImportFile\(\)/gu) ?? []).length, 1);
+});
+
+test('mapping validation and preview update directly from the selected roles', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  assert.match(source, /normalizeImportSource\(fileSource, fileMapping\)/u);
+  assert.match(source, /\[fileMapping, fileSource\]/u);
+  assert.match(source, /previewRecords\(mappedImport\?\.records \?\? \[\], 5\)/u);
+  assert.match(source, /mappedImport\.skippedBlank \+ mappedImport\.errors\.length/u);
+  assert.match(source, /mappingErrorKey !== null[\s\S]*?accessibilityRole="alert"[\s\S]*?accessibilityLiveRegion="assertive"/u);
+  assert.match(source, /disabled=\{!mappingCanContinue\}/u);
+  assert.match(source, /filePlan\.items\.slice\(0, 5\)\.map\(item =>/u);
+  for (const key of ['word_label', 'meaning_label', 'note_label']) {
+    assert.match(source, new RegExp(`\\['${key}', (?:record|item)\\.`), `${key} labels normalized preview fields`);
+  }
+  assert.match(source, /numberOfLines=\{4\}[\s\S]*?ellipsizeMode="tail"/u);
+});
+
+test('mapping controls expose radio semantics, hints, selection, errors and confirmation', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  assert.match(source, /accessibilityRole="radiogroup"/u);
+  assert.match(source, /accessibilityRole="radio"/u);
+  assert.match(source, /accessibilityState=\{\{ selected \}\}/u);
+  assert.match(source, /accessibilityHint=\{t\('import_map_choice_hint'\)/u);
+  assert.match(source, /accessibilityHint=\{t\('import_map_preview_hint'\)\}/u);
+  assert.match(source, /accessibilityLabel=\{t\('import_map_continue'\)\}/u);
+  assert.match(source, /accessibilityHint=\{t\('import_map_continue_hint'\)\}/u);
+  assert.match(source, /accessibilityLabel=\{t\('bulk_import_import'\)\}[\s\S]*?accessibilityHint=\{t\('import_map_confirm_hint'\)\}/u);
+});
+
+test('mapping respects RTL and resets when the modal reopens or a file is replaced', () => {
+  const source = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  assert.match(source, /I18nManager\.isRTL \? 'chevron-forward' : 'chevron-back'/u);
+  assert.match(source, /I18nManager\.isRTL && styles\.rowReverse/u);
+  // Session reset on reopen, replacement reset after a successful picker, and
+  // explicit Back reset all discard temporary source/mapping state.
+  assert.ok((source.match(/setFileSource\(null\)/gu) ?? []).length >= 3);
+  assert.ok((source.match(/setFileMapping\(\[\]\)/gu) ?? []).length >= 3);
+  assert.match(source, /const backFromFilePreview = \(\) => \{[\s\S]*?setStep\('file-mapping'\)/u);
+});
+
+test('all mapping copy and accessibility hints are explicit in all 20 locales', () => {
+  const keys = [
+    'import_file_error_too_large',
+    'import_map_title', 'import_map_desc', 'import_map_ignore', 'import_map_column',
+    'import_map_preview', 'import_map_records', 'import_map_error_front',
+    'import_map_error_back', 'import_map_error_duplicate', 'import_map_continue',
+    'import_map_choice_hint', 'import_map_preview_hint', 'import_map_continue_hint',
+    'import_map_confirm_hint',
+  ];
+  assert.equal(SUPPORTED_LANGUAGES.length, 20);
+  for (const key of keys) {
+    for (const { code } of SUPPORTED_LANGUAGES) {
+      const value = translate(code, key);
+      assert.ok(value && value !== key, `${code}:${key}`);
+    }
+    const declarations = fs.readFileSync('src/i18n.ts', 'utf8')
+      .match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];
+    assert.equal(declarations.length, 20, `${key} must be declared in every dictionary`);
+  }
+});
+
+test('file content is masked and never sent to analytics, logs or network code', () => {
+  const paths = [
+    'src/components/BulkImportModal.tsx',
+    'src/features/cards/importFile.ts',
+    'src/features/cards/fileImport.ts',
+    'src/features/cards/importMapping.ts',
+    'src/features/cards/bulkImport.ts',
+  ];
+  for (const path of paths) {
+    const source = fs.readFileSync(path, 'utf8');
+    assert.doesNotMatch(source, /\bfetch\(|XMLHttpRequest|WebSocket|console\.(?:log|warn|error)|\.capture\(/u, path);
+  }
+  const modal = fs.readFileSync('src/components/BulkImportModal.tsx', 'utf8');
+  assert.match(modal, /<PostHogMaskView key=\{`\$\{column\.index\}-\$\{column\.header\}`\}>[\s\S]*?IMPORT_ROLES\.map/u);
+  assert.match(modal, /<PostHogMaskView>[\s\S]*?accessibilityLabel=\{`\$\{t\(labelKey\)\}: \$\{value\}`\}/u);
+});

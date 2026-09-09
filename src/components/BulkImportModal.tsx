@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  I18nManager,
   Keyboard,
   KeyboardAvoidingView,
   PanResponder,
@@ -18,7 +19,7 @@ import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Palette } from '../types';
-import { useLang } from '../i18n';
+import { useLang, type TranslationKey } from '../i18n';
 import {
   DESTRUCTIVE_ACTION_COLOR,
 } from '../constants';
@@ -34,7 +35,16 @@ import {
   type FileImportPlan,
 } from '../features/cards/bulkImport';
 import { pickWordImportFile } from '../features/cards/importFile';
-import type { ImportParseFailure } from '../features/cards/fileImport';
+import {
+  normalizeImportSource,
+  type ImportSource,
+  type ImportSourceFailure,
+} from '../features/cards/fileImport';
+import {
+  IMPORT_ROLES,
+  previewRecords,
+  type ImportFieldRole,
+} from '../features/cards/importMapping';
 import type { Folder, WordCard } from '../types';
 import {
   FULL_SCREEN_SHEET_HEADER,
@@ -57,15 +67,38 @@ interface Props {
   onImport(drafts: readonly BulkImportDraft[]): Promise<BulkImportResult> | BulkImportResult;
 }
 
-type Step = 'input' | 'preview' | 'file-preview';
+type Step = 'input' | 'preview' | 'file-mapping' | 'file-preview';
 
-const PARSE_FAILURE_KEYS: Readonly<Record<ImportParseFailure, string>> = {
+const PARSE_FAILURE_KEYS: Readonly<Record<ImportSourceFailure, TranslationKey>> = {
   empty_file: 'import_file_error_empty',
   invalid_json: 'import_file_error_invalid_json',
   unsupported_shape: 'import_file_error_shape',
   no_columns: 'import_file_error_columns',
   no_rows: 'import_file_error_empty',
+  file_too_large: 'import_file_error_too_large',
 };
+
+const ROLE_LABEL_KEYS: Readonly<Record<ImportFieldRole, TranslationKey>> = {
+  front: 'word_label',
+  back: 'meaning_label',
+  note: 'note_label',
+  ignore: 'import_map_ignore',
+};
+
+/** Preselect only roles with exactly one detected claimant. */
+function initialFileMapping(source: ImportSource): ImportFieldRole[] {
+  return source.analysis.columns.map(column => {
+    if (column.detected === null || column.detected === 'ignore') return 'ignore';
+    const claimantCount = source.analysis.columns.filter(
+      candidate => candidate.detected === column.detected,
+    ).length;
+    return claimantCount === 1 ? column.detected : 'ignore';
+  });
+}
+
+function sourceRowNumber(source: ImportSource, index: number): number {
+  return index + (source.format === 'csv' ? 2 : 1);
+}
 
 const BULK_IMPORT_INPUT_INITIAL_HEIGHT = 300;
 // Normal tap threshold. Movement up to this counts as a tap on release; past it the
@@ -100,8 +133,11 @@ export function BulkImportModal({
   // text box keeps its content while a file is being reviewed, and backing out
   // of the file preview returns to exactly what was typed.
   const [filePlan, setFilePlan] = useState<FileImportPlan | null>(null);
+  const [fileSource, setFileSource] = useState<ImportSource | null>(null);
+  const [fileMapping, setFileMapping] = useState<ImportFieldRole[]>([]);
   const [fileName, setFileName] = useState('');
-  const [fileErrorKey, setFileErrorKey] = useState<string | null>(null);
+  const [fileBlankSkippedCount, setFileBlankSkippedCount] = useState(0);
+  const [fileErrorKey, setFileErrorKey] = useState<TranslationKey | null>(null);
   const [picking, setPicking] = useState(false);
   const executionGuard = useRef(new BulkImportExecutionGuard()).current;
   // Keep the submitted rows stable while the native full-screen Modal dismisses.
@@ -165,7 +201,10 @@ export function BulkImportModal({
       submittedAnalysisRef.current = null;
       inputFocusedRef.current = false;
       setFilePlan(null);
+      setFileSource(null);
+      setFileMapping([]);
       setFileName('');
+      setFileBlankSkippedCount(0);
       setFileErrorKey(null);
       setPicking(false);
     }
@@ -202,6 +241,26 @@ export function BulkImportModal({
   const importDisabled = importing
     || previewAnalysis.validItems.length === 0;
   const resetDisabled = input.length === 0;
+  const mappedImport = useMemo(
+    () => fileSource === null ? null : normalizeImportSource(fileSource, fileMapping),
+    [fileMapping, fileSource],
+  );
+  const mappedPreview = useMemo(
+    () => previewRecords(mappedImport?.records ?? [], 5),
+    [mappedImport],
+  );
+  const mappingErrorKey: TranslationKey | null = !mappedImport || mappedImport.validity.ok
+    ? null
+    : mappedImport.validity.reason === 'front_missing'
+      ? 'import_map_error_front'
+      : mappedImport.validity.reason === 'back_missing'
+        ? 'import_map_error_back'
+        : 'import_map_error_duplicate';
+  const mappingSkippedCount = mappedImport === null
+    ? 0
+    : mappedImport.skippedBlank + mappedImport.errors.length;
+  const mappingCanContinue = mappedImport?.validity.ok === true
+    && mappedImport.records.length > 0;
 
   const close = () => {
     if (importing) return;
@@ -231,6 +290,56 @@ export function BulkImportModal({
     setDrafts(current => current.filter(item => item.id !== id));
   };
 
+  const clearFileAndReturnToInput = () => {
+    setStep('input');
+    setFilePlan(null);
+    setFileSource(null);
+    setFileMapping([]);
+    setFileName('');
+    setFileBlankSkippedCount(0);
+    setImportError(false);
+  };
+
+  /** A role moves between columns, so duplicate assignments never exist. */
+  const changeFileMapping = (columnIndex: number, role: ImportFieldRole) => {
+    setFileMapping(current => current.map((assigned, index) => {
+      if (index === columnIndex) return role;
+      if (role !== 'ignore' && assigned === role) return 'ignore';
+      return assigned;
+    }));
+    setImportError(false);
+  };
+
+  const continueMappedFile = () => {
+    if (!fileSource || !mappedImport || !mappingCanContinue) return;
+    const rejectedRows = new Set(mappedImport.errors.map(error => error.rowNumber));
+    const acceptedRowNumbers = fileSource.rows.flatMap((row, index) => {
+      const rowNumber = sourceRowNumber(fileSource, index);
+      return row.every(cell => cell.trim() === '') || rejectedRows.has(rowNumber)
+        ? []
+        : [rowNumber];
+    });
+    setFilePlan(planFileImport({
+      rows: mappedImport.records.map((record, index) => ({
+        rowNumber: acceptedRowNumbers[index] ?? sourceRowNumber(fileSource, index),
+        word: record.front,
+        meaning: record.back,
+        note: record.note,
+        folderName: '',
+      })),
+      errors: mappedImport.errors.map(error => ({
+        rowNumber: error.rowNumber,
+        reason: 'malformed' as const,
+      })),
+      ignoredColumns: fileSource.headers.filter((_, index) => fileMapping[index] === 'ignore'),
+      existingCards,
+      folders,
+      destinationFolderId,
+    }));
+    setFileBlankSkippedCount(mappedImport.skippedBlank);
+    setStep('file-preview');
+  };
+
   /**
    * Chooses a CSV or JSON file, parses it on the device, and shows the plan.
    *
@@ -250,15 +359,51 @@ export function BulkImportModal({
         setFileErrorKey('import_file_error_unreadable');
         return;
       }
+      // A completed selection replaces every temporary decision from the
+      // previous file. Cancelling the picker above leaves that state alone.
+      setFilePlan(null);
+      setFileSource(null);
+      setFileMapping([]);
+      setImportError(false);
+      setFileName(picked.fileName);
+      setFileBlankSkippedCount(0);
       if (!picked.result.ok) {
         setFileErrorKey(PARSE_FAILURE_KEYS[picked.result.error]);
         return;
       }
-      setFileName(picked.fileName);
+      const source = picked.result.value;
+      const initialMapping = initialFileMapping(source);
+      setFileSource(source);
+      setFileMapping(initialMapping);
+      if (!source.analysis.autoMappable) {
+        setStep('file-mapping');
+        return;
+      }
+      if (!picked.compatibleResult?.ok) {
+        setFileErrorKey(picked.compatibleResult
+          ? PARSE_FAILURE_KEYS[picked.compatibleResult.error]
+          : 'import_file_error_unreadable');
+        return;
+      }
+      const normalized = normalizeImportSource(source, initialMapping);
+      const legacyErrorRows = new Set(
+        picked.compatibleResult.value.errors.map(error => error.rowNumber),
+      );
+      const normalizedErrorRows = new Set(normalized.errors.map(error => error.rowNumber));
+      const addedErrors = normalized.errors
+        .filter(error => !legacyErrorRows.has(error.rowNumber))
+        .map(error => ({ rowNumber: error.rowNumber, reason: 'malformed' as const }));
+      const unreportedBlankRows = source.rows.filter((row, index) => (
+        row.every(cell => cell.trim() === '')
+        && !legacyErrorRows.has(sourceRowNumber(source, index))
+      )).length;
+      setFileBlankSkippedCount(unreportedBlankRows);
       setFilePlan(planFileImport({
-        rows: picked.result.value.rows,
-        errors: picked.result.value.errors,
-        ignoredColumns: picked.result.value.ignoredColumns,
+        rows: picked.compatibleResult.value.rows.filter(
+          row => !normalizedErrorRows.has(row.rowNumber),
+        ),
+        errors: [...picked.compatibleResult.value.errors, ...addedErrors],
+        ignoredColumns: picked.compatibleResult.value.ignoredColumns,
         existingCards,
         folders,
         destinationFolderId,
@@ -298,6 +443,15 @@ export function BulkImportModal({
     }
   });
 
+  const backFromFilePreview = () => {
+    if (fileSource && !fileSource.analysis.autoMappable) {
+      setStep('file-mapping');
+      setImportError(false);
+      return;
+    }
+    clearFileAndReturnToInput();
+  };
+
   const runImport = () => executionGuard.run(async () => {
     if (importDisabled) return;
     Keyboard.dismiss();
@@ -329,14 +483,22 @@ export function BulkImportModal({
     <FullScreenSheet visible={visible} pal={pal} onRequestClose={close}>
       <View style={styles.safe}>
         <View style={[styles.header, { borderBottomColor: pal.border }]}>
-          {step === 'preview' && !importing ? (
+          {(step === 'preview' || step === 'file-mapping' || step === 'file-preview') && !importing ? (
             <TouchableOpacity
               style={styles.headerAction}
-              onPress={() => setStep('input')}
+              onPress={() => {
+                if (step === 'preview') setStep('input');
+                else if (step === 'file-preview') backFromFilePreview();
+                else clearFileAndReturnToInput();
+              }}
               accessibilityRole="button"
               accessibilityLabel={t('ob_back')}
             >
-              <Ionicons name="chevron-back" size={22} color={themeColor} />
+              <Ionicons
+                name={I18nManager.isRTL ? 'chevron-forward' : 'chevron-back'}
+                size={22}
+                color={themeColor}
+              />
             </TouchableOpacity>
           ) : <View style={styles.headerAction} />}
           <Text style={[styles.title, { color: pal.text }]} numberOfLines={1} adjustsFontSizeToFit>
@@ -358,29 +520,197 @@ export function BulkImportModal({
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {step === 'file-preview' && filePlan !== null ? (
+          {step === 'file-mapping' && fileSource !== null && mappedImport !== null ? (
+            <View style={styles.flex}>
+              <ScrollView
+                style={styles.flex}
+                contentContainerStyle={styles.mappingContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <PostHogMaskView>
+                  <Text style={[styles.fileName, { color: pal.sub }]} numberOfLines={1}>
+                    {t('import_file_summary').replace('{file}', fileName)}
+                  </Text>
+                </PostHogMaskView>
+                <Text style={[styles.mappingTitle, { color: pal.text }]} accessibilityRole="header">
+                  {t('import_map_title')}
+                </Text>
+                <Text style={[styles.helper, { color: pal.sub }]}>{t('import_map_desc')}</Text>
+                <Text style={[styles.count, { color: pal.sub }]}>
+                  {[
+                    formatCount(t('import_map_records'), fileSource.rows.length),
+                    formatCount(t('import_file_valid'), mappedImport.records.length),
+                    formatCount(t('import_file_invalid'), mappingSkippedCount),
+                  ].join(' · ')}
+                </Text>
+
+                <View style={styles.mappingColumns}>
+                  {fileSource.analysis.columns.map(column => {
+                    const columnLabel = t('import_map_column').replace('{name}', column.header);
+                    return (
+                      <PostHogMaskView key={`${column.index}-${column.header}`}>
+                      <View
+                        style={[styles.mappingColumn, { backgroundColor: pal.card, borderColor: pal.border }]}
+                      >
+                        <Text style={[styles.mappingColumnName, { color: pal.text }]} numberOfLines={2}>
+                          {columnLabel}
+                        </Text>
+                        <View
+                          style={[
+                            styles.mappingChoices,
+                            I18nManager.isRTL && styles.rowReverse,
+                          ]}
+                          accessibilityRole="radiogroup"
+                          accessibilityLabel={columnLabel}
+                        >
+                          {IMPORT_ROLES.map(role => {
+                            const selected = fileMapping[column.index] === role;
+                            const roleLabel = t(ROLE_LABEL_KEYS[role]);
+                            return (
+                              <TouchableOpacity
+                                key={role}
+                                style={[
+                                  styles.mappingChoice,
+                                  {
+                                    backgroundColor: selected ? themeColor + '18' : pal.input,
+                                    borderColor: selected ? themeColor : pal.border,
+                                  },
+                                ]}
+                                onPress={() => changeFileMapping(column.index, role)}
+                                accessibilityRole="radio"
+                                accessibilityLabel={`${columnLabel}. ${roleLabel}`}
+                                accessibilityHint={t('import_map_choice_hint')
+                                  .replace('{column}', column.header)
+                                  .replace('{role}', roleLabel)}
+                                accessibilityState={{ selected }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.mappingChoiceText,
+                                    { color: selected ? themeColor : pal.text },
+                                  ]}
+                                  numberOfLines={1}
+                                  adjustsFontSizeToFit
+                                >
+                                  {roleLabel}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                      </PostHogMaskView>
+                    );
+                  })}
+                </View>
+
+                {mappingErrorKey !== null && (
+                  <Text
+                    style={styles.errorText}
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="assertive"
+                  >
+                    {t(mappingErrorKey)}
+                  </Text>
+                )}
+
+                <Text
+                  style={[styles.mappingPreviewTitle, { color: pal.text }]}
+                  accessibilityRole="header"
+                  accessibilityLabel={t('bulk_import_preview')}
+                  accessibilityHint={t('import_map_preview_hint')}
+                >
+                  {t('bulk_import_preview')}
+                </Text>
+                <View style={styles.mappingPreviewList}>
+                  {mappedPreview.map((record, index) => (
+                    <View
+                      key={`mapped-preview-${index}`}
+                      style={[styles.mappingPreviewCard, { backgroundColor: pal.card, borderColor: pal.border }]}
+                    >
+                      {([
+                        ['word_label', record.front],
+                        ['meaning_label', record.back],
+                        ['note_label', record.note],
+                      ] as const).map(([labelKey, value]) => (
+                        <View key={labelKey} style={styles.filePreviewField}>
+                          <Text style={[styles.fileFieldLabel, { color: pal.sub }]}>{t(labelKey)}</Text>
+                          <PostHogMaskView>
+                            <Text
+                              style={[styles.fileFieldValue, { color: pal.text }]}
+                              numberOfLines={4}
+                              ellipsizeMode="tail"
+                              accessibilityLabel={`${t(labelKey)}: ${value}`}
+                            >
+                              {value}
+                            </Text>
+                          </PostHogMaskView>
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <View style={[styles.previewFooter, { borderTopColor: pal.border, backgroundColor: pal.bg }]}>
+                <View style={[styles.footerButtons, I18nManager.isRTL && styles.rowReverse]}>
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, { backgroundColor: pal.chip }]}
+                    onPress={clearFileAndReturnToInput}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('ob_back')}
+                  >
+                    <Text style={[styles.buttonText, { color: pal.text }]}>{t('ob_back')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryButton,
+                      { backgroundColor: themeColor },
+                      !mappingCanContinue && styles.disabled,
+                    ]}
+                    onPress={continueMappedFile}
+                    disabled={!mappingCanContinue}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('import_map_continue')}
+                    accessibilityHint={t('import_map_continue_hint')}
+                    accessibilityState={{ disabled: !mappingCanContinue }}
+                  >
+                    <Text style={styles.primaryButtonText}>{t('import_map_continue')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ) : step === 'file-preview' && filePlan !== null ? (
             <View style={styles.flex}>
               <View style={[styles.previewSummary, { borderBottomColor: pal.border }]}>
-                <Text style={[styles.previewHeading, { color: pal.text }]} numberOfLines={1}>
-                  {t('import_file_summary').replace('{file}', fileName)}
+                <PostHogMaskView>
+                  <Text style={[styles.previewHeading, { color: pal.text }]} numberOfLines={1}>
+                    {t('import_file_summary').replace('{file}', fileName)}
+                  </Text>
+                </PostHogMaskView>
+                <Text
+                  style={[styles.previewSubheading, { color: pal.text }]}
+                  accessibilityRole="header"
+                  accessibilityHint={t('import_map_preview_hint')}
+                >
+                  {t('bulk_import_preview')}
                 </Text>
                 {/* Valid, duplicate and skipped are always all three, so a zero
                     is visible rather than the row silently disappearing. */}
                 <Text style={[styles.count, { color: pal.sub }]}>
                   {[
+                    formatCount(t('import_map_records'), fileSource?.rows.length ?? filePlan.items.length),
                     formatCount(t('import_file_valid'), filePlan.validCount),
                     formatCount(t('import_file_duplicates'), filePlan.duplicateCount),
-                    formatCount(t('import_file_invalid'), filePlan.invalidCount),
+                    formatCount(
+                      t('import_file_invalid'),
+                      filePlan.invalidCount + fileBlankSkippedCount,
+                    ),
                   ].join(' · ')}
                 </Text>
                 {filePlan.routedElsewhereCount > 0 && (
                   <Text style={[styles.count, { color: pal.sub }]}>
                     {formatCount(t('import_file_routed'), filePlan.routedElsewhereCount)}
-                  </Text>
-                )}
-                {filePlan.ignoredColumns.length > 0 && (
-                  <Text style={[styles.count, { color: pal.sub }]}>
-                    {t('import_file_ignored_columns').replace('{columns}', filePlan.ignoredColumns.join(', '))}
                   </Text>
                 )}
               </View>
@@ -390,23 +720,44 @@ export function BulkImportModal({
                 contentContainerStyle={styles.previewList}
                 showsVerticalScrollIndicator={false}
               >
-                {filePlan.items.map(item => (
+                {filePlan.items.slice(0, 5).map(item => (
                   <View
                     key={item.id}
-                    style={[styles.previewItem, { backgroundColor: pal.card, borderColor: pal.border }]}
+                    style={[
+                      styles.previewItem,
+                      I18nManager.isRTL && styles.rowReverse,
+                      { backgroundColor: pal.card, borderColor: pal.border },
+                    ]}
                   >
-                    <Text style={[styles.itemNumber, { color: pal.sub }]}>{item.rowNumber}</Text>
+                    <Text
+                      style={[
+                        styles.itemNumber,
+                        I18nManager.isRTL && styles.rtlItemNumber,
+                        { color: pal.sub },
+                      ]}
+                    >
+                      {item.rowNumber}
+                    </Text>
                     <View style={styles.itemBody}>
-                      <PostHogMaskView>
-                        <Text style={[styles.fileItemWord, { color: pal.text }]}>{item.word}</Text>
-                      </PostHogMaskView>
-                      {item.meaning !== '' && (
+                      {([
+                        ['word_label', item.word],
+                        ['meaning_label', item.meaning],
+                        ['note_label', item.note],
+                      ] as const).map(([labelKey, value]) => (
+                        <View key={labelKey} style={styles.filePreviewField}>
+                          <Text style={[styles.fileFieldLabel, { color: pal.sub }]}>{t(labelKey)}</Text>
                         <PostHogMaskView>
-                          <Text style={[styles.fileItemMeaning, { color: pal.sub }]} numberOfLines={2}>
-                            {item.meaning}
+                          <Text
+                            style={[styles.fileFieldValue, { color: pal.text }]}
+                            numberOfLines={4}
+                            ellipsizeMode="tail"
+                            accessibilityLabel={`${t(labelKey)}: ${value}`}
+                          >
+                            {value}
                           </Text>
                         </PostHogMaskView>
-                      )}
+                        </View>
+                      ))}
                       <View style={styles.badgeRow}>
                         {item.status !== 'valid' && (
                           <Text style={styles.duplicateBadge}>
@@ -415,52 +766,27 @@ export function BulkImportModal({
                               : t('bulk_import_duplicate')}
                           </Text>
                         )}
-                        {item.routedFolderName !== '' && (
-                          <Text style={[styles.folderBadge, { color: pal.sub, borderColor: pal.border }]}>
-                            {item.routedFolderName}
-                          </Text>
-                        )}
                       </View>
                     </View>
                   </View>
                 ))}
 
-                {/* Rows the parser could not read at all, named by line so the
-                    file can actually be fixed. */}
-                {filePlan.errors.map(error => (
-                  <View
-                    key={`error-${error.rowNumber}`}
-                    style={[styles.previewItem, { backgroundColor: pal.card, borderColor: pal.border }]}
-                  >
-                    <Text style={[styles.itemNumber, { color: pal.sub }]}>{error.rowNumber}</Text>
-                    <View style={styles.itemBody}>
-                      <Text style={[styles.fileItemMeaning, { color: pal.sub }]}>
-                        {formatCount(t('import_file_row'), error.rowNumber)}
-                      </Text>
-                      <View style={styles.badgeRow}>
-                        <Text style={styles.duplicateBadge}>
-                          {t('import_file_invalid').replace('{n} ', '')}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
               </ScrollView>
 
               <View style={[styles.previewFooter, { borderTopColor: pal.border, backgroundColor: pal.bg }]}>
                 {importError && (
                   <Text style={styles.errorText}>{t('bulk_import_failed_generic')}</Text>
                 )}
-                <View style={styles.footerButtons}>
+                <View style={[styles.footerButtons, I18nManager.isRTL && styles.rowReverse]}>
                   <TouchableOpacity
                     style={[styles.secondaryButton, { backgroundColor: pal.chip }]}
-                    onPress={() => { setStep('input'); setFilePlan(null); }}
+                    onPress={backFromFilePreview}
                     disabled={importing}
                     accessibilityRole="button"
-                    accessibilityLabel={t('cancel')}
+                    accessibilityLabel={t('ob_back')}
                     accessibilityState={{ disabled: importing }}
                   >
-                    <Text style={[styles.buttonText, { color: pal.text }]}>{t('cancel')}</Text>
+                    <Text style={[styles.buttonText, { color: pal.text }]}>{t('ob_back')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
@@ -472,6 +798,7 @@ export function BulkImportModal({
                     disabled={importing || filePlan.validCount === 0}
                     accessibilityRole="button"
                     accessibilityLabel={t('bulk_import_import')}
+                    accessibilityHint={t('import_map_confirm_hint')}
                     accessibilityState={{ disabled: importing || filePlan.validCount === 0, busy: importing }}
                   >
                     {importing && <ActivityIndicator size="small" color="#fff" />}
@@ -518,7 +845,13 @@ export function BulkImportModal({
                 </Text>
               </TouchableOpacity>
               {fileErrorKey !== null && (
-                <Text style={styles.errorText}>{t(fileErrorKey as never)}</Text>
+                <Text
+                  style={styles.errorText}
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="assertive"
+                >
+                  {t(fileErrorKey)}
+                </Text>
               )}
 
               <View style={styles.resetRow}>
@@ -736,6 +1069,7 @@ const styles = StyleSheet.create({
   title: { ...FULL_SCREEN_SHEET_TITLE },
   content: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 48 },
   helper: { fontSize: 14, lineHeight: 21, marginBottom: 12 },
+  rowReverse: { flexDirection: 'row-reverse' },
   resetRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 8 },
   resetButton: {
     flexDirection: 'row',
@@ -789,14 +1123,14 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center' },
   errorText: { color: DESTRUCTIVE_ACTION_COLOR, fontSize: 13, lineHeight: 18, marginTop: 8 },
   previewSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 3,
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
   previewHeading: { fontSize: 16, fontWeight: '700' },
+  previewSubheading: { fontSize: 14, fontWeight: '700', marginTop: 3 },
   previewList: { padding: 14, paddingBottom: 28, gap: 9 },
   previewItem: {
     flexDirection: 'row',
@@ -814,6 +1148,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  rtlItemNumber: { marginRight: 0, marginLeft: 12 },
   itemBody: { flex: 1, justifyContent: 'center', minWidth: 0 },
   itemInput: {
     minHeight: 20,
@@ -845,19 +1180,43 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   fileButtonText: { fontSize: 15, fontWeight: '600' },
+  fileName: { fontSize: 13, lineHeight: 18, marginBottom: 4 },
+  mappingContent: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 },
+  mappingTitle: { fontSize: 21, lineHeight: 27, fontWeight: '700', marginBottom: 5 },
+  mappingColumns: { gap: 10, marginTop: 16 },
+  mappingColumn: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 11,
+  },
+  mappingColumnName: { fontSize: 14, lineHeight: 19, fontWeight: '700', marginBottom: 9 },
+  mappingChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  mappingChoice: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minHeight: 42,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  mappingChoiceText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  mappingPreviewTitle: { fontSize: 17, lineHeight: 23, fontWeight: '700', marginTop: 24 },
+  mappingPreviewList: { gap: 9, marginTop: 10 },
+  mappingPreviewCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    gap: 8,
+    overflow: 'hidden',
+  },
+  filePreviewField: { minWidth: 0, gap: 2, marginBottom: 6 },
+  fileFieldLabel: { fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  fileFieldValue: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
   // Read-only rows: a file's contents are corrected in the file, not here, and
   // an editable field would suggest otherwise.
-  fileItemWord: { fontSize: 15, fontWeight: '600' },
-  fileItemMeaning: { fontSize: 13, lineHeight: 18, marginTop: 2 },
-  folderBadge: {
-    overflow: 'hidden',
-    borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    fontSize: 11,
-    fontWeight: '600',
-  },
   duplicateBadge: {
     color: '#9A6700',
     backgroundColor: '#FFF4CE',

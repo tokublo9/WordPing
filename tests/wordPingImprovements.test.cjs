@@ -125,6 +125,7 @@ test('the import entry point is on the existing bulk-import screen', () => {
   assert.match(modal, /accessibilityLabel=\{t\('import_from_file'\)\}/u);
   // Picking, parsing and planning happen before anything is written.
   assert.match(modal, /const picked = await pickWordImportFile\(\);/u);
+  assert.match(modal, /if \(!source\.analysis\.autoMappable\) \{\s*setStep\('file-mapping'\)/u);
   assert.match(modal, /setFilePlan\(planFileImport\(\{/u);
   assert.match(modal, /setStep\('file-preview'\)/u);
 });
@@ -133,13 +134,13 @@ test('the preview reports valid, duplicate and invalid counts before saving', ()
   const modal = read('src/components/BulkImportModal.tsx');
   assert.match(modal, /formatCount\(t\('import_file_valid'\), filePlan\.validCount\)/u);
   assert.match(modal, /formatCount\(t\('import_file_duplicates'\), filePlan\.duplicateCount\)/u);
-  assert.match(modal, /formatCount\(t\('import_file_invalid'\), filePlan\.invalidCount\)/u);
-  // Cancel and confirm are both offered, and confirm is dead while nothing is valid.
-  assert.match(modal, /onPress=\{\(\) => \{ setStep\('input'\); setFilePlan\(null\); \}\}/u);
+  assert.match(modal, /t\('import_file_invalid'\),\s*filePlan\.invalidCount \+ fileBlankSkippedCount/u);
+  // Back and confirm are both offered, and confirm is dead while nothing is valid.
+  assert.match(modal, /onPress=\{backFromFilePreview\}/u);
   assert.match(modal, /disabled=\{importing \|\| filePlan\.validCount === 0\}/u);
-  // Unreadable rows are named by their number rather than silently dropped.
-  assert.match(modal, /filePlan\.errors\.map\(error =>/u);
-  assert.match(modal, /formatCount\(t\('import_file_row'\), error\.rowNumber\)/u);
+  // Only the first five normalized records are shown; rejected rows stay in the count.
+  assert.match(modal, /filePlan\.items\.slice\(0, 5\)\.map\(item =>/u);
+  assert.match(modal, /filePlan\.invalidCount \+ fileBlankSkippedCount/u);
 });
 
 test('an imported file is read locally and never leaves the device', () => {
@@ -150,6 +151,7 @@ test('an imported file is read locally and never leaves the device', () => {
   for (const path of [
     'src/features/cards/importFile.ts',
     'src/features/cards/fileImport.ts',
+    'src/features/cards/importMapping.ts',
     'src/features/cards/bulkImport.ts',
   ]) {
     assert.doesNotMatch(read(path), /\bfetch\(|XMLHttpRequest|WebSocket/u, `${path} must not transmit`);
@@ -1202,6 +1204,12 @@ test('every new string ships in every locale', () => {
     'import_file_ignored_columns', 'import_file_row',
     'import_file_error_empty', 'import_file_error_invalid_json',
     'import_file_error_shape', 'import_file_error_columns', 'import_file_error_unreadable',
+    'import_file_error_too_large',
+    'import_map_title', 'import_map_desc', 'import_map_ignore', 'import_map_column',
+    'import_map_preview', 'import_map_records', 'import_map_error_front',
+    'import_map_error_back', 'import_map_error_duplicate', 'import_map_continue',
+    'import_map_choice_hint', 'import_map_preview_hint', 'import_map_continue_hint',
+    'import_map_confirm_hint',
   ];
   for (const key of keys) {
     const occurrences = i18n.match(new RegExp(`^ {2}${key}:`, 'gmu')) ?? [];

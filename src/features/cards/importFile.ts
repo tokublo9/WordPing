@@ -1,6 +1,11 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import { parseImportFile, type ImportParseResult } from './fileImport';
+import {
+  parseImportFile,
+  parseImportSource,
+  type ImportParseResult,
+  type ImportSourceResult,
+} from './fileImport';
 
 /**
  * The device-facing half of CSV / JSON word import.
@@ -14,7 +19,14 @@ import { parseImportFile, type ImportParseResult } from './fileImport';
 export type PickedImportFile =
   | { status: 'cancelled' }
   | { status: 'unreadable' }
-  | { status: 'picked'; fileName: string; result: ImportParseResult };
+  | {
+    status: 'picked';
+    fileName: string;
+    /** Source table retained for live mapping without reading the file again. */
+    result: ImportSourceResult;
+    /** Existing compatible parse, created only when detection is unambiguous. */
+    compatibleResult: ImportParseResult | null;
+  };
 
 /**
  * Lets the user choose a word file and parses it locally.
@@ -39,10 +51,17 @@ export async function pickWordImportFile(): Promise<PickedImportFile> {
 
   try {
     const contents = await new File(asset.uri).text();
+    const result = parseImportSource(contents, asset.name);
     return {
       status: 'picked',
       fileName: asset.name,
-      result: parseImportFile(contents, asset.name),
+      result,
+      // Preserve the established file-import shape and folder-column behavior
+      // for files that never need the mapping screen. An ambiguous file never
+      // enters that permissive legacy path.
+      compatibleResult: result.ok && result.value.analysis.autoMappable
+        ? parseImportFile(contents, asset.name)
+        : null,
     };
   } catch {
     // The file could not be read at all — distinct from "read but malformed",

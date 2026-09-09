@@ -47,6 +47,7 @@
     "src/features/cards/builtInCards.ts",
     "src/features/cards/duplicates.ts",
     "src/features/cards/fileImport.ts",
+    "src/features/cards/importMapping.ts",
     "src/features/cards/bulkImport.ts",
     "src/features/onboarding/tutorialState.ts",
     "src/features/onboarding/spotlight.ts",
