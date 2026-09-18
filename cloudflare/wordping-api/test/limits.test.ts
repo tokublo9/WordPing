@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleRequest } from '../src/index';
+import { DEFAULT_LIMITS, VOICE_SAMPLE_VERSION } from '../src/config';
 import { privacyHash } from '../src/identity';
+import { consume } from '../src/ratelimit';
 import { KILLSWITCH_KEY, LIMITS_KEY } from '../src/runtimeConfig';
-import { VOICE_SAMPLE_VERSION } from '../src/config';
 import {
   chatCompletion,
   FUTURE_DATE,
@@ -28,6 +29,26 @@ function premiumUpstreams() {
 }
 
 describe('rate limiting', () => {
+  it('does not read or write character counters for metadata requests with no text', async () => {
+    const env = makeEnv();
+    const reads = vi.spyOn(env.WORDPING_KV, 'get');
+    const writes = vi.spyOn(env.WORDPING_KV, 'put');
+
+    const decision = await consume(env, {
+      feature: 'voice_credits',
+      hashedInstallId: 'hashed-install',
+      hashedIp: 'hashed-ip',
+      limits: DEFAULT_LIMITS.voice_credits.premium,
+      characters: 0,
+    }, 'metadata-test');
+
+    expect(decision.allowed).toBe(true);
+    expect(reads).toHaveBeenCalledTimes(4);
+    expect(writes).toHaveBeenCalledTimes(4);
+    expect(env.WORDPING_KV.keysStartingWith('rl:chars:')).toHaveLength(0);
+    expect(env.WORDPING_KV.keysStartingWith('rl:req:')).toHaveLength(4);
+  });
+
   it('enforces Premium voice-card minute limits per subscriber with a clean reset', async () => {
     vi.useFakeTimers();
     const firstWindow = Date.parse('2026-08-21T12:00:10.000Z');

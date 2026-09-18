@@ -136,12 +136,14 @@ function planBuckets(input: ConsumeInput, now: number): PlannedBucket[] {
       limit: limits.maxRequestsPerDay * factor,
       increment: 1, ttl: DAY_TTL_SECONDS, retryAfterSeconds: dayRetry,
     },
-    {
+    // Metadata requests carry no text. Reading and rewriting their zero-valued
+    // character counters adds KV operations without enforcing a limit.
+    ...(characters > 0 ? [{
       key: bucketKey('chars', 'day', feature, scope, id, dayId),
       scope, window: 'day' as const, kind: 'chars' as const,
       limit: limits.maxCharsPerDay * factor,
       increment: characters, ttl: DAY_TTL_SECONDS, retryAfterSeconds: dayRetry,
-    },
+    }] : []),
   ]);
 }
 
