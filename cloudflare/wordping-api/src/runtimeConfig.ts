@@ -15,8 +15,11 @@ import { log, redactError } from './log';
 export const KILLSWITCH_KEY = 'config:killswitch';
 export const LIMITS_KEY = 'config:limits';
 
-/** KV is read through the edge cache; 60 s is the worst-case propagation delay. */
-const CONFIG_CACHE_TTL_SECONDS = 60;
+// KV's edge cache and this isolate cache expire on the same 30-second cadence.
+// Repeated requests in one isolate therefore avoid two billable KV reads each,
+// while operator changes remain visible within roughly the original 60 seconds.
+const CONFIG_CACHE_TTL_SECONDS = 30;
+const ISOLATE_CACHE_TTL_MS = 30_000;
 
 export interface RuntimeConfig {
   disabledFeatures: ReadonlySet<Feature>;
@@ -25,6 +28,15 @@ export interface RuntimeConfig {
 
 const FEATURE_SET: ReadonlySet<string> = new Set(FEATURES);
 const TIERS: readonly Tier[] = ['free', 'basic', 'premium'];
+
+interface CachedConfig {
+  value: RuntimeConfig;
+  expiresAt: number;
+}
+
+// This holds only global, operator-controlled values, never request data or an
+// in-flight I/O promise. Keep test/local bindings isolated as well.
+const isolateCache = new WeakMap<Env['WORDPING_KV'], CachedConfig>();
 
 function parseDisabledFeatures(raw: string | null): ReadonlySet<Feature> {
   const disabled = new Set<Feature>();
@@ -72,13 +84,24 @@ function parseLimitOverrides(raw: string | null): LimitOverrides {
   return overrides;
 }
 
-export async function loadRuntimeConfig(env: Env, requestId: string): Promise<RuntimeConfig> {
+async function readRuntimeConfig(env: Env, requestId: string): Promise<{
+  value: RuntimeConfig;
+  readFailed: boolean;
+}> {
   let disabledFeatures: ReadonlySet<Feature> = new Set();
   let overrides: LimitOverrides = {};
+  let readFailed = false;
+
+  const read = (key: string): Promise<string | null> => env.WORDPING_KV
+    .get(key, { cacheTtl: CONFIG_CACHE_TTL_SECONDS })
+    .catch(() => {
+      readFailed = true;
+      return null;
+    });
 
   const [rawKillswitch, rawLimits] = await Promise.all([
-    env.WORDPING_KV.get(KILLSWITCH_KEY, { cacheTtl: CONFIG_CACHE_TTL_SECONDS }).catch(() => null),
-    env.WORDPING_KV.get(LIMITS_KEY, { cacheTtl: CONFIG_CACHE_TTL_SECONDS }).catch(() => null),
+    read(KILLSWITCH_KEY),
+    read(LIMITS_KEY),
   ]);
 
   try {
@@ -93,9 +116,26 @@ export async function loadRuntimeConfig(env: Env, requestId: string): Promise<Ru
   }
 
   return {
-    disabledFeatures,
-    limitsFor(feature, tier) {
-      return { ...DEFAULT_LIMITS[feature][tier], ...overrides[feature]?.[tier] };
+    readFailed,
+    value: {
+      disabledFeatures,
+      limitsFor(feature, tier) {
+        return { ...DEFAULT_LIMITS[feature][tier], ...overrides[feature]?.[tier] };
+      },
     },
   };
+}
+
+export async function loadRuntimeConfig(env: Env, requestId: string): Promise<RuntimeConfig> {
+  const binding = env.WORDPING_KV;
+  const cached = isolateCache.get(binding);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
+
+  const { value, readFailed } = await readRuntimeConfig(env, requestId);
+  // A transient KV failure should not make the fallback defaults sticky.
+  if (!readFailed) isolateCache.set(binding, {
+    value,
+    expiresAt: Date.now() + ISOLATE_CACHE_TTL_MS,
+  });
+  return value;
 }
