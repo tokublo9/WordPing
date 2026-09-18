@@ -1203,12 +1203,6 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
           </View>
         </View>
       ))}
-
-      <Text style={[tbl.limitNote, { color: pal.sub }]}>
-        {t('basic_voice_limit_note').replace('{basic}', t('basic_plan_name'))}
-      </Text>
-      <Text style={[tbl.limitNote, { color: pal.sub }]}>{t('premium_voice_limit_note')}</Text>
-
     </View>
   );
 });
@@ -2616,12 +2610,6 @@ const tbl = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 14,
-  },
-  limitNote: {
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 10,
-    lineHeight: 15,
   },
   oneTimeBadge: {
     marginBottom: 4,
