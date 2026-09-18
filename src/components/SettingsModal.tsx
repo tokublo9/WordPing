@@ -34,6 +34,7 @@ import { AnnouncementsSheet } from './AnnouncementsSheet';
 import { useAnnouncementReadState } from '../hooks/useAnnouncementReadState';
 import { CompactSwitch } from './CompactSwitch';
 import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
+import { PremiumAiUsageDialog } from './PremiumAiUsageDialog';
 import {
   AI_VOICES,
   getAIVoiceDescriptionKey,
@@ -632,6 +633,8 @@ export function SettingsModal({
           onClose={() => setAppInfoVisible(false)}
           pal={pal}
           themeColor={themeColor}
+          language={language}
+          isPremium={isPremium}
           canUseAI={canUseAI}
           aboutAIVoiceIsNew={aboutAIVoiceIsNew}
           onOpenAboutAIVoice={openAboutAIVoice}
@@ -995,16 +998,15 @@ function VoiceSelectionScreen({
 
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
-  visible, onClose, pal, themeColor, canUseAI, aboutAIVoiceIsNew,
+  visible, onClose, pal, themeColor, language, isPremium, canUseAI, aboutAIVoiceIsNew,
   onOpenAboutAIVoice,
 }: {
   visible: boolean;
   onClose: () => void;
   pal: Palette;
   themeColor: string;
-  // `language` used to be taken so the analytics row could test for English or
-  // Japanese and borrow other copy elsewhere. Every locale carries that copy
-  // now, so nothing in this sheet reads the language tag.
+  language: string;
+  isPremium: boolean;
   canUseAI: boolean;
   aboutAIVoiceIsNew: boolean;
   onOpenAboutAIVoice: () => void;
@@ -1012,6 +1014,7 @@ function AppInfoSheet({
   const insets = useSafeAreaInsets();
   const t = useLang();
   const [analyticsInfoVisible, setAnalyticsInfoVisible] = useState(false);
+  const [aiUsageVisible, setAiUsageVisible] = useState(false);
   const [analyticsUpdating, setAnalyticsUpdating] = useState(false);
   const analyticsUpdateInFlight = useRef(false);
 
@@ -1084,6 +1087,7 @@ function AppInfoSheet({
       Animated.spring(slideX, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
     } else {
       setAnalyticsInfoVisible(false);
+      setAiUsageVisible(false);
     }
   }, [visible]);
 
@@ -1134,6 +1138,15 @@ function AppInfoSheet({
             pal={pal}
           />
         )}
+        {isPremium && (
+          <SettingRow
+            icon="speedometer-outline"
+            label={t('ai_usage_title')}
+            onPress={() => setAiUsageVisible(true)}
+            accessibilityRole="button"
+            pal={pal}
+          />
+        )}
         <SettingRow
           icon="stats-chart-outline"
           label={t('analytics_setting')}
@@ -1168,6 +1181,13 @@ function AppInfoSheet({
         onClose={() => setAnalyticsInfoVisible(false)}
         pal={pal}
         themeColor={themeColor}
+      />
+      <PremiumAiUsageDialog
+        visible={aiUsageVisible && isPremium}
+        onClose={() => setAiUsageVisible(false)}
+        pal={pal}
+        themeColor={themeColor}
+        language={language}
       />
     </Animated.View>
   );

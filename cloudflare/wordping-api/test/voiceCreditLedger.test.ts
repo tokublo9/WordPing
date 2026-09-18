@@ -65,6 +65,27 @@ function makeLedger(storage = new FakeStorage()) {
   return { ledger, storage, call };
 }
 
+describe('Premium usage snapshot', () => {
+  it('reads the real ledger counters without reserving another request', async () => {
+    const { ledger, storage } = makeLedger();
+    const reserve = await ledger.fetch(new Request(
+      'https://ledger/quotaReserve?characters=5&minute=12&day=200&chars=80000',
+      { method: 'POST' },
+    ));
+    expect(reserve.status).toBe(200);
+    expect((await reserve.json() as { allowed: boolean }).allowed).toBe(true);
+    const before = storage.map.get('premium_voice_quota_v1');
+
+    const status = await ledger.fetch(new Request('https://ledger/quotaStatus?day=200', { method: 'POST' }));
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({
+      day: { used: 1, limit: 200 },
+      month: { used: 1, limit: 400 },
+    });
+    expect(storage.map.get('premium_voice_quota_v1')).toEqual(before);
+  });
+});
+
 describe('the 10-card allowance', () => {
   it('counts a card once across different generations and survives a restart', async () => {
     const storage = new FakeStorage();

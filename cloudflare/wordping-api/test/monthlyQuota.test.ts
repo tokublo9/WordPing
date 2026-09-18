@@ -3,7 +3,7 @@ import { DEFAULT_LIMITS } from '../src/config';
 import { privacyHash } from '../src/identity';
 import { handleRequest } from '../src/index';
 import { audioDurationMs } from '../src/audioDuration';
-import { applyAudioDuration, applyVoiceQuota, reserveMonthlyQuota } from '../src/monthlyQuota';
+import { applyAudioDuration, applyVoiceQuota, describePremiumVoiceUsage, reserveMonthlyQuota } from '../src/monthlyQuota';
 import { BASIC_MONTHLY_AUDIO_MS, PREMIUM_MONTHLY_AUDIO_MS, VOICE_MONTHLY_LIMITS, VOICE_QUOTA_FEATURES } from '../src/planLimits';
 import { FUTURE_DATE, makeCtx, makeEnv, makeRequest, mockFetch, revenueCatSubscriber, wavBody } from './helpers';
 
@@ -25,6 +25,45 @@ async function card(env: ReturnType<typeof makeEnv>, appUserId = SUBSCRIBER) {
 }
 
 describe('Premium AI Voice budget', () => {
+  it('reports both remaining request windows without spending a generation', () => {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    const before = { ...applyVoiceQuota(undefined, now, 0, false).next,
+      dayUsed: 17, monthUsed: 43 };
+    expect(describePremiumVoiceUsage(before, now)).toEqual({
+      day: { used: 17, limit: 200, resetsAt: '2026-09-19T00:00:00.000Z' },
+      month: { used: 43, limit: 400, resetsAt: '2026-10-01T00:00:00.000Z' },
+    });
+    expect(before.dayUsed).toBe(17);
+    expect(before.monthUsed).toBe(43);
+    const tomorrow = describePremiumVoiceUsage(before, Date.parse('2026-09-19T00:00:00.000Z'), 150);
+    expect(tomorrow.day).toMatchObject({ used: 0, limit: 150 });
+    expect(tomorrow.month.used).toBe(43);
+    expect(describePremiumVoiceUsage(before, Date.parse('2026-10-01T00:00:00.000Z')).month.used).toBe(0);
+  });
+
+  it('serves the authoritative Premium usage from the account metadata endpoint', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-18T12:00:00.000Z'));
+    premiumUpstreams();
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    const state = { ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      dayUsed: 12, monthUsed: 31 };
+    env.VOICE_CREDITS.quotaStates.set(identity, state);
+    const response = await handleRequest(makeRequest('/v1/voice/credits', {
+      appUserId: SUBSCRIBER, body: { mode: 'cards' },
+    }), env, makeCtx());
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      tier: 'premium',
+      usage: {
+        day: { used: 12, limit: 200, resetsAt: '2026-09-19T00:00:00.000Z' },
+        month: { used: 31, limit: 400, resetsAt: '2026-10-01T00:00:00.000Z' },
+      },
+    });
+    expect(env.VOICE_CREDITS.quotaStates.get(identity)).toEqual(state);
+  });
+
   it('defines 200 per UTC day and 400 per UTC month', () => {
     expect(DEFAULT_LIMITS.voice_card.premium.maxRequestsPerDay).toBe(200);
     expect(VOICE_MONTHLY_LIMITS.premium).toBe(400);

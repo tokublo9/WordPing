@@ -7,6 +7,9 @@ export type TranslationKey =
   | 'remove_ads' | 'language'
   | 'privacy_policy' | 'terms_of_service' | 'contact' | 'license' | 'app_version'
   | 'app_info' | 'announcements' | 'advanced_settings'
+  | 'ai_usage_title' | 'ai_usage_daily_limit' | 'ai_usage_monthly_limit'
+  | 'ai_usage_remaining' | 'ai_usage_resets_in' | 'ai_usage_unavailable'
+  | 'ai_usage_retry' | 'ai_usage_refresh' | 'ai_usage_scope'
   | 'write_review' | 'recommend_friends' | 'review_open_failed' | 'share_failed' | 'recommend_share_message'
   | 'announcement_welcome_title' | 'announcement_welcome_body' | 'announcement_unread'
   | 'notifications' | 'display_only_word' | 'display_only_word_desc' | 'test_send' | 'test_sending' | 'close'
@@ -330,6 +333,15 @@ type Dict = Record<TranslationKey, string>;
 
 // ── English (US) ───────────────────────────────────────────────────────────────
 const enUS: Dict = {
+  ai_usage_title: 'AI Usage',
+  ai_usage_daily_limit: 'Daily limit',
+  ai_usage_monthly_limit: 'Monthly limit',
+  ai_usage_remaining: '{remaining} / {limit} left',
+  ai_usage_resets_in: 'Resets in {time}',
+  ai_usage_unavailable: 'Could not load usage. Please try again.',
+  ai_usage_retry: 'Retry',
+  ai_usage_refresh: 'Refresh',
+  ai_usage_scope: 'Premium AI voice generation counts. A separate monthly audio time limit applies. Playing saved audio does not use these counts.',
   test_voice_back: 'Play back only',
   test_voice_front: 'Play front only',
   test_voice_off: 'Both sides off',
@@ -1062,6 +1074,15 @@ const enUS: Dict = {
 
 // ── Japanese ───────────────────────────────────────────────────────────────────
 const ja: Dict = {
+  ai_usage_title: 'AI利用状況',
+  ai_usage_daily_limit: '1日の上限',
+  ai_usage_monthly_limit: '1か月の上限',
+  ai_usage_remaining: '残り{remaining} / {limit}回',
+  ai_usage_resets_in: 'リセットまで {time}',
+  ai_usage_unavailable: '利用状況を読み込めませんでした。もう一度お試しください。',
+  ai_usage_retry: '再試行',
+  ai_usage_refresh: '更新',
+  ai_usage_scope: 'プレミアムのAI音声生成回数です。別途、月間の音声時間上限があります。保存済み音声の再生は回数に含まれません。',
   test_voice_back: '裏だけ再生',
   test_voice_front: '表だけ再生',
   test_voice_off: '両面オフ',
@@ -1770,6 +1791,15 @@ const ja: Dict = {
 
 // ── Korean ─────────────────────────────────────────────────────────────────────
 const ko: Dict = {
+  ai_usage_title: 'AI 사용량',
+  ai_usage_daily_limit: '일일 한도',
+  ai_usage_monthly_limit: '월간 한도',
+  ai_usage_remaining: '{remaining} / {limit}회 남음',
+  ai_usage_resets_in: '초기화까지 {time}',
+  ai_usage_unavailable: '사용량을 불러올 수 없습니다. 다시 시도해 주세요.',
+  ai_usage_retry: '다시 시도',
+  ai_usage_refresh: '새로고침',
+  ai_usage_scope: '프리미엄 AI 음성 생성 횟수입니다. 월간 음성 시간 한도도 적용됩니다. 저장된 음성 재생은 횟수에 포함되지 않습니다.',
   test_voice_back: '뒷면만 재생',
   test_voice_front: '앞면만 재생',
   test_voice_off: '양면 끄기',
@@ -2441,6 +2471,15 @@ const ko: Dict = {
 
 // ── Simplified Chinese ─────────────────────────────────────────────────────────
 const zhCN: Dict = {
+  ai_usage_title: 'AI 使用量',
+  ai_usage_daily_limit: '每日限额',
+  ai_usage_monthly_limit: '每月限额',
+  ai_usage_remaining: '剩余 {remaining} / {limit} 次',
+  ai_usage_resets_in: '{time} 后重置',
+  ai_usage_unavailable: '无法加载使用量，请重试。',
+  ai_usage_retry: '重试',
+  ai_usage_refresh: '刷新',
+  ai_usage_scope: '高级版 AI 语音生成次数。另有每月音频时长限制。播放已保存的音频不计入次数。',
   test_voice_back: '仅播放背面',
   test_voice_front: '仅播放正面',
   test_voice_off: '关闭双面',
@@ -3111,6 +3150,15 @@ const zhCN: Dict = {
 
 // ── Spanish ────────────────────────────────────────────────────────────────────
 const es: Dict = {
+  ai_usage_title: 'Uso de IA',
+  ai_usage_daily_limit: 'Límite diario',
+  ai_usage_monthly_limit: 'Límite mensual',
+  ai_usage_remaining: 'Quedan {remaining} de {limit}',
+  ai_usage_resets_in: 'Se restablece en {time}',
+  ai_usage_unavailable: 'No se pudo cargar el uso. Inténtalo de nuevo.',
+  ai_usage_retry: 'Reintentar',
+  ai_usage_refresh: 'Actualizar',
+  ai_usage_scope: 'Recuento de generaciones de voz de IA Premium. También se aplica un límite mensual de audio. Reproducir audio guardado no cuenta.',
   test_voice_back: 'Solo el reverso',
   test_voice_front: 'Solo el anverso',
   test_voice_off: 'Desactivar ambos lados',
@@ -3793,6 +3841,15 @@ const es: Dict = {
 
 // ── French ─────────────────────────────────────────────────────────────────────
 const fr: Dict = {
+  ai_usage_title: 'Utilisation de l’IA',
+  ai_usage_daily_limit: 'Limite quotidienne',
+  ai_usage_monthly_limit: 'Limite mensuelle',
+  ai_usage_remaining: '{remaining} sur {limit} restants',
+  ai_usage_resets_in: 'Réinitialisation dans {time}',
+  ai_usage_unavailable: 'Impossible de charger l’utilisation. Réessayez.',
+  ai_usage_retry: 'Réessayer',
+  ai_usage_refresh: 'Actualiser',
+  ai_usage_scope: 'Nombre de générations de voix IA Premium. Une limite mensuelle de durée audio s’applique aussi. La lecture d’audios enregistrés ne compte pas.',
   test_voice_back: 'Verso uniquement',
   test_voice_front: 'Recto uniquement',
   test_voice_off: 'Désactiver les deux côtés',
@@ -4475,6 +4532,15 @@ const fr: Dict = {
 
 // ── German ─────────────────────────────────────────────────────────────────────
 const de: Dict = {
+  ai_usage_title: 'KI-Nutzung',
+  ai_usage_daily_limit: 'Tageslimit',
+  ai_usage_monthly_limit: 'Monatslimit',
+  ai_usage_remaining: '{remaining} von {limit} übrig',
+  ai_usage_resets_in: 'Zurücksetzung in {time}',
+  ai_usage_unavailable: 'Nutzung konnte nicht geladen werden. Bitte erneut versuchen.',
+  ai_usage_retry: 'Erneut versuchen',
+  ai_usage_refresh: 'Aktualisieren',
+  ai_usage_scope: 'Anzahl der Premium-KI-Stimmerzeugungen. Zusätzlich gilt ein monatliches Audiolimit. Das Abspielen gespeicherter Audios zählt nicht.',
   test_voice_back: 'Nur Rückseite',
   test_voice_front: 'Nur Vorderseite',
   test_voice_off: 'Beide Seiten aus',
@@ -5157,6 +5223,15 @@ const de: Dict = {
 
 // ── Italian ────────────────────────────────────────────────────────────────────
 const it: Dict = {
+  ai_usage_title: 'Utilizzo IA',
+  ai_usage_daily_limit: 'Limite giornaliero',
+  ai_usage_monthly_limit: 'Limite mensile',
+  ai_usage_remaining: '{remaining} su {limit} rimanenti',
+  ai_usage_resets_in: 'Ripristino tra {time}',
+  ai_usage_unavailable: 'Impossibile caricare l’utilizzo. Riprova.',
+  ai_usage_retry: 'Riprova',
+  ai_usage_refresh: 'Aggiorna',
+  ai_usage_scope: 'Conteggio delle generazioni vocali IA Premium. Si applica anche un limite mensile di durata audio. La riproduzione di audio salvato non conta.',
   test_voice_back: 'Solo retro',
   test_voice_front: 'Solo fronte',
   test_voice_off: 'Disattiva entrambi i lati',
@@ -5839,6 +5914,15 @@ const it: Dict = {
 
 // ── Brazilian Portuguese ───────────────────────────────────────────────────────
 const ptBR: Dict = {
+  ai_usage_title: 'Uso de IA',
+  ai_usage_daily_limit: 'Limite diário',
+  ai_usage_monthly_limit: 'Limite mensal',
+  ai_usage_remaining: 'Restam {remaining} de {limit}',
+  ai_usage_resets_in: 'Redefine em {time}',
+  ai_usage_unavailable: 'Não foi possível carregar o uso. Tente novamente.',
+  ai_usage_retry: 'Tentar novamente',
+  ai_usage_refresh: 'Atualizar',
+  ai_usage_scope: 'Contagem de gerações de voz por IA Premium. Há também um limite mensal de duração de áudio. Reproduzir áudio salvo não conta.',
   test_voice_back: 'Só verso',
   test_voice_front: 'Só frente',
   test_voice_off: 'Desativar os dois lados',
@@ -6521,6 +6605,15 @@ const ptBR: Dict = {
 
 // ── Russian ────────────────────────────────────────────────────────────────────
 const ru: Dict = {
+  ai_usage_title: 'Использование ИИ',
+  ai_usage_daily_limit: 'Дневной лимит',
+  ai_usage_monthly_limit: 'Месячный лимит',
+  ai_usage_remaining: 'Осталось {remaining} из {limit}',
+  ai_usage_resets_in: 'Сброс через {time}',
+  ai_usage_unavailable: 'Не удалось загрузить данные. Попробуйте ещё раз.',
+  ai_usage_retry: 'Повторить',
+  ai_usage_refresh: 'Обновить',
+  ai_usage_scope: 'Количество генераций голоса ИИ для Премиум. Также действует месячный лимит длительности аудио. Прослушивание сохранённого аудио не учитывается.',
   test_voice_back: 'Только обратная сторона',
   test_voice_front: 'Только лицевая сторона',
   test_voice_off: 'Выключить обе стороны',
@@ -7060,6 +7153,15 @@ const ru: Dict = {
 
 // ── Arabic ─────────────────────────────────────────────────────────────────────
 const ar: Dict = {
+  ai_usage_title: 'استخدام الذكاء الاصطناعي',
+  ai_usage_daily_limit: 'الحد اليومي',
+  ai_usage_monthly_limit: 'الحد الشهري',
+  ai_usage_remaining: 'المتبقي {remaining} من {limit}',
+  ai_usage_resets_in: 'إعادة التعيين بعد {time}',
+  ai_usage_unavailable: 'تعذر تحميل الاستخدام. حاول مرة أخرى.',
+  ai_usage_retry: 'إعادة المحاولة',
+  ai_usage_refresh: 'تحديث',
+  ai_usage_scope: 'عدد مرات إنشاء الصوت بالذكاء الاصطناعي للمشتركين المميزين. يوجد حد شهري منفصل لمدة الصوت. تشغيل الصوت المحفوظ لا يُحتسب.',
   test_voice_back: 'الوجه الخلفي فقط',
   test_voice_front: 'الوجه الأمامي فقط',
   test_voice_off: 'إيقاف الوجهين',
@@ -7599,6 +7701,15 @@ const ar: Dict = {
 
 // ── Hindi ──────────────────────────────────────────────────────────────────────
 const hi: Dict = {
+  ai_usage_title: 'AI उपयोग',
+  ai_usage_daily_limit: 'दैनिक सीमा',
+  ai_usage_monthly_limit: 'मासिक सीमा',
+  ai_usage_remaining: '{limit} में से {remaining} शेष',
+  ai_usage_resets_in: '{time} में रीसेट',
+  ai_usage_unavailable: 'उपयोग लोड नहीं हो सका। फिर से कोशिश करें।',
+  ai_usage_retry: 'फिर से कोशिश करें',
+  ai_usage_refresh: 'रीफ़्रेश',
+  ai_usage_scope: 'प्रीमियम AI वॉइस बनाने की संख्या। ऑडियो समय की अलग मासिक सीमा भी है। सहेजा गया ऑडियो चलाना इसमें नहीं गिना जाता।',
   test_voice_back: 'सिर्फ़ पीछे वाला भाग',
   test_voice_front: 'सिर्फ़ सामने वाला भाग',
   test_voice_off: 'दोनों तरफ बंद',
@@ -8138,6 +8249,15 @@ const hi: Dict = {
 
 // ── Turkish ────────────────────────────────────────────────────────────────────
 const tr: Dict = {
+  ai_usage_title: 'Yapay zekâ kullanımı',
+  ai_usage_daily_limit: 'Günlük sınır',
+  ai_usage_monthly_limit: 'Aylık sınır',
+  ai_usage_remaining: '{limit} içinden {remaining} kaldı',
+  ai_usage_resets_in: '{time} içinde sıfırlanır',
+  ai_usage_unavailable: 'Kullanım yüklenemedi. Yeniden deneyin.',
+  ai_usage_retry: 'Yeniden dene',
+  ai_usage_refresh: 'Yenile',
+  ai_usage_scope: 'Premium yapay zekâ ses oluşturma sayısı. Ayrı bir aylık ses süresi sınırı da geçerlidir. Kayıtlı sesi oynatmak sayılmaz.',
   test_voice_back: 'Yalnızca arka yüz',
   test_voice_front: 'Yalnızca ön yüz',
   test_voice_off: 'İki yüzü de kapat',
@@ -8689,6 +8809,15 @@ const tr: Dict = {
 
 // ── Dutch ──────────────────────────────────────────────────────────────────────
 const nl: Dict = {
+  ai_usage_title: 'AI-gebruik',
+  ai_usage_daily_limit: 'Daglimiet',
+  ai_usage_monthly_limit: 'Maandlimiet',
+  ai_usage_remaining: '{remaining} van {limit} over',
+  ai_usage_resets_in: 'Reset over {time}',
+  ai_usage_unavailable: 'Gebruik kan niet worden geladen. Probeer het opnieuw.',
+  ai_usage_retry: 'Opnieuw proberen',
+  ai_usage_refresh: 'Vernieuwen',
+  ai_usage_scope: 'Aantal Premium AI-stemgeneraties. Er geldt ook een aparte maandelijkse audiotijdlimiet. Opgeslagen audio afspelen telt niet mee.',
   test_voice_back: 'Alleen achterkant',
   test_voice_front: 'Alleen voorkant',
   test_voice_off: 'Beide zijden uit',
@@ -9240,6 +9369,15 @@ const nl: Dict = {
 
 // ── Vietnamese ────────────────────────────────────────────────────────────────
 const vi: Dict = {
+  ai_usage_title: 'Mức sử dụng AI',
+  ai_usage_daily_limit: 'Giới hạn hằng ngày',
+  ai_usage_monthly_limit: 'Giới hạn hằng tháng',
+  ai_usage_remaining: 'Còn {remaining} / {limit}',
+  ai_usage_resets_in: 'Đặt lại sau {time}',
+  ai_usage_unavailable: 'Không thể tải mức sử dụng. Vui lòng thử lại.',
+  ai_usage_retry: 'Thử lại',
+  ai_usage_refresh: 'Làm mới',
+  ai_usage_scope: 'Số lần tạo giọng nói AI Cao cấp. Còn có giới hạn thời lượng âm thanh hằng tháng riêng. Phát âm thanh đã lưu không tính vào số lần.',
   test_voice_back: 'Chỉ phát mặt sau',
   test_voice_front: 'Chỉ phát mặt trước',
   test_voice_off: 'Tắt cả hai mặt',
@@ -9790,6 +9928,15 @@ const vi: Dict = {
 
 // ── Thai ───────────────────────────────────────────────────────────────────────
 const th: Dict = {
+  ai_usage_title: 'การใช้งาน AI',
+  ai_usage_daily_limit: 'ขีดจำกัดรายวัน',
+  ai_usage_monthly_limit: 'ขีดจำกัดรายเดือน',
+  ai_usage_remaining: 'เหลือ {remaining} จาก {limit}',
+  ai_usage_resets_in: 'รีเซ็ตใน {time}',
+  ai_usage_unavailable: 'โหลดข้อมูลการใช้งานไม่ได้ โปรดลองอีกครั้ง',
+  ai_usage_retry: 'ลองอีกครั้ง',
+  ai_usage_refresh: 'รีเฟรช',
+  ai_usage_scope: 'จำนวนครั้งที่สร้างเสียง AI แบบพรีเมียม มีขีดจำกัดระยะเวลาเสียงรายเดือนแยกต่างหาก การเล่นเสียงที่บันทึกไว้ไม่นับรวม',
   test_voice_back: 'เล่นเฉพาะด้านหลัง',
   test_voice_front: 'เล่นเฉพาะด้านหน้า',
   test_voice_off: 'ปิดทั้งสองด้าน',
@@ -10328,6 +10475,15 @@ const th: Dict = {
 
 // ── Indonesian ─────────────────────────────────────────────────────────────────
 const id: Dict = {
+  ai_usage_title: 'Penggunaan AI',
+  ai_usage_daily_limit: 'Batas harian',
+  ai_usage_monthly_limit: 'Batas bulanan',
+  ai_usage_remaining: 'Sisa {remaining} dari {limit}',
+  ai_usage_resets_in: 'Direset dalam {time}',
+  ai_usage_unavailable: 'Penggunaan tidak dapat dimuat. Coba lagi.',
+  ai_usage_retry: 'Coba lagi',
+  ai_usage_refresh: 'Segarkan',
+  ai_usage_scope: 'Jumlah pembuatan suara AI Premium. Ada juga batas waktu audio bulanan terpisah. Memutar audio tersimpan tidak dihitung.',
   test_voice_back: 'Hanya sisi belakang',
   test_voice_front: 'Hanya sisi depan',
   test_voice_off: 'Matikan kedua sisi',
@@ -10878,6 +11034,15 @@ const id: Dict = {
 
 // ── Polish ─────────────────────────────────────────────────────────────────────
 const pl: Dict = {
+  ai_usage_title: 'Użycie AI',
+  ai_usage_daily_limit: 'Limit dzienny',
+  ai_usage_monthly_limit: 'Limit miesięczny',
+  ai_usage_remaining: 'Pozostało {remaining} z {limit}',
+  ai_usage_resets_in: 'Reset za {time}',
+  ai_usage_unavailable: 'Nie udało się wczytać użycia. Spróbuj ponownie.',
+  ai_usage_retry: 'Spróbuj ponownie',
+  ai_usage_refresh: 'Odśwież',
+  ai_usage_scope: 'Liczba wygenerowanych głosów AI Premium. Obowiązuje też osobny miesięczny limit czasu audio. Odtwarzanie zapisanych nagrań nie jest liczone.',
   test_voice_back: 'Tylko tył',
   test_voice_front: 'Tylko przód',
   test_voice_off: 'Wyłącz obie strony',
@@ -11428,6 +11593,15 @@ const pl: Dict = {
 
 // ── Greek ──────────────────────────────────────────────────────────────────────
 const el: Dict = {
+  ai_usage_title: 'Χρήση AI',
+  ai_usage_daily_limit: 'Ημερήσιο όριο',
+  ai_usage_monthly_limit: 'Μηνιαίο όριο',
+  ai_usage_remaining: 'Απομένουν {remaining} από {limit}',
+  ai_usage_resets_in: 'Επαναφορά σε {time}',
+  ai_usage_unavailable: 'Δεν ήταν δυνατή η φόρτωση της χρήσης. Δοκιμάστε ξανά.',
+  ai_usage_retry: 'Δοκιμάστε ξανά',
+  ai_usage_refresh: 'Ανανέωση',
+  ai_usage_scope: 'Πλήθος δημιουργιών φωνής AI Πρίμιουμ. Ισχύει και ξεχωριστό μηνιαίο όριο διάρκειας ήχου. Η αναπαραγωγή αποθηκευμένου ήχου δεν προσμετράται.',
   test_voice_back: 'Μόνο πίσω πλευρά',
   test_voice_front: 'Μόνο μπροστινή πλευρά',
   test_voice_off: 'Απενεργοποίηση και των δύο πλευρών',
@@ -11966,6 +12140,15 @@ const el: Dict = {
 
 // ── Swedish ────────────────────────────────────────────────────────────────────
 const sv: Dict = {
+  ai_usage_title: 'AI-användning',
+  ai_usage_daily_limit: 'Daglig gräns',
+  ai_usage_monthly_limit: 'Månadsgräns',
+  ai_usage_remaining: '{remaining} av {limit} kvar',
+  ai_usage_resets_in: 'Återställs om {time}',
+  ai_usage_unavailable: 'Kunde inte läsa in användningen. Försök igen.',
+  ai_usage_retry: 'Försök igen',
+  ai_usage_refresh: 'Uppdatera',
+  ai_usage_scope: 'Antal Premium AI-röstgenereringar. En separat månadsgräns för ljudtid gäller också. Uppspelning av sparat ljud räknas inte.',
   test_voice_back: 'Endast baksidan',
   test_voice_front: 'Endast framsidan',
   test_voice_off: 'Stäng av båda sidorna',

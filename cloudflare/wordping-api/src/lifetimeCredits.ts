@@ -1,7 +1,8 @@
 import type { Env } from './env';
+import { DEFAULT_LIMITS } from './config';
 import { log, redactError } from './log';
 import { VOICE_LIFETIME_CREDITS } from './planLimits';
-import { applyAudioDuration, applyVoiceQuota, type VoiceQuotaState } from './monthlyQuota';
+import { applyAudioDuration, applyVoiceQuota, describePremiumVoiceUsage, type VoiceQuotaState } from './monthlyQuota';
 
 /**
  * Basic's lifetime AI voice allowance is 10 distinct card fronts. The card
@@ -239,6 +240,18 @@ export class VoiceCreditLedger {
     const url = new URL(request.url);
     const op = url.pathname.slice(1);
     const key = url.searchParams.get('key') ?? '';
+    if (op === 'quotaStatus') {
+      const dayLimit = Number(url.searchParams.get('day'));
+      if (!Number.isInteger(dayLimit) || dayLimit < 0
+        || dayLimit > DEFAULT_LIMITS.voice_card.premium.maxRequestsPerDay) {
+        return new Response('invalid day limit', { status: 400 });
+      }
+      const usage = await this.state.blockConcurrencyWhile(async () => {
+        const before = await this.state.storage.get<VoiceQuotaState>(PREMIUM_VOICE_QUOTA_KEY);
+        return describePremiumVoiceUsage(before, Date.now(), dayLimit);
+      });
+      return Response.json(usage);
+    }
     if (op === 'quotaReserve' || op === 'quotaPeek') {
       const characters = Number(url.searchParams.get('characters') ?? '0');
       const override = {

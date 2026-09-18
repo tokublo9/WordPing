@@ -148,19 +148,21 @@ test('review and recommendation rows live only inside App Info', () => {
   assert.match(appInfo, /result\.action === Share\.dismissedAction/u);
 });
 
-test('App Info starts with review, recommendation, AI Voice and usage sharing, then Privacy Policy', () => {
+test('App Info places Premium AI usage above usage sharing and Privacy Policy', () => {
   const settings = read('src/components/SettingsModal.tsx');
   const appInfo = settings.slice(settings.indexOf('function AppInfoSheet'));
   const rows = appInfo.slice(appInfo.indexOf('<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>'));
   const positions = [
-    'write_review', 'recommend_friends', 'ai_voice_info_menu', 'analytics_setting', 'privacy_policy',
+    'write_review', 'recommend_friends', 'ai_voice_info_menu', 'ai_usage_title', 'analytics_setting', 'privacy_policy',
   ].map(key => rows.indexOf(`label={t('${key}')}`));
   assert.ok(positions.every(position => position >= 0));
   assert.ok(positions.every((position, index) => index === 0 || positions[index - 1] < position));
-  const firstGroup = rows.slice(0, positions[4]);
+  assert.match(rows, /\{isPremium && \(\s*<SettingRow\s+icon="speedometer-outline"\s+label=\{t\('ai_usage_title'\)\}/u);
+  assert.match(appInfo, /<PremiumAiUsageDialog\s+visible=\{aiUsageVisible && isPremium\}/u);
+  const firstGroup = rows.slice(0, positions[5]);
   assert.doesNotMatch(firstGroup, /s\.sectionLabel|purchases_section|<BackupSection/u);
-  const dividerAt = rows.indexOf('<View style={[styles.divider', positions[3]);
-  assert.ok(positions[3] < dividerAt && dividerAt < positions[4]);
+  const dividerAt = rows.indexOf('<View style={[styles.divider', positions[4]);
+  assert.ok(positions[4] < dividerAt && dividerAt < positions[5]);
 });
 
 test('review and share use one App Store constants module and localized failures', () => {
@@ -1219,7 +1221,7 @@ test('only one popup can be open, and dismissal keeps content mounted until comp
   assert.ok(settings.indexOf('visible={analyticsInfoVisible}') > appInfoStart, 'Share Usage Data popup is in AppInfoSheet');
   // Leaving App Info takes its popup with it, so it can never outlive the
   // screen that raised it and reappear over an unrelated one.
-  assert.match(settings, /\}\s*else\s*\{\s*setAnalyticsInfoVisible\(false\);\s*\}/u);
+  assert.match(settings, /\}\s*else\s*\{\s*setAnalyticsInfoVisible\(false\);\s*setAiUsageVisible\(false\);\s*\}/u);
   // Only the Card Behavior popup swaps content, so only it needs the deferred
   // clear. The analytics popup carries fixed content and one explicit action.
   assert.match(cardBehaviorPopup, /content=\{infoContent\}\s*onClose=\{closeInfoPopup\}\s*onDismiss=\{dismissInfoPopup\}/u);

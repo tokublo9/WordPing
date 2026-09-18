@@ -25,6 +25,7 @@ import {
   publishVoiceCreditHeaders,
   type VoiceCreditBalance,
 } from '../voiceCreditBalance';
+import { parsePremiumAiUsage, type PremiumAiUsage } from '../premiumAiUsage';
 
 /**
  * The single network boundary for AI features.
@@ -404,6 +405,23 @@ export async function fetchVoiceCreditBalance(): Promise<VoiceCreditBalance> {
   }
   publishVoiceCreditBalance(parsed);
   return parsed;
+}
+
+/** Reads the Worker's non-consuming Premium AI Voice request counters. */
+export async function fetchPremiumAiUsage(options: ApiRequestOptions = {}): Promise<PremiumAiUsage> {
+  const response = await post(
+    '/v1/voice/credits',
+    { mode: 'cards' },
+    options,
+    DEFAULT_TEXT_TIMEOUT_MS,
+    'account-metadata',
+  );
+  const payload: unknown = await response.json();
+  const usage = parsePremiumAiUsage(payload);
+  if (usage === null) {
+    throw new AIRequestError('generation_failed', { serverCode: 'invalid_premium_usage' });
+  }
+  return usage;
 }
 
 /**

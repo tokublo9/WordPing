@@ -29,6 +29,33 @@ export interface QuotaDecision {
   retryAfterSeconds: number;
 }
 
+export interface PremiumVoiceUsage {
+  day: { used: number; limit: number; resetsAt: string };
+  month: { used: number; limit: number; resetsAt: string };
+}
+
+/** Read the same UTC request counters that reserve Premium card generations. */
+export function describePremiumVoiceUsage(
+  before: VoiceQuotaState | undefined,
+  now: number,
+  maxRequestsPerDay = DEFAULT_LIMITS.voice_card.premium.maxRequestsPerDay,
+): PremiumVoiceUsage {
+  const current = applyVoiceQuota(before, now, 0, false).next;
+  const dayLimit = Math.min(DEFAULT_LIMITS.voice_card.premium.maxRequestsPerDay, maxRequestsPerDay);
+  return {
+    day: {
+      used: current.dayUsed,
+      limit: dayLimit,
+      resetsAt: new Date(Date.parse(`${current.day}T00:00:00.000Z`) + 86_400_000).toISOString(),
+    },
+    month: {
+      used: current.monthUsed,
+      limit: VOICE_MONTHLY_LIMITS.premium ?? 400,
+      resetsAt: monthResetsAt(now),
+    },
+  };
+}
+
 export function applyVoiceQuota(
   before: VoiceQuotaState | undefined,
   now: number,
@@ -147,6 +174,22 @@ export function reserveMonthlyQuota(env: Env, input: ReserveInput): Promise<Quot
 
 export function readMonthlyQuota(env: Env, input: ReserveInput): Promise<QuotaDecision | null> {
   return callQuota(env, input, 'quotaPeek');
+}
+
+/** A non-consuming snapshot for the Premium App Info usage display. */
+export async function readPremiumVoiceUsage(
+  env: Env,
+  hashedAppUserId: string,
+  maxRequestsPerDay: number,
+): Promise<PremiumVoiceUsage | null> {
+  try {
+    const id = env.VOICE_CREDITS.idFromName(hashedAppUserId);
+    const response = await env.VOICE_CREDITS.get(id).fetch(
+      `https://ledger/quotaStatus?day=${maxRequestsPerDay}`,
+      { method: 'POST' },
+    );
+    return response.ok ? await response.json() as PremiumVoiceUsage : null;
+  } catch { return null; }
 }
 
 export async function commitAudioDuration(env: Env, hashedAppUserId: string, durationMs: number, tier: 'basic' | 'premium' = 'premium'): Promise<QuotaDecision | null> {

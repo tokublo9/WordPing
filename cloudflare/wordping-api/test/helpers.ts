@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import type { Env } from '../src/env';
 import { BASIC_LIFETIME_VOICE_CREDITS, applyCardOp, applyLedgerOp, type CardBalanceState, type LedgerOp, type LedgerState } from '../src/lifetimeCredits';
-import { applyAudioDuration, applyVoiceQuota, type VoiceQuotaState } from '../src/monthlyQuota';
+import { applyAudioDuration, applyVoiceQuota, describePremiumVoiceUsage, type VoiceQuotaState } from '../src/monthlyQuota';
 import { APP_USER_ID_HEADER, INSTALL_ID_HEADER } from '../src/identity';
 
 /**
@@ -93,6 +93,10 @@ export class FakeCreditLedger {
         const parsed = new URL(url);
         const op = parsed.pathname.slice(1);
         const key = parsed.searchParams.get('key') ?? '';
+        if (op === 'quotaStatus') {
+          const dayLimit = Number(parsed.searchParams.get('day'));
+          return Response.json(describePremiumVoiceUsage(this.quotaStates.get(name), Date.now(), dayLimit));
+        }
         if (op === 'quotaAudioCommit' || op === 'quotaAudioPeek') {
           const durationMs = op === 'quotaAudioPeek' ? 0 : Number(parsed.searchParams.get('durationMs'));
           const tier = parsed.searchParams.get('tier') === 'basic' ? 'basic' : 'premium';
