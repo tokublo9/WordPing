@@ -39,9 +39,56 @@ function speak(path = '/v1/voice/card', body: unknown = { text: 'hello', voice: 
 }
 
 describe('the grant', () => {
+  it('uses a card slot once even when the same card is generated again', async () => {
+    const { calls } = mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(BASIC) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    const env = makeEnv();
+    const name = await ledgerName(env);
+    const first = await handleRequest(speak('/v1/voice/card', {
+      cardId: 'card-1', text: 'hello', voice: 'marin',
+    }), env, makeCtx());
+    const second = await handleRequest(speak('/v1/voice/card', {
+      cardId: 'card-1', text: 'edited hello', voice: 'cedar',
+    }), env, makeCtx());
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(calls.filter(call => call.url.includes('/audio/speech')).map(call =>
+      JSON.parse(String(call.init.body)).voice,
+    )).toEqual(['marin', 'marin']);
+    expect(Object.keys(env.VOICE_CREDITS.cardStates.get(name)?.grantedCards ?? {})).toHaveLength(1);
+    const balance = await handleRequest(makeRequest('/v1/voice/credits', {
+      body: { mode: 'cards' },
+    }), env, makeCtx());
+    await expect(balance.json()).resolves.toMatchObject({ tier: 'basic', remaining: 9 });
+  });
+
+  it('generates ten distinct card fronts and refuses the eleventh before OpenAI', async () => {
+    const { calls } = mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(BASIC) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    const env = makeEnv();
+    for (let index = 0; index < 10; index++) {
+      const response = await handleRequest(speak('/v1/voice/card', {
+        cardId: `card-${index}`, text: `word-${index}`, voice: 'marin',
+      }), env, makeCtx());
+      expect(response.status).toBe(200);
+    }
+    const eleventh = await handleRequest(speak('/v1/voice/card', {
+      cardId: 'card-10', text: 'word-10', voice: 'marin',
+    }), env, makeCtx());
+    expect(eleventh.status).toBe(403);
+    await expect(eleventh.json()).resolves.toMatchObject({
+      error: 'voice_credits_exhausted', grant: 10, remaining: 0,
+    });
+    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(10);
+  });
+
   it('is a lifetime figure, not a monthly one', () => {
-    expect(BASIC_LIFETIME_VOICE_CREDITS).toBe(200);
-    expect(VOICE_LIFETIME_CREDITS.basic).toBe(200);
+    expect(BASIC_LIFETIME_VOICE_CREDITS).toBe(10);
+    expect(VOICE_LIFETIME_CREDITS.basic).toBe(10);
     // Premium is unmetered and Free has no access; neither has a balance.
     expect(VOICE_LIFETIME_CREDITS.premium).toBeNull();
     expect(VOICE_LIFETIME_CREDITS.free).toBe(0);
@@ -64,7 +111,22 @@ describe('the grant', () => {
 
     expect(response.status).toBe(200);
     // Granted, then immediately charged for the generation that triggered it.
-    expect(env.VOICE_CREDITS.remaining(await ledgerName(env))).toBe(199);
+    expect(env.VOICE_CREDITS.remaining(await ledgerName(env))).toBe(9);
+  });
+});
+
+describe('voice choices by tier', () => {
+  it('keeps Cedar available to Premium', async () => {
+    const { calls } = mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(PREMIUM) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    const response = await handleRequest(speak('/v1/voice/card', {
+      cardId: 'premium-card', text: 'hello', voice: 'cedar',
+    }), makeEnv(), makeCtx());
+    expect(response.status).toBe(200);
+    const speech = calls.find(call => call.url.includes('/audio/speech'));
+    expect(JSON.parse(String(speech?.init.body)).voice).toBe('cedar');
   });
 });
 
@@ -143,7 +205,7 @@ describe('an exhausted balance', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
       error: 'voice_credits_exhausted',
-      grant: 200,
+      grant: 10,
       remaining: 0,
     });
     // Refused costs nothing upstream.

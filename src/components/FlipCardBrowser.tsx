@@ -27,6 +27,7 @@ import { useWordCardVoicePlayback } from '../hooks/useWordCardVoicePlayback';
 import { CardResultAccessibilityLabel } from './CardResultAccessibilityLabel';
 import { HiddenWordIcon } from './HiddenWordIcon';
 import { isWordTextHidden } from '../features/cards/hideWordAccess';
+import { CARD_FLIP_ANIMATION_ENABLED } from '../features/flags';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_MARGIN     = (SCREEN_W - FLIP_CARD_W) / 2;
@@ -277,7 +278,7 @@ function FlipCardBrowserComponent({
     // Kick the native-driver animation off before touching the audio engine. The
     // stop still happens in this tap stack, but a synchronous native pause can no
     // longer delay animation startup and native player destruction is deferred.
-    Animated.timing(flipAnim, { toValue, duration: 350, useNativeDriver: true })
+    Animated.timing(flipAnim, { toValue, duration: CARD_FLIP_ANIMATION_ENABLED ? 350 : 0, useNativeDriver: true })
       .start(({ finished }) => {
         if (finished && mountedRef.current) setFlipped(f => !f);
       });

@@ -1,371 +1,275 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_LIMITS, FEATURE_TIER } from '../src/config';
-import { VOICE_LIFETIME_CREDITS, VOICE_QUOTA_FEATURES } from '../src/planLimits';
+import { DEFAULT_LIMITS } from '../src/config';
 import { privacyHash } from '../src/identity';
 import { handleRequest } from '../src/index';
-import { reserveMonthlyQuota } from '../src/monthlyQuota';
-import { VOICE_MONTHLY_LIMITS, monthKey, monthResetsAt } from '../src/planLimits';
-import {
-  chatCompletion,
-  FUTURE_DATE,
-  makeCtx,
-  makeEnv,
-  makeRequest,
-  mockFetch,
-  revenueCatSubscriber,
-  settle,
-  wavBody,
-} from './helpers';
+import { audioDurationMs } from '../src/audioDuration';
+import { applyAudioDuration, applyVoiceQuota, reserveMonthlyQuota } from '../src/monthlyQuota';
+import { BASIC_MONTHLY_AUDIO_MS, PREMIUM_MONTHLY_AUDIO_MS, VOICE_MONTHLY_LIMITS, VOICE_QUOTA_FEATURES } from '../src/planLimits';
+import { FUTURE_DATE, makeCtx, makeEnv, makeRequest, mockFetch, revenueCatSubscriber, wavBody } from './helpers';
 
-/**
- * Monthly High-Quality AI Voice allowance, enforced after RevenueCat
- * verification.
- *
- * NO TIER IS METERED BY THE MONTH. Premium is sold as included, so its limit is
- * null. Basic's 200 are a one-time lifetime grant with its own module and its
- * own tests (lifetimeCredits) — deliberately not this counter, which resets
- * every month. VOICE_QUOTA_FEATURES is empty, so nothing routes here at all.
- *
- * The machinery below is therefore dormant rather than deleted: it is what a
- * future genuinely-monthly plan would switch back on, and the tests here pin
- * the two things that still have to hold — that nothing opens a counter, and
- * that a zero limit refuses without spending anything.
- *
- * A client-supplied plan or usage figure is still never read.
- */
+const SUBSCRIBER = '$RCAnonymousID:abc123def456';
 
-function upstreams(entitlements: Record<string, string | null>) {
-  return [
-    { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(entitlements) },
+afterEach(() => vi.useRealTimers());
+
+function premiumUpstreams() {
+  return mockFetch([
+    { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
     { match: '/audio/speech', respond: () => wavBody() },
-    { match: '/chat/completions', respond: () => chatCompletion('meaning') },
-  ];
+  ]);
 }
 
-const BASIC = { basic: FUTURE_DATE };
-const PREMIUM = { premium: FUTURE_DATE };
-const DEFAULT_APP_USER_ID = '$RCAnonymousID:abc123def456';
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-async function monthlyUsageKey(
-  env: ReturnType<typeof makeEnv>,
-  appUserId: string,
-  now: number,
-): Promise<string> {
-  const hashedAppUserId = await privacyHash(env, 'rcuser', appUserId);
-  return `quota:${monthKey(now)}:${hashedAppUserId}`;
+async function card(env: ReturnType<typeof makeEnv>, appUserId = SUBSCRIBER) {
+  return handleRequest(makeRequest('/v1/voice/card', {
+    appUserId, body: { text: 'hello', voice: 'marin' },
+  }), env, makeCtx());
 }
 
-/** Drives one metered request and returns its status. */
-async function call(env: ReturnType<typeof makeEnv>, path = '/v1/voice/card', body?: unknown) {
-  const response = await handleRequest(
-    makeRequest(path, { body: body ?? { text: 'hello', voice: 'marin' } }),
-    env,
-    makeCtx(),
-  );
-  return response;
-}
-
-describe('monthly limits are centrally defined', () => {
-  it('gives no tier a monthly product quota', () => {
-    // Zero here means "no *monthly* allowance", not "no feature": Basic's
-    // access is VOICE_LIFETIME_CREDITS, which this counter never sees.
-    expect(VOICE_MONTHLY_LIMITS).toEqual({ free: 0, basic: 0, premium: null });
-    expect(VOICE_LIFETIME_CREDITS).toEqual({ free: 0, basic: 200, premium: null });
-    // Basic may reach the route; the credit ledger decides whether it proceeds.
-    expect(FEATURE_TIER.voice_card).toBe('basic');
-    expect(FEATURE_TIER.voice_sample).toBe('basic');
-    // Nothing is routed through the monthly counter any more.
-    expect(VOICE_QUOTA_FEATURES).toEqual([]);
+describe('Premium AI Voice budget', () => {
+  it('defines 200 per UTC day and 400 per UTC month', () => {
+    expect(DEFAULT_LIMITS.voice_card.premium.maxRequestsPerDay).toBe(200);
+    expect(VOICE_MONTHLY_LIMITS.premium).toBe(400);
+    expect(VOICE_QUOTA_FEATURES).toEqual(['voice_card']);
+    expect(PREMIUM_MONTHLY_AUDIO_MS).toBe(30 * 60_000);
+    expect(BASIC_MONTHLY_AUDIO_MS).toBe(90_000);
   });
 
-  it('keeps Premium at the requested 20/minute and 300/day abuse limits', () => {
-    expect(DEFAULT_LIMITS.voice_card.premium).toMatchObject({
-      maxRequestsPerMinute: 20,
-      maxRequestsPerDay: 300,
+  it('measures generated WAV and MP3 audio rather than card text or cached playback', async () => {
+    const wav = await wavBody(1_000).arrayBuffer();
+    expect(audioDurationMs(wav, 'wav')).toBe(1_000);
+    new DataView(wav).setUint32(40, 0xffffffff, true);
+    expect(audioDurationMs(wav, 'wav')).toBe(1_000);
+    const mp3 = new Uint8Array(417 * 10);
+    for (let at = 0; at < mp3.length; at += 417) mp3.set([0xff, 0xfb, 0x90, 0x00], at);
+    expect(audioDurationMs(mp3.buffer, 'mp3')).toBeGreaterThan(250);
+    expect(audioDurationMs(new Uint8Array(64).buffer, 'wav')).toBeNull();
+  });
+
+  it('stops at 30 minutes of generated audio and resets at the next UTC month', () => {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    const state = { ...applyVoiceQuota(undefined, now, 0, false).next,
+      monthAudioMs: PREMIUM_MONTHLY_AUDIO_MS - 1_000 };
+    const last = applyAudioDuration(state, now, 1_000);
+    expect(last.decision.allowed).toBe(true);
+    expect(last.next.monthAudioMs).toBe(PREMIUM_MONTHLY_AUDIO_MS);
+    expect(applyVoiceQuota(last.next, now, 5, true).decision).toMatchObject({
+      allowed: false, window: 'month', reason: 'duration', limit: PREMIUM_MONTHLY_AUDIO_MS,
+    });
+    const nextMonth = Date.parse('2026-10-01T00:00:00.000Z');
+    expect(applyVoiceQuota(last.next, nextMonth, 5, true).decision.allowed).toBe(true);
+    expect(applyVoiceQuota(last.next, nextMonth, 5, true).next.monthAudioMs).toBe(0);
+  });
+
+  it('marks the month exhausted when the next clip cannot fit, avoiding repeated paid attempts', () => {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    const state = { ...applyVoiceQuota(undefined, now, 0, false).next,
+      monthAudioMs: PREMIUM_MONTHLY_AUDIO_MS - 500 };
+    const rejected = applyAudioDuration(state, now, 1_000);
+    expect(rejected.decision).toMatchObject({ allowed: false, reason: 'duration', used: PREMIUM_MONTHLY_AUDIO_MS - 500 });
+    expect(rejected.next.monthAudioExhausted).toBe(true);
+    expect(applyVoiceQuota(rejected.next, now, 5, true).decision.reason).toBe('duration');
+  });
+
+  it('gives Basic 90 seconds per UTC month without burning its one-time card slots', () => {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    const state = { ...applyVoiceQuota(undefined, now, 0, false).next,
+      monthBasicAudioMs: BASIC_MONTHLY_AUDIO_MS - 500 };
+    const rejected = applyAudioDuration(state, now, 1_000, 'basic');
+    expect(rejected.decision).toMatchObject({ allowed: false, reason: 'duration', limit: 90_000 });
+    expect(rejected.next.monthBasicAudioExhausted).toBe(true);
+    expect(applyAudioDuration(rejected.next, now, 0, 'basic').decision.allowed).toBe(false);
+    // A mid-month upgrade does not inherit the smaller Basic stop flag.
+    expect(applyVoiceQuota(rejected.next, now, 5, true).decision.allowed).toBe(true);
+    expect(applyVoiceQuota(rejected.next, now, 5, true).next.monthAudioMs).toBe(0);
+    expect(applyAudioDuration({ ...state, monthBasicAudioMs: 0,
+      monthAudioMs: PREMIUM_MONTHLY_AUDIO_MS }, now, 1_000, 'basic').decision.allowed).toBe(true);
+    const nextMonth = Date.parse('2026-10-01T00:00:00.000Z');
+    expect(applyAudioDuration(rejected.next, nextMonth, 1_000, 'basic').decision.allowed).toBe(true);
+  });
+
+  it('accepts the 200th generation and defers the 201st until the next UTC day', () => {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    const base = applyVoiceQuota(undefined, now, 5, true).next;
+    const before = { ...base, minuteUsed: 0, dayUsed: 199, monthUsed: 199 };
+    const last = applyVoiceQuota(before, now, 5, true);
+    expect(last.decision.allowed).toBe(true);
+    expect(last.next.dayUsed).toBe(200);
+    const blocked = applyVoiceQuota(last.next, now, 5, true);
+    expect(blocked.decision).toMatchObject({ allowed: false, window: 'day', limit: 200, used: 200,
+      resetsAt: '2026-09-19T00:00:00.000Z' });
+    const tomorrow = applyVoiceQuota(blocked.next, Date.parse('2026-09-19T00:00:00.000Z'), 5, true);
+    expect(tomorrow.decision.allowed).toBe(true);
+    expect(tomorrow.next.dayUsed).toBe(1);
+    expect(tomorrow.next.monthUsed).toBe(201);
+  });
+
+  it('accepts the 400th generation and defers the 401st until the next UTC month', () => {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    const base = applyVoiceQuota(undefined, now, 5, true).next;
+    const before = { ...base, minuteUsed: 0, dayUsed: 10, monthUsed: 399 };
+    const last = applyVoiceQuota(before, now, 5, true);
+    expect(last.decision.allowed).toBe(true);
+    const blocked = applyVoiceQuota(last.next, now, 5, true);
+    expect(blocked.decision).toMatchObject({ allowed: false, window: 'month', limit: 400, used: 400,
+      resetsAt: '2026-10-01T00:00:00.000Z' });
+    expect(applyVoiceQuota(blocked.next, Date.parse('2026-10-01T00:00:00.000Z'), 5, true).decision.allowed).toBe(true);
+  });
+
+  it('serializes reservations per subscriber and keeps separate accounts separate', async () => {
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    const other = await privacyHash(env, 'rcuser', 'another-subscriber');
+    const now = Date.now();
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, now, 0, false).next,
+      dayUsed: 199, monthUsed: 399,
+    });
+    const results = await Promise.all([
+      reserveMonthlyQuota(env, { tier: 'premium', hashedAppUserId: identity, characters: 5 }),
+      reserveMonthlyQuota(env, { tier: 'premium', hashedAppUserId: identity, characters: 5 }),
+    ]);
+    expect(results.filter(result => result?.allowed)).toHaveLength(1);
+    expect(results.find(result => !result?.allowed)?.window).toBe('month');
+    expect((await reserveMonthlyQuota(env, { tier: 'premium', hashedAppUserId: other }))?.allowed).toBe(true);
+    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
+  });
+
+  it('rejects an exhausted Premium request before OpenAI and reports the reset', async () => {
+    const { calls } = premiumUpstreams();
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      dayUsed: 0, monthUsed: 400,
+    });
+    const response = await card(env);
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'monthly_api_limit_reached', tier: 'premium', limit: 400, used: 400,
+    });
+    expect(calls.some(call => call.url.includes('/audio/speech'))).toBe(false);
+  });
+
+  it('returns a monthly duration error after generating a clip that would exceed 30 minutes', async () => {
+    const { calls } = premiumUpstreams();
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      monthAudioMs: PREMIUM_MONTHLY_AUDIO_MS - 1,
+    });
+    const response = await card(env);
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'monthly_api_limit_reached', reason: 'duration',
+      limit: PREMIUM_MONTHLY_AUDIO_MS,
+    });
+    expect(calls.some(call => call.url.includes('/audio/speech'))).toBe(true);
+    const retry = await card(env);
+    expect(retry.status).toBe(429);
+    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
+  });
+
+  it('accepts legacy MP3 card requests and meters their encoded audio duration', async () => {
+    const mp3 = new Uint8Array(417 * 10);
+    for (let at = 0; at < mp3.length; at += 417) mp3.set([0xff, 0xfb, 0x90, 0x00], at);
+    mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => new Response(mp3, {
+        headers: { 'Content-Type': 'audio/mpeg', 'Content-Length': String(mp3.length) },
+      }) },
+    ]);
+    const env = makeEnv();
+    const response = await handleRequest(makeRequest('/v1/voice/card', {
+      appUserId: SUBSCRIBER, body: { text: 'hello', voice: 'marin', format: 'mp3' },
+    }), env, makeCtx());
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('audio/mpeg');
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    expect(env.VOICE_CREDITS.quotaStates.get(identity)?.monthAudioMs).toBeGreaterThan(250);
+  });
+
+  it('shares the 30-minute budget with standalone Premium text-to-speech', async () => {
+    const { calls } = premiumUpstreams();
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      monthAudioMs: PREMIUM_MONTHLY_AUDIO_MS - 1,
+    });
+    const custom = await handleRequest(makeRequest('/v1/voice/custom', {
+      appUserId: SUBSCRIBER, body: { text: 'hello', voice: 'marin' },
+    }), env, makeCtx());
+    expect(custom.status).toBe(429);
+    await expect(custom.json()).resolves.toMatchObject({ error: 'monthly_api_limit_reached', reason: 'duration' });
+    const cardResponse = await card(env);
+    expect(cardResponse.status).toBe(429);
+    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
+  });
+
+  it('does not deliver two concurrent clips across the final second of the monthly budget', async () => {
+    mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => wavBody(1_000) },
+    ]);
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      monthAudioMs: PREMIUM_MONTHLY_AUDIO_MS - 1_000,
+    });
+    const responses = await Promise.all([0, 1].map(() => handleRequest(makeRequest('/v1/voice/custom', {
+      appUserId: SUBSCRIBER, body: { text: 'hello', voice: 'marin' },
+    }), env, makeCtx())));
+    expect(responses.map(response => response.status).sort()).toEqual([200, 429]);
+    expect(env.VOICE_CREDITS.quotaStates.get(identity)?.monthAudioMs).toBe(PREMIUM_MONTHLY_AUDIO_MS);
+  });
+
+  it('returns a daily Retry-After for the 201st generation', async () => {
+    const { calls } = premiumUpstreams();
+    const env = makeEnv();
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      dayUsed: 200, monthUsed: 200,
+    });
+    const response = await card(env);
+    expect(response.status).toBe(429);
+    expect(Number(response.headers.get('Retry-After'))).toBeGreaterThan(0);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'rate_limit_exceeded', scope: 'account', window: 'day', limit: 200,
+    });
+    expect(calls.some(call => call.url.includes('/audio/speech'))).toBe(false);
+  });
+
+  it('meters Basic audio duration without applying the Premium generation count', async () => {
+    mockFetch([
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
+      { match: '/audio/speech', respond: () => wavBody() },
+    ]);
+    const env = makeEnv();
+    expect((await card(env)).status).toBe(200);
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    expect(env.VOICE_CREDITS.quotaStates.get(identity)).toMatchObject({
+      monthBasicAudioMs: 10, dayUsed: 0, monthUsed: 0,
     });
   });
 
-  it('accounts by UTC calendar month', () => {
-    expect(monthKey(Date.parse('2026-08-19T23:59:59Z'))).toBe('2026-08');
-    expect(monthKey(Date.parse('2026-09-01T00:00:00Z'))).toBe('2026-09');
-    expect(monthResetsAt(Date.parse('2026-08-19T10:00:00Z'))).toBe('2026-09-01T00:00:00.000Z');
-    // December must roll into the next year.
-    expect(monthResetsAt(Date.parse('2026-12-31T23:00:00Z'))).toBe('2027-01-01T00:00:00.000Z');
-  });
-});
-
-describe('quota enforcement', () => {
-  it('a Free user cannot reach a metered route at all', async () => {
-    const { calls } = mockFetch(upstreams({}));
-    const response = await call(makeEnv());
-    // Refused at the entitlement gate, before quota is even considered.
-    expect(response.status).toBe(403);
-    expect(calls.some(c => c.url.includes('openai.com'))).toBe(false);
-  });
-
-  it('the only entitled tier is unmetered, so a granted request opens no counter', async () => {
-    // The replacement for the old 199/200/201 walk. That sequence needed a
-    // metered tier that could also reach the route, and no tier is both today.
-    mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-    expect((await call(env)).status).toBe(200);
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('a zero-limit tier is refused without spending or writing anything', async () => {
-    // Driven directly, because the entitlement gate stops these tiers before the
-    // reservation is reached. This is the branch a future metered plan revives.
-    const env = makeEnv();
-    for (const tier of ['free', 'basic'] as const) {
-      const decision = await reserveMonthlyQuota(env, { tier, hashedAppUserId: 'hashed' }, 'req');
-      expect(decision.allowed, `${tier} has no allowance to spend`).toBe(false);
-      expect(decision.limit).toBe(0);
-      expect(decision.used).toBe(0);
-      expect(Date.parse(decision.resetsAt)).toBeGreaterThan(Date.now());
-    }
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('Premium has no monthly product quota', () => {
-    expect(VOICE_MONTHLY_LIMITS.premium).toBeNull();
-  });
-
-  it('Premium is never rejected with monthly_api_limit_reached', async () => {
-    mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-    await env.WORDPING_KV.put(
-      'config:limits',
-      JSON.stringify({ voice_card: { premium: { maxRequestsPerMinute: 100000, maxRequestsPerDay: 100000, maxCharsPerDay: 100000000 } } }),
-    );
-
-    // Far past the old 1,000 ceiling.
-    for (let i = 0; i < 120; i += 1) {
-      expect((await call(env)).status).toBe(200);
-    }
-    // And no counter is kept for Premium at all.
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('Premium remains subject to authentication and short-term rate limits', async () => {
-    mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-
-    // No identity headers: refused regardless of plan.
-    const unauthenticated = await handleRequest(
-      makeRequest('/v1/voice/card', { body: { text: 'hi', voice: 'marin' }, appUserId: null }),
-      env,
-      makeCtx(),
-    );
-    expect(unauthenticated.status).toBe(400);
-
-    // voice_card premium allows 20/min; the 21st is rate limited.
-    for (let i = 0; i < 20; i += 1) expect((await call(env)).status).toBe(200);
-    const limited = await call(env);
-    expect(limited.status).toBe(429);
-    await expect(limited.json()).resolves.toMatchObject({ error: 'rate_limit_exceeded' });
-  });
-
-  it('an exhausted reservation reports limit, used and resetsAt and leaks nothing', async () => {
-    // Over HTTP this payload is currently unreachable — no tier is both entitled
-    // and metered — so the refusal shape is pinned at the reservation itself.
-    const env = makeEnv();
-    const key = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, Date.now());
-    await env.WORDPING_KV.put(key, '200');
-    const hashedAppUserId = await privacyHash(env, 'rcuser', DEFAULT_APP_USER_ID);
-
-    const decision = await reserveMonthlyQuota(env, { tier: 'basic', hashedAppUserId }, 'req');
-    expect(decision.allowed).toBe(false);
-    expect(decision.limit).toBe(0);
-    expect(typeof decision.resetsAt).toBe('string');
-    expect(Date.parse(decision.resetsAt)).toBeGreaterThan(Date.now());
-    // The refusal carries counters and a date, never a secret or an upstream body.
-    expect(JSON.stringify(decision)).not.toContain('sk-test');
-    expect(JSON.stringify(decision)).not.toContain('revenuecat');
-    // ...and it spends nothing: the seeded counter is untouched.
-    expect(await env.WORDPING_KV.get(key)).toBe('200');
-  });
-
-  it('the quota resets at the next monthly boundary', async () => {
-    // Pure key arithmetic, which is what the reset actually is: a new UTC month
-    // means a different counter key, so the allowance is whole again.
-    const env = makeEnv();
-    const augustNow = Date.parse('2026-08-19T10:00:00.000Z');
-    const augustKey = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, augustNow);
-    await env.WORDPING_KV.put(augustKey, '200');
-
-    const septemberNow = Date.parse(monthResetsAt(augustNow));
-    const septemberKey = await monthlyUsageKey(env, DEFAULT_APP_USER_ID, septemberNow);
-    expect(augustKey).toContain('2026-08');
-    expect(septemberKey).toContain('2026-09');
-    expect(septemberKey).not.toBe(augustKey);
-    expect(await env.WORDPING_KV.get(septemberKey)).toBeNull();
-    expect(await env.WORDPING_KV.get(augustKey)).toBe('200');
-  });
-});
-
-describe('the quota cannot be gamed from the client', () => {
-  it('ignores a client-supplied plan, tier or usage figure', async () => {
-    const { calls } = mockFetch(upstreams({}));
-    const response = await handleRequest(
-      makeRequest('/v1/voice/card', {
-        body: {
-          text: 'hello', voice: 'marin',
-          plan: 'premium', tier: 'premium', isPremium: true,
-          monthlyLimit: 999999, used: 0, remaining: 999999,
-        },
-      }),
-      makeEnv(),
-      makeCtx(),
-    );
-    expect(response.status).toBe(403);
-    expect(calls.some(c => c.url.includes('openai.com'))).toBe(false);
-  });
-
-  it('an unverifiable entitlement receives no paid quota', async () => {
+  it('defers Basic card audio at 90 seconds and releases its card credit', async () => {
     mockFetch([
-      { match: 'api.revenuecat.com', respond: () => new Response('{}', { status: 500 }) },
+      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ basic: FUTURE_DATE }) },
       { match: '/audio/speech', respond: () => wavBody() },
     ]);
-    const response = await call(makeEnv());
-    expect(response.status).toBe(503);
-  });
-
-  it('an expired entitlement receives no paid quota', async () => {
-    mockFetch(upstreams({ basic: new Date(Date.now() - 1000).toISOString() }));
-    expect((await call(makeEnv())).status).toBe(403);
-  });
-});
-
-describe('what is not counted', () => {
-  it('health checks never touch the counter', async () => {
     const env = makeEnv();
-    await handleRequest(makeRequest('/v1/health', { method: 'GET' }), env, makeCtx());
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('malformed and unauthorised requests are not counted', async () => {
-    mockFetch(upstreams(BASIC));
-    const env = makeEnv();
-    // Malformed body.
-    await handleRequest(makeRequest('/v1/voice/card', { rawBody: '{ broken' }), env, makeCtx());
-    // Missing identity headers.
-    await handleRequest(makeRequest('/v1/voice/card', { body: { text: 'x', voice: 'marin' }, installId: null }), env, makeCtx());
-    // Unsupported voice.
-    await handleRequest(makeRequest('/v1/voice/card', { body: { text: 'x', voice: 'nope' } }), env, makeCtx());
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('an entitlement-verification failure is not counted', async () => {
-    mockFetch([{ match: 'api.revenuecat.com', respond: () => new Response('{}', { status: 502 }) }]);
-    const env = makeEnv();
-    await call(env);
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('a rate-limited request is refused by the short-term limiter, not the counter', async () => {
-    mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-    // voice_card premium allows 20/min; the 21st is rate limited. With no tier
-    // metered, the per-minute and per-day limits are the live protection.
-    for (let i = 0; i < 20; i += 1) expect((await call(env)).status).toBe(200);
-
-    const limited = await call(env);
-    expect(limited.status).toBe(429);
-    await expect(limited.json()).resolves.toMatchObject({ error: 'rate_limit_exceeded' });
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('voice-picker previews never count, and cached replay avoids OpenAI', async () => {
-    const { calls } = mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-
-    const first = makeCtx();
-    const miss = await handleRequest(makeRequest('/v1/voice/sample', { body: { voice: 'marin' } }), env, first);
-    expect(miss.headers.get('X-WordPing-Cache')).toBe('miss');
-    await miss.arrayBuffer();
-    await settle(first);
-
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
-
-    const hit = await handleRequest(makeRequest('/v1/voice/sample', { body: { voice: 'marin' } }), env, makeCtx());
-    expect(hit.headers.get('X-WordPing-Cache')).toBe('hit');
-    // Served from KV, so it remains quota-free and makes no second OpenAI call.
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(1);
-  });
-
-  it('an upstream OpenAI failure is reported without a stack trace or a retry', async () => {
-    // This used to assert the failure still spent a monthly unit, so a
-    // deliberately-failing request could not loop for free. With no tier
-    // metered there is no unit to spend: the per-minute and per-day limits in
-    // ratelimit.ts are what bound the loop now, and the Worker never retries.
-    const { calls } = mockFetch([
-      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber(PREMIUM) },
-      { match: '/audio/speech', respond: () => new Response('{}', { status: 500 }) },
-    ]);
-    const env = makeEnv();
-    const response = await call(env);
-    expect(response.status).toBe(502);
-    // One upstream attempt, never a retry — a timeout is indistinguishable from
-    // a slow success and a retry risks billing twice.
-    expect(calls.filter(c => c.url.includes('/audio/speech'))).toHaveLength(1);
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-});
-
-describe('concurrency', () => {
-  it('a burst of granted requests still opens no counter', async () => {
-    // The old test bounded the overshoot of a read-modify-write counter under a
-    // burst. Without a metered tier there is no counter to overshoot; what must
-    // still hold is that a burst neither creates one nor escapes the limiter.
-    mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-    const results = await Promise.all(Array.from({ length: 12 }, () => call(env)));
-    expect(results.every(r => r.status === 200 || r.status === 429)).toBe(true);
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-});
-
-describe('only the High-Quality AI Voice routes use the allowance', () => {
-  it('does not charge the voice allowance for the AI text routes', async () => {
-    // They are Premium-only and currently hidden, but must never draw on the
-    // Basic voice allowance if they are re-enabled.
-    for (const path of ['/v1/meaning', '/v1/breakdown', '/v1/translate', '/v1/examples']) {
-      mockFetch(upstreams(PREMIUM));
-      const env = makeEnv();
-      const response = await handleRequest(makeRequest(path, { body: { text: 'hello' } }), env, makeCtx());
-      expect(response.status).toBe(200);
-      expect(env.WORDPING_KV.keysStartingWith('quota:'), `${path} must not be metered`).toHaveLength(0);
-    }
-  });
-
-  it('does not charge the voice allowance for the standalone text-to-speech route', async () => {
-    mockFetch(upstreams(PREMIUM));
-    const env = makeEnv();
-    const response = await handleRequest(
-      makeRequest('/v1/voice/custom', { body: { text: 'hello', voice: 'marin' } }),
-      env,
-      makeCtx(),
-    );
-    expect(response.status).toBe(200);
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-  });
-
-  it('the hidden AI text routes stay entitlement-protected', async () => {
-    // Basic must not reach a Premium-only text route.
-    mockFetch(upstreams(BASIC));
-    for (const path of ['/v1/meaning', '/v1/breakdown', '/v1/translate', '/v1/examples']) {
-      const response = await handleRequest(
-        makeRequest(path, { body: { text: 'hello' } }),
-        makeEnv(),
-        makeCtx(),
-      );
-      expect(response.status, `${path} must stay Premium-only`).toBe(403);
-    }
+    const identity = await privacyHash(env, 'rcuser', SUBSCRIBER);
+    env.VOICE_CREDITS.quotaStates.set(identity, {
+      ...applyVoiceQuota(undefined, Date.now(), 0, false).next,
+      monthBasicAudioMs: BASIC_MONTHLY_AUDIO_MS - 1,
+    });
+    const response = await card(env);
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'monthly_api_limit_reached', tier: 'basic', reason: 'duration', limit: 90_000,
+    });
+    expect(env.VOICE_CREDITS.states.get(identity)?.remaining).toBe(10);
   });
 });

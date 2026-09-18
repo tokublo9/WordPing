@@ -11,14 +11,14 @@ import {
  * Eligibility is derived from the existing entitlement configuration rather
  * than restated: between them, `VOICE_MONTHLY_LIMITS` and
  * `VOICE_LIFETIME_CREDITS` already say that Premium is included outright, Basic
- * has a one-time grant, and Free has nothing. A plan added or repriced there
+ * has a one-time card-front grant, and Free has nothing. A plan repriced there
  * changes this rule automatically, and there is no second list of tier names to
  * fall out of step.
  *
  * Eligibility is not the same as a balance. This says Basic may make the
- * request; whether a credit remains is the server's answer, and an exhausted
- * balance comes back as `voice_credits_exhausted` rather than being predicted
- * here. The app never holds a credit count it could show wrongly.
+ * request; the card policy chooses which Basic fronts use it, and the server
+ * enforces the 10-card ledger. An 11th card receives
+ * `voice_credits_exhausted` if it reaches the server.
  *
  * This is the AI rule alone. Custom Voice is a local feature available on every
  * plan and reaches no network, so it is intentionally unrelated to this gate.
@@ -36,7 +36,7 @@ export function planCanUseAI(plan: PlanTier): boolean {
 }
 
 /**
- * Whether this plan's AI Voice is metered by the one-time credit ledger.
+ * Whether this plan's AI Voice uses the lifetime card ledger.
  *
  * Read from the same table `planCanUseAI` uses, and it is the *shape* of the
  * value that answers rather than a tier name: an actual count is a balance that

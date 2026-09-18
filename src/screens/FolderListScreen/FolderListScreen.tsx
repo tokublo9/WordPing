@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert } from '../../components/WordCoreAlert';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Folder, Palette, WordCard } from '../../types';
 import { appNow } from '../../lib/appClock';
@@ -87,6 +88,7 @@ export function FolderListScreen({
     }
     return metrics;
   }, [cards]);
+  const folderIdsWithCards = useMemo(() => new Set(cards.map(card => card.folderId)), [cards]);
 
   const renderFolderItem = useCallback(({ item }: { item: Folder }) => {
     const { count, untestedCount } = folderMetrics.get(item.id) ?? { count: 0, untestedCount: 0 };
@@ -103,6 +105,7 @@ export function FolderListScreen({
         onPress={() => actions.onOpenFolder(item.id)}
         onEdit={() => actions.onEditFolder(item)}
         onDelete={() => actions.onDeleteFolder(item.id)}
+        deleteCardsWithFolder={folderIdsWithCards.has(item.id)}
         selectionMode={selection.active}
         selected={selection.selectedIds.has(item.id)}
         onToggleSelect={() => selection.onToggle(item.id)}
@@ -113,10 +116,23 @@ export function FolderListScreen({
     );
   // Stable deps: callbacks and primitives only. cards/folders trigger re-renders via FlatList data.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pal, themeColor, showLevelLabels, selection.active, selection.selectedIds, onFolderOpen, actions, folderMetrics]);
+  }, [pal, themeColor, showLevelLabels, selection.active, selection.selectedIds, onFolderOpen, actions, folderMetrics, folderIdsWithCards]);
 
   // ── Header ───────────────────────────────────────────────────────────────────
   const allFoldersSelected = folders.length > 0 && selection.selectedIds.size === folders.length;
+  const deleteSelectedWithConfirm = () => {
+    const deletesCards = allFoldersSelected
+      ? cards.length > 0
+      : cards.some(card => Boolean(card.folderId && selection.selectedIds.has(card.folderId)));
+    if (!deletesCards) {
+      selection.onDelete();
+      return;
+    }
+    Alert.alert(t('delete_folder'), t('delete_folder_cards_confirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: selection.onDelete },
+    ]);
+  };
   const header = selection.active ? (
     <View style={s.header}>
       <Text style={[s.title, { color: pal.text, fontSize: 20 }]}>
@@ -212,7 +228,7 @@ export function FolderListScreen({
         <View style={[selStyles.bar, { backgroundColor: pal.dialog, borderTopColor: pal.border }]}>
           <TouchableOpacity
             style={selStyles.barBtn}
-            onPress={selection.onDelete}
+            onPress={deleteSelectedWithConfirm}
             disabled={selection.selectedIds.size === 0}
           >
             <Ionicons

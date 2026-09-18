@@ -1,4 +1,5 @@
-import { ActivityIndicator, Alert, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Linking, Modal, PanResponder, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { WordCoreAlert as Alert, WordCoreAlertHost } from './WordCoreAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -14,6 +15,7 @@ import { AdBannerPlaceholder } from './AdBannerPlaceholder';
 import { BackupSection } from './BackupSection';
 import {
   AI_TEXT_FEATURES_ENABLED,
+  CARD_FLIP_ANIMATION_ENABLED,
   FLIP_MODE_ENABLED,
 } from '../features/flags';
 import { canUseBackup } from '../features/backup/backupAccess';
@@ -124,6 +126,8 @@ interface Props {
   onPickLanguage: (code: string) => void;
   aiVoice: AIVoice;
   onPickAIVoice: (voice: AIVoice) => void;
+  premiumBackVoice: boolean;
+  onTogglePremiumBackVoice: (enabled: boolean) => void;
   cardViewMode: 'list' | 'flip';
   onChangeCardViewMode: (mode: 'list' | 'flip') => void;
   showFullCard: boolean;
@@ -165,7 +169,7 @@ export function SettingsModal({
   onUpgrade: _onUpgrade,
   onSubscribe, onSubscribePremium, onRestore, onManageSubscription,
   pal, language, sampleLanguage, voiceSampleLanguage, onPickLanguage,
-  aiVoice, onPickAIVoice,
+  aiVoice, onPickAIVoice, premiumBackVoice, onTogglePremiumBackVoice,
   cardViewMode, onChangeCardViewMode,
   showFullCard, onToggleShowFullCard,
   verticalFlip, onToggleVerticalFlip,
@@ -187,6 +191,17 @@ export function SettingsModal({
   const [appInfoVisible,   setAppInfoVisible]   = useState(false);
   const [voicePickerVisible, setVoicePickerVisible] = useState(false);
   const [aboutAIVoiceVisible, setAboutAIVoiceVisible] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const backupVisible = canUseBackup({ isPremium, isSubscriptionLoaded });
+  const handleRestore = useCallback(async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      await onRestore();
+    } finally {
+      setRestoring(false);
+    }
+  }, [onRestore, restoring]);
   const announcementReadState = useAnnouncementReadState(isFirstLaunch);
   // Mounted content and native Modal visibility are deliberately separate.
   // The content stays mounted throughout the fade-out and is cleared only once
@@ -229,28 +244,24 @@ export function SettingsModal({
   const aboutAIVoiceIsNew = canUseAI && discovery.isNew(FEATURE_MARKERS.aboutAIVoice);
 
   useEffect(() => {
-    if (visible && canUseAI) return;
+    if (visible && isPremium) return;
     stopPlayback();
     setVoicePickerVisible(false);
-  }, [visible, canUseAI]);
+  }, [visible, isPremium]);
 
   // ── Appearance-disabled toast ─────────────────────────────────────────────
   const [hintShowing, setHintShowing] = useState(false);
   const hintAnim  = useRef(new Animated.Value(0)).current;  // 0=hidden, 1=visible
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dismissHint = useCallback(() => {
-    if (hintTimer.current) { clearTimeout(hintTimer.current); hintTimer.current = null; }
     Animated.timing(hintAnim, { toValue: 0, duration: 220, useNativeDriver: false })
       .start(({ finished }) => { if (finished) setHintShowing(false); });
   }, [hintAnim]);
 
   const showHint = useCallback(() => {
-    if (hintTimer.current) clearTimeout(hintTimer.current);
     setHintShowing(true);
     Animated.spring(hintAnim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: false }).start();
-    hintTimer.current = setTimeout(dismissHint, 2500);
-  }, [hintAnim, dismissHint]);
+  }, [hintAnim]);
 
   // PanResponder on the toast: swipe up ≥ 28 px to dismiss immediately
   const hintPan = useRef(PanResponder.create({
@@ -267,8 +278,6 @@ export function SettingsModal({
         dismissHint();
       } else {
         Animated.spring(hintAnim, { toValue: 1, tension: 100, friction: 8, useNativeDriver: false }).start();
-        if (hintTimer.current) clearTimeout(hintTimer.current);
-        hintTimer.current = setTimeout(dismissHint, 2500);
       }
     },
   })).current;
@@ -373,7 +382,6 @@ export function SettingsModal({
             <Ionicons name="chevron-forward" size={15} color={pal.sub} />
           </TouchableOpacity>
 
-          {/* ── Backup ────────────────────────────────────────────────────── */}
           {/* ── Announcements / Language ───────────────────────────────────── */}
           <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
@@ -408,11 +416,8 @@ export function SettingsModal({
           <View style={{ marginBottom: 12 }}>
             <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('card_behavior')}</Text>
           </View>
-          {/* The AI voice picker belongs to High-Quality AI Voice, which is
-              Premium. `canUseAI` is that rule; a plan check here could drift
-              from it, and a picker for a voice the plan cannot play is only a
-              locked feature with a preview button. */}
-          {canUseAI && (
+          {/* Basic always uses Marin. Premium can choose Marin or Cedar. */}
+          {isPremium && (
             <TouchableOpacity
               style={styles.cardBehaviorRow}
               onPress={() => {
@@ -464,6 +469,16 @@ export function SettingsModal({
               </View>
             </TouchableOpacity>
           )}
+          {isPremium && (
+            <ToggleRow
+              icon="volume-high-outline"
+              label={t('premium_back_voice')}
+              value={premiumBackVoice}
+              onToggle={onTogglePremiumBackVoice}
+              themeColor={themeColor}
+              pal={pal}
+            />
+          )}
           {/* Withheld rather than disabled while Word Flip is off: a switch
               that cannot move is a worse answer than no switch. The preference
               itself is untouched, so this row returns as it was. */}
@@ -487,21 +502,7 @@ export function SettingsModal({
             themeColor={themeColor}
             pal={pal}
           />
-          <ToggleRow
-            icon="swap-vertical-outline"
-            label={t('vertical_flip')}
-            info={t('vertical_flip_info')}
-            onShowInfo={showInfoPopup}
-            value={verticalFlip}
-            onToggle={onToggleVerticalFlip}
-            themeColor={themeColor}
-            pal={pal}
-          />
-          {/* "Hide AI" controls the AI text tools, which are temporarily hidden,
-              so the row would have nothing to act on. Rendering nothing at all
-              leaves no gap: ToggleRow owns its own spacing. The saved preference
-              is deliberately left untouched and applies again when the flag
-              returns. */}
+          {/* "Hide AI" is currently disabled with the AI text tools. */}
           {AI_TEXT_FEATURES_ENABLED && isPremium && (
             <ToggleRow
               label={t('hide_ai_tools')}
@@ -509,6 +510,46 @@ export function SettingsModal({
               onToggle={onToggleHideAiTools}
               themeColor={themeColor}
               pal={pal}
+            />
+          )}
+          {/* Keep the saved axis and this row for when flip animation returns. */}
+          {CARD_FLIP_ANIMATION_ENABLED && (
+            <ToggleRow
+              icon="swap-vertical-outline"
+              label={t('vertical_flip')}
+              info={t('vertical_flip_info')}
+              onShowInfo={showInfoPopup}
+              value={verticalFlip}
+              onToggle={onToggleVerticalFlip}
+              themeColor={themeColor}
+              pal={pal}
+            />
+          )}
+
+          {/* ── Purchases and Backup ────────────────────────────────────── */}
+          <View style={[styles.divider, { backgroundColor: pal.border }]} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => { void handleRestore(); }}
+            disabled={restoring}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={t('restore_purchases')}
+            accessibilityState={{ disabled: restoring, busy: restoring }}
+          >
+            <Ionicons name="refresh-outline" size={18} color={pal.sub} />
+            <Text style={[styles.rowLabel, { color: pal.text }]}>{t('restore_purchases')}</Text>
+            {restoring
+              ? <ActivityIndicator size="small" color={themeColor} />
+              : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
+          </TouchableOpacity>
+          {backupVisible && (
+            <BackupSection
+              pal={pal}
+              themeColor={themeColor}
+              onDataImported={onDataImported}
+              isPremium={isPremium}
+              isSubscriptionLoaded={isSubscriptionLoaded}
             />
           )}
 
@@ -594,10 +635,6 @@ export function SettingsModal({
           canUseAI={canUseAI}
           aboutAIVoiceIsNew={aboutAIVoiceIsNew}
           onOpenAboutAIVoice={openAboutAIVoice}
-          onRestore={onRestore}
-          isPremium={isPremium}
-          isSubscriptionLoaded={isSubscriptionLoaded}
-          onDataImported={onDataImported}
         />
 
         {/* Settings and everything it opens (the voice picker, the Upgrade
@@ -614,7 +651,7 @@ export function SettingsModal({
         <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
 
         <VoiceSelectionScreen
-          visible={voicePickerVisible}
+          visible={voicePickerVisible && isPremium}
           onClose={() => setVoicePickerVisible(false)}
           selectedVoice={aiVoice}
           onSelect={onPickAIVoice}
@@ -650,6 +687,8 @@ export function SettingsModal({
             </TouchableOpacity>
           </Animated.View>
         )}
+
+        <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
 
       </View>
     </Modal>
@@ -748,12 +787,17 @@ function VoiceSelectionScreen({
    */
   const reportPreviewFailure = useCallback((error: unknown) => {
     if (error instanceof Error && error.message === 'cancelled') return;
-    // A usage limit hit from the voice picker gets the same non-blocking banner
-    // as one hit from a card, so the two entry points do not disagree.
+    // Match the card player: a short burst shows an OK dialog, while longer
+    // usage windows remain passing notices.
     const limit = isAIRequestError(error) ? resolveAiVoiceLimit(error, Date.now()) : null;
     if (limit) {
       const { key, values } = buildAiVoiceLimitMessage(limit, language);
-      showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
+      const body = fillTemplate(t(key), values);
+      if (limit.reason === 'shortTerm') {
+        Alert.alert(t('ai_voice_unavailable'), body, [{ text: 'OK' }]);
+      } else {
+        showTopBanner({ id: `voice-limit:${key}`, message: body });
+      }
       return;
     }
     Alert.alert(t('ai_voice_unavailable'), t(previewFailureMessageKey(error)));
@@ -943,6 +987,7 @@ function VoiceSelectionScreen({
             user is actually looking at. Registered only while the picker is on
             screen, so closing it hands the question back to Settings. */}
         <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
+        <WordCoreAlertHost active={visible} priority={20} pal={pal} themeColor={themeColor} />
       </View>
     </Modal>
   );
@@ -950,9 +995,8 @@ function VoiceSelectionScreen({
 
 // ── App Info sheet ─────────────────────────────────────────────────────────────
 function AppInfoSheet({
-  visible, onClose, pal, themeColor, onRestore,
-  isPremium, isSubscriptionLoaded, canUseAI, aboutAIVoiceIsNew,
-  onOpenAboutAIVoice, onDataImported,
+  visible, onClose, pal, themeColor, canUseAI, aboutAIVoiceIsNew,
+  onOpenAboutAIVoice,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -961,44 +1005,15 @@ function AppInfoSheet({
   // `language` used to be taken so the analytics row could test for English or
   // Japanese and borrow other copy elsewhere. Every locale carries that copy
   // now, so nothing in this sheet reads the language tag.
-  /** The shared RevenueCat restore handler from useSubscription. */
-  onRestore: () => Promise<void>;
-  isPremium: boolean;
-  isSubscriptionLoaded: boolean;
   canUseAI: boolean;
   aboutAIVoiceIsNew: boolean;
   onOpenAboutAIVoice: () => void;
-  onDataImported: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
-  // Restore lives here rather than on the paywall so it stays reachable for
-  // Free, Basic and Premium alike — including a user whose entitlement was
-  // misdetected, who is exactly the person who needs it. It is deliberately
-  // outside the Backup section and its subscription gate.
-  const [restoring, setRestoring] = useState(false);
   const [analyticsInfoVisible, setAnalyticsInfoVisible] = useState(false);
   const [analyticsUpdating, setAnalyticsUpdating] = useState(false);
   const analyticsUpdateInFlight = useRef(false);
-  // Same entitlement rule the section itself applies, so the heading and its
-  // divider can never appear above an empty body.
-  const backupVisible = canUseBackup({ isPremium, isSubscriptionLoaded });
-  const handleRestore = useCallback(async () => {
-    // Guard against a second tap while a restore is already in flight. The
-    // shared handler refuses a concurrent one anyway and says so; this only
-    // stops the same button starting two.
-    if (restoring) return;
-    setRestoring(true);
-    try {
-      // The shared handler resolves once the outcome has been reported —
-      // restored, nothing found, or failed. This spinner is the only loading
-      // state for the row, so it cannot disagree with a second copy or be left
-      // running by an operation that never started.
-      await onRestore();
-    } finally {
-      setRestoring(false);
-    }
-  }, [onRestore, restoring]);
 
   // ── Analytics consent ───────────────────────────────────────────────────────
   // Reflects the stored preference rather than a local default. The popup is
@@ -1094,21 +1109,6 @@ function AppInfoSheet({
         <View style={styles.backBtn} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* The feature remains under its existing entitlement gate. Its handler
-            owns both discovery dismissal and the existing popup state. */}
-        {canUseAI && (
-          <>
-            <SettingRow
-              icon="mic-outline"
-              label={t('ai_voice_info_menu')}
-              badge={aboutAIVoiceIsNew}
-              themeColor={themeColor}
-              onPress={onOpenAboutAIVoice}
-              pal={pal}
-            />
-            <View style={[styles.divider, { backgroundColor: pal.border }]} />
-          </>
-        )}
         <SettingRow
           icon="star-outline"
           label={t('write_review')}
@@ -1123,59 +1123,17 @@ function AppInfoSheet({
           accessibilityRole="button"
           pal={pal}
         />
-        <View style={[styles.divider, { backgroundColor: pal.border }]} />
-        <View style={{ marginBottom: 12 }}>
-          <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('purchases_section')}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => { void handleRestore(); }}
-          disabled={restoring}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel={t('restore_purchases')}
-          accessibilityState={{ disabled: restoring, busy: restoring }}
-        >
-          <Ionicons name="refresh-outline" size={18} color={pal.sub} />
-          <Text style={[styles.rowLabel, { color: pal.text }]}>{t('restore_purchases')}</Text>
-          {restoring
-            ? <ActivityIndicator size="small" color={themeColor} />
-            : <Ionicons name="chevron-forward" size={15} color={pal.sub} />}
-        </TouchableOpacity>
-
-        {/* Backup & Restore — rendered only for an active Premium
-            entitlement. BackupSection returns null otherwise, so the heading and
-            divider are gated on the same check to avoid an empty section. */}
-        {backupVisible && (
-          <>
-            <View style={[styles.divider, { backgroundColor: pal.border }]} />
-            <View style={{ marginBottom: 12 }}>
-              <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('backup')}</Text>
-            </View>
-            <BackupSection
-              pal={pal}
-              themeColor={themeColor}
-              onDataImported={onDataImported}
-              isPremium={isPremium}
-              isSubscriptionLoaded={isSubscriptionLoaded}
-            />
-          </>
+        {/* The feature keeps its entitlement gate and discovery action. */}
+        {canUseAI && (
+          <SettingRow
+            icon="mic-outline"
+            label={t('ai_voice_info_menu')}
+            badge={aboutAIVoiceIsNew}
+            themeColor={themeColor}
+            onPress={onOpenAboutAIVoice}
+            pal={pal}
+          />
         )}
-
-        {/* ── Privacy ──────────────────────────────────────────────────────
-            One consent state controls product analytics and Session Replay
-            together: the SDK's opt-out drives both, so there is no way to end
-            up recording someone who turned sharing off. It sits next to the
-            Privacy Policy link, which describes the same processing.
-
-            Not gated on plan or entitlement — it is a privacy control, and it
-            has to be reachable for everyone. Turning it off touches nothing
-            else: no vocabulary, no purchase, no AI consent, no backup, no
-            notification setting. */}
-        <View style={[styles.divider, { backgroundColor: pal.border }]} />
-        <View style={{ marginBottom: 12 }}>
-          <Text style={[s.sectionLabel, { color: pal.sub, marginBottom: 0 }]}>{t('privacy_controls_section')}</Text>
-        </View>
         <SettingRow
           icon="stats-chart-outline"
           label={t('analytics_setting')}
@@ -1194,6 +1152,7 @@ function AppInfoSheet({
           onPress={() => void openExternal(CONTACT_MAIL)} />
         <SettingRow icon="library-outline" label={t('license')} pal={pal}
           onPress={() => void openExternal(LEGAL_URLS.licenses)} />
+
         <SettingRow icon="information-circle-outline" label={t('app_version')}
           value={APP_VERSION} pal={pal} />
       </ScrollView>

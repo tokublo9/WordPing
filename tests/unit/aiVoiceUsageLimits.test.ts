@@ -25,7 +25,7 @@ test('Basic monthly exhaustion is distinct from a network error and offers Premi
 
   assert.equal(exhausted.kind, 'monthly_limit_reached');
   assert.notEqual(exhausted.kind, offline.kind);
-  assert.equal(MESSAGE_KEY_BY_KIND[exhausted.kind], 'err_voice_limit_basic');
+  assert.equal(MESSAGE_KEY_BY_KIND[exhausted.kind], 'premium_voice_deferred_month');
   assert.deepEqual(exhausted.quota, quota);
   assert.equal(presentation.offerUpgrade, true);
   assert.equal(presentation.values.limit, '200');
@@ -65,18 +65,15 @@ test('the existing retry-later copy is available in English and Japanese', () =>
   );
 });
 
-test('the Basic allowance alert does not describe rate-limited Premium as unlimited', () => {
+test('the fallback allowance alert does not describe Premium as unlimited', () => {
   const i18n = fs.readFileSync('src/i18n.ts', 'utf8');
   assert.match(
     i18n,
-    /Premium has no such ceiling, but normal service limits apply\./u,
+    /You have reached the \{limit\}-generation AI Voice limit/u,
   );
-  // Japanese names the tier in katakana now — the plan-name audit removed the
-  // raw Latin from every non-English locale. The claim being pinned is the
-  // wording, not the spelling of the product name.
   assert.match(
     i18n,
-    /プレミアムには月間上限はありませんが、通常のサービス利用制限が適用されます。/u,
+    /AI音声生成の\{limit\}回の上限に達しました。枠の更新後にお試しください。/u,
   );
   assert.doesNotMatch(i18n, /Premium for unlimited access|Premiumにアップグレードすると無制限/u);
 });

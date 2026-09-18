@@ -10,4 +10,4 @@
  * The version string is the only way to confirm from outside which build is
  * live; a stale one makes it worse than useless.
  */
-export const WORKER_VERSION = '2026-09-05.immediate-ai-voice-preload.1';
+export const WORKER_VERSION = '2026-09-18.basic-10-card-voice.1';

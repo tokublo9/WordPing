@@ -2,11 +2,11 @@ import { VOICE_LIFETIME_CREDITS } from './planLimits';
 
 export interface VoiceCreditBalance {
   tier: 'basic' | 'premium';
-  /** Basic's one-time grant; null means Premium is unmetered. */
+  /** Basic's lifetime card grant; null means Premium is unmetered. */
   grant: number | null;
-  /** Successfully unspent Basic credits; null for Premium. */
+  /** Basic card slots not yet claimed; null for Premium. */
   remaining: number | null;
-  /** Credits not currently held by in-flight reservations; null for Premium. */
+  /** Card slots not claimed or reserved by in-flight work; null for Premium. */
   available: number | null;
 }
 
@@ -75,12 +75,4 @@ export function publishVoiceCreditHeaders(headers: Headers): void {
 export function subscribeToVoiceCreditBalance(listener: Listener): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
-}
-
-/** A Basic queue may start only while the authoritative snapshot has room. */
-export function canStartAutomaticVoiceGeneration(): boolean {
-  // Outstanding reservations can temporarily make `available` zero while a
-  // worker is still completing one of the remaining credits. The Durable
-  // Object serializes that edge; only a truly spent balance stops the queue.
-  return current?.tier !== 'basic' || current.remaining === null || current.remaining > 0;
 }

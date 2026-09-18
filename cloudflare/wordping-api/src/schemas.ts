@@ -38,13 +38,15 @@ const langCodeField = z.string().max(MAX_LANG_CODE_LENGTH).transform(value => va
 export const voiceCardSchema = z.object({
   text: inputText,
   voice: voiceField,
+  // Older installed clients omit this and keep their legacy request balance.
+  cardId: z.string().min(1).max(128).optional(),
   format: formatField,
   langCode: langCodeField,
 });
 export type VoiceCardRequest = z.infer<typeof voiceCardSchema>;
 
 /** No client-supplied plan or count is accepted by the balance endpoint. */
-export const voiceCreditsSchema = z.object({});
+export const voiceCreditsSchema = z.object({ mode: z.literal('cards').optional() });
 
 /**
  * Voice previews carry no user text at all: the sample sentence is chosen

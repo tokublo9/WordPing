@@ -6,12 +6,9 @@ import type { Palette } from '../types';
 import { subscribeToTopBanner, type TopBannerRequest } from '../lib/topBanner';
 
 /**
- * Matches the custom-voice-locked banner already in App.tsx: same geometry, same
- * spring, same 4s dwell, same tap-or-swipe-up dismissal. Kept as its own
- * component because this one is driven by requests from deep inside the card
- * hooks rather than by a single piece of App state.
+ * Notices stay visible until tapped or swiped up. Later notices wait their turn
+ * so an incoming message never removes one the user has not dismissed.
  */
-export const TOP_BANNER_VISIBLE_MS = 4_000;
 const OFFSCREEN_Y = -56;
 
 interface Props {
@@ -22,24 +19,35 @@ export function TopBanner({ pal }: Props) {
   const insets = useSafeAreaInsets();
   const [request, setRequest] = useState<TopBannerRequest | null>(null);
   const anim = useRef(new Animated.Value(0)).current;
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const current = useRef<TopBannerRequest | null>(null);
+  const pending = useRef<TopBannerRequest[]>([]);
+  const dismissing = useRef(false);
 
-  const clearTimer = useCallback(() => {
-    if (hideTimer.current !== null) {
-      clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
-  }, []);
+  const present = useCallback((next: TopBannerRequest) => {
+    dismissing.current = false;
+    current.current = next;
+    setRequest(next);
+    anim.setValue(0);
+    Animated.spring(anim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }).start();
+  }, [anim]);
 
   const dismiss = useCallback(() => {
-    clearTimer();
+    if (dismissing.current || current.current === null) return;
+    const next = pending.current.shift();
+    if (next) {
+      present(next);
+      return;
+    }
+    dismissing.current = true;
     Animated.timing(anim, { toValue: 0, duration: 220, useNativeDriver: true })
       .start(({ finished }) => {
-        // Only unmount when the slide-out ran to completion; a second notice
-        // arriving mid-animation must not blank the banner.
-        if (finished) setRequest(null);
+        if (!finished) return;
+        current.current = null;
+        const queued = pending.current.shift();
+        if (queued) present(queued);
+        else setRequest(null);
       });
-  }, [anim, clearTimer]);
+  }, [anim, present]);
 
   // Swipe up to dismiss, matching the existing banner's gesture.
   const pan = useRef(PanResponder.create({
@@ -50,17 +58,14 @@ export function TopBanner({ pal }: Props) {
   dismissRef.current = dismiss;
 
   useEffect(() => subscribeToTopBanner(next => {
-    clearTimer();
-    setRequest(next);
-    anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, tension: 90, friction: 9, useNativeDriver: true }).start();
-    hideTimer.current = setTimeout(() => dismissRef.current(), TOP_BANNER_VISIBLE_MS);
-  }), [anim, clearTimer]);
+    if (current.current === null) {
+      present(next);
+    } else if (current.current.id !== next.id && !pending.current.some(item => item.id === next.id)) {
+      pending.current.push(next);
+    }
+  }), [present]);
 
-  useEffect(() => () => {
-    if (hideTimer.current !== null) clearTimeout(hideTimer.current);
-    anim.stopAnimation();
-  }, [anim]);
+  useEffect(() => () => { anim.stopAnimation(); }, [anim]);
 
   if (!request) return null;
 

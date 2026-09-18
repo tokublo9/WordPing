@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert, WordCoreAlertHost } from './WordCoreAlert';
 import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Palette } from '../types';
@@ -188,6 +188,8 @@ export function TextToSpeechScreen({
         ? t('tts_err_input_too_long').replace('{n}', TEXT_TO_SPEECH_MAX_CHARS.toLocaleString())
         : code === 'quota_exceeded'
         ? t('tts_err_quota')
+        : code === 'monthly_api_limit_reached'
+        ? t('tts_monthly_duration_limit')
         : code === 'service_unavailable' || code === 'authentication_failed'
           ? t('tts_err_unavailable')
           : t('tts_err_generic');
@@ -276,10 +278,8 @@ export function TextToSpeechScreen({
   }, [busyAction, filenameAction, filenameInput, stopAudio, t]);
 
   const deleteHistoryItem = useCallback((item: SavedPrototypeSpeech) => {
-    // The filename is the user's, and a native alert is an OS view Session
-    // Replay captures but no React wrapper can mask — so it is not interpolated
-    // here. The row the user tapped is still on screen behind the alert, so
-    // which recording this is about stays obvious.
+    // The filename is the user's, so keep it out of the confirmation copy.
+    // The shared dialog is masked from Session Replay as an additional guard.
     Alert.alert(t('tts_delete_title'), t('tts_delete_body'), [
       { text: t('cancel'), style: 'cancel' },
       {
@@ -554,6 +554,7 @@ export function TextToSpeechScreen({
         {/* This screen is presented as its own modal, so it mounts its own
             consent host while it is on top. */}
         <AIConsentDialog active={visible} pal={pal} themeColor={themeColor} />
+        <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
       </View>
     </FullScreenSheet>
   );

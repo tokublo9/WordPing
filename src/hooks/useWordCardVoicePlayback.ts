@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { WordCoreAlert as Alert } from '../components/WordCoreAlert';
 import type { WordCard } from '../types';
 import { useLang } from '../i18n';
 import { speak, speakWordCard, stopPlayback, type TTSPlaybackPhase } from '../lib/tts';
+import { mayUseAIVoiceForCard, useDeviceVoiceAfterBasicLimit } from '../features/voice/cardVoicePolicy';
+import { getAIEntitlementSnapshot } from '../lib/aiEntitlement';
 import { isAIRequestError } from '../lib/api/errors';
 import { ensureAIConsentForUserAction } from '../lib/aiConsentPrompt';
 import {
@@ -125,7 +127,7 @@ export function useWordCardVoicePlayback({
     const target = lastTargetRef.current;
     if (!item || target === null) return;
     const sequence = ++sequenceRef.current;
-    setVoiceState({ target, phase: 'checking-cache' });
+    // Device speech starts without a cache/network check or a loading phase.
     const playbackOptions = {
       onPhaseChange: (phase: TTSPlaybackPhase) => {
         if (sequenceRef.current !== sequence) return;
@@ -175,14 +177,29 @@ export function useWordCardVoicePlayback({
       return;
     }
 
-    // Usage limits are not errors the user can act on beyond waiting, so they get
-    // the non-blocking banner instead of a modal alert. Cached audio is untouched
-    // by any of these — the limit is enforced per network request, and
-    // fetchAndCacheAudio serves an existing file without one.
+    // Cached audio is untouched by usage limits: the limit is enforced per
+    // network request, and fetchAndCacheAudio serves an existing file without one.
+    if (error.kind === 'monthly_limit_reached' && error.quota?.reason === 'duration') {
+      if (error.quota.tier === 'basic') {
+        Alert.alert(title, t('basic_voice_deferred_duration')
+          .replace('{basic}', t('basic_plan_name')).replace('{premium}', t('cmp_premium')), [
+          { text: 'OK', onPress: () => { void speakOnDevice(); } },
+          ...(onUpgrade ? [{ text: t('cmp_premium'), onPress: onUpgrade }] : []),
+        ]);
+      } else {
+        Alert.alert(title, t('premium_voice_deferred_duration'), [{ text: 'OK' }]);
+      }
+      return;
+    }
     const limit = resolveAiVoiceLimit(error, Date.now());
     if (limit) {
       const { key, values } = buildAiVoiceLimitMessage(limit, language);
-      showTopBanner({ id: `voice-limit:${key}`, message: fillTemplate(t(key), values) });
+      const body = fillTemplate(t(key), values);
+      if (limit.reason === 'shortTerm') {
+        Alert.alert(title, body, [{ text: 'OK' }]);
+      } else {
+        showTopBanner({ id: `voice-limit:${key}`, message: body });
+      }
       return;
     }
 
@@ -232,11 +249,7 @@ export function useWordCardVoicePlayback({
         return;
 
       case 'voice_credits_exhausted':
-        // Not an outage and not something to retry: the grant is spent and
-        // does not come back. The dialog owns both ways forward, and is handed
-        // the replay so that choosing the free voice speaks the word the user
-        // actually asked for rather than only changing a setting.
-        onVoiceCreditsExhausted?.(() => { void speakOnDevice(); });
+        // The async fallback is awaited by play() so its state remains visible.
         return;
 
       case 'consent_required':
@@ -300,36 +313,42 @@ export function useWordCardVoicePlayback({
 
     // Only the AI-Voice path reaches OpenAI. Device TTS is expo-speech on the
     // device and a card's attached audio is a local file, so neither asks for
-    // anything: a non-AI feature must keep working without consent. Basic now
-    // reaches the AI path while its one-time credits last, and returns to the
-    // device path if the user chooses the free voice when they run out.
-    const usesAI = canUseAIVoice && !(target === 'word' && Boolean(item.audioUri));
+    // anything: a non-AI feature must keep working without consent. Basic
+    // reaches the AI path for its selected Basic card fronts only.
+    const cardCanUseAI = canUseAIVoice && mayUseAIVoiceForCard(item.id, target);
+    const usesAI = cardCanUseAI && !(target === 'word' && Boolean(item.audioUri));
     if (usesAI && !await ensureAIConsentForUserAction()) return;
     if (sequenceRef.current !== sequence) return;
 
-    setVoiceState({ target, phase: 'checking-cache' });
+    if (usesAI) setVoiceState({ target, phase: 'checking-cache' });
 
     try {
       const playbackOptions = {
-        // Once Basic's lifetime credits are gone `canUseAIVoice` goes false, and
-        // without this the card would drop to the device engine even for words
-        // whose AI audio is already on the device and already paid for. Reaching
-        // the cache costs nothing and generates nothing; `speak` still refuses
-        // it to any plan that is not entitled, and ignores it entirely while
-        // generation is permitted.
-        allowCachedAIFallback: true,
+        // Keep entitled cached audio playable without another network request.
+        // Cards outside Basic's selected set pass false and use device voice.
+        allowCachedAIFallback: cardCanUseAI,
+        cardId: item.id,
         onPhaseChange: (phase: TTSPlaybackPhase) => {
           if (sequenceRef.current !== sequence) return;
           setVoiceState(phase === 'idle' ? null : { target, phase });
         },
       };
       if (target === 'word') {
-        await speakWordCard(item, canUseAIVoice, playbackOptions);
+        await speakWordCard(item, cardCanUseAI, playbackOptions);
       } else {
-        await speak(item.meaning, canUseAIVoice, item.meaningLang, playbackOptions);
+        await speak(item.meaning, cardCanUseAI, item.meaningLang, playbackOptions);
       }
     } catch (error) {
-      handleError(error);
+      if (isAIRequestError(error) && error.kind === 'monthly_limit_reached'
+        && error.quota?.tier === 'basic' && error.quota.reason === 'duration') {
+        handleError(error);
+      } else if (isAIRequestError(error) && useDeviceVoiceAfterBasicLimit(
+        getAIEntitlementSnapshot().plan, error.kind,
+      )) {
+        await speakOnDevice();
+      } else {
+        handleError(error);
+      }
     }
     if (sequenceRef.current === sequence) setVoiceState(null);
   }, [abandonPlayback, canUseAIVoice, handleError, item, setVoiceState, stopVoice]);

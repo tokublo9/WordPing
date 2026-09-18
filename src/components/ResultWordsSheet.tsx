@@ -1,5 +1,4 @@
 import {
-  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert, WordCoreAlertHost } from './WordCoreAlert';
 import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -265,6 +265,7 @@ export function ResultWordsSheet({
           </Animated.View>
         </View>
       </View>
+      <WordCoreAlertHost active={visible} priority={20} pal={pal} themeColor={themeColor} />
     </Modal>
   );
 }

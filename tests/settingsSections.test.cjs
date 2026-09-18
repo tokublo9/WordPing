@@ -15,10 +15,10 @@ test('Free users see no Backup section at all — no locked row, badge or prompt
   assert.doesNotMatch(section, /backup_locked_desc|backup_locked_badge|lock-closed-outline/u);
   assert.doesNotMatch(section, /onRequestSubscription|BACKUP_PAYWALL_SOURCE/u);
 
-  // The heading and divider are gated on the same check, so no empty section.
+  // The two actions are gated together; Free users still see Restore Purchases.
   const settings = read('src/components/SettingsModal.tsx');
   assert.match(settings, /const backupVisible = canUseBackup\(\{ isPremium, isSubscriptionLoaded \}\);/u);
-  assert.match(settings, /\{backupVisible && \(\s*<>\s*<View style=\{\[styles\.divider/u);
+  assert.match(settings, /\{backupVisible && \(\s*<BackupSection/u);
 });
 
 test('handler-level access still rejects an unentitled caller', () => {
@@ -33,11 +33,11 @@ test('handler-level access still rejects an unentitled caller', () => {
   assert.match(section, /canUseBackup\(\{ isPremium, isSubscriptionLoaded \}\)/u);
 });
 
-test('Backup keeps its title and actions but renders no description or spacer', () => {
+test('Backup keeps its actions without a heading, description or spacer', () => {
   const section = read('src/components/BackupSection.tsx');
   const settings = read('src/components/SettingsModal.tsx');
 
-  assert.match(settings, /\{t\('backup'\)\}/u);
+  assert.doesNotMatch(settings, /\{t\('backup'\)\}/u);
   assert.match(section, /t\('backup_export'\)/u);
   assert.match(section, /t\('backup_import'\)/u);
   assert.doesNotMatch(section, /t\('backup_desc'\)|styles\.description|description:\s*\{/u);
@@ -47,28 +47,24 @@ test('Backup keeps its title and actions but renders no description or spacer', 
   assert.match(read('src/i18n.ts'), /backup_desc:/u);
 });
 
-test('Backup lives in App Info, not on the main Settings screen, and appears once', () => {
+test('Restore and Backup sit below Card Behavior and above App Info', () => {
   const settings = read('src/components/SettingsModal.tsx');
   assert.equal((settings.match(/<BackupSection/gu) ?? []).length, 1, 'exactly one Backup section');
-
-  // It sits inside AppInfoSheet, after the Purchases section.
-  const appInfoStart = settings.indexOf('function AppInfoSheet');
+  const cardBehaviorAt = settings.indexOf("label={t('show_full_card')}");
+  const restoreAt = settings.indexOf("{t('restore_purchases')}</Text>");
   const backupAt = settings.indexOf('<BackupSection');
-  const purchasesAt = settings.indexOf("t('purchases_section')");
-  assert.ok(backupAt > appInfoStart, 'Backup must be inside AppInfoSheet');
-  assert.ok(backupAt > purchasesAt, 'Backup must come after Purchases');
-
-  // And not in the main Settings ScrollView, which ends before AppInfoSheet.
-  const mainScreen = settings.slice(0, appInfoStart);
-  assert.doesNotMatch(mainScreen, /<BackupSection/u);
-  assert.doesNotMatch(mainScreen, /\{t\('backup'\)\}/u);
+  const appInfoAt = settings.indexOf("label={t('app_info')}");
+  assert.ok(cardBehaviorAt < restoreAt && restoreAt < backupAt && backupAt < appInfoAt);
+  assert.ok(appInfoAt < settings.indexOf('function AppInfoSheet'));
+  const backup = read('src/components/BackupSection.tsx');
+  assert.ok(backup.indexOf("renderRow('export'") < backup.indexOf("renderRow('import'"));
 });
 
 test('Restore Purchases stays visible to Free users and outside the backup gate', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  const appInfo = settings.slice(settings.indexOf('function AppInfoSheet'));
-  const restoreAt = appInfo.indexOf("t('restore_purchases')");
-  const backupGateAt = appInfo.indexOf('{backupVisible &&');
+  const mainSettings = settings.slice(0, settings.indexOf('function AppInfoSheet'));
+  const restoreAt = mainSettings.indexOf("{t('restore_purchases')}</Text>");
+  const backupGateAt = mainSettings.indexOf('{backupVisible &&');
   assert.ok(restoreAt > 0 && backupGateAt > 0);
   assert.ok(restoreAt < backupGateAt, 'Restore must sit before, and outside, the backup gate');
   assert.doesNotMatch(read('src/components/BackupSection.tsx'), /restore_purchases|onRestore/u);
@@ -150,6 +146,21 @@ test('review and recommendation rows live only inside App Info', () => {
   assert.match(appInfo, /icon="share-social-outline"[\s\S]{0,100}label=\{t\('recommend_friends'\)\}/u);
   assert.match(appInfo, /Share\.share\(buildRecommendationShareContent\(/u);
   assert.match(appInfo, /result\.action === Share\.dismissedAction/u);
+});
+
+test('App Info starts with review, recommendation, AI Voice and usage sharing, then Privacy Policy', () => {
+  const settings = read('src/components/SettingsModal.tsx');
+  const appInfo = settings.slice(settings.indexOf('function AppInfoSheet'));
+  const rows = appInfo.slice(appInfo.indexOf('<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>'));
+  const positions = [
+    'write_review', 'recommend_friends', 'ai_voice_info_menu', 'analytics_setting', 'privacy_policy',
+  ].map(key => rows.indexOf(`label={t('${key}')}`));
+  assert.ok(positions.every(position => position >= 0));
+  assert.ok(positions.every((position, index) => index === 0 || positions[index - 1] < position));
+  const firstGroup = rows.slice(0, positions[4]);
+  assert.doesNotMatch(firstGroup, /s\.sectionLabel|purchases_section|<BackupSection/u);
+  const dividerAt = rows.indexOf('<View style={[styles.divider', positions[3]);
+  assert.ok(positions[3] < dividerAt && dividerAt < positions[4]);
 });
 
 test('review and share use one App Store constants module and localized failures', () => {
@@ -339,18 +350,18 @@ test('no misleading AI benefit copy is rendered elsewhere in the paywall', () =>
   }
 });
 
-// ── Restore Purchases moved to App Info ──────────────────────────────────────
+// ── Restore Purchases on Settings ─────────────────────────────────────────────
 
 test('Restore Purchases is gone from the paywall and the upgrade sheet', () => {
   assert.doesNotMatch(read('src/components/PaywallModal.tsx'), /restore_purchases|onRestore/u);
   assert.doesNotMatch(read('src/components/ProSheet.tsx'), /restore_purchases|onRestore/u);
 });
 
-test('Restore Purchases appears exactly once, on App Info', () => {
+test('Restore Purchases appears exactly once, on Settings without a heading', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  // Rendered once, inside AppInfoSheet under a Purchases heading.
+  // Rendered once in the main Settings screen.
   assert.equal((settings.match(/<Text style=\{\[styles\.rowLabel[^>]*>\{t\('restore_purchases'\)\}/gu) ?? []).length, 1);
-  assert.match(settings, /\{t\('purchases_section'\)\}/u);
+  assert.doesNotMatch(settings, /\{t\('purchases_section'\)\}/u);
 
   // No other component renders it.
   const fs2 = require('node:fs');
@@ -365,12 +376,12 @@ test('Restore Purchases is reachable by Free users and is not behind the backup 
 
   // Restore is rendered before the entitlement-gated Backup block, so nothing
   // about a Free plan can hide it.
-  const appInfo = settings.slice(settings.indexOf('function AppInfoSheet'));
-  const restoreAt = appInfo.indexOf("t('restore_purchases')");
-  const gateAt = appInfo.indexOf('{backupVisible &&');
+  const mainSettings = settings.slice(0, settings.indexOf('function AppInfoSheet'));
+  const restoreAt = mainSettings.indexOf("{t('restore_purchases')}</Text>");
+  const gateAt = mainSettings.indexOf('{backupVisible &&');
   assert.ok(restoreAt > 0 && gateAt > restoreAt, 'Restore must precede the backup gate');
   // The restore row itself is never wrapped in an entitlement condition.
-  const restoreBlock = appInfo.slice(restoreAt - 900, restoreAt);
+  const restoreBlock = mainSettings.slice(restoreAt - 900, restoreAt);
   assert.doesNotMatch(restoreBlock, /isSubscribed \?|backupVisible &&/u);
   assert.doesNotMatch(read('src/components/BackupSection.tsx'), /restore_purchases|onRestore/u);
 });
@@ -597,17 +608,22 @@ test('the AI Voice row is read from the rule the app enforces', () => {
   const sheet = read('src/components/ProSheet.tsx');
 
   // AI Voice: a cross for a tier without the feature, its count if metered, and
-  // the shared included circle otherwise. `formatVoiceMonthlyLimit` returns null
+  // a circle otherwise. `formatVoiceMonthlyLimit` returns null
   // for both the included and the excluded case, so `planCanUseAI` picks between
   // them — that is why the cell is a function rather than a `??`.
   assert.match(
     sheet,
-    /const voiceCell = \(tier: 'basic' \| 'premium'\): CellValue => \{\s*if \(!planCanUseAI\(tier\)\) return 'cross';\s*return formatVoiceMonthlyLimit\(tier, language, t\) \?\? 'circle';/u,
+    /const voiceCell = \(tier: 'basic' \| 'premium'\): CellValue => \{\s*if \(!planCanUseAI\(tier\)\) return 'cross';\s*return formatVoiceMonthlyLimit\(tier, language, t, BASIC_VOICE_CARD_LIMIT\) \?\? 'circle';/u,
   );
   assert.match(
     sheet,
     /label: t\('cmp_ai_voice_hq'\),\s*basic: voiceCell\('basic'\),\s*premium: voiceCell\('premium'\),/u,
   );
+  assert.match(sheet, /oneTimeBenefit: true/u);
+  assert.match(sheet, /t\('cmp_one_time_benefit'\)/u);
+  assert.match(sheet, /label: t\('cmp_multiple_voice_types'\),\s*basic: 'cross',\s*premium: 'circle'/u);
+  assert.doesNotMatch(sheet, /value === 'infinity'/u);
+  assert.match(sheet, /row\.oneTimeBenefit[\s\S]{0,170}cmp_one_time_benefit[\s\S]{0,130}<TableCell value=\{row\.basic\}/u);
 
   // Custom Voice is local and free, so it has no paywall row, promo card, or
   // entitlement import.
@@ -670,9 +686,8 @@ test('the four hidden AI rows remain absent from the table', () => {
 test('the voice limit copy is translated in English and Japanese', () => {
   const i18n = read('src/i18n.ts');
   assert.match(i18n, /err_voice_limit_title:     '[^']+',/u);
-  // Not "for this month": Basic's allowance is a one-time grant, and calling
-  // it monthly would promise a reset that never comes.
-  assert.match(i18n, /You’ve used all \{limit\} High-Quality AI Voice generations available to you\./u);
+  assert.match(i18n, /You have reached the \{limit\}-generation AI Voice limit/u);
+  assert.match(i18n, /AI音声生成の\{limit\}回の上限に達しました。/u);
   assert.doesNotMatch(i18n, /generations for this month/u);
   assert.doesNotMatch(i18n, /Premium for unlimited access|Premiumにアップグレードすると無制限/u);
 
@@ -687,22 +702,20 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   const pipeline = read('cloudflare/wordping-api/src/pipeline.ts');
   const limits = read('cloudflare/wordping-api/src/planLimits.ts');
 
-  // Nothing is metered by the month any more: Basic's grant is a lifetime
-  // balance with its own module, and Premium never had a monthly ceiling.
-  assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \[\]/u);
-  assert.match(limits, /VOICE_LIFETIME_CREDITS[\s\S]{0,200}basic: 200,/u);
+  // Basic's grant is one-time; Premium card generations have a monthly budget.
+  assert.match(limits, /VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\]/u);
+  assert.match(limits, /VOICE_LIFETIME_CREDITS[\s\S]{0,200}basic: 10,/u);
   assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
   // An anonymous route has no App User ID to meter against, and is not a voice
   // quota feature in the first place.
   assert.match(
     pipeline,
-    /const meteredForVoice = isVoiceQuotaFeature\(spec\.feature\) && identity !== null;/u,
+    /const meteredForVoice = isVoiceQuotaFeature\(spec\.feature\) && identity !== null && tier === 'premium';/u,
   );
   assert.match(pipeline, /if \(!meteredForVoice\) return null;/u);
 
-  // Premium has no monthly product quota; the allowance is keyed to the
-  // verified RevenueCat App User ID and reserved after the rate limiter.
-  assert.match(limits, /premium: null/u);
+  // The allowance is keyed to the verified RevenueCat App User ID.
+  assert.match(limits, /premium: 400/u);
   // Non-null asserted: `meteredForVoice` above already required an identity,
   // so this line is only reached when one was received.
   assert.match(pipeline, /privacyHash\(env, 'rcuser', identity\.appUserId\)/u);
@@ -713,8 +726,8 @@ test('the voice allowance is enforced by the Worker, on the voice routes only', 
   // No client-supplied plan or usage is ever read.
   assert.doesNotMatch(pipeline, /body\.plan|body\.tier|body\.used|body\.remaining/u);
 
-  // General abuse protection is untouched.
-  assert.match(pipeline, /const decision = await consume\(/u);
+  // Other routes continue through the general abuse limiter.
+  assert.match(pipeline, /: await consume\(/u);
   assert.match(pipeline, /runtime\.disabledFeatures\.has\(spec\.feature\)/u);
 });
 
@@ -813,7 +826,7 @@ test('Sync is absent from Settings and enabled from one internal flag', () => {
   const flags = read('src/features/flags.ts');
   assert.match(flags, /export const SYNC_WITH_TEST_RESULTS_ENABLED = true;/u);
   const screen = read('src/components/TestModeScreen.tsx');
-  assert.match(screen, /import \{ SYNC_WITH_TEST_RESULTS_ENABLED \} from '\.\.\/features\/flags';/u);
+  assert.match(screen, /import \{[^}]*\bSYNC_WITH_TEST_RESULTS_ENABLED\b[^}]*\} from '\.\.\/features\/flags';/u);
   assert.match(screen, /syncTestResults: SYNC_WITH_TEST_RESULTS_ENABLED,/u);
   assert.doesNotMatch(screen, /syncTestResults\??: boolean|syncTestResults = false/u);
 
@@ -859,7 +872,7 @@ test('exactly the three visible Settings toggles use the compact control', () =>
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
   assert.deepEqual(rows, [
-    'view_flip', 'show_full_card', 'vertical_flip', 'hide_ai_tools',
+    'premium_back_voice', 'view_flip', 'show_full_card', 'hide_ai_tools', 'vertical_flip',
   ]);
   assert.ok(!rows.includes('analytics_setting'), 'Share Usage Data must not be an inline toggle');
 
@@ -1018,6 +1031,7 @@ test('the informational Card Behavior rows use the compact shared layout and ali
   // toggle at all, so it must not reappear in this list.
   const iconRows = [...settings.matchAll(/<ToggleRow\s+icon="([^"]+)"\s+label=\{t\('([a-z_]+)'\)\}/gu)];
   assert.deepEqual(iconRows.map(match => [match[2], match[1]]), [
+    ['premium_back_voice', 'volume-high-outline'],
     ['view_flip', 'albums-outline'],
     ['show_full_card', 'reader-outline'],
     ['vertical_flip', 'swap-vertical-outline'],
@@ -1303,8 +1317,8 @@ test('Settings dividers use one shared, tightened value', () => {
   ]) {
     assert.doesNotMatch(read(path), /SETTINGS_DIVIDER_MARGIN/u, path);
   }
-  // A hidden section must not leave its divider behind.
-  assert.match(settings, /\{backupVisible && \(\s*<>\s*<View style=\{\[styles\.divider/u);
+  // Backup is hidden as a unit, without a divider for a hidden section.
+  assert.match(settings, /\{backupVisible && \(\s*<BackupSection/u);
 });
 
 // ── Test Mode grading behaviour ──────────────────────────────────────────────

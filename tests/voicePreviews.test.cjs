@@ -296,7 +296,7 @@ test('the free branch skips only entitlement, never the limits', () => {
   // The protective half is shared, so it cannot be skipped with the lookup.
   const approve = pipeline.slice(pipeline.indexOf('async function approve<T>'));
   assert.match(approve, /maxCharsPerRequest/u);
-  assert.match(approve, /const decision = await consume\(/u);
+  assert.match(approve, /: await consume\(/u);
   assert.match(approve, /reserveMonthlyQuota\(/u);
 });
 
@@ -361,7 +361,7 @@ test('an unapproved sample id is rejected by the schema', () => {
 
 test('promo playback spends neither a monthly allowance nor a lifetime credit', () => {
   const limits = read('cloudflare/wordping-api/src/planLimits.ts');
-  assert.match(limits, /export const VOICE_QUOTA_FEATURES: readonly Feature\[\] = \[\];/u);
+  assert.match(limits, /export const VOICE_QUOTA_FEATURES: readonly Feature\[\] = \['voice_card'\];/u);
   assert.doesNotMatch(limits, /VOICE_QUOTA_FEATURES[^;]*voice_sample/u);
   assert.doesNotMatch(limits, /voice_promo/u);
 

@@ -393,7 +393,7 @@ export async function postSpeech(
 export async function fetchVoiceCreditBalance(): Promise<VoiceCreditBalance> {
   const response = await post(
     '/v1/voice/credits',
-    {},
+    { mode: 'cards' },
     {},
     DEFAULT_TEXT_TIMEOUT_MS,
     'account-metadata',

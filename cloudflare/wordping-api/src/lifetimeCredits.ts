@@ -1,58 +1,18 @@
 import type { Env } from './env';
 import { log, redactError } from './log';
 import { VOICE_LIFETIME_CREDITS } from './planLimits';
+import { applyAudioDuration, applyVoiceQuota, type VoiceQuotaState } from './monthlyQuota';
 
 /**
- * The one-time High-Quality AI Voice grant that comes with Basic.
+ * Basic's lifetime AI voice allowance is 10 distinct card fronts. The card
+ * ledger stores salted card hashes under the verified subscriber's canonical
+ * identity, so edits, retries, renewal and reinstall do not allocate a new
+ * slot. A legacy request ledger remains for older app versions that omit cardId.
  *
- * Deliberately NOT the monthly quota in monthlyQuota.ts, and deliberately not
- * expressed with `monthKey` or `monthResetsAt`. This balance is granted once and
- * never refills: not at a month boundary, not on renewal, not on cancellation
- * and resubscription, not on restore, reinstall, or a new device.
- *
- * WHAT MAKES THAT HOLD is where it is stored. The ledger is a Durable Object
- * named from the salted hash of RevenueCat's canonical original App User ID —
- * not the current device alias. The verified subscriber record resolves every
- * restore/alias to that identity, so local data is irrelevant: wiping the app
- * cannot hand out a second grant. There is no TTL on the stored value, so it
- * also cannot expire.
- *
- * WHY A DURABLE OBJECT rather than KV, which every other counter here uses: KV
- * has no atomic read-modify-write, and monthlyQuota.ts accepts a small overshoot
- * because its counter resets every month and the per-minute limiter bounds how
- * far it can drift. Neither is true here. An overshoot on a balance that never
- * resets is permanent, and a lost update on the grant itself would issue 200
- * credits twice.
- *
- * ── The reservation lifecycle ────────────────────────────────────────────────
- *
- * A credit is not simply decremented after a generation succeeds. Doing that
- * would let N simultaneous requests all observe the same remaining balance and
- * all proceed, generating past zero — the exact failure a lifetime balance
- * cannot absorb. Instead:
- *
- *   reserve  — atomically claims one credit *before* OpenAI is called. Refused
- *              when nothing is available, so nothing is generated.
- *   commit   — the generation succeeded; the reservation becomes a spend.
- *   release  — the generation failed or was cancelled; the claim is returned
- *              and no credit is spent.
- *
- * Availability is `remaining - outstanding reservations`, so a request in
- * flight already holds its credit and a concurrent one cannot claim it too.
- *
- * ABANDONED RESERVATIONS. A Worker that dies mid-generation never commits or
- * releases. Reservations therefore expire: any older than
- * RESERVATION_TTL_MS is dropped at the start of every operation, which returns
- * the credit. The TTL is comfortably longer than the speech timeout, so it can
- * never expire a generation that is still legitimately running.
- *
- * IDEMPOTENCY. Every operation is keyed by a caller-supplied key derived from
- * the request's own content, so a retry or a duplicate of the same request
- * reserves and commits the *same* claim rather than a second one. Recent
- * commits are remembered briefly for the same reason: a retry arriving after a
- * commit must not be charged twice. That memory is short — long enough to cover
- * a retry, short enough that genuinely regenerating the same word later is
- * charged again.
+ * A Durable Object serializes reserve/commit/release. A card's slot is reserved
+ * before OpenAI is called and granted only after success. Failed generations
+ * release the reservation; abandoned reservations expire after the speech
+ * timeout. This prevents concurrent requests from granting more than 10 cards.
  */
 
 export const BASIC_LIFETIME_VOICE_CREDITS = VOICE_LIFETIME_CREDITS.basic ?? 0;
@@ -65,12 +25,7 @@ export const BASIC_LIFETIME_VOICE_CREDITS = VOICE_LIFETIME_CREDITS.basic ?? 0;
  */
 export const RESERVATION_TTL_MS = 3 * 60_000;
 
-/**
- * How long a commit is remembered for retry de-duplication.
- *
- * Covers a client retry of the same request. Not a permanent record: the same
- * word generated again next week is a new generation and is charged.
- */
+/** Legacy request ledger retry window; card grants are stored permanently. */
 export const COMMIT_DEDUP_TTL_MS = 10 * 60_000;
 
 /** Features that spend the lifetime balance. Previews and promos never do. */
@@ -83,6 +38,8 @@ export function isLifetimeCreditFeature(feature: string): boolean {
 export interface LedgerState {
   /** True once the one-time grant has been issued. Never returns to false. */
   granted: boolean;
+  /** Missing on ledgers created when the Basic grant was 200. */
+  grantSize?: number;
   /** Credits not yet spent. Reservations are held against this, not deducted. */
   remaining: number;
   /** Idempotency key → reservedAt. Claims awaiting commit or release. */
@@ -104,8 +61,67 @@ export interface ReserveResult {
 export type LedgerOp = 'reserve' | 'commit' | 'release' | 'peek';
 
 const BALANCE_KEY = 'balance';
+const CARD_BALANCE_KEY = 'card_balance_v2';
+const PREMIUM_VOICE_QUOTA_KEY = 'premium_voice_quota_v1';
+
+export interface CardBalanceState {
+  /** Hashed card identities are kept for the lifetime of the subscription. */
+  grantedCards: Record<string, true>;
+  reservations: Record<string, { cardKey: string; at: number }>;
+}
+
+export function applyCardOp(
+  before: CardBalanceState,
+  op: 'cardReserve' | 'cardCommit' | 'cardRelease' | 'cardPeek',
+  requestKey: string,
+  cardKey: string,
+  now: number,
+): { next: CardBalanceState; result: ReserveResult } {
+  const reservations = Object.fromEntries(
+    Object.entries(before.reservations).filter(([, claim]) => now - claim.at < RESERVATION_TTL_MS),
+  );
+  const current = { grantedCards: before.grantedCards, reservations };
+  const remaining = Math.max(0, BASIC_LIFETIME_VOICE_CREDITS - Object.keys(current.grantedCards).length);
+  const pending = new Set(Object.values(reservations)
+    .filter(claim => !current.grantedCards[claim.cardKey])
+    .map(claim => claim.cardKey));
+  const describe = (next: CardBalanceState, ok: boolean, duplicate = false) => ({
+    next,
+    result: {
+      ok,
+      remaining: Math.max(0, BASIC_LIFETIME_VOICE_CREDITS - Object.keys(next.grantedCards).length),
+      available: Math.max(0, BASIC_LIFETIME_VOICE_CREDITS - Object.keys(next.grantedCards).length
+        - new Set(Object.values(next.reservations)
+          .filter(claim => !next.grantedCards[claim.cardKey])
+          .map(claim => claim.cardKey)).size),
+      duplicate,
+    },
+  });
+  if (op === 'cardPeek') return describe(current, remaining > 0);
+  if (op === 'cardReserve') {
+    if (current.grantedCards[cardKey]) return describe(current, true, true);
+    if (current.reservations[requestKey]) return describe(current, true, true);
+    if (remaining - pending.size <= 0 && !pending.has(cardKey)) return describe(current, false);
+    return describe({ ...current, reservations: {
+      ...reservations, [requestKey]: { cardKey, at: now },
+    } }, true, pending.has(cardKey));
+  }
+  if (op === 'cardRelease') {
+    delete reservations[requestKey];
+    return describe(current, true);
+  }
+  if (current.grantedCards[cardKey]) return describe(current, true, true);
+  if (!reservations[requestKey] || remaining <= 0) return describe(current, false);
+  const grantedCards = { ...current.grantedCards, [cardKey]: true as const };
+  for (const [key, claim] of Object.entries(reservations)) {
+    if (claim.cardKey === cardKey) delete reservations[key];
+  }
+  return describe({ grantedCards, reservations }, true);
+}
 
 function pruned(state: LedgerState, now: number): LedgerState {
+  const previousGrant = state.grantSize ?? 200;
+  const spent = Math.max(0, previousGrant - state.remaining);
   const reservations: Record<string, number> = {};
   for (const [key, at] of Object.entries(state.reservations)) {
     // An abandoned claim returns its credit. This is the only recovery path a
@@ -116,7 +132,13 @@ function pruned(state: LedgerState, now: number): LedgerState {
   for (const [key, at] of Object.entries(state.recentCommits)) {
     if (now - at < COMMIT_DEDUP_TTL_MS) recentCommits[key] = at;
   }
-  return { ...state, reservations, recentCommits };
+  return {
+    ...state,
+    grantSize: BASIC_LIFETIME_VOICE_CREDITS,
+    remaining: Math.max(0, BASIC_LIFETIME_VOICE_CREDITS - spent),
+    reservations,
+    recentCommits,
+  };
 }
 
 function initialState(): LedgerState {
@@ -125,6 +147,7 @@ function initialState(): LedgerState {
   // `granted` makes that unrepeatable.
   return {
     granted: true,
+    grantSize: BASIC_LIFETIME_VOICE_CREDITS,
     remaining: BASIC_LIFETIME_VOICE_CREDITS,
     reservations: {},
     recentCommits: {},
@@ -214,8 +237,58 @@ export class VoiceCreditLedger {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const op = url.pathname.slice(1) as LedgerOp;
+    const op = url.pathname.slice(1);
     const key = url.searchParams.get('key') ?? '';
+    if (op === 'quotaReserve' || op === 'quotaPeek') {
+      const characters = Number(url.searchParams.get('characters') ?? '0');
+      const override = {
+        maxRequestsPerMinute: Number(url.searchParams.get('minute')),
+        maxRequestsPerDay: Number(url.searchParams.get('day')),
+        maxCharsPerDay: Number(url.searchParams.get('chars')),
+      };
+      if (!Number.isInteger(characters) || characters < 0 || characters > 500
+        || Object.values(override).some(value => !Number.isInteger(value) || value < 0)) {
+        return new Response('invalid characters', { status: 400 });
+      }
+      const decision = await this.state.blockConcurrencyWhile(async () => {
+        const before = await this.state.storage.get<VoiceQuotaState>(PREMIUM_VOICE_QUOTA_KEY);
+        const applied = applyVoiceQuota(before, Date.now(), characters, op === 'quotaReserve', override);
+        if (op === 'quotaReserve' && applied.decision.allowed) {
+          await this.state.storage.put(PREMIUM_VOICE_QUOTA_KEY, applied.next);
+        }
+        return applied.decision;
+      });
+      return Response.json(decision);
+    }
+    if (op === 'quotaAudioCommit' || op === 'quotaAudioPeek') {
+      const durationMs = op === 'quotaAudioPeek' ? 0 : Number(url.searchParams.get('durationMs'));
+      const tier = url.searchParams.get('tier');
+      if ((tier !== 'basic' && tier !== 'premium') || !Number.isInteger(durationMs)
+        || durationMs < (op === 'quotaAudioPeek' ? 0 : 1) || durationMs > 10 * 60_000) {
+        return new Response('invalid duration', { status: 400 });
+      }
+      const decision = await this.state.blockConcurrencyWhile(async () => {
+        const before = await this.state.storage.get<VoiceQuotaState>(PREMIUM_VOICE_QUOTA_KEY);
+        const applied = applyAudioDuration(before, Date.now(), durationMs, tier);
+        if (op === 'quotaAudioCommit') await this.state.storage.put(PREMIUM_VOICE_QUOTA_KEY, applied.next);
+        return applied.decision;
+      });
+      return Response.json(decision);
+    }
+    if (op === 'cardReserve' || op === 'cardCommit' || op === 'cardRelease' || op === 'cardPeek') {
+      const cardKey = url.searchParams.get('card') ?? '';
+      if (op !== 'cardPeek' && (!key || !cardKey)) return new Response('missing card key', { status: 400 });
+      const result = await this.state.blockConcurrencyWhile(async () => {
+        const stored = await this.state.storage.get<CardBalanceState>(CARD_BALANCE_KEY);
+        const before = stored ?? { grantedCards: {}, reservations: {} };
+        const applied = applyCardOp(before, op, key, cardKey, Date.now());
+        if (!stored || JSON.stringify(applied.next) !== JSON.stringify(before)) {
+          await this.state.storage.put(CARD_BALANCE_KEY, applied.next);
+        }
+        return applied.result;
+      });
+      return Response.json(result);
+    }
 
     if (op !== 'reserve' && op !== 'commit' && op !== 'release' && op !== 'peek') {
       return new Response('unknown op', { status: 400 });
@@ -224,7 +297,7 @@ export class VoiceCreditLedger {
     const result = await this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get<LedgerState>(BALANCE_KEY);
       const before = stored ?? initialState();
-      const { next, result: applied } = applyLedgerOp(before, op, key, Date.now());
+      const { next, result: applied } = applyLedgerOp(before, op as LedgerOp, key, Date.now());
       // Written on every op that changed anything, including the initial grant.
       if (stored === undefined || JSON.stringify(next) !== JSON.stringify(before)) {
         await this.state.storage.put(BALANCE_KEY, next);
@@ -239,16 +312,38 @@ export class VoiceCreditLedger {
 async function call(
   env: Env,
   hashedAppUserId: string,
-  op: LedgerOp,
+  op: LedgerOp | 'cardReserve' | 'cardCommit' | 'cardRelease' | 'cardPeek',
   key: string,
+  cardKey?: string,
 ): Promise<ReserveResult | null> {
   const id = env.VOICE_CREDITS.idFromName(hashedAppUserId);
   const response = await env.VOICE_CREDITS.get(id).fetch(
-    `https://ledger/${op}?key=${encodeURIComponent(key)}`,
+    `https://ledger/${op}?key=${encodeURIComponent(key)}${cardKey ? `&card=${encodeURIComponent(cardKey)}` : ''}`,
     { method: 'POST' },
   );
   if (!response.ok) return null;
   return (await response.json()) as ReserveResult;
+}
+
+export async function reserveCardVoice(
+  env: Env, subscriberId: string, requestKey: string, cardKey: string,
+): Promise<ReserveResult | null> {
+  try { return await call(env, subscriberId, 'cardReserve', requestKey, cardKey); }
+  catch { return null; }
+}
+
+export async function commitCardVoice(
+  env: Env, subscriberId: string, requestKey: string, cardKey: string,
+): Promise<ReserveResult | null> {
+  try { return await call(env, subscriberId, 'cardCommit', requestKey, cardKey); }
+  catch { return null; }
+}
+
+export async function releaseCardVoice(
+  env: Env, subscriberId: string, requestKey: string, cardKey: string,
+): Promise<void> {
+  try { await call(env, subscriberId, 'cardRelease', requestKey, cardKey); }
+  catch { /* Reservation expires; a failed request never spends a card. */ }
 }
 
 /**
@@ -309,9 +404,10 @@ export async function peekVoiceCreditBalance(
   env: Env,
   hashedAppUserId: string,
   requestId: string,
+  mode: 'cards' | 'legacy' = 'legacy',
 ): Promise<ReserveResult | null> {
   try {
-    const result = await call(env, hashedAppUserId, 'peek', '');
+    const result = await call(env, hashedAppUserId, mode === 'cards' ? 'cardPeek' : 'peek', '');
     if (result !== null) {
       log('info', 'voice_credit_balance_read', requestId, {
         remaining: result.remaining,

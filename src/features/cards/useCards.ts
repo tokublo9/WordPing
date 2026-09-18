@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import { Alert } from 'react-native';
+import { WordCoreAlert as Alert } from '../../components/WordCoreAlert';
 import type { ReviewEntry, WordCard } from '../../types';
 import { appNow } from '../../lib/appClock';
 import { CLEAR_HIDE, cardsForVisibility, nextHideExpiry } from './visibility';

@@ -17,6 +17,7 @@ import { appStyles as s } from '../styles';
 import { CompactSwitch } from './CompactSwitch';
 import { NewFeatureBadge } from './NewFeatureBadge';
 import { SettingsInfoPopup, type SettingsInfoContent } from './SettingsInfoPopup';
+import { WordCoreAlertHost } from './WordCoreAlert';
 
 const INFO_BUTTON_TARGET = 44;
 const INFO_ICON_OPACITY = 0.62;
@@ -243,6 +244,7 @@ export function NotificationModal({
         pal={pal}
         themeColor={themeColor}
       />
+      <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
     </Modal>
   );
 }

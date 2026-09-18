@@ -1,4 +1,5 @@
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
+import { WordCoreAlert as Alert } from '../../components/WordCoreAlert';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, FolderNotifSettings, WordCard } from '../../types';
 import type { TranslationKey } from '../../i18n';
@@ -109,11 +110,9 @@ export function useFolderNotifications({
       return;
     }
     const conflictId = conflicting.id;
-    // Neither folder is named. A native alert is an OS view that Session Replay
-    // captures and no React wrapper can mask, so a folder name in this string
-    // would be legible in a recording. "another folder" / "this folder" says
-    // the same thing — the user is looking at the folder they are switching to
-    // — and the two buttons still do exactly what they did.
+    // Neither folder is named. The shared dialog is masked from Session Replay,
+    // and "another folder" / "this folder" is sufficient while the user is
+    // looking at the folder they are switching to.
     Alert.alert(
       t('notifications'),
       t('notif_conflict_body'),

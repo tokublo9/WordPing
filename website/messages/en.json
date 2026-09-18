@@ -147,7 +147,7 @@
   "plans": {
     "badge": "Plans",
     "title": "Choose the level that fits your study",
-    "subtitle": "Core vocabulary study is available on Free. Basic adds paid themes and a monthly AI Voice allowance. Premium adds High-Quality AI Voice without a monthly product quota, backup, data transfer and priority support.",
+    "subtitle": "Core vocabulary study is available on Free. Basic adds paid themes and AI Voice for the fronts of 10 cards. Premium adds AI Voice for card fronts, optional AI Voice for backs, backup, data transfer and priority support.",
     "recommended": "Most complete",
     "comparisonFeature": "Feature",
     "free": {
@@ -158,19 +158,19 @@
     "basic": {
       "name": "Basic",
       "price": "Subscription",
-      "description": "Paid themes and 200 new High-Quality AI Voice generations each UTC calendar month."
+      "description": "Paid themes and AI Voice for the fronts of 10 cards, starting at the top of your first folder and Word List."
     },
     "premium": {
       "name": "Premium",
       "price": "Subscription",
-      "description": "The complete plan with no monthly AI Voice quota, backup, data transfer and priority support."
+      "description": "The complete plan with AI Voice, backup, data transfer and priority support."
     },
     "features": {
       "core": "Word List, Flip Mode and Test Mode",
       "freeThemes": "Free themes",
       "promoSamples": "Promotional voice samples",
       "paidThemes": "Paid themes included",
-      "basicVoice": "High-Quality AI Voice: 200/month",
+      "basicVoice": "High-Quality AI Voice: 10 card fronts",
       "premiumVoice": "High-Quality AI Voice included",
       "backup": "Backup & Restore and Data Transfer",
       "priority": "Priority Support"
@@ -181,6 +181,7 @@
       "studyModes": "Word List, Flip Mode and Test Mode",
       "paidThemes": "Paid themes",
       "aiVoice": "High-Quality AI Voice",
+      "multipleVoiceTypes": "Multiple voice types (Marin / Cedar)",
       "backup": "Backup & Restore",
       "transfer": "Data Transfer",
       "priority": "Priority Support"
@@ -189,11 +190,11 @@
       "included": "Included",
       "notIncluded": "Not included",
       "promoOnly": "Samples only",
-      "basicVoice": "200/month",
+      "basicVoice": "10 card fronts",
       "premiumVoice": "Included*"
     },
-    "basicVoiceNote": "Basic includes up to 200 new High-Quality AI Voice generations per UTC calendar month. Cached playback and promotional samples do not consume a new generation.",
-    "premiumVoiceNote": "*Premium has no monthly product quota. Existing per-request, per-minute, daily, technical, safety and abuse-prevention limits still apply.",
+    "basicVoiceNote": "Basic includes AI Voice for the fronts of 10 cards, starting at the top of your first folder and then down each Word List in folder order. New card audio is limited to 1 minute 30 seconds per UTC month. Saved audio can still be replayed. Other card fronts and all backs use the free device voice. The 10-card allowance does not renew monthly.",
+    "premiumVoiceNote": "*Premium generates AI Voice for card fronts, up to 200 generations per UTC day and 400 per UTC month. Newly generated AI audio is limited to 30 minutes per UTC month. AI Voice for backs is optional in Settings and uses the same budget. Replaying saved audio does not count. Deferred card audio is generated when the budget renews while the app is open or next opened.",
     "priceNote": "Current subscription prices and renewal terms are shown by Apple in the App Store before purchase."
   },
   "cta": {

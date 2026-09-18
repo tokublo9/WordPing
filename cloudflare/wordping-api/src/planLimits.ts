@@ -14,18 +14,10 @@ import type { Feature, Tier } from './config';
 /**
  * Features covered by the *monthly* High-Quality AI Voice allowance.
  *
- * Empty, and correctly so. Basic's allowance is a one-time grant that never
- * refills, which is a different thing with different rules and its own module
- * (lifetimeCredits.ts); Premium has never had a monthly product ceiling. So no
- * route is metered by the month today.
- *
- * The machinery is kept rather than deleted because it is the right shape for
- * any future feature that genuinely renews monthly, and because `monthKey` /
- * `monthResetsAt` must not be borrowed for the lifetime balance — a balance
- * that silently reset at a month boundary would hand out unlimited credits.
- * Listing a feature here re-arms it; nothing else needs to change.
+ * Premium card generations use the monthly budget. Basic's allowance is a
+ * one-time card grant in lifetimeCredits.ts and does not reset monthly.
  */
-export const VOICE_QUOTA_FEATURES: readonly Feature[] = [];
+export const VOICE_QUOTA_FEATURES: readonly Feature[] = ['voice_card'];
 
 export function isVoiceQuotaFeature(feature: Feature): boolean {
   return VOICE_QUOTA_FEATURES.includes(feature);
@@ -34,33 +26,35 @@ export function isVoiceQuotaFeature(feature: Feature): boolean {
 /**
  * High-Quality AI Voice generations allowed per UTC calendar month.
  *
- * `null` means no monthly product quota. Premium is sold as included, so it has
- * none — but "no monthly quota" is not "no limits": Premium is still subject to
- * entitlement verification, the per-minute and per-day abuse limits in
- * ratelimit.ts, the kill switches, and the OpenAI project budget.
+ * Premium uses a 400-generation monthly budget, enforced atomically in the
+ * subscriber's Durable Object together with its 200-generation daily budget.
  *
  * `0` here no longer means "does not have the feature". Basic sits at zero
- * because it has no *monthly* allowance — its access is the one-time credit
+ * because it has no *monthly* allowance — its access is the lifetime card
  * grant in VOICE_LIFETIME_CREDITS. Read the two together; the app mirrors both
  * and derives eligibility from the pair.
  */
 export const VOICE_MONTHLY_LIMITS: Readonly<Record<Tier, number | null>> = {
   free: 0,
   basic: 0,
-  premium: null,
+  premium: 400,
 };
 
+/** Total duration of newly generated Premium card audio per UTC month. */
+export const PREMIUM_MONTHLY_AUDIO_MS = 30 * 60 * 1_000;
+export const BASIC_MONTHLY_AUDIO_MS = 90_000;
+
 /**
- * One-time High-Quality AI Voice credits, granted once per subscriber identity.
+ * Lifetime High-Quality AI Voice card slots, granted per subscriber identity.
  *
- * `null` means the tier is unmetered (Premium). `0` means the tier does not
- * have the feature at all (Free). Basic's number is the grant, issued the first
- * time that subscriber generates and never reissued — see lifetimeCredits.ts,
- * which owns the balance and is the only place it is spent.
+ * `null` means the tier has no one-time card grant (Premium). `0` means it does not
+ * have the feature at all (Free). A Basic front card claims one slot the first
+ * time it is generated; editing or changing voices for that card is free.
+ * See lifetimeCredits.ts for the durable ledger.
  */
 export const VOICE_LIFETIME_CREDITS: Readonly<Record<Tier, number | null>> = {
   free: 0,
-  basic: 200,
+  basic: 10,
   premium: null,
 };
 
@@ -79,14 +73,4 @@ export function monthKey(now: number): string {
 export function monthResetsAt(now: number): string {
   const date = new Date(now);
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)).toISOString();
-}
-
-/**
- * Seconds until the counter may be discarded. One extra month of slack so a
- * clock skew near the boundary cannot expire a live counter.
- */
-export function monthlyCounterTtlSeconds(now: number): number {
-  const resetsAt = Date.parse(monthResetsAt(now));
-  const oneMonth = 60 * 60 * 24 * 31;
-  return Math.max(60, Math.ceil((resetsAt - now) / 1000) + oneMonth);
 }

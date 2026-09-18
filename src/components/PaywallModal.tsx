@@ -13,6 +13,7 @@ import type { Palette } from '../types';
 import { useLang } from '../i18n';
 import { resolvePlanPrice, type PlanStoreProducts } from '../lib/planPricing';
 import { appStyles as s } from '../styles';
+import { WordCoreAlertHost } from './WordCoreAlert';
 
 interface Props {
   visible: boolean;
@@ -98,6 +99,7 @@ export function PaywallModal({
           {/* Restore Purchases now lives in Settings → App Info → Purchases, so
               it is reachable without opening the paywall and exists once. */}
         </View>
+        <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
       </View>
     </Modal>
   );

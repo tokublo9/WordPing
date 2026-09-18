@@ -26,12 +26,12 @@ test('the Worker sells Basic the metered voice routes and nothing more', () => {
     const source = read(path);
     assert.match(
       source,
-      /VOICE_MONTHLY_LIMITS[\s\S]{0,400}free: 0,\s*basic: 0,\s*premium: null,/u,
+      /VOICE_MONTHLY_LIMITS[\s\S]{0,400}free: 0,\s*basic: 0,\s*premium: 400,/u,
       `${path} must give Basic no *monthly* allowance`,
     );
     assert.match(
       source,
-      /VOICE_LIFETIME_CREDITS[\s\S]{0,400}free: 0,\s*basic: 200,\s*premium: null,/u,
+      /VOICE_LIFETIME_CREDITS[\s\S]{0,400}free: 0,\s*basic: 10,\s*premium: null,/u,
       `${path} must give Basic the one-time grant`,
     );
   }
@@ -47,8 +47,8 @@ test('the card voice button gates only AI Voice', () => {
   assert.doesNotMatch(playback, /canUseCustomVoice|onCustomVoiceLocked|custom_voice_locked/u);
   // AI Voice still decides the generated-speech engine. Attached audio remains
   // part of speakWordCard and is available without a plan check.
-  assert.match(playback, /await speakWordCard\(item, canUseAIVoice, playbackOptions\);/u);
-  assert.match(playback, /await speak\(item\.meaning, canUseAIVoice, item\.meaningLang, playbackOptions\);/u);
+  assert.match(playback, /await speakWordCard\(item, cardCanUseAI, playbackOptions\);/u);
+  assert.match(playback, /await speak\(item\.meaning, cardCanUseAI, item\.meaningLang, playbackOptions\);/u);
   // No plan name reaches this hook at all. Checked against the code alone: the
   // comments deliberately name the flags they replaced.
   const code = playback
@@ -93,18 +93,17 @@ test('the word editor always exposes Custom Voice and its playback settings', ()
   assert.match(modal, /const aiTextVisible = AI_TEXT_FEATURES_ENABLED && isPremium && !hideAiTools;/u);
 });
 
-test('the AI voice picker follows AI Voice into Premium', () => {
+test('the AI voice picker is Premium only because Basic uses Marin', () => {
   const settings = read('src/components/SettingsModal.tsx');
-  // `canUseAI` is the rule; a plan check here could drift from it.
-  assert.match(settings, /\{canUseAI && \(\s*<TouchableOpacity\s*style=\{styles\.cardBehaviorRow\}/u);
-  assert.match(settings, /if \(visible && canUseAI\) return;\s*stopPlayback\(\);/u);
+  assert.match(settings, /\{isPremium && \(\s*<TouchableOpacity\s*style=\{styles\.cardBehaviorRow\}/u);
+  assert.match(settings, /if \(visible && isPremium\) return;\s*stopPlayback\(\);/u);
 });
 
 // ── Plan descriptions ────────────────────────────────────────────────────────
 
 test('Custom Voice has no locked-plan copy, and AI Voice names both paid plans', () => {
   const i18n = read('src/i18n.ts');
-  assert.doesNotMatch(i18n, /custom_voice_locked_msg|basic_voice_limit|cmp_custom_voice|feat_custom_voice/u);
+  assert.doesNotMatch(i18n, /custom_voice_locked_msg|basic_voice_limit:|cmp_custom_voice|feat_custom_voice/u);
   // Basic includes AI Voice through its one-time credits, so naming Premium
   // alone told a Free user to buy the more expensive of the two plans that have
   // it — and told a Basic subscriber to buy a plan they did not need.

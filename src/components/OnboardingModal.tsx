@@ -8,6 +8,7 @@ import type { DateTimePickerEvent } from '@react-native-community/datetimepicker
 import { isSupportedOnboardingLanguage, SUPPORTED_LANGUAGES, useLang } from '../i18n';
 import type { TranslationKey } from '../i18n';
 import type { OnboardingChoices, Palette } from '../types';
+import { WordCoreAlertHost } from './WordCoreAlert';
 
 // ── Dev flag ──────────────────────────────────────────────────────────────────
 // Set to true to show onboarding on every launch (only takes effect in __DEV__).
@@ -293,7 +294,7 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
           <View style={[ob.stepWrap, { paddingBottom: insets.bottom + 32 }]}>
             <View style={ob.logoArea}>
               <Image
-                source={require('../../assets/icon.png')}
+                source={require('../../assets/icon/icon.png')}
                 style={ob.appIcon}
               />
               <Text style={[ob.welcomeTitle, { color: pal.text }]}>{t('ob_welcome_title')}</Text>
@@ -528,6 +529,7 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
           </View>
         )}
 
+        <WordCoreAlertHost active priority={10} pal={pal} themeColor={themeColor} />
       </View>
 
       {Platform.OS === 'ios' && (

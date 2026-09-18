@@ -239,8 +239,8 @@ test('every newly created folder explicitly starts with scheduling off', () => {
   assert.match(defaults, /return \{ intervalSeconds: 0, displayOnlyWord: false \};/u);
   assert.equal(
     (folders.match(/notifSettings: createDefaultFolderNotifSettings\(\)/gu) ?? []).length,
-    3,
-    'manual creation and both replacement-folder paths default off',
+    1,
+    'manual creation defaults off; deleting the last folder creates no replacement',
   );
   assert.match(bootstrap, /notifSettings: createDefaultFolderNotifSettings\(\)/u);
   assert.equal(

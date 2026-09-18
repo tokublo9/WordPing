@@ -94,21 +94,24 @@ test('Test Mode stops playback on a flip in either direction', () => {
   assert.equal((screen.match(/useWordCardVoicePlayback\(/gu) ?? []).length, 1);
 });
 
-test('card taps start both flip animations without awaiting Custom Voice cleanup', () => {
+test('card taps snap both faces without waiting for Custom Voice cleanup', () => {
+  assert.match(read('src/features/flags.ts'), /export const CARD_FLIP_ANIMATION_ENABLED = false;/u);
   const cases = [
-    ['src/components/FlipCardBrowser.tsx', 'const doFlip = useCallback', 'const noFlip'],
-    ['src/components/TestModeScreen.tsx', 'const doToggleFlip = useCallback', 'const advance'],
+    ['src/components/FlipCardBrowser.tsx', 'const doFlip = useCallback', 'const noFlip', 350, 1],
+    ['src/components/TestModeScreen.tsx', 'const doToggleFlip = useCallback', 'const advance', 300, 2],
   ];
 
-  for (const [path, start, end] of cases) {
+  for (const [path, start, end, enabledDuration, expectedDirections] of cases) {
     const source = read(path);
     const handler = source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
     const stopAt = handler.indexOf('stopVoice();');
     const animationAt = handler.indexOf('Animated.timing(');
     const animationStartAt = handler.indexOf('.start(', animationAt);
+    const durations = handler.match(new RegExp(`duration: CARD_FLIP_ANIMATION_ENABLED \\? ${enabledDuration} : 0`, 'gu')) ?? [];
+    assert.equal(durations.length, expectedDirections, `${path} snaps both flip directions while the flag is off`);
     assert.ok(
       animationStartAt > -1 && stopAt > animationStartAt,
-      `${path} starts its native animation before audio work`,
+      `${path} updates the native flip value before audio work`,
     );
     assert.doesNotMatch(handler, /await|\.then\(/u, `${path} must not wait for cleanup`);
   }

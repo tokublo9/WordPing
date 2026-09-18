@@ -16,9 +16,12 @@ import { consume } from './ratelimit';
 import { reserveMonthlyQuota } from './monthlyQuota';
 import { VOICE_LIFETIME_CREDITS, isVoiceQuotaFeature } from './planLimits';
 import {
+  commitCardVoice,
   commitVoiceCredit,
   isLifetimeCreditFeature,
+  releaseCardVoice,
   releaseVoiceCredit,
+  reserveCardVoice,
   reserveVoiceCredit,
   type ReserveResult,
 } from './lifetimeCredits';
@@ -72,9 +75,9 @@ export interface ApprovedRequest<T> {
   limits: FeatureLimits;
   characters: number;
   /**
-   * Reserves one High-Quality AI Voice generation against the caller's monthly
-   * allowance. A no-op for routes outside VOICE_QUOTA_FEATURES and for tiers
-   * with no monthly quota. Already called for you unless the spec set
+   * Reserves one Premium High-Quality AI Voice generation against the caller's
+   * day and month budgets. A no-op for other routes and tiers. Called unless
+   * the spec set
    * `deferQuota`. Returns an error Response when the allowance is exhausted, or
    * null when the request may proceed. Calling it twice charges twice.
    */
@@ -290,11 +293,18 @@ async function approve<T>(
     privacyHash(env, 'ip', clientIp(request)),
   ]);
 
-  const decision = await consume(
-    env,
-    { feature: spec.feature, hashedInstallId, hashedIp, limits, characters },
-    response.requestId,
-  );
+  // Premium card generation uses an atomic subscriber budget below, including
+  // its minute, day, month and character limits. KV counters here would add six
+  // writes per clip and exhaust the account's free KV writes before the stated
+  // daily allowance. Entitlement verification already binds requests to the
+  // same subscriber across devices and reinstalls.
+  const decision = spec.feature === 'voice_card' && tier === 'premium'
+    ? { allowed: true as const }
+    : await consume(
+      env,
+      { feature: spec.feature, hashedInstallId, hashedIp, limits, characters },
+      response.requestId,
+    );
   if (!decision.allowed) {
     return reject(
       decision.code,
@@ -304,12 +314,12 @@ async function approve<T>(
     );
   }
 
-  // Monthly allowance last: a request rejected by validation, entitlement or
-  // the per-minute limiter must not consume a generation.
+  // Subscriber budget last: validation and entitlement failures never consume
+  // a generation.
   //
   // Only word-card High-Quality AI Voice generation is metered. Voice-picker
   // previews and promotional previews are deliberately absent from
-  // VOICE_QUOTA_FEATURES, so neither spends the Basic monthly allowance.
+  // VOICE_QUOTA_FEATURES, so neither spends the Premium generation budget.
   // An anonymous route is never metered, so there is no App User ID to hash —
   // and none was received to hash in the first place.
   // Basic's one-time credits are claimed here, after the abuse limits and
@@ -323,6 +333,11 @@ async function approve<T>(
     && VOICE_LIFETIME_CREDITS[tier] !== null
     && VOICE_LIFETIME_CREDITS[tier] !== 0;
   const creditLedgerId = spendsCredits ? voiceCreditLedgerId! : '';
+  const cardId = spendsCredits && typeof (body as { cardId?: unknown }).cardId === 'string'
+    ? (body as { cardId: string }).cardId : '';
+  const cardKey = cardId
+    ? await privacyHash(env, 'voicecard', `${creditLedgerId}\u0000${cardId}`)
+    : '';
   // Derived from the request's own content, so a retry or a duplicate of the
   // same generation reserves and commits the same claim rather than a second
   // one. Hashed, so no user text reaches the ledger or its logs.
@@ -334,9 +349,9 @@ async function approve<T>(
     )
     : '';
   if (spendsCredits) {
-    const reservation = await reserveVoiceCredit(
-      env, creditLedgerId, idempotencyKey, response.requestId,
-    );
+    const reservation = cardKey
+      ? await reserveCardVoice(env, creditLedgerId, idempotencyKey, cardKey)
+      : await reserveVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
     // Fail closed on a ledger the Worker cannot reach. Letting the request
     // through would make an outage the cheapest route to unmetered generation.
     if (reservation === null) {
@@ -361,24 +376,29 @@ async function approve<T>(
     }
   }
 
-  const meteredForVoice = isVoiceQuotaFeature(spec.feature) && identity !== null;
+  const meteredForVoice = isVoiceQuotaFeature(spec.feature) && identity !== null && tier === 'premium';
   const hashedAppUserId = meteredForVoice ? voiceCreditLedgerId ?? '' : '';
   const reserveQuota = async (): Promise<Response | null> => {
     if (!meteredForVoice) return null;
     const quota = await reserveMonthlyQuota(
       env,
-      { tier, hashedAppUserId },
-      response.requestId,
+      { tier, hashedAppUserId, characters, limits },
     );
+    if (quota === null) return errorResponse(response, 'entitlement_verification_failed', 503,
+      { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
     if (quota.allowed) return null;
-    return errorResponse(response, 'monthly_api_limit_reached', 429, {
-      // limit is never null on this path: a tier with no monthly quota is
-      // always allowed, so it cannot reach the rejection branch.
-      limit: quota.limit ?? 0,
-      used: quota.used,
-      resetsAt: quota.resetsAt,
-      tier,
-    });
+    if (quota.window === 'month') {
+      return errorResponse(response, 'monthly_api_limit_reached', 429, {
+        limit: quota.limit, used: quota.used, resetsAt: quota.resetsAt, tier,
+        ...(quota.reason === 'duration' ? { reason: 'duration' } : {}),
+      }, { 'Retry-After': String(quota.retryAfterSeconds) });
+    }
+    return errorResponse(response,
+      quota.reason === 'characters' ? 'usage_limit_exceeded' : 'rate_limit_exceeded',
+      429,
+      { scope: 'account', window: quota.window ?? 'day', limit: quota.limit },
+      { 'Retry-After': String(quota.retryAfterSeconds) },
+    );
   };
 
   if (spec.deferQuota !== true) {
@@ -388,9 +408,8 @@ async function approve<T>(
       // requests atomic. A later monthly-policy rejection generated nothing,
       // so return the claim immediately instead of waiting for its TTL.
       if (spendsCredits) {
-        await releaseVoiceCredit(
-          env, creditLedgerId, idempotencyKey, response.requestId,
-        );
+        if (cardKey) await releaseCardVoice(env, creditLedgerId, idempotencyKey, cardKey);
+        else await releaseVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
       }
       return { ok: false, response: exhausted };
     }
@@ -398,11 +417,14 @@ async function approve<T>(
 
   const commitCredit = async (): Promise<ReserveResult | null | undefined> => {
     if (!spendsCredits) return undefined;
-    return commitVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
+    return cardKey
+      ? commitCardVoice(env, creditLedgerId, idempotencyKey, cardKey)
+      : commitVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
   };
   const releaseCredit = async (): Promise<void> => {
     if (!spendsCredits) return;
-    await releaseVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
+    if (cardKey) await releaseCardVoice(env, creditLedgerId, idempotencyKey, cardKey);
+    else await releaseVoiceCredit(env, creditLedgerId, idempotencyKey, response.requestId);
   };
 
   return {

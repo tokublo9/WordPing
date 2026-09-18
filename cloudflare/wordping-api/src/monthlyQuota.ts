@@ -1,140 +1,166 @@
-import type { Tier } from './config';
+import type { FeatureLimits, Tier } from './config';
 import type { Env } from './env';
-import { log, redactError } from './log';
-import {
-  VOICE_MONTHLY_LIMITS,
-  monthKey,
-  monthlyCounterTtlSeconds,
-  monthResetsAt,
-} from './planLimits';
+import { DEFAULT_LIMITS } from './config';
+import { BASIC_MONTHLY_AUDIO_MS, PREMIUM_MONTHLY_AUDIO_MS, VOICE_MONTHLY_LIMITS, monthKey, monthResetsAt } from './planLimits';
 
-/**
- * Monthly High-Quality AI Voice allowance.
- *
- * NOTHING USES THIS TODAY. VOICE_QUOTA_FEATURES is empty: Basic's allowance is a
- * one-time grant that never refills, which lives in lifetimeCredits.ts, and
- * Premium has no monthly product ceiling. This module is retained for a future
- * feature that genuinely renews monthly.
- *
- * It previously read "Basic gets 200 generations per UTC month", which was
- * already untrue — VOICE_MONTHLY_LIMITS had Basic at zero — and is the sentence
- * that made the benefit look monthly. Basic's 200 are a lifetime grant. Do not
- * borrow `monthKey` or `monthResetsAt` for that balance: a lifetime credit that
- * quietly reset at a month boundary would be unlimited credits.
- *
- * Counted per RevenueCat App User ID, not per install: the allowance belongs to
- * the subscription, so reinstalling or adding a second device must not hand out
- * a fresh one.
- *
- * WHAT COUNTS: exactly one unit per generation accepted for upstream
- * processing — a request that has passed validation, entitlement verification,
- * the per-minute/day rate limits. Everything else is free:
- *
- *   - health checks and unknown routes            never reach this module
- *   - malformed or unauthorised requests          rejected before reserving
- *   - entitlement-verification failures (503)     rejected before reserving
- *   - voice-picker previews, including cache miss outside monthly allowance
- *   - audio replayed from the client's file cache never reaches the Worker
- *   - free-plan device TTS (expo-speech)          never reaches the Worker
- *   - every non-voice route                       not a voice generation
- *
- * WHAT ABOUT UPSTREAM FAILURES: a request that reaches OpenAI and then fails
- * still counts. That is deliberate. OpenAI may well have processed and billed
- * it, and refunding the unit on failure would make a deliberately-failing
- * request an unlimited free retry loop. The cost of this choice is that a genuine
- * OpenAI outage consumes a few units; the cost of the alternative is an
- * unbounded bill.
- */
+/** Premium card generations share one atomic budget across all devices. */
+export interface VoiceQuotaState {
+  minute: string;
+  day: string;
+  month: string;
+  minuteUsed: number;
+  dayUsed: number;
+  monthUsed: number;
+  dayCharacters: number;
+  /** Premium audio; existing ledgers already store this field. */
+  monthAudioMs?: number;
+  monthBasicAudioMs?: number;
+  monthAudioExhausted?: boolean;
+  monthBasicAudioExhausted?: boolean;
+}
 
 export interface QuotaDecision {
   allowed: boolean;
-  /** null when the tier has no monthly product quota (Premium). */
-  limit: number | null;
+  window: 'minute' | 'day' | 'month' | null;
+  reason: 'requests' | 'characters' | 'duration' | null;
+  limit: number;
   used: number;
-  /** ISO-8601 start of the next UTC month. */
   resetsAt: string;
+  retryAfterSeconds: number;
 }
 
-export function monthlyQuotaCounterKey(now: number, hashedAppUserId: string): string {
-  return `quota:${monthKey(now)}:${hashedAppUserId}`;
+export function applyVoiceQuota(
+  before: VoiceQuotaState | undefined,
+  now: number,
+  characters: number,
+  reserve: boolean,
+  override?: Pick<FeatureLimits, 'maxRequestsPerMinute' | 'maxRequestsPerDay' | 'maxCharsPerDay'>,
+): { next: VoiceQuotaState; decision: QuotaDecision } {
+  const minute = String(Math.floor(now / 60_000));
+  const day = new Date(now).toISOString().slice(0, 10);
+  const month = monthKey(now);
+  const defaults = DEFAULT_LIMITS.voice_card.premium;
+  const limits = {
+    maxRequestsPerMinute: Math.min(defaults.maxRequestsPerMinute, override?.maxRequestsPerMinute ?? defaults.maxRequestsPerMinute),
+    maxRequestsPerDay: Math.min(defaults.maxRequestsPerDay, override?.maxRequestsPerDay ?? defaults.maxRequestsPerDay),
+    maxCharsPerDay: Math.min(defaults.maxCharsPerDay, override?.maxCharsPerDay ?? defaults.maxCharsPerDay),
+  };
+  const monthlyLimit = VOICE_MONTHLY_LIMITS.premium ?? 400;
+  const next: VoiceQuotaState = {
+    minute, day, month,
+    minuteUsed: before?.minute === minute ? before.minuteUsed : 0,
+    dayUsed: before?.day === day ? before.dayUsed : 0,
+    monthUsed: before?.month === month ? before.monthUsed : 0,
+    dayCharacters: before?.day === day ? before.dayCharacters : 0,
+    monthAudioMs: before?.month === month ? before.monthAudioMs ?? 0 : 0,
+    monthBasicAudioMs: before?.month === month ? before.monthBasicAudioMs ?? 0 : 0,
+    monthAudioExhausted: before?.month === month ? before.monthAudioExhausted ?? false : false,
+    monthBasicAudioExhausted: before?.month === month ? before.monthBasicAudioExhausted ?? false : false,
+  };
+  const nextMinute = (Math.floor(now / 60_000) + 1) * 60_000;
+  const nextDay = Date.parse(`${day}T00:00:00.000Z`) + 86_400_000;
+  const nextMonth = Date.parse(monthResetsAt(now));
+  const blocked = (window: QuotaDecision['window'], reason: QuotaDecision['reason'], limit: number, used: number, reset: number): QuotaDecision => ({
+    allowed: false, window, reason, limit, used,
+    resetsAt: new Date(reset).toISOString(),
+    retryAfterSeconds: Math.max(1, Math.ceil((reset - now) / 1_000)),
+  });
+  // The longest exhausted window wins, so a monthly limit never looks like a
+  // minute-only delay at the end of a large import.
+  if (next.monthUsed >= monthlyLimit) return { next, decision: blocked('month', 'requests', monthlyLimit, next.monthUsed, nextMonth) };
+  if (next.monthAudioExhausted || (next.monthAudioMs ?? 0) >= PREMIUM_MONTHLY_AUDIO_MS) {
+    return { next, decision: blocked('month', 'duration', PREMIUM_MONTHLY_AUDIO_MS, next.monthAudioMs ?? 0, nextMonth) };
+  }
+  if (next.dayUsed >= limits.maxRequestsPerDay) return { next, decision: blocked('day', 'requests', limits.maxRequestsPerDay, next.dayUsed, nextDay) };
+  if (next.dayCharacters + characters > limits.maxCharsPerDay) {
+    return { next, decision: blocked('day', 'characters', limits.maxCharsPerDay, next.dayCharacters, nextDay) };
+  }
+  if (next.minuteUsed >= limits.maxRequestsPerMinute) return { next, decision: blocked('minute', 'requests', limits.maxRequestsPerMinute, next.minuteUsed, nextMinute) };
+  if (reserve) {
+    next.minuteUsed += 1;
+    next.dayUsed += 1;
+    next.monthUsed += 1;
+    next.dayCharacters += characters;
+  }
+  return { next, decision: {
+    allowed: true, window: null, reason: null, limit: monthlyLimit, used: next.monthUsed,
+    resetsAt: new Date(nextMonth).toISOString(), retryAfterSeconds: 0,
+  } };
 }
 
-async function readUsed(env: Env, key: string): Promise<number> {
-  const raw = await env.WORDPING_KV.get(key).catch(() => null);
-  if (raw === null) return 0;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+/** Commit the duration of an actual generated clip, serialized by the ledger. */
+export function applyAudioDuration(
+  before: VoiceQuotaState | undefined,
+  now: number,
+  durationMs: number,
+  tier: 'basic' | 'premium' = 'premium',
+): { next: VoiceQuotaState; decision: QuotaDecision } {
+  const next = applyVoiceQuota(before, now, 0, false).next;
+  const used = tier === 'basic' ? next.monthBasicAudioMs ?? 0 : next.monthAudioMs ?? 0;
+  const limit = tier === 'basic' ? BASIC_MONTHLY_AUDIO_MS : PREMIUM_MONTHLY_AUDIO_MS;
+  const resetsAt = monthResetsAt(now);
+  const blocked = (): QuotaDecision => ({
+    allowed: false, window: 'month', reason: 'duration',
+    limit, used,
+    resetsAt, retryAfterSeconds: Math.max(1, Math.ceil((Date.parse(resetsAt) - now) / 1_000)),
+  });
+  const exhausted = tier === 'basic' ? next.monthBasicAudioExhausted : next.monthAudioExhausted;
+  if (exhausted || used >= limit || used + durationMs > limit) {
+    if (tier === 'basic') next.monthBasicAudioExhausted = true;
+    else next.monthAudioExhausted = true;
+    return { next, decision: blocked() };
+  }
+  if (tier === 'basic') next.monthBasicAudioMs = used + durationMs;
+  else next.monthAudioMs = used + durationMs;
+  return { next, decision: { allowed: true, window: null, reason: null,
+    limit, used: used + durationMs, resetsAt, retryAfterSeconds: 0 } };
 }
 
 export interface ReserveInput {
-  /** Verified tier. Never a client-supplied value. */
   tier: Tier;
-  /** Salted hash of the RevenueCat App User ID. */
   hashedAppUserId: string;
-  now?: number;
+  characters?: number;
+  limits?: Pick<FeatureLimits, 'maxRequestsPerMinute' | 'maxRequestsPerDay' | 'maxCharsPerDay'>;
 }
 
-/**
- * Reserves one unit of monthly quota, or refuses.
- *
- * Reserved *before* the OpenAI call rather than committed after it, so two
- * requests in flight cannot both see the same "used" value and both proceed on
- * the assumption there was room for one.
- *
- * CONCURRENCY: KV offers no atomic increment, so this is read-modify-write and
- * simultaneous requests in different colos can lose an update. The practical
- * bound is small, because the per-minute limiter in ratelimit.ts has already
- * run and caps how many requests can be in flight at once (10-20/min per
- * feature). Overshoot is therefore on the order of the in-flight count, not
- * unbounded. If exact monthly accounting is ever required, move this module to
- * a Durable Object keyed by `counterKey` — the interface is shaped for that
- * swap and no caller would change.
- */
-export async function reserveMonthlyQuota(
-  env: Env,
-  input: ReserveInput,
-  requestId: string,
-): Promise<QuotaDecision> {
-  const now = input.now ?? Date.now();
-  const limit = VOICE_MONTHLY_LIMITS[input.tier];
-  const resetsAt = monthResetsAt(now);
-
-  // Premium is sold as included, so there is no monthly counter to keep — and
-  // nothing to reject on. The per-minute limits and the kill switches still
-  // apply; this only means no *monthly product* ceiling.
-  if (limit === null) return { allowed: true, limit: null, used: 0, resetsAt };
-
-  const key = monthlyQuotaCounterKey(now, input.hashedAppUserId);
-  const used = await readUsed(env, key);
-
-  if (used + 1 > limit) {
-    log('info', 'monthly_quota_exhausted', requestId, { tier: input.tier, limit, used });
-    return { allowed: false, limit, used, resetsAt };
-  }
-
-  const next = used + 1;
-  await env.WORDPING_KV
-    .put(key, String(next), { expirationTtl: monthlyCounterTtlSeconds(now) })
-    .catch((error: unknown) => {
-      // A dropped write loosens the quota by one unit rather than failing a
-      // paid request. The OpenAI project budget remains the hard ceiling.
-      log('warn', 'monthly_quota_write_failed', requestId, {
-        tier: input.tier, ...redactError(error),
-      });
-    });
-
-  return { allowed: true, limit, used: next, resetsAt };
+async function callQuota(env: Env, input: ReserveInput, op: 'quotaReserve' | 'quotaPeek'): Promise<QuotaDecision | null> {
+  if (input.tier !== 'premium') return {
+    allowed: true, window: null, reason: null, limit: 0, used: 0,
+    resetsAt: monthResetsAt(Date.now()), retryAfterSeconds: 0,
+  };
+  try {
+    const id = env.VOICE_CREDITS.idFromName(input.hashedAppUserId);
+    const response = await env.VOICE_CREDITS.get(id).fetch(
+      `https://ledger/${op}?characters=${Math.max(0, input.characters ?? 0)}`
+        + `&minute=${input.limits?.maxRequestsPerMinute ?? DEFAULT_LIMITS.voice_card.premium.maxRequestsPerMinute}`
+        + `&day=${input.limits?.maxRequestsPerDay ?? DEFAULT_LIMITS.voice_card.premium.maxRequestsPerDay}`
+        + `&chars=${input.limits?.maxCharsPerDay ?? DEFAULT_LIMITS.voice_card.premium.maxCharsPerDay}`,
+      { method: 'POST' },
+    );
+    return response.ok ? await response.json() as QuotaDecision : null;
+  } catch { return null; }
 }
 
-/** Read-only view, for diagnostics or a future usage display. */
-export async function readMonthlyQuota(
-  env: Env,
-  input: ReserveInput,
-): Promise<QuotaDecision> {
-  const now = input.now ?? Date.now();
-  const limit = VOICE_MONTHLY_LIMITS[input.tier];
-  const resetsAt = monthResetsAt(now);
-  if (limit === null) return { allowed: true, limit: null, used: 0, resetsAt };
-  const used = await readUsed(env, monthlyQuotaCounterKey(now, input.hashedAppUserId));
-  return { allowed: used < limit, limit, used, resetsAt };
+export function reserveMonthlyQuota(env: Env, input: ReserveInput): Promise<QuotaDecision | null> {
+  return callQuota(env, input, 'quotaReserve');
+}
+
+export function readMonthlyQuota(env: Env, input: ReserveInput): Promise<QuotaDecision | null> {
+  return callQuota(env, input, 'quotaPeek');
+}
+
+export async function commitAudioDuration(env: Env, hashedAppUserId: string, durationMs: number, tier: 'basic' | 'premium' = 'premium'): Promise<QuotaDecision | null> {
+  try {
+    const id = env.VOICE_CREDITS.idFromName(hashedAppUserId);
+    const response = await env.VOICE_CREDITS.get(id).fetch(`https://ledger/quotaAudioCommit?durationMs=${durationMs}&tier=${tier}`, { method: 'POST' });
+    return response.ok ? await response.json() as QuotaDecision : null;
+  } catch { return null; }
+}
+
+export async function readAudioDuration(env: Env, hashedAppUserId: string, tier: 'basic' | 'premium' = 'premium'): Promise<QuotaDecision | null> {
+  try {
+    const id = env.VOICE_CREDITS.idFromName(hashedAppUserId);
+    const response = await env.VOICE_CREDITS.get(id).fetch(`https://ledger/quotaAudioPeek?tier=${tier}`, { method: 'POST' });
+    return response.ok ? await response.json() as QuotaDecision : null;
+  } catch { return null; }
 }

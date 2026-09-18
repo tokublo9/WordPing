@@ -128,6 +128,8 @@ export interface AppModalsProps {
     onPickLanguage(code: string): void;
     aiVoice: AIVoice;
     onPickAIVoice(voice: AIVoice): void;
+    premiumBackVoice: boolean;
+    onTogglePremiumBackVoice(enabled: boolean): void;
     cardViewMode: 'list' | 'flip';
     onChangeCardViewMode(mode: 'list' | 'flip'): void;
     showFullCard: boolean;
@@ -314,6 +316,8 @@ export function AppModals({
         onPickLanguage={settingsModal.onPickLanguage}
         aiVoice={settingsModal.aiVoice}
         onPickAIVoice={settingsModal.onPickAIVoice}
+        premiumBackVoice={settingsModal.premiumBackVoice}
+        onTogglePremiumBackVoice={settingsModal.onTogglePremiumBackVoice}
         cardViewMode={settingsModal.cardViewMode}
         onChangeCardViewMode={settingsModal.onChangeCardViewMode}
         showFullCard={settingsModal.showFullCard}

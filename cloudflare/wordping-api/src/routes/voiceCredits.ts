@@ -36,6 +36,7 @@ export async function handleVoiceCredits(context: GuardContext): Promise<Respons
     context.env,
     ledgerId,
     context.response.requestId,
+    result.value.body.mode === 'cards' ? 'cards' : 'legacy',
   );
   if (balance === null) {
     return errorResponse(

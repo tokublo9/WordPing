@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { Env } from '../src/env';
-import { applyLedgerOp, type LedgerOp, type LedgerState } from '../src/lifetimeCredits';
+import { BASIC_LIFETIME_VOICE_CREDITS, applyCardOp, applyLedgerOp, type CardBalanceState, type LedgerOp, type LedgerState } from '../src/lifetimeCredits';
+import { applyAudioDuration, applyVoiceQuota, type VoiceQuotaState } from '../src/monthlyQuota';
 import { APP_USER_ID_HEADER, INSTALL_ID_HEADER } from '../src/identity';
 
 /**
@@ -67,11 +68,13 @@ export class FakeKV {
  */
 export class FakeCreditLedger {
   readonly states = new Map<string, LedgerState>();
-  constructor(private readonly grant = 200) {}
+  readonly cardStates = new Map<string, CardBalanceState>();
+  readonly quotaStates = new Map<string, VoiceQuotaState>();
+  constructor(private readonly grant = BASIC_LIFETIME_VOICE_CREDITS) {}
 
   /** Seed a balance for a name, e.g. 0 to simulate an exhausted subscriber. */
   seed(name: string, remaining: number): void {
-    this.states.set(name, { granted: true, remaining, reservations: {}, recentCommits: {} });
+    this.states.set(name, { granted: true, grantSize: this.grant, remaining, reservations: {}, recentCommits: {} });
   }
 
   /** Unspent credits for a name, or the full grant if never touched. */
@@ -83,16 +86,42 @@ export class FakeCreditLedger {
 
   get(name: string) {
     const states = this.states;
+    const cardStates = this.cardStates;
     const grant = this.grant;
     return {
       fetch: async (url: string) => {
         const parsed = new URL(url);
-        const op = parsed.pathname.slice(1) as LedgerOp;
+        const op = parsed.pathname.slice(1);
         const key = parsed.searchParams.get('key') ?? '';
+        if (op === 'quotaAudioCommit' || op === 'quotaAudioPeek') {
+          const durationMs = op === 'quotaAudioPeek' ? 0 : Number(parsed.searchParams.get('durationMs'));
+          const tier = parsed.searchParams.get('tier') === 'basic' ? 'basic' : 'premium';
+          const applied = applyAudioDuration(this.quotaStates.get(name), Date.now(), durationMs, tier);
+          if (op === 'quotaAudioCommit') this.quotaStates.set(name, applied.next);
+          return Response.json(applied.decision);
+        }
+        if (op === 'quotaReserve' || op === 'quotaPeek') {
+          const characters = Number(parsed.searchParams.get('characters') ?? '0');
+          const override = {
+            maxRequestsPerMinute: Number(parsed.searchParams.get('minute')),
+            maxRequestsPerDay: Number(parsed.searchParams.get('day')),
+            maxCharsPerDay: Number(parsed.searchParams.get('chars')),
+          };
+          const applied = applyVoiceQuota(this.quotaStates.get(name), Date.now(), characters, op === 'quotaReserve', override);
+          if (op === 'quotaReserve' && applied.decision.allowed) this.quotaStates.set(name, applied.next);
+          return Response.json(applied.decision);
+        }
+        if (op === 'cardReserve' || op === 'cardCommit' || op === 'cardRelease' || op === 'cardPeek') {
+          const cardKey = parsed.searchParams.get('card') ?? '';
+          const before = cardStates.get(name) ?? { grantedCards: {}, reservations: {} };
+          const { next, result } = applyCardOp(before, op, key, cardKey, Date.now());
+          cardStates.set(name, next);
+          return Response.json(result);
+        }
         const before = states.get(name) ?? {
-          granted: true, remaining: grant, reservations: {}, recentCommits: {},
+          granted: true, grantSize: grant, remaining: grant, reservations: {}, recentCommits: {},
         };
-        const { next, result } = applyLedgerOp(before, op, key, Date.now());
+        const { next, result } = applyLedgerOp(before, op as LedgerOp, key, Date.now());
         states.set(name, next);
         return new Response(JSON.stringify(result), {
           headers: { 'Content-Type': 'application/json' },
@@ -213,8 +242,20 @@ export function mockFetch(routes: { match: string; respond: () => Response | Pro
   return { calls };
 }
 
-export function wavBody(): Response {
-  const bytes = new Uint8Array(64).fill(1);
+export function wavBody(durationMs = 10): Response {
+  const sampleRate = 8_000;
+  const samples = Math.ceil(sampleRate * durationMs / 1_000);
+  const bytes = new Uint8Array(44 + samples * 2);
+  const view = new DataView(bytes.buffer);
+  const ascii = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) bytes[offset + i] = value.charCodeAt(i);
+  };
+  ascii(0, 'RIFF'); view.setUint32(4, bytes.length - 8, true);
+  ascii(8, 'WAVE'); ascii(12, 'fmt '); view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  ascii(36, 'data'); view.setUint32(40, samples * 2, true);
   return new Response(bytes, {
     status: 200,
     headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(bytes.byteLength) },

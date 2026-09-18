@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
   Dimensions,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert } from './WordCoreAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +28,7 @@ import {
 } from '../features/flags';
 import { planUnlocksBackup } from '../features/backup/backupAccess';
 import { formatVoiceMonthlyLimit } from '../lib/planLimits';
+import { BASIC_VOICE_CARD_LIMIT } from '../dev/basicVoiceCardLimit';
 import { planCanUseAI } from '../lib/aiEntitlement';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { resolvePlanPrice, type PlanStoreProducts } from '../lib/planPricing';
@@ -203,13 +204,13 @@ const SHOP_BY_ID = new Map(SHOP_ITEMS.map(i => [i.id, i] as const));
 // Static requires so Metro bundles the local PNGs reliably. Filenames map 1:1 to
 // features; each screenshot keeps its own source dimensions and aspect ratio.
 const PAYWALL_IMAGES = {
-  textToSpeech: require('../../screenshots/paywall/text-to-speech.png'),
-  example:   require('../../screenshots/paywall/example.png'),
-  breakdown: require('../../screenshots/paywall/breakdown.png'),
-  meaning:   require('../../screenshots/paywall/meaning.png'),
-  translate: require('../../screenshots/paywall/translate.png'),
-  prioritySupport: require('../../screenshots/paywall/priority-support.png'),
-  dataTransfer: require('../../screenshots/paywall/data-transfer.png'),
+  textToSpeech: require('../../assets/paywall/text-to-speech.png'),
+  example:   require('../../assets/paywall/example.png'),
+  breakdown: require('../../assets/paywall/breakdown.png'),
+  meaning:   require('../../assets/paywall/meaning.png'),
+  translate: require('../../assets/paywall/translate.png'),
+  prioritySupport: require('../../assets/paywall/priority-support.png'),
+  dataTransfer: require('../../assets/paywall/data-transfer.png'),
 } as const;
 
 // Standard screenshots now use nearly the full feature-card content width,
@@ -288,8 +289,8 @@ const FEATURE_SECTIONS: FeatureConfig[] = filterTextToSpeechEntries(
 // shared by the visible images, the asset preload and `UpgradePlanImagePreloader`
 // below, so all three name the same module id and the decode the preloader warms
 // is exactly the one the sheet later mounts.
-const HERO_ICON_SOURCE   = require('../../assets/icon.png');
-const COFFEE_IMAGE_SOURCE = require('../../screenshots/paywall/coffee.jpg');
+const HERO_ICON_SOURCE   = require('../../assets/icon/icon.png');
+const COFFEE_IMAGE_SOURCE = require('../../assets/paywall/coffee.jpg');
 
 // The two images at the top of the sheet. Both are normally already decoded by
 // the launch preloader, so they are simply present as the sheet slides up.
@@ -1074,7 +1075,10 @@ type CellValue = 'cross' | 'circle' | string;
 
 // One plan cell. `accent` colors text + the outlined circle; crosses stay
 // consistent across every column for easy scanning.
-function TableCell({ value, accent }: { value: CellValue; accent: string }) {
+function TableCell({ value, accent }: {
+  value: CellValue;
+  accent: string;
+}) {
   if (value === 'cross') {
     return <Ionicons name="close" size={16} color={CROSS_GRAY} />;
   }
@@ -1092,6 +1096,7 @@ interface TableRowData {
   label: string;
   basic: CellValue;
   premium: CellValue;
+  oneTimeBenefit?: true;
   aiText?: true;
   textToSpeech?: true;
 }
@@ -1105,13 +1110,13 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
   // length below, so no dangling divider or broken striping is left behind.
   // The AI Voice row comes from the same rule the app enforces, so the promise
   // and the enforcement cannot drift. A tier that has the feature shows either
-  // its monthly count or the shared "included" circle; a tier that does not
+  // its card count or the circle; a tier that does not
   // shows the cross — `formatVoiceMonthlyLimit` returns null for both the
   // included and the excluded case, which is why `planCanUseAI` decides which of
   // the two a null means.
   const voiceCell = (tier: 'basic' | 'premium'): CellValue => {
     if (!planCanUseAI(tier)) return 'cross';
-    return formatVoiceMonthlyLimit(tier, language, t) ?? 'circle';
+    return formatVoiceMonthlyLimit(tier, language, t, BASIC_VOICE_CARD_LIMIT) ?? 'circle';
   };
 
   const allRows: TableRowData[] = [
@@ -1120,6 +1125,12 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
       label: t('cmp_ai_voice_hq'),
       basic: voiceCell('basic'),
       premium: voiceCell('premium'),
+      oneTimeBenefit: true,
+    },
+    {
+      label: t('cmp_multiple_voice_types'),
+      basic: 'cross',
+      premium: 'circle',
     },
     { label: t('feat_text_to_speech_title'), basic: 'cross', premium: 'circle', textToSpeech: true },
     { label: t('cmp_ai_example'),       basic: 'cross', premium: 'circle', aiText: true },
@@ -1180,6 +1191,11 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
             <Text style={[tbl.featureLabel, { color: pal.text }]} numberOfLines={3}>{row.label}</Text>
           </View>
           <View style={[tbl.planCell, tbl.basicCell]}>
+            {row.oneTimeBenefit && (
+              <View style={tbl.oneTimeBadge}>
+                <Text style={tbl.oneTimeBadgeText} numberOfLines={2}>{t('cmp_one_time_benefit')}</Text>
+              </View>
+            )}
             <TableCell value={row.basic} accent={BASIC_ACCENT} />
           </View>
           <View style={[tbl.planCell, tbl.premiumCell]}>
@@ -1187,6 +1203,11 @@ const PlanComparisonTable = React.memo(function PlanComparisonTable({
           </View>
         </View>
       ))}
+
+      <Text style={[tbl.limitNote, { color: pal.sub }]}>
+        {t('basic_voice_limit_note').replace('{basic}', t('basic_plan_name'))}
+      </Text>
+      <Text style={[tbl.limitNote, { color: pal.sub }]}>{t('premium_voice_limit_note')}</Text>
 
     </View>
   );
@@ -2595,6 +2616,25 @@ const tbl = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     lineHeight: 14,
+  },
+  limitNote: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  oneTimeBadge: {
+    marginBottom: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: `${PLAN_BLUE}20`,
+  },
+  oneTimeBadgeText: {
+    color: BASIC_ACCENT,
+    fontSize: 9,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });
 

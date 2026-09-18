@@ -187,7 +187,7 @@ test('1-3, 5. About AI Voice lives inside App Info, only for an eligible plan', 
   // subscription is still loading — `canUseAI` is false until RevenueCat answers.
   assert.match(
     settings.slice(appInfoStart),
-    /\{canUseAI && \(\s*<>[\s\S]*?label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?<\/>\s*\)\}/u,
+    /\{canUseAI && \(\s*<SettingRow[\s\S]*?label=\{t\('ai_voice_info_menu'\)\}[\s\S]*?\/>\s*\)\}/u,
   );
 
   // The discovery indicator sits on the nested row, and the parent App Info row
@@ -348,7 +348,7 @@ test('18. on-device speech needs no entitlement and no consent', () => {
   // prompted — as is anyone who chose the free voice after their credits ran out.
   assert.match(
     playback,
-    /const usesAI = canUseAIVoice && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
+    /const usesAI = cardCanUseAI && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
   );
   assert.match(playback, /if \(usesAI && !await ensureAIConsentForUserAction\(\)\) return;/u);
 
@@ -780,7 +780,7 @@ test('the introduction can never make the Test controls unpressable', () => {
   // had. A second `Modal` mounted beside it is what left a presented window
   // swallowing every touch, including the X that unmounts this screen and the
   // Test icon that toggles it.
-  assert.equal((screen.match(/<Modal/gu) ?? []).length, 1, 'exactly one native modal here');
+  assert.equal((screen.match(/<Modal/gu) ?? []).length, 2, 'Info and user-opened mute chooser are the only native modals here');
   assert.doesNotMatch(dialog, /<Modal|from 'react-native'[\s\S]{0,120}Modal/u, 'the step dialog is an overlay');
   assert.match(
     dialog,
@@ -845,11 +845,11 @@ test('a step postpones the automatic voice rather than adding a second one', () 
   // cannot speak the front of a card the user is looking at the back of.
   assert.match(screen, /if \(backPlayed\) return;\s*const current = queue\[idx\];/u);
   // Nothing to say once the queue is spent, so the last answer ends in silence.
-  assert.match(screen, /if \(!current\?\.word \|\| muted\) return;/u);
+  assert.match(screen, /if \(!current\?\.word \|\| frontMuted\) return;/u);
 
   // Back: the same shape, so the reveal itself is silent while the step that
   // the reveal raised is up.
-  assert.match(screen, /if \(!backPlayed \|\| introPlaybackHold\) return;\s*if \(muted \|\| !card\?\.meaning\) return;\s*void playMeaning\(\);/u);
+  assert.match(screen, /if \(!backPlayed \|\| introPlaybackHold\) return;\s*if \(backMuted \|\| !card\?\.meaning\) return;\s*void playMeaning\(\);/u);
   assert.match(screen, /\}, \[backPlayed, introPlaybackHold\];?\)/u);
 
   // One caller per side. The flip records the reveal and says nothing, and no
@@ -979,7 +979,7 @@ test('Settings has no result-filter row, and no Help heading without a row', () 
   assert.ok(appInfoAt > -1, 'the App Info sheet marker exists');
   const appInfo = settings.slice(appInfoAt);
   // And the entry it moved to is still behind the same entitlement gate.
-  assert.match(appInfo, /\{canUseAI && \(\s*<>/u);
+  assert.match(appInfo, /\{canUseAI && \(\s*<SettingRow/u);
   assert.match(appInfo, /ai_voice_info_menu/u);
 });
 

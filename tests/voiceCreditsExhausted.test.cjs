@@ -13,40 +13,27 @@ function read(path) {
  * the app reacting to the server's answer rather than predicting it.
  */
 
-test('the dialog is raised by the server answer, never by a local count', () => {
+test('a server refusal falls back to device speech without the old dialog', () => {
   const errors = read('src/lib/api/errors.ts');
   const hook = read('src/hooks/useWordCardVoicePlayback.ts');
-  const dialog = read('src/components/VoiceCreditsExhaustedDialog.tsx');
 
   // The Worker's code becomes its own kind, distinct from the monthly limit and
   // from a plan boundary — the two it would otherwise be confused with.
   assert.match(errors, /voice_credits_exhausted: 'voice_credits_exhausted',/u);
   assert.match(hook, /case 'voice_credits_exhausted':/u);
-  assert.match(hook, /onVoiceCreditsExhausted\?\.\(\(\) => \{ void speakOnDevice\(\); \}\)/u);
+  assert.match(hook, /useDeviceVoiceAfterBasicLimit\([\s\S]*?error\.kind,\s*\)\) \{\s*await speakOnDevice\(\);/u);
+  assert.doesNotMatch(read('App.tsx'), /<VoiceCreditsExhaustedDialog/u);
 
   // No mirrored balance anywhere in the app.
-  for (const source of [hook, dialog, read('App.tsx')]) {
+  for (const source of [hook, read('App.tsx')]) {
     assert.doesNotMatch(source, /remainingCredits|creditsRemaining/u);
   }
-  // The dialog reads the size of the grant for its copy, never a live balance.
-  assert.match(dialog, /VOICE_LIFETIME_CREDITS\.basic \?\? 0/u);
 });
 
-test('the two buttons do what they say, and nothing else closes the dialog', () => {
-  const dialog = read('src/components/VoiceCreditsExhaustedDialog.tsx');
+test('the Basic card-limit popup offers Premium after card addition', () => {
   const app = read('App.tsx');
-
-  assert.match(dialog, /\{t\('voice_credits_upgrade'\)\}/u);
-  assert.match(dialog, /\{t\('voice_credits_use_free'\)\}/u);
-  // No backdrop touchable and no close button: both ways out are decisions.
-  assert.doesNotMatch(dialog, /StyleSheet\.absoluteFill\b[\s\S]{0,200}onPress/u);
-  // Android back maps to the outcome that leaves the app working.
-  assert.match(dialog, /onRequestClose=\{onUseFreeVoice\}/u);
-
-  // Upgrade opens the paywall and starts no audio.
-  assert.match(app, /const handleUpgradeFromVoiceCredits = useCallback\(\(\) => \{\s*setVoiceCreditsFallback\(null\);\s*setProSheetVisible\(true\);/u);
-  // Use Free Voice sets the preference first, then speaks the word that failed.
-  assert.match(app, /setPreferDeviceVoice\(true\);\s*setVoiceCreditsFallback\(current => \{\s*current\?\.\(\);/u);
+  assert.match(app, /queueBasicVoicePopup\('added'\)/u);
+  assert.match(app, /text: t\('cmp_premium'\), onPress: \(\) => setProSheetVisible\(true\)/u);
 });
 
 test('choosing the free voice stops the dialog returning, and picking a voice restores it', () => {
@@ -93,7 +80,7 @@ test('Basic is eligible to ask, and the plan tables say why', () => {
     entitlement,
     /VOICE_MONTHLY_LIMITS\[plan\] !== 0 \|\| VOICE_LIFETIME_CREDITS\[plan\] !== 0/u,
   );
-  assert.match(limits, /basic: 200,/u);
+  assert.match(limits, /basic: 10,/u);
   // The comparison table must not call a one-time grant a monthly one.
   assert.match(limits, /one-time/u);
 });
@@ -209,7 +196,7 @@ test('entitlement, not the cache, decides who may reach paid audio', () => {
   // Opt-in per call. The Upgrade Plan sheet's device-voice demo must keep
   // speaking through the device engine for a subscriber, or the comparison it
   // exists to draw would play AI audio on both sides.
-  assert.match(read('src/hooks/useWordCardVoicePlayback.ts'), /allowCachedAIFallback: true,/u);
+  assert.match(read('src/hooks/useWordCardVoicePlayback.ts'), /allowCachedAIFallback: cardCanUseAI,/u);
   const sheet = read('src/components/ProSheet.tsx');
   assert.doesNotMatch(sheet, /allowCachedAIFallback/u);
   assert.match(sheet, /await speak\(demoTextForKey\(demo, key\), false, resolvedSampleLang\);/u);

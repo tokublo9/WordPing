@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert, WordCoreAlertHost } from './WordCoreAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Palette } from '../types';
@@ -187,6 +187,7 @@ export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props)
             <Text style={styles.okLabel}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
+        <WordCoreAlertHost active={visible} priority={20} pal={pal} themeColor={themeColor} />
       </View>
     </Modal>
   );

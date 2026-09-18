@@ -35,6 +35,7 @@ import { loadAIConsent } from '../lib/aiConsent';
 import { parseOnboardingChoices } from '../features/onboarding/researchProperties';
 import type { OnboardingPurpose } from '../features/onboarding/sampleLanguage';
 import { createDefaultFolderNotifSettings } from '../features/notifications/defaultSettings';
+import { EMPTY_FOLDERS_KEY } from '../features/folders/useFolders';
 
 /**
  * A readable one-line summary of a thrown value, for the development console.
@@ -63,10 +64,16 @@ function describeError(error: unknown): string {
 
 // Assigns folderId to cards that predate the folder feature.
 // Creates a default folder when none exist — the only side effect.
-function migrateCards(
+async function migrateCards(
   rawCards: WordCard[],
   existingFolders: Folder[],
-): { cards: WordCard[]; folders: Folder[] } {
+): Promise<{ cards: WordCard[]; folders: Folder[] }> {
+  if (existingFolders.length === 0
+    && await AsyncStorage.getItem(EMPTY_FOLDERS_KEY).catch(() => null) === 'true') {
+    // Earlier versions detached the cards when the final folder was deleted.
+    // Remove those hidden cards too, so creating a folder cannot bring them back.
+    return { cards: [], folders: existingFolders };
+  }
   if (!rawCards.some(c => !c.folderId)) return { cards: rawCards, folders: existingFolders };
   let finalFolders = existingFolders;
   if (finalFolders.length === 0) {
@@ -204,7 +211,7 @@ export function useAppBootstrap({
 
       if (cancelled) return;
 
-      const { cards: migratedCards, folders: migratedFolders } = migrateCards(
+      const { cards: migratedCards, folders: migratedFolders } = await migrateCards(
         local.cards,
         storedFolders,
       );

@@ -34,17 +34,14 @@ test('the client mirrors the Worker limits exactly', () => {
   assert.deepEqual(workerCredits, VOICE_LIFETIME_CREDITS);
 });
 
-test('no plan is metered by the month; Basic is metered by a one-time grant', () => {
+test('Premium has a monthly generation budget; Basic has a one-time card grant', () => {
   // Zero here no longer means "no feature" — it means no *monthly* allowance.
-  assert.deepEqual(VOICE_MONTHLY_LIMITS, { free: 0, basic: 0, premium: null });
+  assert.deepEqual(VOICE_MONTHLY_LIMITS, { free: 0, basic: 0, premium: 400 });
   // 0 = the plan does not have the feature. null = it has it, uncapped.
-  assert.deepEqual(VOICE_LIFETIME_CREDITS, { free: 0, basic: 200, premium: null });
+  assert.deepEqual(VOICE_LIFETIME_CREDITS, { free: 0, basic: 10, premium: null });
 });
 
-test('null carries both meanings, and a one-time grant is labelled as one', () => {
-  // Null for Premium means "included"; null for Free and Basic means "not
-  // included". `planCanUseAI` is what tells the comparison table which is which,
-  // so neither ever renders as the number zero.
+test('the table keeps Premium as included and labels the Basic grant as one-time', () => {
   // The wording comes from the dictionaries, so the helper is given a stub
   // translator here: what it owns is which key is chosen and how the number is
   // substituted, not the sentence itself.
@@ -53,8 +50,9 @@ test('null carries both meanings, and a one-time grant is labelled as one', () =
   assert.equal(formatVoiceMonthlyLimit('premium', 'ja', t as never), null);
   // Basic renders its grant, and says it is one-time: calling it monthly in
   // the comparison table would mislead at the moment of purchase.
-  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US', t as never), '200 one-time');
-  assert.equal(formatVoiceMonthlyLimit('basic', 'ja', t as never), '200 one-time');
+  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US', t as never), '10 one-time');
+  assert.equal(formatVoiceMonthlyLimit('basic', 'ja', t as never), '10 one-time');
+  assert.equal(formatVoiceMonthlyLimit('basic', 'en-US', t as never, 5), '5 one-time');
   assert.equal(formatVoiceMonthlyLimit('free', 'en-US', t as never), null);
   assert.equal(formatVoiceMonthlyLimit('free', 'ja', t as never), null);
 });
@@ -72,15 +70,31 @@ test('a Basic user at the voice limit gets the voice message and the upgrade', (
   assert.match(message.values.date, /September|2026/u);
 });
 
-test('there is no Premium monthly-limit message left to show', () => {
-  // Premium has no monthly product quota, so the Worker cannot produce this
-  // error for it — and there is only one message either way.
+test('Premium monthly-limit message defers generation without an upgrade', () => {
   const message = buildQuotaMessage(
     { limit: 100, used: 100, resetsAt: '2026-09-01T00:00:00.000Z', tier: 'premium' },
     'en-US',
   );
-  assert.equal(message.bodyKey, 'err_voice_limit_basic');
+  assert.equal(message.bodyKey, 'premium_voice_deferred_month');
   assert.equal(message.offerUpgrade, false, 'Premium is already the top plan');
+});
+
+test('Premium 30-minute audio limit uses the duration popup', () => {
+  const message = buildQuotaMessage(
+    { limit: 1_800_000, used: 1_799_900, resetsAt: '2026-10-01T00:00:00.000Z', tier: 'premium', reason: 'duration' },
+    'ja',
+  );
+  assert.equal(message.bodyKey, 'premium_voice_deferred_duration');
+  assert.equal(message.offerUpgrade, false);
+});
+
+test('Basic 90-second audio limit uses its own popup and offers Premium', () => {
+  const message = buildQuotaMessage(
+    { limit: 90_000, used: 89_990, resetsAt: '2026-10-01T00:00:00.000Z', tier: 'basic', reason: 'duration' },
+    'ja',
+  );
+  assert.equal(message.bodyKey, 'basic_voice_deferred_duration');
+  assert.equal(message.offerUpgrade, true);
 });
 
 test('the message uses the server figures, not the client constants', () => {

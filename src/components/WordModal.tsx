@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -19,6 +18,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert, WordCoreAlertHost } from './WordCoreAlert';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -1378,6 +1378,7 @@ export function WordModal({
         pal={pal}
         themeColor={themeColor}
       />
+      <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
     </Modal>
   );
 }

@@ -19,7 +19,7 @@ test('the website contract matches the app feature flags and plan gates', () => 
   const backup = readRepo('src/features/backup/backupAccess.ts');
   const themes = readRepo('src/features/themes/themeAccess.ts');
 
-  assert.match(planLimits, /basic:\s*200/u);
+  assert.match(planLimits, /basic:\s*10/u);
   assert.match(planLimits, /premium:\s*null/u);
   assert.match(flags, /AI_TEXT_FEATURES_ENABLED\s*=\s*false/u);
   assert.match(flags, /TEXT_TO_SPEECH_ENABLED\s*=\s*false/u);
@@ -27,6 +27,7 @@ test('the website contract matches the app feature flags and plan gates', () => 
   assert.match(themes, /Basic or Premium subscription/u);
 
   assert.deepEqual(row('aiVoice'), ['aiVoice', 'promoOnly', 'basicVoice', 'premiumVoice']);
+  assert.deepEqual(row('multipleVoiceTypes'), ['multipleVoiceTypes', 'notIncluded', 'notIncluded', 'included']);
   assert.deepEqual(row('backup'), ['backup', 'notIncluded', 'notIncluded', 'included']);
   assert.deepEqual(row('transfer'), ['transfer', 'notIncluded', 'notIncluded', 'included']);
   assert.deepEqual(row('priority'), ['priority', 'notIncluded', 'notIncluded', 'included']);
@@ -46,10 +47,10 @@ test('EN and JA advertise only current visible features and use the confirmed vo
 
   const en = messages('en');
   const ja = messages('ja');
-  assert.equal(en.plans.values.basicVoice, '200/month');
-  assert.equal(ja.plans.values.basicVoice, '月200回');
-  assert.match(en.plans.premiumVoiceNote, /no monthly product quota/u);
-  assert.match(ja.plans.premiumVoiceNote, /月間の製品利用枠はありません/u);
+  assert.equal(en.plans.values.basicVoice, '10 card fronts');
+  assert.equal(ja.plans.values.basicVoice, 'カード表面10枚分');
+  assert.match(en.plans.premiumVoiceNote, /AI Voice for backs is optional/u);
+  assert.match(ja.plans.premiumVoiceNote, /裏面のAI音声は設定で任意に有効化/u);
   assert.match(en.features.cards.local.desc, /no account/u);
   assert.match(ja.features.cards.local.title, /端末内/u);
 });
@@ -87,5 +88,5 @@ test('metadata uses production canonicals, alternates and the canonical iOS icon
   assert.match(page, /twitter/u);
 
   const digest = path => createHash('sha256').update(readFileSync(path)).digest('hex');
-  assert.equal(digest(resolve(repoRoot, 'assets/icon.png')), digest(resolve(root, 'public/icon.png')));
+  assert.equal(digest(resolve(repoRoot, 'assets/icon/icon.png')), digest(resolve(root, 'public/icon.png')));
 });

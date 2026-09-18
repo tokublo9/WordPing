@@ -182,14 +182,16 @@ export interface MonthlyQuotaInfo {
   resetsAt: string;
   /** The tier the Worker verified, so the UI can offer the right next step. */
   tier: 'free' | 'basic' | 'premium';
+  /** A duration cap uses milliseconds; absent means a generation count. */
+  reason?: 'duration';
 }
 
 export function parseQuotaInfo(body: Record<string, unknown>): MonthlyQuotaInfo | undefined {
-  const { limit, used, resetsAt, tier } = body;
+  const { limit, used, resetsAt, tier, reason } = body;
   if (typeof limit !== 'number' || typeof used !== 'number') return undefined;
   if (typeof resetsAt !== 'string' || Number.isNaN(Date.parse(resetsAt))) return undefined;
   if (tier !== 'free' && tier !== 'basic' && tier !== 'premium') return undefined;
-  return { limit, used, resetsAt, tier };
+  return { limit, used, resetsAt, tier, ...(reason === 'duration' ? { reason } : {}) };
 }
 
 export interface WorkerErrorInput {
@@ -253,7 +255,7 @@ export const MESSAGE_KEY_BY_KIND: Readonly<Record<AIErrorKind, string>> = {
   invalid_input: 'err_input_too_long',
   service_unavailable: 'ai_service_unavailable_msg',
   generation_failed: 'err_generation_failed',
-  monthly_limit_reached: 'err_voice_limit_basic',
+  monthly_limit_reached: 'premium_voice_deferred_month',
   // The dialog carries the real copy; this is the fallback for any surface
   // that only knows how to show a line of text.
   voice_credits_exhausted: 'voice_credits_body',

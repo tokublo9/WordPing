@@ -31,13 +31,12 @@ test('tapping Test opens no sheet and no modal', () => {
   const screen = read(SCREEN);
   const body = testModeBody(screen);
 
-  // No presentation of any kind: not a Modal, not the shared full-screen sheet,
-  // and no sheet animation left behind.
-  assert.doesNotMatch(body, /<Modal/u, 'Test Mode must not present itself');
-  assert.doesNotMatch(body, /presentationStyle|animationType|onRequestClose|onShow=/u);
+  // Test Mode itself is inline; its voice settings open only after a tap.
+  assert.match(body, /<Modal\s+visible=\{mutePickerVisible\}/u);
+  assert.doesNotMatch(body, /presentationStyle|onShow=/u);
   assert.doesNotMatch(screen, /FullScreenSheet/u);
-  // The one remaining Modal in the file is the information popup, unchanged.
-  assert.equal((screen.match(/<Modal/gu) ?? []).length, 1);
+  // The two child dialogs are Info and voice settings.
+  assert.equal((screen.match(/<Modal/gu) ?? []).length, 2);
   assert.match(
     screen.slice(screen.indexOf('function InfoPopup'), screen.indexOf('const is = StyleSheet.create')),
     /<Modal[\s\S]*transparent/u,
@@ -179,26 +178,25 @@ test('Analytics replaces the card-toolbar Reset button and sits immediately befo
 
   // Reset remains available only on the completion screen.
   assert.doesNotMatch(toolbar, /handleReset|test_reset|refresh-outline/u);
-  const muteAt = toolbar.indexOf('onPress={handleMuteToggle}');
+  const muteAt = toolbar.indexOf('onPress={() => setMutePickerVisible(true)}');
   const infoAt = toolbar.indexOf('onPress={() => setInfoVisible(true)}');
-  assert.ok(shuffleAt < muteAt && muteAt < infoAt, 'Shuffle, Mute and Info retain their order');
+  assert.ok(shuffleAt < muteAt && muteAt < infoAt, 'Shuffle, Voice Settings and Info retain their order');
   assert.equal(toolbar.lastIndexOf('onPress='), infoAt);
 
-  // Mute is icon-only while retaining its active colours, behaviour and a
-  // generous accessible tap area.
+  // Voice Settings stays neutral for every playback choice and has a generous tap area.
   const muteStart = toolbar.lastIndexOf('<TouchableOpacity', muteAt);
   const muteEnd = toolbar.indexOf('</TouchableOpacity>', muteAt);
   const muteButton = toolbar.slice(muteStart, muteEnd);
-  // Subdued when resting, theme colour when muted — the active state is what
-  // carries the meaning, and it is unchanged.
-  assert.match(muteButton, /name="volume-mute-outline"\s*size=\{15\}\s*color=\{muted \? themeColor : pal\.sub\}/u);
+  assert.match(muteButton, /style=\{\[s\.toolBtn, s\.toolIconBtn, \{ backgroundColor: pal\.card, borderColor: pal\.border \}\]\}/u);
+  assert.match(muteButton, /name="volume-high-outline" size=\{18\} color=\{pal\.sub\}/u);
+  assert.doesNotMatch(muteButton, /themeColor|muteMode|volume-mute-outline/u);
   assert.match(muteButton, /hitSlop=\{\{ top: 12, bottom: 12, left: 12, right: 12 \}\}/u);
   assert.match(muteButton, /accessibilityRole="button"/u);
-  assert.match(muteButton, /accessibilityLabel=\{t\('test_mute'\)\}/u);
-  assert.doesNotMatch(muteButton, /<Text|\{t\('test_mute'\)\}<\/Text>/u);
+  assert.match(muteButton, /accessibilityLabel=\{t\('test_voice_settings'\)\}/u);
+  assert.doesNotMatch(muteButton, /<Text|\{t\('test_voice_settings'\)\}<\/Text>/u);
 
   // Info is back in its original position and original icon-only pill design,
-  // immediately after Mute in the active-card toolbar.
+  // immediately after Voice Settings in the active-card toolbar.
   const infoStart = toolbar.lastIndexOf('<TouchableOpacity', infoAt);
   const infoEnd = toolbar.indexOf('</TouchableOpacity>', infoAt);
   const infoButton = toolbar.slice(infoStart, infoEnd);
@@ -213,9 +211,16 @@ test('Analytics replaces the card-toolbar Reset button and sits immediately befo
   assert.match(screen, /<InfoPopup\s*visible=\{infoPopupVisible\}/u);
   assert.match(screen, /onClose=\{closeInfoPopup\}/u);
 
-  // Mute keeps its stored preference and its stop-what-is-playing behaviour.
-  assert.match(screen, /AsyncStorage\.setItem\(TEST_MUTED_KEY, next \? 'true' : 'false'\)/u);
-  assert.match(screen, /const handleMuteToggle = \(\) => \{\s*\/\/[^\n]*\n\s*if \(!muted\) stopVoice\(\);/u);
+  // Stored values describe muted sides, while the choices describe playback.
+  assert.match(screen, /AsyncStorage\.setItem\(TEST_MUTED_KEY, mode\)/u);
+  assert.match(screen, /const chooseMuteMode = \(mode: TestMuteMode\) => \{\s*stopVoice\(\);/u);
+  assert.match(screen, /\['none', 'test_voice_both'\],\s*\['back', 'test_voice_front'\],\s*\['front', 'test_voice_back'\],\s*\['both', 'test_voice_off'\]/u);
+  const translations = read('src/i18n.ts');
+  assert.match(translations, /test_voice_settings:\s*'音声設定'/u);
+  assert.match(translations, /test_voice_both:\s*'両面再生'/u);
+  assert.match(translations, /test_voice_front:\s*'表だけ再生'/u);
+  assert.match(translations, /test_voice_back:\s*'裏だけ再生'/u);
+  assert.match(translations, /test_voice_off:\s*'両面オフ'/u);
 
   // The toolbar is drawn for the whole test, not only after a flip. Asserted on
   // the element and its placement rather than on the shape of a comment: the

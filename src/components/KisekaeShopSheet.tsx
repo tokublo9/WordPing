@@ -1,5 +1,4 @@
 import {
-  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert } from './WordCoreAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';

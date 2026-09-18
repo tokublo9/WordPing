@@ -26,7 +26,7 @@ for (const [route, expected] of routes) {
 }
 
 const english = pages.get('/');
-assert.match(english, /200\/month/u);
+assert.match(english, /10 card fronts/u);
 assert.match(english, /Backup &amp; Restore/u);
 assert.match(english, /Priority Support/u);
 assert.match(english, /href="\/privacy"/u);
@@ -37,7 +37,7 @@ assert.match(english, /hrefLang="ja" href="https:\/\/word-ping-chi\.vercel\.app\
 assert.doesNotMatch(english, /AI Add Word|AI Meaning|AI Translation|AI Breakdown|AI Example|Text-to-Speech|Google Play/u);
 
 const japanese = pages.get('/ja');
-assert.match(japanese, /月200回/u);
+assert.match(japanese, /カード表面10枚分/u);
 assert.match(japanese, /href="\/ja\/privacy"/u);
 assert.match(japanese, /href="\/ja\/terms"/u);
 assert.match(japanese, /href="\/ja\/licenses"/u);

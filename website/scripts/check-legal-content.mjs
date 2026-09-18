@@ -28,8 +28,8 @@ const requiredStatements = [
   '日本法に準拠',
   '熊本地方裁判所',
   '日本の消費者契約法',
-  'up to 200 new High-Quality AI Voice',
-  '最大200回生成',
+  'fronts of up to 10 cards',
+  '最大10枚分の表面',
 ];
 for (const statement of requiredStatements) {
   if (!legalSource.includes(statement)) throw new Error(`Missing confirmed legal statement: ${statement}`);

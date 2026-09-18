@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WordCoreAlert as Alert } from './WordCoreAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { Palette, WordCard } from '../types';
@@ -19,7 +19,7 @@ import { isCardDueForTest } from '../features/cards/testSchedule';
 import { StudyAnalytics } from './StudyAnalytics';
 import { recordAnswer, type StudyLog } from '../features/study/studyLog';
 import { appNow } from '../lib/appClock';
-import { SYNC_WITH_TEST_RESULTS_ENABLED } from '../features/flags';
+import { CARD_FLIP_ANIMATION_ENABLED, SYNC_WITH_TEST_RESULTS_ENABLED } from '../features/flags';
 import { gradeCard, type AnswerKind } from '../features/cards/grading';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLang, type TranslationKey } from '../i18n';
@@ -43,6 +43,7 @@ import { nextTestIntroStep } from '../features/onboarding/tutorialState';
 import { posthog } from '../config/posthog';
 
 const TEST_MUTED_KEY = 'wordping_test_muted';
+type TestMuteMode = 'none' | 'front' | 'back' | 'both';
 
 // ── Card exit ────────────────────────────────────────────────────────────────
 // Every other answer keeps the card in the test — it comes back later — so the
@@ -340,14 +341,18 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
   const gradedIdsRef = useRef<Set<string>>(new Set());
   const [flipped,    setFlipped]    = useState(false);
   const [backPlayed, setBackPlayed] = useState(false);
-  const [muted,       setMuted]       = useState(false);
+  const [muteMode, setMuteMode] = useState<TestMuteMode>('none');
+  const [mutePickerVisible, setMutePickerVisible] = useState(false);
   const [mutedLoaded, setMutedLoaded] = useState(false);
   useEffect(() => {
     AsyncStorage.getItem(TEST_MUTED_KEY).then(v => {
-      if (v === 'true') setMuted(true);
+      if (v === 'true') setMuteMode('both');
+      else if (v === 'front' || v === 'back' || v === 'both') setMuteMode(v);
       setMutedLoaded(true);
     });
   }, []);
+  const frontMuted = muteMode === 'front' || muteMode === 'both';
+  const backMuted = muteMode === 'back' || muteMode === 'both';
   // Incrementing this forces the auto-play useEffect to re-fire even when
   // idx stays at 0 (e.g., after Shuffle / Reset from the first card).
   const [sessionKey,  setSessionKey]  = useState(0);
@@ -507,7 +512,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     // the front of a card the user is looking at the back of.
     if (backPlayed) return;
     const current = queue[idx];
-    if (!current?.word || muted) return;
+    if (!current?.word || frontMuted) return;
     // Same action as tapping the icon, so the icon shows the loading and playing
     // states for automatic playback too.
     void playWord();
@@ -524,7 +529,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
    */
   useEffect(() => {
     if (!backPlayed || introPlaybackHold) return;
-    if (muted || !card?.meaning) return;
+    if (backMuted || !card?.meaning) return;
     void playMeaning();
   }, [backPlayed, introPlaybackHold]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -588,36 +593,33 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     ]);
   };
 
-  const handleMuteToggle = () => {
-    // Muting stops whatever is playing, through the hook so its state clears too.
-    if (!muted) stopVoice();
-    setMuted(m => {
-      const next = !m;
-      AsyncStorage.setItem(TEST_MUTED_KEY, next ? 'true' : 'false');
-      return next;
-    });
+  const chooseMuteMode = (mode: TestMuteMode) => {
+    stopVoice();
+    setMuteMode(mode);
+    setMutePickerVisible(false);
+    void AsyncStorage.setItem(TEST_MUTED_KEY, mode);
   };
 
   // Mute hides the icon, so these only guard the automatic playback paths below.
   const speakWord = useCallback(() => {
-    if (muted) return;
+    if (frontMuted) return;
     void playWord();
-  }, [muted, playWord]);
+  }, [frontMuted, playWord]);
 
   const speakMeaning = useCallback(() => {
-    if (muted) return;
+    if (backMuted) return;
     void playMeaning();
-  }, [muted, playMeaning]);
+  }, [backMuted, playMeaning]);
 
   const doToggleFlip = useCallback(() => {
     // Start the native-driver animation before touching the audio engine. The
     // unconditional stop below still runs in this tap stack, but cannot gate the
     // first animation frame even if native pause has work to do.
     if (flipped) {
-      Animated.timing(flipAnim, { toValue: 0, duration: 300, useNativeDriver: true })
+      Animated.timing(flipAnim, { toValue: 0, duration: CARD_FLIP_ANIMATION_ENABLED ? 300 : 0, useNativeDriver: true })
         .start(() => setFlipped(false));
     } else {
-      Animated.timing(flipAnim, { toValue: 1, duration: 300, useNativeDriver: true })
+      Animated.timing(flipAnim, { toValue: 1, duration: CARD_FLIP_ANIMATION_ENABLED ? 300 : 0, useNativeDriver: true })
         .start(() => {
           setFlipped(true);
           // Records the reveal and nothing else. Speaking the back side is the
@@ -802,23 +804,13 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
               <Text style={[s.toolBtnText, { color: pal.sub }]}>{t('test_shuffle')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                s.toolBtn,
-                {
-                  backgroundColor: muted ? themeColor + '18' : pal.card,
-                  borderColor:     muted ? themeColor : pal.border,
-                },
-              ]}
-              onPress={handleMuteToggle}
+              style={[s.toolBtn, s.toolIconBtn, { backgroundColor: pal.card, borderColor: pal.border }]}
+              onPress={() => setMutePickerVisible(true)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityRole="button"
-              accessibilityLabel={t('test_mute')}
+              accessibilityLabel={t('test_voice_settings')}
             >
-              <Ionicons
-                name="volume-mute-outline"
-                size={15}
-                color={muted ? themeColor : pal.sub}
-              />
+              <Ionicons name="volume-high-outline" size={18} color={pal.sub} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setInfoVisible(true)}
@@ -871,7 +863,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         inactiveColor={pal.sub}
                       />
                     )}
-                    showVoice={!muted}
+                    showVoice={!frontMuted}
                     selectableText
                   >
                     {/* With Hide Word on the face shows the eye-off mark and no
@@ -913,7 +905,7 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
                         inactiveColor={pal.sub}
                       />
                     )}
-                    showVoice={!muted}
+                    showVoice={!backMuted}
                     selectableText
                   >
                     {/* Every user-authored field on this face is selectable, not
@@ -971,6 +963,41 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
         pal={pal}
       />
 
+      <Modal
+        visible={mutePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMutePickerVisible(false)}
+      >
+        <View style={s.muteBackdrop}>
+          <View style={[s.muteDialog, { backgroundColor: pal.dialog, borderColor: pal.border }]}>
+            <Text style={[s.muteTitle, { color: pal.text }]}>{t('test_voice_settings')}</Text>
+            {/* Saved modes name the muted side; labels name the side that plays. */}
+            {([
+              ['none', 'test_voice_both'],
+              ['back', 'test_voice_front'],
+              ['front', 'test_voice_back'],
+              ['both', 'test_voice_off'],
+            ] as const).map(([mode, label]) => (
+              <TouchableOpacity
+                key={mode}
+                style={[s.muteChoice, { borderColor: pal.border }]}
+                onPress={() => chooseMuteMode(mode)}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: muteMode === mode ? themeColor : pal.text, fontSize: 16 }}>
+                  {t(label)}
+                </Text>
+                {muteMode === mode && <Ionicons name="checkmark" size={18} color={themeColor} />}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setMutePickerVisible(false)} style={s.muteCancel}>
+              <Text style={{ color: pal.sub }}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -979,6 +1006,17 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+  muteBackdrop: {
+    flex: 1, justifyContent: 'center', paddingHorizontal: 24,
+    backgroundColor: 'rgba(0,0,0,0.48)',
+  },
+  muteDialog: { borderWidth: 1, borderRadius: 20, padding: 20 },
+  muteTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  muteChoice: {
+    minHeight: 50, borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  muteCancel: { alignSelf: 'center', padding: 14, marginTop: 8 },
 
   progressTrack: {
     height: 3,
@@ -1024,8 +1062,7 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  // The Info control: same pill as the buttons beside it, sized for its icon
-  // alone so the row still fits on the narrowest phone in every language.
+  // Icon-only toolbar controls share a compact pill to fit narrow phones.
   toolIconBtn: {
     paddingHorizontal: 10,
   },

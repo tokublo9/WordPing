@@ -3,9 +3,7 @@ import type { MonthlyQuotaInfo } from './errors';
 /**
  * Turns the Worker's verified quota figures into the message the user sees.
  *
- * The only monthly allowance in the product is the Basic High-Quality AI Voice
- * one, so there is a single message. Premium has no monthly product quota and
- * therefore cannot reach this path.
+ * Premium's monthly generation budget renews at the next UTC month.
  *
  * The numbers always come from the server response, never from the client's own
  * copy of the limits — so what the user is told matches what was actually
@@ -16,12 +14,12 @@ import type { MonthlyQuotaInfo } from './errors';
 
 export interface QuotaMessage {
   titleKey: 'err_voice_limit_title';
-  bodyKey: 'err_voice_limit_basic';
+  bodyKey: 'err_voice_limit_basic' | 'basic_voice_deferred_duration'
+    | 'premium_voice_deferred_month' | 'premium_voice_deferred_duration';
   /** Substitutions for the body template. */
   values: { limit: string; date: string };
   /**
-   * Whether to offer the Premium upgrade flow. True for Basic, which is the
-   * only tier with a monthly voice allowance to exhaust.
+   * Whether to offer the Premium upgrade flow.
    */
   offerUpgrade: boolean;
 }
@@ -49,12 +47,11 @@ function formatResetDate(resetsAt: string, language: string): string {
 }
 
 export function buildQuotaMessage(quota: MonthlyQuotaInfo, language: string): QuotaMessage {
-  // Only Basic has a monthly voice allowance, so this is always the Basic
-  // message and always offers the upgrade. Premium is excluded from the quota
-  // in the Worker and cannot produce this error.
   return {
     titleKey: 'err_voice_limit_title',
-    bodyKey: 'err_voice_limit_basic',
+    bodyKey: quota.tier === 'basic' && quota.reason === 'duration' ? 'basic_voice_deferred_duration'
+      : quota.tier !== 'premium' ? 'err_voice_limit_basic'
+        : quota.reason === 'duration' ? 'premium_voice_deferred_duration' : 'premium_voice_deferred_month',
     values: {
       limit: formatLimit(quota.limit, language),
       date: formatResetDate(quota.resetsAt, language),

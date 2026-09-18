@@ -1,20 +1,24 @@
 import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Folder, WordCard } from '../../types';
 import { planFolderMove } from '../cards/duplicates';
 import { createId } from '../../utils/createId';
 import { createDefaultFolderNotifSettings } from '../notifications/defaultSettings';
 import { posthog } from '../../config/posthog';
+import { planFolderDeletion } from './folderDeletion';
+
+export const EMPTY_FOLDERS_KEY = 'wordping_empty_folders_intentional_v1';
 
 export interface UseFoldersParams {
   folders: Folder[];
   cards: WordCard[];
-  fallbackFolderName: string;
   setFolders: Dispatch<SetStateAction<Folder[]>>;
   setCards: Dispatch<SetStateAction<WordCard[]>>;
   setMenuVisible: Dispatch<SetStateAction<boolean>>;
   /** Told how many words a move left behind because the target already had them. */
   onDuplicatesSkipped?(count: number): void;
+  onCardsDeleted?(removed: readonly WordCard[], remaining: readonly WordCard[]): void;
 }
 
 export interface UseFoldersReturn {
@@ -43,7 +47,7 @@ export interface UseFoldersReturn {
 }
 
 export function useFolders({
-  folders, cards, fallbackFolderName, setFolders, setCards, setMenuVisible, onDuplicatesSkipped,
+  folders, cards, setFolders, setCards, setMenuVisible, onDuplicatesSkipped, onCardsDeleted,
 }: UseFoldersParams): UseFoldersReturn {
   const [folderSelectionMode, setFolderSelectionMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
@@ -88,24 +92,12 @@ export function useFolders({
   };
 
   const deleteSelectedFolders = () => {
-    const surviving = folders.filter(f => !selectedFolderIds.has(f.id));
-    if (surviving.length > 0) {
-      setFolders(surviving);
-      setCards(prev => prev.map(c =>
-        c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: surviving[0].id } : c
-      ));
-    } else {
-      const fallback: Folder = {
-        id: createId('folder'),
-        name: fallbackFolderName,
-        createdAt: Date.now(),
-        notifSettings: createDefaultFolderNotifSettings(),
-      };
-      setFolders([fallback]);
-      setCards(prev => prev.map(c =>
-        c.folderId && selectedFolderIds.has(c.folderId) ? { ...c, folderId: fallback.id } : c
-      ));
-    }
+    const plan = planFolderDeletion(folders, cards, selectedFolderIds);
+    if (!plan) return;
+    setFolders(plan.folders);
+    if (plan.folders.length === 0) void AsyncStorage.setItem(EMPTY_FOLDERS_KEY, 'true');
+    setCards(plan.cards);
+    if (plan.deletedCards.length > 0) onCardsDeleted?.(plan.deletedCards, plan.cards);
     exitFolderSelectionMode();
   };
 
@@ -118,25 +110,17 @@ export function useFolders({
       notifSettings: createDefaultFolderNotifSettings(),
     };
     setFolders(prev => [...prev, folder]);
+    void AsyncStorage.removeItem(EMPTY_FOLDERS_KEY);
     posthog?.capture('folder_created');
   };
 
   const deleteFolder = (id: string) => {
-    const remaining = folders.filter(f => f.id !== id);
-    if (remaining.length === folders.length) return;
-    if (remaining.length > 0) {
-      setFolders(remaining);
-      setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: remaining[0].id } : c));
-    } else {
-      const fallback: Folder = {
-        id: createId('folder'),
-        name: fallbackFolderName,
-        createdAt: Date.now(),
-        notifSettings: createDefaultFolderNotifSettings(),
-      };
-      setFolders([fallback]);
-      setCards(prev => prev.map(c => c.folderId === id ? { ...c, folderId: fallback.id } : c));
-    }
+    const plan = planFolderDeletion(folders, cards, new Set([id]));
+    if (!plan) return;
+    setFolders(plan.folders);
+    if (plan.folders.length === 0) void AsyncStorage.setItem(EMPTY_FOLDERS_KEY, 'true');
+    setCards(plan.cards);
+    if (plan.deletedCards.length > 0) onCardsDeleted?.(plan.deletedCards, plan.cards);
     posthog?.capture('folder_deleted');
   };
 

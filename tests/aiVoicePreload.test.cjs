@@ -10,22 +10,24 @@ test('an active entitlement sweeps every existing word into the cache', () => {
   const app = read('App.tsx');
   const tts = read('src/lib/tts.ts');
 
-  // The sweep runs for whichever plans actually have AI Voice — Premium today —
+  // The sweep runs for plans with AI Voice, using Marin for Basic and the
+  // selected voice for Premium,
   // once the subscription and the stored voice are both known; preloading before
   // the voice loads would cache the wrong voice. Read from `planCanUseAI` rather
   // than a tier list, so a plan change moves the sweep with it.
   assert.match(app, /const hasAIAccess = planCanUseAI\(plan\) && !preferDeviceVoice;/u);
   assert.match(app, /if \(!isSubscriptionLoaded \|\| !settingsLoaded \|\| !hasAIAccess/u);
   // Consent gates the sweep too, not only a single deliberate play.
-  assert.match(app, /aiConsentState !== 'granted'\) \{/u);
-  // Ordered so the open folder is queued first; still every card, none dropped.
+  assert.match(app, /aiConsentState !== 'granted' \|\| \(plan === 'basic' && basicVoiceIds === null\)\) \{/u);
+  // Basic queues its selected cards in folder/Word List order; Premium queues
+  // the whole library with the open folder first.
   assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: orderedCards\.map\(/u);
   assert.match(app, /text: card\.word,/u);
   assert.match(app, /hasCustomAudio: Boolean\(card\.audioUri\),/u);
 
   // Keyed rather than run-once: cards usually finish loading after the subscription
   // resolves, and a voice change needs a fresh sweep because the cache is voice-keyed.
-  assert.match(app, /const key = `\$\{plan\} \$\{aiVoice\} \$\{entitlementRevision\}`;/u);
+  assert.match(app, /const key = `\$\{plan\} \$\{generationVoice\} \$\{entitlementRevision\} \$\{basicVoiceIds\?\.length \?\? 0\}`;/u);
   assert.match(app, /if \(preloadedLibraryKeyRef\.current === key\) return;/u);
   assert.match(app, /if \(cards\.length === 0\) return;/u);
   // Losing access resets the key so re-subscribing sweeps again.
@@ -37,7 +39,7 @@ test('an active entitlement sweeps every existing word into the cache', () => {
   const sweepDepsAt = app.indexOf('}, [', sweepAt);
   const sweepDeps = app.slice(sweepDepsAt, app.indexOf(']);', sweepDepsAt));
   for (const dep of [
-    'aiVoice', 'cards', 'entitlementRevision', 'entitlementSource',
+    'generationVoice', 'cards', 'entitlementRevision', 'entitlementSource',
     'isSubscriptionLoaded', 'plan', 'settingsLoaded',
   ]) {
     assert.ok(sweepDeps.includes(dep), `the sweep must re-run when ${dep} changes`);
@@ -46,8 +48,8 @@ test('an active entitlement sweeps every existing word into the cache', () => {
   // The helper reuses the single-card path, so it inherits the cache hits, in-flight
   // deduplication and one-at-a-time queue rather than firing N parallel requests.
   assert.match(tts, /export function preloadAIPronunciationLibrary\(/u);
-  assert.match(tts, /for \(const entry of options\.entries\) \{\s*preloadAIPronunciation\(\{/u);
-  assert.match(tts, /if \(!options\.hasAIAccess \|\| options\.entries\.length === 0\) return;/u);
+  assert.match(tts, /Promise\.all\(options\.entries\.map\(entry =>\s*preloadAIPronunciation\(\{/u);
+  assert.match(tts, /if \(!options\.hasAIAccess \|\| options\.entries\.length === 0\) return Promise\.resolve\(\[\]\);/u);
 });
 
 test('words added while subscribed are preloaded on registration', () => {
@@ -70,12 +72,12 @@ test('words added while subscribed are preloaded on registration', () => {
   // A card edited or deleted while SQLite was flushing is not preloaded at all.
   assert.match(
     registered,
-    /if \(!current \|\| cardVoiceInput\(current\) !== cardVoiceInput\(card\)\) return;/u,
+    /if \(!current \|\| cardVoiceInput\(current\) !== cardVoiceInput\(card\)[\s\S]*?\) return;/u,
   );
 
   // `automaticAIVoiceReady` carries "loaded, eligible, consented, not a dev
-  // scenario", so a Basic user — who has no AI Voice — queues nothing.
-  assert.match(registered, /hasAIAccess: automaticAIVoiceReady,/u);
+  // scenario", so eligible Basic fronts are queued with the selected voice.
+  assert.match(registered, /hasAIAccess: automaticAIVoiceReady && eligible,/u);
   assert.match(
     app,
     /const automaticAIVoiceReady = canUseAIVoice\s*&& entitlementSource !== 'local-development-scenario'\s*&& aiConsentState === 'granted';/u,
@@ -109,7 +111,7 @@ test('an edit regenerates only when the spoken text actually moved', () => {
     app.indexOf('const handleCardsImported'),
   );
   const releaseAt = edited.indexOf('releaseAIPronunciationCache({');
-  const editPreloadAt = edited.indexOf('preloadAIPronunciation({');
+  const editPreloadAt = edited.indexOf('preloadAIPronunciation({', releaseAt);
   assert.ok(releaseAt > -1, 'a changed word releases its old clip');
   assert.ok(editPreloadAt > releaseAt, 'and the replacement is queued only after that');
   assert.match(edited, /\} else \{[\s\S]*?cancelAIPronunciationPreload\(change\.card\.id\);/u);
@@ -129,7 +131,9 @@ test('a bulk import preloads its new words through the shared queue', () => {
   // Saved before queued, and re-read from state so a word deleted during the
   // write is not preloaded.
   assert.match(app, /await persistCardsAndWait\(\[\.\.\.remaining\]\);\s*const importedIds = new Set\(imported\.map\(card => card\.id\)\);/u);
-  assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: currentImported\.map\(/u);
+  assert.match(app, /const frontEntries = eligibleImported\.map\(/u);
+  assert.match(app, /preloadAIPronunciationLibrary\(\{\s*entries: frontEntries,/u);
+  assert.match(app, /countUncachedAIPronunciations\(\[\.\.\.frontEntries, \.\.\.backEntries\], generationVoice, 200\)/u);
   assert.match(app, /triggerReason: 'bulk-import',/u);
   assert.match(app, /hasCustomAudio: Boolean\(card\.audioUri\),/u);
   assert.match(app, /onCardsImported: handleCardsImported/u);
@@ -203,9 +207,9 @@ test('Test mode drives its voice icon through the shared playback hook', () => {
   // sides are spoken from an effect now, so the introduction can postpone them
   // by holding one flag rather than either path gaining a second caller.
   assert.match(testMode, /void playWord\(\);/u);
-  assert.match(testMode, /if \(muted \|\| !card\?\.meaning\) return;\s*void playMeaning\(\);/u);
+  assert.match(testMode, /if \(backMuted \|\| !card\?\.meaning\) return;\s*void playMeaning\(\);/u);
   // Stops route through the hook so its state clears with the audio.
-  assert.match(testMode, /if \(!muted\) stopVoice\(\);/u);
+  assert.match(testMode, /stopVoice\(\);\s*setMuteMode\(mode\);/u);
 });
 
 test('the card face exposes only the shared voice button', () => {

@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import {
-  Alert, Animated, Dimensions, Modal,
+  Animated, Dimensions, Modal,
   PanResponder, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import { WordCoreAlert as Alert } from './WordCoreAlert';
 import { BlurView } from 'expo-blur';
 import { PostHogMaskView } from 'posthog-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ interface Props {
   onPress: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  deleteCardsWithFolder?: boolean;
   selectionMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
@@ -37,7 +39,7 @@ interface Props {
 
 export function SwipeableFolder({
   folder, cardCount, pal, themeColor, folderColor, folderIcon,
-  onOpen, onPress, onEdit, onDelete,
+  onOpen, onPress, onEdit, onDelete, deleteCardsWithFolder = false,
   selectionMode, selected, onToggleSelect,
   untestedCount = 0,
   showLevelLabels = true,
@@ -142,9 +144,12 @@ export function SwipeableFolder({
     : 0;
 
   const handleEdit = () => { dismissLifted(); onEdit(); };
+  const deleteMessage = deleteCardsWithFolder
+    ? folder.name + '\n\n' + t('delete_folder_cards_confirm')
+    : folder.name;
   const handleDelete = () => {
     dismissLifted();
-    Alert.alert(t('delete_folder'), folder.name, [
+    Alert.alert(t('delete_folder'), deleteMessage, [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: onDelete },
     ]);
@@ -153,7 +158,7 @@ export function SwipeableFolder({
   const handleTap = () => { isOpen.current ? close() : onPress(); };
 
   const deleteWithConfirm = () => {
-    Alert.alert(t('delete_folder'), folder.name, [
+    Alert.alert(t('delete_folder'), deleteMessage, [
       { text: t('cancel'), style: 'cancel' },
       { text: t('delete'), style: 'destructive', onPress: onDelete },
     ]);

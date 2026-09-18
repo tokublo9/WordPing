@@ -136,7 +136,7 @@ export const DEFAULT_LIMITS: LimitTable = {
   voice_card: {
     free: NO_ACCESS,
     basic: { maxCharsPerRequest: 500, maxRequestsPerMinute: 20, maxRequestsPerDay: 300, maxCharsPerDay: 50_000 },
-    premium: { maxCharsPerRequest: 500, maxRequestsPerMinute: 20, maxRequestsPerDay: 300, maxCharsPerDay: 50_000 },
+    premium: { maxCharsPerRequest: 500, maxRequestsPerMinute: 20, maxRequestsPerDay: 200, maxCharsPerDay: 50_000 },
   },
   voice_sample: {
     free: NO_ACCESS,

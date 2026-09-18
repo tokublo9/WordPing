@@ -247,9 +247,15 @@ test('every placeholder survived the rewrites, in every locale', () => {
     if (code === 'en-US') continue;
     const dict = entries(code);
     for (const [key, source] of english) {
-      const want = placeholders(source);
+      // These notices use translated plan names in EN/JA/KO/ZH and plan-name
+      // placeholders in other locales. The card-count placeholder is shared.
+      const localizesPlanNames = key === 'basic_voice_existing_limit' || key === 'basic_voice_new_limit';
+      const keep = value => localizesPlanNames
+        ? value.filter(token => token !== '{basic}' && token !== '{premium}')
+        : value;
+      const want = keep(placeholders(source));
       if (want.length === 0) continue;
-      const got = placeholders(dict.get(key) ?? '');
+      const got = keep(placeholders(dict.get(key) ?? ''));
       if (!dict.has(key)) continue;
       assert.deepEqual(got, want, `${code}/${key} lost or gained a placeholder`);
     }

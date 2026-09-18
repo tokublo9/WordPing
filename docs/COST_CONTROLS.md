@@ -37,30 +37,36 @@ most directly to spend.
 
 ## 2. Server-side limits
 
-Defaults live in `cloudflare/wordping-api/src/config.ts`.
+Request limits live in `cloudflare/wordping-api/src/config.ts`; plan budgets live in `cloudflare/wordping-api/src/planLimits.ts`.
 
 The monthly product policy is:
 
 | Plan or playback | Monthly High-Quality AI Voice usage |
 |---|---|
 | Free | Upgrade samples only; arbitrary word-card generation is blocked |
-| Basic | None. AI Voice is Premium; Basic buys Custom Voice for Words, which is a local audio file and reaches no route here |
-| Premium | No monthly quota; 20/minute and 300/day abuse limits still apply |
+| Basic | One-time grant for the fronts of 10 distinct cards, plus 1 minute 30 seconds of newly generated card audio per UTC month; backs use the device voice |
+| Premium card fronts and optional backs | Up to 200 generations per UTC day and 400 per UTC month |
+| Premium card audio and standalone custom speech | Shared 30 minutes of newly generated audio per UTC month |
 | Cached playback | Never counts |
 | Voice picker | Preview generation never counts, including a cache miss |
 
-**No tier is metered today.** AI Voice is Premium and Premium is sold as
-included, so `VOICE_MONTHLY_LIMITS` is `{ free: 0, basic: 0, premium: null }` and
-the monthly counter in `monthlyQuota.ts` is never written. The machinery is kept
-for a plan that may want a metered allowance again; until then the per-minute and
-per-day limits below, the kill switches and the OpenAI project budget are the
-live controls.
+The card budgets live in a subscriber-keyed Durable Object. Premium requests
+reserve their count before OpenAI is called. After a clip is generated, the
+Worker measures its encoded playback duration and commits that duration before
+delivering it. A clip that does not fit in the remaining monthly duration is
+withheld, and further card requests wait until the next UTC month. Premium
+standalone custom speech uses the same 30-minute duration budget. Replaying
+saved audio does not count.
+The app retries deferred card generation after the budget renews; standalone
+speech can be requested again then.
+Basic and Premium duration counters are separate, so a mid-month plan change
+uses the new plan's remaining duration without changing the one-time card grant.
 
 The separate short-term abuse controls are:
 
 | Feature | Tier | Chars/request | Req/min | Req/day | Chars/day |
 |---|---|---|---|---|---|
-| `voice_card` | Premium | 500 | 20 | 300 | 50,000 |
+| `voice_card` | Premium | 500 | 20 | 200 | 50,000 |
 | `voice_sample` | Premium | 120 | 8 | 40 | 4,000 |
 | `voice_custom` | Premium | 1,000 | 5 | 30 | 15,000 |
 | text actions | Premium | 500 | 20 | 300 | 50,000 |

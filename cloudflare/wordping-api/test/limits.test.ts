@@ -28,84 +28,34 @@ function premiumUpstreams() {
 }
 
 describe('rate limiting', () => {
-  it('enforces Premium voice-card minute limits with isolation, reset, and a closed saturated boundary', async () => {
+  it('enforces Premium voice-card minute limits per subscriber with a clean reset', async () => {
     vi.useFakeTimers();
     const firstWindow = Date.parse('2026-08-21T12:00:10.000Z');
     vi.setSystemTime(firstWindow);
-
-    const { calls } = mockFetch([
-      { match: 'api.revenuecat.com', respond: () => revenueCatSubscriber({ premium: '2099-01-01T00:00:00.000Z' }) },
-      { match: '/audio/speech', respond: () => wavBody() },
-    ]);
+    const { calls } = mockFetch(premiumUpstreams());
     const env = makeEnv();
-    const firstInstall = 'install-premium-user-one';
-    const secondInstall = 'install-premium-user-two';
-    const firstAppUser = '$RCAnonymousID:premium-user-one';
-    const secondAppUser = '$RCAnonymousID:premium-user-two';
-    const callVoice = (installId: string, appUserId: string) => handleRequest(
-      makeRequest('/v1/voice/card', {
-        body: { text: 'hello', voice: 'marin' },
-        installId,
-        appUserId,
-      }),
-      env,
-      makeCtx(),
+    const firstUser = '$RCAnonymousID:premium-user-one';
+    const secondUser = '$RCAnonymousID:premium-user-two';
+    const callVoice = (appUserId: string) => handleRequest(
+      makeRequest('/v1/voice/card', { body: { text: 'hello', voice: 'marin' }, appUserId }),
+      env, makeCtx(),
     );
-    const audioCallCount = () => calls.filter(call => call.url.includes('/audio/speech')).length;
-    const rateCounterSnapshot = () => Object.fromEntries(
-      env.WORDPING_KV.keysStartingWith('rl:')
-        .sort()
-        .map(key => [key, env.WORDPING_KV.store.get(key)?.value]),
-    );
-
-    // The production Premium word-card threshold is 20 requests per minute.
     for (let request = 1; request <= 20; request += 1) {
-      expect((await callVoice(firstInstall, firstAppUser)).status).toBe(200);
+      expect((await callVoice(firstUser)).status).toBe(200);
     }
-    expect(audioCallCount()).toBe(20);
-    expect(env.WORDPING_KV.keysStartingWith('quota:')).toHaveLength(0);
-
-    const firstInstallHash = await privacyHash(env, 'install', firstInstall);
-    const firstMinuteKey = `rl:req:minute:voice_card:install:${firstInstallHash}:${Math.floor(firstWindow / 60_000)}`;
-    expect(await env.WORDPING_KV.get(firstMinuteKey)).toBe('20');
-
-    const countersAtLimit = rateCounterSnapshot();
-    const blocked = await callVoice(firstInstall, firstAppUser);
+    const firstHash = await privacyHash(env, 'rcuser', firstUser);
+    expect(env.VOICE_CREDITS.quotaStates.get(firstHash)?.minuteUsed).toBe(20);
+    const blocked = await callVoice(firstUser);
     expect(blocked.status).toBe(429);
-    expect(Number(blocked.headers.get('Retry-After'))).toBeGreaterThan(0);
     await expect(blocked.json()).resolves.toMatchObject({
-      error: 'rate_limit_exceeded',
-      scope: 'install',
-      window: 'minute',
-      limit: 20,
+      error: 'rate_limit_exceeded', scope: 'account', window: 'minute', limit: 20,
     });
-    expect(audioCallCount()).toBe(20);
-    expect(rateCounterSnapshot()).toEqual(countersAtLimit);
-
-    // A separate installation and RevenueCat identity has its own install
-    // bucket. The shared-IP backstop is deliberately six times looser.
-    expect((await callVoice(secondInstall, secondAppUser)).status).toBe(200);
-    expect(audioCallCount()).toBe(21);
-
-    // Move the injected clock past the fixed minute window; no real timer or
-    // network wait is involved.
-    const secondWindow = firstWindow + 61_000;
-    vi.setSystemTime(secondWindow);
-    expect((await callVoice(firstInstall, firstAppUser)).status).toBe(200);
-    expect(audioCallCount()).toBe(22);
-
-    // Once a bucket is saturated, concurrent requests all observe the closed
-    // boundary and none reaches OpenAI or changes any usage counter.
-    const secondMinuteKey = `rl:req:minute:voice_card:install:${firstInstallHash}:${Math.floor(secondWindow / 60_000)}`;
-    await env.WORDPING_KV.put(secondMinuteKey, '20');
-    const countersBeforeConcurrentBlock = rateCounterSnapshot();
-    const callsBeforeConcurrentBlock = audioCallCount();
-    const concurrent = await Promise.all(
-      Array.from({ length: 5 }, () => callVoice(firstInstall, firstAppUser)),
-    );
-    expect(concurrent.every(response => response.status === 429)).toBe(true);
-    expect(audioCallCount()).toBe(callsBeforeConcurrentBlock);
-    expect(rateCounterSnapshot()).toEqual(countersBeforeConcurrentBlock);
+    expect((await callVoice(secondUser)).status).toBe(200);
+    vi.setSystemTime(firstWindow + 61_000);
+    expect((await callVoice(firstUser)).status).toBe(200);
+    expect(env.VOICE_CREDITS.quotaStates.get(firstHash)?.minuteUsed).toBe(1);
+    expect(calls.filter(call => call.url.includes('/audio/speech'))).toHaveLength(22);
+    expect(env.WORDPING_KV.keysStartingWith('rl:')).toHaveLength(0);
   });
 
   it('returns 429 with Retry-After once the per-minute request limit is reached', async () => {
@@ -224,7 +174,7 @@ describe('rate limiting', () => {
     const env = makeEnv();
     const privateWord = 'private-word-that-must-not-be-a-kv-key';
     await handleRequest(
-      makeRequest('/v1/voice/card', {
+      makeRequest('/v1/voice/custom', {
         body: { text: privateWord, voice: 'marin' },
         installId: 'install-0123456789abcdef',
       }),

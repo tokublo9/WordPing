@@ -1,7 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Dimensions,
   InteractionManager,
@@ -34,7 +33,6 @@ import { TopBanner } from './src/components/TopBanner';
 import { showTopBanner } from './src/lib/topBanner';
 import { reportSideEffectFailure } from './src/utils/reportSideEffectFailure';
 import { AIConsentDialog } from './src/components/AIConsentDialog';
-import { VoiceCreditsExhaustedDialog } from './src/components/VoiceCreditsExhaustedDialog';
 import { invalidateAIConsent, subscribeToAIConsent, type AIConsentState } from './src/lib/aiConsent';
 import {
   hasEligibleAIEntitlement,
@@ -69,6 +67,7 @@ import { WELCOME_FOLDER_NAMES, TIPS_FOLDER_NAMES, WELCOME_CARD_IDS, buildWelcome
 import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
+import { WordCoreAlert as Alert, WordCoreAlertHost } from './src/components/WordCoreAlert';
 import { UpgradePlanImagePreloader } from './src/components/ProSheet';
 import { TestModeScreen, type TestModeProgress } from './src/components/TestModeScreen';
 import { recordAnswer } from './src/features/study/studyLog';
@@ -81,15 +80,18 @@ import { useAppPersistence } from './src/app/useAppPersistence';
 import {
   preloadAIPronunciation,
   preloadAIPronunciationLibrary,
+  countUncachedAIPronunciations,
   preloadPromoVoiceSamples,
   preloadVoiceSampleAudio,
   cancelAIPronunciationPreload,
   purgeRetiredVoiceCaches,
   releaseAIPronunciationCache,
   setAIVoicePreference,
+  type AIPronunciationLibraryEntry,
 } from './src/lib/tts';
 import { normalizedTTSText } from './src/lib/ttsRequest';
 import { fetchVoiceCreditBalance } from './src/lib/api/client';
+import type { AIRequestError } from './src/lib/api/errors';
 import { useThemePurchases } from './src/hooks/useThemePurchases';
 import { isThemeOwnedIndividually } from './src/features/themes/themeProducts';
 import { themeUnlockOverrideActive } from './src/dev/themeAccessOverride';
@@ -98,6 +100,15 @@ import { resolveBulkImportDestination } from './src/features/cards/bulkImport';
 import { TEXT_TO_SPEECH_ENABLED } from './src/features/flags';
 import { resolveAIVoiceSampleLanguage } from './src/features/onboarding/sampleLanguage';
 import { resolveVoiceSampleLanguage } from './src/features/voice/voiceSampleLanguage';
+import { allocateBasicVoiceCards, setCardVoicePolicy } from './src/features/voice/cardVoicePolicy';
+import { BASIC_VOICE_CARD_LIMIT, BASIC_VOICE_TEST_LIMIT_ACTIVE } from './src/dev/basicVoiceCardLimit';
+
+const BASIC_VOICE_STORAGE_SUFFIX = BASIC_VOICE_TEST_LIMIT_ACTIVE ? `_test_${BASIC_VOICE_CARD_LIMIT}` : '';
+const BASIC_VOICE_IDS_KEY = `wordping_basic_voice_card_ids_v1${BASIC_VOICE_STORAGE_SUFFIX}`;
+const BASIC_VOICE_INITIAL_NOTICE_KEY = `wordping_basic_voice_initial_notice_v1${BASIC_VOICE_STORAGE_SUFFIX}`;
+const BASIC_VOICE_LIMIT_NOTICE_KEY = `wordping_basic_voice_limit_notice_v1${BASIC_VOICE_STORAGE_SUFFIX}`;
+const BASIC_VOICE_POPUP_KEY = `wordping_basic_voice_popup_v1${BASIC_VOICE_STORAGE_SUFFIX}`;
+const PREMIUM_BACK_VOICE_KEY = 'wordping_premium_back_voice_v1';
 
 // Hide Labels is temporarily disabled, so every existing label surface stays visible.
 // The underlying useCards state is intentionally retained for a future restoration.
@@ -109,7 +120,7 @@ const SHOW_LEVEL_LABELS = true;
  * the other still speaks it.
  */
 function normalizedWordTexts(cards: readonly WordCard[]): Set<string> {
-  return new Set(cards.map(card => normalizedTTSText(card.word)));
+  return new Set(cards.flatMap(card => [card.word, card.meaning].map(normalizedTTSText)));
 }
 
 /** Values on a card that select or invalidate its generated pronunciation. */
@@ -176,6 +187,7 @@ function AppContent() {
     setResultFilterTutorialSeen,
     setFirstTestAnswerRecorded,
   });
+  const generationVoice: AIVoice = plan === 'basic' ? 'marin' : aiVoice;
 
   const sampleLanguage = useMemo(() => resolveAIVoiceSampleLanguage({
     purpose: onboardingPurpose,
@@ -196,6 +208,95 @@ function AppContent() {
   const t = useCallback((key: Parameters<typeof translate>[1]) => translate(language, key), [language]);
   const cardsRef = useRef(cards);
   cardsRef.current = cards;
+  const [basicVoiceIds, setBasicVoiceIds] = useState<string[] | null>(null);
+  const basicVoiceIdsRef = useRef<string[] | null>(null);
+  const basicSelectionLoadedFromEmptyRef = useRef(false);
+  const basicActivationCheckedRef = useRef(false);
+  const [basicInitialNoticePending, setBasicInitialNoticePending] = useState(false);
+  const basicInitialNoticePendingRef = useRef(false);
+  const basicLimitNoticeShownRef = useRef(false);
+  const [basicVoicePopup, setBasicVoicePopup] = useState<'initial' | 'added' | null>(null);
+  const [premiumBackVoice, setPremiumBackVoice] = useState(false);
+  useEffect(() => {
+    void Promise.all([
+      AsyncStorage.getItem(BASIC_VOICE_IDS_KEY),
+      AsyncStorage.getItem(PREMIUM_BACK_VOICE_KEY),
+      AsyncStorage.getItem(BASIC_VOICE_INITIAL_NOTICE_KEY),
+      AsyncStorage.getItem(BASIC_VOICE_LIMIT_NOTICE_KEY),
+      AsyncStorage.getItem(BASIC_VOICE_POPUP_KEY),
+    ]).then(([ids, back, pending, limitShown, popup]) => {
+      let parsed: string[] = [];
+      try {
+        const value: unknown = ids ? JSON.parse(ids) : null;
+        if (Array.isArray(value)) parsed = value.filter((id): id is string => typeof id === 'string');
+      } catch { /* Start a fresh local selection if storage is malformed. */ }
+      basicSelectionLoadedFromEmptyRef.current = ids === null;
+      basicVoiceIdsRef.current = parsed;
+      setBasicVoiceIds(parsed);
+      setPremiumBackVoice(back === 'true');
+      basicInitialNoticePendingRef.current = pending === 'true' && popup !== 'initial';
+      setBasicInitialNoticePending(basicInitialNoticePendingRef.current);
+      basicLimitNoticeShownRef.current = limitShown === 'true';
+      if (popup === 'initial' || popup === 'added') setBasicVoicePopup(popup);
+    }).catch(error => {
+      reportSideEffectFailure('load voice settings', error);
+      basicVoiceIdsRef.current = [];
+      setBasicVoiceIds([]);
+    });
+  }, []);
+  const allocateBasicIds = useCallback((allCards: readonly WordCard[]): string[] => {
+    const previous = basicVoiceIdsRef.current ?? [];
+    const next = allocateBasicVoiceCards(
+      allCards, previous, BASIC_VOICE_CARD_LIMIT, folders.map(folder => folder.id),
+    );
+    if (next.length !== previous.length) {
+      basicVoiceIdsRef.current = next;
+      setBasicVoiceIds(next);
+      void AsyncStorage.setItem(BASIC_VOICE_IDS_KEY, JSON.stringify(next));
+    }
+    return next;
+  }, [folders]);
+  const queueBasicVoicePopup = useCallback((kind: 'initial' | 'added') => {
+    void AsyncStorage.setItem(BASIC_VOICE_POPUP_KEY, kind);
+    setBasicVoicePopup(kind);
+  }, []);
+  const showBasicAddedNoticeOnce = useCallback(() => {
+    if (basicInitialNoticePendingRef.current || basicLimitNoticeShownRef.current) return;
+    basicLimitNoticeShownRef.current = true;
+    void AsyncStorage.setItem(BASIC_VOICE_LIMIT_NOTICE_KEY, 'true');
+    queueBasicVoicePopup('added');
+  }, [queueBasicVoicePopup]);
+  useEffect(() => {
+    if (plan !== 'basic' || !settingsLoaded || !cardsLoaded || basicVoiceIds === null) return;
+    if (!basicActivationCheckedRef.current) {
+      basicActivationCheckedRef.current = true;
+      if (basicSelectionLoadedFromEmptyRef.current && cards.length >= BASIC_VOICE_CARD_LIMIT) {
+        basicInitialNoticePendingRef.current = true;
+        setBasicInitialNoticePending(true);
+        void AsyncStorage.setItem(BASIC_VOICE_INITIAL_NOTICE_KEY, 'true');
+      }
+    }
+    allocateBasicIds(cards);
+  }, [allocateBasicIds, basicVoiceIds, cards, cardsLoaded, plan, settingsLoaded]);
+  setCardVoicePolicy({
+    plan: isSubscriptionLoaded ? plan : 'free',
+    basicCardIds: basicVoiceIds ?? [],
+    premiumBackVoice,
+  });
+  useEffect(() => {
+    if (plan !== 'basic' || currentFolderId === null || basicVoicePopup === null) return;
+    const message = (basicVoicePopup === 'initial'
+      ? t('basic_voice_existing_limit') : t('basic_voice_new_limit'))
+      .split('{n}').join(String(BASIC_VOICE_CARD_LIMIT))
+      .replace('{premium}', t('cmp_premium'))
+      .replace('{basic}', t('basic_plan_name'));
+    setBasicVoicePopup(null);
+    void AsyncStorage.removeItem(BASIC_VOICE_POPUP_KEY);
+    Alert.alert(t('feature_ai_voice'), message, [
+      { text: t('close'), style: 'cancel' },
+      { text: t('cmp_premium'), onPress: () => setProSheetVisible(true) },
+    ]);
+  }, [basicVoicePopup, currentFolderId, plan, t]);
 
   // ── Purchase and restore feedback ───────────────────────────────────────────
   // One place turns a store outcome into something the user can actually see,
@@ -398,6 +499,66 @@ function AppContent() {
   const voiceBackendReady = entitlementSource === 'local-development-scenario'
     || !usesVoiceCreditLedger
     || voiceCreditReadyRevision === entitlementRevision;
+  const planRef = useRef(plan);
+  planRef.current = plan;
+  const premiumDeferredNoticeRef = useRef(new Set<string>());
+  const premiumDeferredStatusRef = useRef<{ window: 'day' | 'month'; until: number; duration?: boolean } | null>(null);
+  const showPremiumDeferredNotice = useCallback((error: AIRequestError) => {
+    if (planRef.current === 'basic') {
+      if (error.kind !== 'monthly_limit_reached' || error.quota?.reason !== 'duration') return;
+      const key = `basic-duration:${error.quota.resetsAt}`;
+      if (premiumDeferredNoticeRef.current.has(key)) return;
+      premiumDeferredNoticeRef.current.add(key);
+      Alert.alert(t('feature_ai_voice'), t('basic_voice_deferred_duration')
+        .replace('{basic}', t('basic_plan_name')).replace('{premium}', t('cmp_premium')), [
+        { text: 'OK' },
+        { text: t('cmp_premium'), onPress: () => setProSheetVisible(true) },
+      ]);
+      return;
+    }
+    if (planRef.current !== 'premium') return;
+    const monthly = error.kind === 'monthly_limit_reached';
+    const window = monthly ? 'month' : error.limitWindow;
+    if (window !== 'day' && window !== 'month') return;
+    const reset = monthly ? error.quota?.resetsAt
+      : new Date(Date.now() + (error.retryAfterSeconds ?? 0) * 1_000).toISOString().slice(0, 10);
+    premiumDeferredStatusRef.current = {
+      window,
+      until: monthly && error.quota?.resetsAt
+        ? Date.parse(error.quota.resetsAt)
+        : Date.now() + Math.max(1, error.retryAfterSeconds ?? 0) * 1_000,
+      duration: error.quota?.reason === 'duration',
+    };
+    const noticeKey = `${window}:${reset ?? ''}:${error.quota?.reason ?? ''}`;
+    if (premiumDeferredNoticeRef.current.has(noticeKey)) return;
+    premiumDeferredNoticeRef.current.add(noticeKey);
+    const bulkNoticeShown = premiumDeferredNoticeRef.current.delete('bulk-import');
+    if (bulkNoticeShown && error.quota?.reason !== 'duration') return;
+    Alert.alert(t('feature_ai_voice'), t(window === 'month'
+      ? error.quota?.reason === 'duration' ? 'premium_voice_deferred_duration' : 'premium_voice_deferred_month'
+      : 'premium_voice_deferred_day'), [{ text: 'OK' }]);
+  }, [t]);
+  const showPremiumDeferredAfterSave = useCallback(async (
+    entries: readonly AIPronunciationLibraryEntry[],
+    voice: AIVoice,
+    missingKnown = false,
+  ) => {
+    const deferred = premiumDeferredStatusRef.current;
+    if (planRef.current !== 'premium' || !deferred || Date.now() >= deferred.until) return;
+    if (!missingKnown) {
+      try {
+        if (await countUncachedAIPronunciations(entries, voice, 0) === 0) return;
+      } catch { return; }
+    }
+    Alert.alert(t('feature_ai_voice'), t(deferred.window === 'month'
+      ? deferred.duration ? 'premium_voice_deferred_duration' : 'premium_voice_deferred_month'
+      : 'premium_voice_deferred_day'), [{ text: 'OK' }]);
+  }, [t]);
+  const [basicPreloadRetry, setBasicPreloadRetry] = useState(0);
+  const basicPreloadRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (basicPreloadRetryTimerRef.current) clearTimeout(basicPreloadRetryTimerRef.current);
+  }, []);
 
   // Preload every existing word's AI pronunciation once an entitlement is active, so the
   // voice icon plays from cache instead of generating on first tap. Guarded by a key
@@ -413,42 +574,84 @@ function AppContent() {
     const hasAIAccess = planCanUseAI(plan) && !preferDeviceVoice;
     if (!isSubscriptionLoaded || !settingsLoaded || !hasAIAccess
       || !voiceBackendReady
-      || aiConsentState !== 'granted') {
+      || aiConsentState !== 'granted' || (plan === 'basic' && basicVoiceIds === null)) {
       // Losing access clears the key so re-subscribing sweeps again.
       if (!hasAIAccess) preloadedLibraryKeyRef.current = null;
       return;
     }
     if (cards.length === 0) return;
 
-    const key = `${plan} ${aiVoice} ${entitlementRevision}`;
+    const key = `${plan} ${generationVoice} ${entitlementRevision} ${basicVoiceIds?.length ?? 0}`;
     if (preloadedLibraryKeyRef.current === key) return;
     preloadedLibraryKeyRef.current = key;
 
     // Put the open folder first without moving any cards in storage. This only
     // affects queue order, so the words the user can currently see become
     // playable before the remainder of a large post-purchase sweep.
-    const orderedCards = currentFolderId === null
-      ? cards
-      : [
+    const orderedCards = plan === 'basic'
+      ? (basicVoiceIds ?? []).map(id => cards.find(card => card.id === id))
+        .filter((card): card is WordCard => card !== undefined)
+      : currentFolderId === null ? cards : [
         ...cards.filter(card => card.folderId === currentFolderId),
         ...cards.filter(card => card.folderId !== currentFolderId),
       ];
 
-    preloadAIPronunciationLibrary({
+    void preloadAIPronunciationLibrary({
       entries: orderedCards.map(card => ({
         id: card.id,
         text: card.word,
         language: card.wordLang,
         hasCustomAudio: Boolean(card.audioUri),
       })),
-      voice: aiVoice,
+      voice: generationVoice,
       hasAIAccess: true,
       triggerReason: entitlementSource ?? 'entitlement-active',
+      onDeferred: plan === 'premium' || plan === 'basic' ? showPremiumDeferredNotice : undefined,
+    }).then(results => {
+      if (plan !== 'basic' || planRef.current !== 'basic' || !basicInitialNoticePendingRef.current
+        || orderedCards.length < BASIC_VOICE_CARD_LIMIT) return;
+      if (results.length === orderedCards.length
+        && results.every((ready, index) => ready || Boolean(orderedCards[index]?.audioUri))) {
+        basicInitialNoticePendingRef.current = false;
+        setBasicInitialNoticePending(false);
+        void AsyncStorage.removeItem(BASIC_VOICE_INITIAL_NOTICE_KEY);
+        basicLimitNoticeShownRef.current = true;
+        void AsyncStorage.setItem(BASIC_VOICE_LIMIT_NOTICE_KEY, 'true');
+        queueBasicVoicePopup('initial');
+      } else if (basicPreloadRetryTimerRef.current === null) {
+        // A transient service limit or offline period must not permanently
+        // suppress the post-generation notice. Cached successes are cheap on retry.
+        basicPreloadRetryTimerRef.current = setTimeout(() => {
+          basicPreloadRetryTimerRef.current = null;
+          preloadedLibraryKeyRef.current = null;
+          setBasicPreloadRetry(count => count + 1);
+        }, Math.min(300_000, 30_000 * (basicPreloadRetry + 1)));
+      }
     });
   }, [
-    aiConsentState, aiVoice, cards, currentFolderId, entitlementRevision, entitlementSource,
-    isSubscriptionLoaded, plan, preferDeviceVoice, settingsLoaded, voiceBackendReady,
+    aiConsentState, basicInitialNoticePending, basicPreloadRetry, basicVoiceIds, cards, currentFolderId, entitlementRevision, entitlementSource, generationVoice,
+    isSubscriptionLoaded, plan, preferDeviceVoice, queueBasicVoicePopup, settingsLoaded, showPremiumDeferredNotice, voiceBackendReady,
   ]);
+
+  const preloadedBackKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (plan !== 'premium' || !premiumBackVoice || !settingsLoaded
+      || aiConsentState !== 'granted' || !voiceBackendReady) {
+      preloadedBackKeyRef.current = null;
+      return;
+    }
+    if (cards.length === 0) return;
+    const key = `${aiVoice} ${entitlementRevision} ${cards.map(card => card.id).join('|')}`;
+    if (preloadedBackKeyRef.current === key) return;
+    preloadedBackKeyRef.current = key;
+    void preloadAIPronunciationLibrary({
+      entries: cards.filter(card => Boolean(card.meaning.trim())).map(card => ({
+        id: `${card.id}:back`, text: card.meaning, language: card.meaningLang,
+      })),
+      voice: aiVoice, hasAIAccess: true, triggerReason: 'premium-back-enabled',
+      onDeferred: showPremiumDeferredNotice,
+    });
+  }, [aiConsentState, aiVoice, cards, entitlementRevision, plan, premiumBackVoice, settingsLoaded, showPremiumDeferredNotice, voiceBackendReady]);
 
   // ── AI entitlement ────────────────────────────────────────────────────────────
   // One rule, published to the network guard and read by every AI surface, so
@@ -561,6 +764,21 @@ function AppContent() {
   // shared mode state directly.
   const wordListViewModeChangeRef = useRef<((mode: 'list' | 'flip') => void) | null>(null);
   const [menuContext, setMenuContext] = useState<'cards' | 'folders'>('cards');
+  const handleCardsDeleted = useCallback((
+    removed: readonly WordCard[],
+    remaining: readonly WordCard[],
+  ) => {
+    releaseAIPronunciationCache({
+      entryIds: removed.map(card => card.id),
+      texts: removed.map(card => card.word),
+      retainedTexts: normalizedWordTexts(remaining),
+    });
+    releaseAIPronunciationCache({
+      entryIds: removed.map(card => `${card.id}:back`),
+      texts: removed.map(card => card.meaning),
+      retainedTexts: normalizedWordTexts(remaining),
+    });
+  }, []);
   const {
     folderSelectionMode, selectedFolderIds, folderReorderMode,
     movePickerVisible, setMovePickerVisible,
@@ -570,10 +788,10 @@ function AppContent() {
   } = useFolders({
     folders,
     cards,
-    fallbackFolderName: t('default_folder_name'),
     setFolders,
     setCards,
     setMenuVisible,
+    onCardsDeleted: handleCardsDeleted,
     // A move that hits a word the target folder already has leaves it in place.
     // Told as a passing notice rather than an alert: nothing failed and nothing
     // was lost, some words simply had nowhere new to go.
@@ -596,17 +814,35 @@ function AppContent() {
     // abandoned and the newer save owns the next enqueue.
     await persistCardsAndWait([...remaining]);
     const current = cardsRef.current.find(candidate => candidate.id === card.id);
-    if (!current || cardVoiceInput(current) !== cardVoiceInput(card)) return;
-    preloadAIPronunciation({
+    if (!current || cardVoiceInput(current) !== cardVoiceInput(card)
+      || (premiumBackVoice && current.meaning !== card.meaning)) return;
+    const selected = plan === 'basic' ? allocateBasicIds(remaining) : [];
+    const eligible = plan !== 'basic' || selected.includes(card.id);
+    if (plan === 'basic' && !eligible) showBasicAddedNoticeOnce();
+    if (plan === 'premium' && automaticAIVoiceReady) {
+      await showPremiumDeferredAfterSave([
+        { id: card.id, text: card.word, language: card.wordLang, hasCustomAudio: Boolean(card.audioUri) },
+      ], generationVoice);
+    }
+    void preloadAIPronunciation({
       entryId: card.id,
       text: card.word,
-      voice: aiVoice,
+      voice: generationVoice,
       language: card.wordLang,
-      hasAIAccess: automaticAIVoiceReady,
+      hasAIAccess: automaticAIVoiceReady && eligible,
       hasCustomAudio: Boolean(card.audioUri),
       priority: 'high',
+      onDeferred: plan === 'premium' || plan === 'basic' ? showPremiumDeferredNotice : undefined,
     });
-  }, [aiVoice, automaticAIVoiceReady]);
+    if (plan === 'premium' && premiumBackVoice && card.meaning.trim()) {
+      void preloadAIPronunciation({
+        entryId: `${card.id}:back`, text: card.meaning, voice: aiVoice,
+        language: card.meaningLang, hasAIAccess: automaticAIVoiceReady,
+        priority: 'high',
+        onDeferred: showPremiumDeferredNotice,
+      });
+    }
+  }, [generationVoice, allocateBasicIds, automaticAIVoiceReady, plan, premiumBackVoice, showBasicAddedNoticeOnce, showPremiumDeferredAfterSave, showPremiumDeferredNotice]);
 
   /**
    * An edit is two jobs: the old clip is now unreachable from this card, and the
@@ -621,6 +857,24 @@ function AppContent() {
     previousCard: WordCard;
     remaining: readonly WordCard[];
   }) => {
+    if (plan === 'premium' && premiumBackVoice
+      && (change.previousCard.meaning !== change.card.meaning
+        || change.previousCard.meaningLang !== change.card.meaningLang)) {
+      releaseAIPronunciationCache({
+        entryIds: [`${change.card.id}:back`],
+        texts: [change.previousCard.meaning],
+        retainedTexts: normalizedWordTexts(change.remaining),
+      });
+      await persistCardsAndWait([...change.remaining]);
+      if (change.card.meaning.trim()) {
+        void preloadAIPronunciation({
+          entryId: `${change.card.id}:back`, text: change.card.meaning, voice: aiVoice,
+          language: change.card.meaningLang, hasAIAccess: automaticAIVoiceReady,
+          priority: 'high',
+          onDeferred: showPremiumDeferredNotice,
+        });
+      }
+    }
     if (cardVoiceInput(change.previousCard) === cardVoiceInput(change.card)) return;
 
     const textChanged = normalizedTTSText(change.previousCard.word)
@@ -640,40 +894,24 @@ function AppContent() {
     await persistCardsAndWait([...change.remaining]);
     const current = cardsRef.current.find(candidate => candidate.id === change.card.id);
     if (!current || cardVoiceInput(current) !== cardVoiceInput(change.card)) return;
-    preloadAIPronunciation({
+    if (plan === 'premium' && automaticAIVoiceReady) {
+      await showPremiumDeferredAfterSave([
+        { id: change.card.id, text: change.card.word, language: change.card.wordLang,
+          hasCustomAudio: Boolean(change.card.audioUri) },
+      ], generationVoice);
+    }
+    void preloadAIPronunciation({
       entryId: change.card.id,
       text: change.card.word,
-      voice: aiVoice,
+      voice: generationVoice,
       language: change.card.wordLang,
-      hasAIAccess: automaticAIVoiceReady,
+      hasAIAccess: automaticAIVoiceReady && (plan !== 'basic'
+        || (basicVoiceIdsRef.current ?? []).includes(change.card.id)),
       hasCustomAudio: Boolean(change.card.audioUri),
       priority: 'high',
+      onDeferred: plan === 'premium' || plan === 'basic' ? showPremiumDeferredNotice : undefined,
     });
-  }, [aiVoice, automaticAIVoiceReady]);
-
-  /**
-   * Basic's grant is spent. The dialog owns the two ways forward.
-   *
-   * The replay is kept rather than called: "Use Free Voice" speaks the word the
-   * user actually asked for, while "Upgrade to Premium" must not start audio
-   * underneath the paywall.
-   */
-  const [voiceCreditsFallback, setVoiceCreditsFallback] = useState<(() => void) | null>(null);
-  const handleVoiceCreditsExhausted = useCallback((useFreeVoice: () => void) => {
-    setVoiceCreditsFallback(() => useFreeVoice);
-  }, []);
-  const handleUpgradeFromVoiceCredits = useCallback(() => {
-    setVoiceCreditsFallback(null);
-    setProSheetVisible(true);
-  }, []);
-  const handleUseFreeVoice = useCallback(() => {
-    // The preference first: it is what stops the next card raising this again.
-    setPreferDeviceVoice(true);
-    setVoiceCreditsFallback(current => {
-      current?.();
-      return null;
-    });
-  }, [setPreferDeviceVoice]);
+  }, [generationVoice, automaticAIVoiceReady, plan, premiumBackVoice, showPremiumDeferredAfterSave, showPremiumDeferredNotice]);
 
   /**
    * Choosing a voice is how the user asks for Natural AI Voice again.
@@ -686,6 +924,21 @@ function AppContent() {
     setPreferDeviceVoice(false);
   }, [setAIVoice, setPreferDeviceVoice]);
 
+  const handleTogglePremiumBackVoice = useCallback((enabled: boolean) => {
+    if (!enabled) {
+      setPremiumBackVoice(false);
+      void AsyncStorage.setItem(PREMIUM_BACK_VOICE_KEY, 'false');
+      return;
+    }
+    Alert.alert(t('premium_back_voice'), t('premium_back_voice_confirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('premium_back_voice_yes'), onPress: () => {
+        setPremiumBackVoice(true);
+        void AsyncStorage.setItem(PREMIUM_BACK_VOICE_KEY, 'true');
+      } },
+    ]);
+  }, [t]);
+
   const handleCardsImported = useCallback(async (
     imported: readonly WordCard[],
     remaining: readonly WordCard[],
@@ -693,32 +946,52 @@ function AppContent() {
     await persistCardsAndWait([...remaining]);
     const importedIds = new Set(imported.map(card => card.id));
     const currentImported = cardsRef.current.filter(card => importedIds.has(card.id));
-    preloadAIPronunciationLibrary({
-      entries: currentImported.map(card => ({
-        id: card.id,
-        text: card.word,
-        language: card.wordLang,
-        hasCustomAudio: Boolean(card.audioUri),
-      })),
-      voice: aiVoice,
+    const selected = plan === 'basic' ? allocateBasicIds(remaining) : [];
+    const eligibleImported = plan === 'basic'
+      ? currentImported.filter(card => selected.includes(card.id)) : currentImported;
+    const frontEntries = eligibleImported.map(card => ({
+      id: card.id, text: card.word, language: card.wordLang,
+      hasCustomAudio: Boolean(card.audioUri),
+    }));
+    const backEntries = plan === 'premium' && premiumBackVoice
+      ? currentImported.filter(card => Boolean(card.meaning.trim())).map(card => ({
+        id: `${card.id}:back`, text: card.meaning, language: card.meaningLang,
+      })) : [];
+    if (plan === 'premium' && automaticAIVoiceReady) {
+      try {
+        const uncached = await countUncachedAIPronunciations([...frontEntries, ...backEntries], generationVoice, 200);
+        if (uncached > 200) {
+          premiumDeferredNoticeRef.current.add('bulk-import');
+          InteractionManager.runAfterInteractions(() => {
+            Alert.alert(t('feature_ai_voice'), t('premium_voice_deferred_bulk'), [{ text: 'OK' }]);
+          });
+        } else if (uncached > 0) {
+          await showPremiumDeferredAfterSave([...frontEntries, ...backEntries], generationVoice, true);
+        }
+      } catch (error) {
+        reportSideEffectFailure('bulk import AI Voice cache check', error);
+      }
+    }
+    void preloadAIPronunciationLibrary({
+      entries: frontEntries,
+      voice: generationVoice,
       hasAIAccess: automaticAIVoiceReady,
       triggerReason: 'bulk-import',
       priority: 'high',
+      onDeferred: plan === 'premium' || plan === 'basic' ? showPremiumDeferredNotice : undefined,
     });
-  }, [aiVoice, automaticAIVoiceReady]);
-
-  // Releasing covers the cancellation the delete path always did, and adds the
-  // files: same call for one word and for a select-all, since both arrive here.
-  const handleCardsDeleted = useCallback((
-    removed: readonly WordCard[],
-    remaining: readonly WordCard[],
-  ) => {
-    releaseAIPronunciationCache({
-      entryIds: removed.map(card => card.id),
-      texts: removed.map(card => card.word),
-      retainedTexts: normalizedWordTexts(remaining),
-    });
-  }, []);
+    if (plan === 'premium' && premiumBackVoice) {
+      void preloadAIPronunciationLibrary({
+        entries: backEntries,
+        voice: aiVoice, hasAIAccess: automaticAIVoiceReady,
+        triggerReason: 'bulk-import-back', priority: 'high',
+        onDeferred: showPremiumDeferredNotice,
+      });
+    }
+    if (plan === 'basic' && eligibleImported.length < currentImported.length) {
+      showBasicAddedNoticeOnce();
+    }
+  }, [generationVoice, allocateBasicIds, automaticAIVoiceReady, plan, premiumBackVoice, showBasicAddedNoticeOnce, showPremiumDeferredAfterSave, showPremiumDeferredNotice, t]);
 
   const {
     flipped, toggleFlip,
@@ -998,8 +1271,8 @@ function AppContent() {
   useNotificationRescheduling({ cards, folders, notificationGranted, hasLoaded });
 
   useEffect(() => {
-    setAIVoicePreference(aiVoice);
-  }, [aiVoice]);
+    setAIVoicePreference(generationVoice);
+  }, [generationVoice]);
 
   // ── Theme ────────────────────────────────────────────────────────────────────
 
@@ -1115,7 +1388,6 @@ function AppContent() {
       pal={pal}
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
-      onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
       verticalFlip={verticalFlip}
     />
   ) : null;
@@ -1185,7 +1457,6 @@ function AppContent() {
           isSubscribed={isSubscribed}
           isPremium={isPremium}
           canUseAIVoice={canUseAIVoice}
-          onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
           hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
           showTestMarker={showTestMarker}
           showNotificationMarker={showNotificationMarker}
@@ -1282,16 +1553,6 @@ function AppContent() {
       )}
 
       {!isSubscribed && <AdBannerPlaceholder pal={pal} />}
-
-      {/* Raised only by a refused generation, so it cannot appear while
-          credits remain and never appears for cached playback. */}
-      <VoiceCreditsExhaustedDialog
-        visible={voiceCreditsFallback !== null}
-        onUpgrade={handleUpgradeFromVoiceCredits}
-        onUseFreeVoice={handleUseFreeVoice}
-        pal={pal}
-        themeColor={activeThemeColor}
-      />
 
       <AppModals
         pal={pal}
@@ -1404,6 +1665,8 @@ function AppContent() {
           onPickLanguage: pickLanguage,
           aiVoice,
           onPickAIVoice: handlePickAIVoice,
+          premiumBackVoice,
+          onTogglePremiumBackVoice: handleTogglePremiumBackVoice,
           cardViewMode,
           onChangeCardViewMode: handleCardViewModeChange,
           showFullCard,
@@ -1532,6 +1795,7 @@ function AppContent() {
       pal={pal}
       themeColor={activeThemeColor}
     />
+    <WordCoreAlertHost pal={pal} themeColor={activeThemeColor} />
     </View>
     </LangContext.Provider>
   );

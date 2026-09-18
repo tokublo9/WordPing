@@ -10,6 +10,7 @@ export const COMPARISON_ROWS = [
   ['studyModes', 'included', 'included', 'included'],
   ['paidThemes', 'notIncluded', 'included', 'included'],
   ['aiVoice', 'promoOnly', 'basicVoice', 'premiumVoice'],
+  ['multipleVoiceTypes', 'notIncluded', 'notIncluded', 'included'],
   ['backup', 'notIncluded', 'notIncluded', 'included'],
   ['transfer', 'notIncluded', 'notIncluded', 'included'],
   ['priority', 'notIncluded', 'notIncluded', 'included'],

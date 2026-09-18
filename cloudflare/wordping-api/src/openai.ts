@@ -82,14 +82,24 @@ function localMockWav(): Response {
   });
 }
 
+function localMockMp3(): Response {
+  // Ten valid MPEG-1 Layer III frames, 128 kb/s at 44.1 kHz.
+  const bytes = new Uint8Array(417 * 10);
+  for (let at = 0; at < bytes.length; at += 417) bytes.set([0xff, 0xfb, 0x90, 0x00], at);
+  return new Response(bytes, {
+    status: 200,
+    headers: { 'Content-Type': 'audio/mpeg', 'Content-Length': String(bytes.length) },
+  });
+}
+
 /**
- * Returns the raw upstream `Response`. The caller pipes `response.body`
- * straight through to the client, so the audio never lands in isolate memory.
+ * Returns the raw upstream `Response`. Most callers stream it directly;
+ * Premium card and custom generation buffer the bounded response to meter its duration.
  */
 export async function requestSpeech(request: SpeechRequest, requestId: string): Promise<Response> {
   if (request.localMock === true) {
     log('info', 'local_openai_speech_mocked', requestId, { format: request.format });
-    return localMockWav();
+    return request.format === 'mp3' ? localMockMp3() : localMockWav();
   }
   let response: Response;
   try {

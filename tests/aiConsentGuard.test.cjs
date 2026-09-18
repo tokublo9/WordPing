@@ -120,7 +120,7 @@ test('device TTS and attached audio stay usable without consent', () => {
   // gated. The flag is the capability, never a plan name.
   assert.match(
     playback,
-    /const usesAI = canUseAIVoice && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
+    /const usesAI = cardCanUseAI && !\(target === 'word' && Boolean\(item\.audioUri\)\);/u,
   );
   assert.match(playback, /if \(usesAI && !await ensureAIConsentForUserAction\(\)\) return;/u);
 });
@@ -131,10 +131,10 @@ test('background preloads never transmit and never prompt', () => {
 
   // Each unattended path checks the cached decision and does nothing without it.
   const single = tts.slice(tts.indexOf('export function preloadAIPronunciation('));
-  assert.match(single.slice(0, 800), /if \(!isAIConsentGranted\(\)\) return;/u);
+  assert.match(single.slice(0, 800), /if \(!isAIConsentGranted\(\)\) return Promise\.resolve\(false\);/u);
 
   const library = tts.slice(tts.indexOf('export function preloadAIPronunciationLibrary('));
-  assert.match(library.slice(0, 800), /if \(!isAIConsentGranted\(\)\) return;/u);
+  assert.match(library.slice(0, 800), /if \(!isAIConsentGranted\(\)\) return Promise\.resolve\(\[\]\);/u);
 
   // The picker's previews are fixed promo clips now: bundled, or fetched from
   // the one route that carries no identity and no user text. There is nothing

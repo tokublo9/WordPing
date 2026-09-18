@@ -178,24 +178,24 @@ test('vertical_flip_info names Test Mode alone, in every one of the twenty local
   }
 });
 
-test('Vertical Flip still behaves and still persists exactly as it did', () => {
-  // The copy changed; the setting did not. Same default, same key, same write.
+test('Vertical Flip is hidden with animation but its saved preference remains', () => {
   const settingsState = read('src/app/useAppSettings.ts');
   const persistence = read('src/app/useAppPersistence.ts');
   const settings = read('src/components/SettingsModal.tsx');
+  const flags = read('src/features/flags.ts');
 
+  assert.match(flags, /export const CARD_FLIP_ANIMATION_ENABLED = false;/u);
   assert.match(settingsState, /const \[verticalFlip, setVerticalFlip\] = useState\(false\);/u);
   assert.match(
     persistence,
     /AsyncStorage\.setItem\(VERTICAL_FLIP_KEY, verticalFlip \? 'true' : 'false'\)/u,
   );
-  // Still an ordinary toggle row with its info button, rendered unconditionally
-  // — it is the Word Flip row above it that is withheld, not this one.
+  // The row and translations stay ready for restoration, but are not rendered now.
   assert.match(
     settings,
-    /<ToggleRow\s+icon="swap-vertical-outline"\s+label=\{t\('vertical_flip'\)\}\s+info=\{t\('vertical_flip_info'\)\}/u,
+    /\{CARD_FLIP_ANIMATION_ENABLED && \(\s*<ToggleRow\s+icon="swap-vertical-outline"\s+label=\{t\('vertical_flip'\)\}\s+info=\{t\('vertical_flip_info'\)\}/u,
   );
-  // And the label is untouched: the setting is named for what it does.
+  // The label is retained for when the animation returns.
   assert.ok(values('vertical_flip').includes('Vertical Flip'));
   assert.equal(values('vertical_flip').length, LOCALE_COUNT);
 });
@@ -341,7 +341,7 @@ test('nothing about the themes themselves moved', () => {
   assert.match(shop, /const FREE_TAB_IDS = new Set\(\['solid_blue', 'solid_gray'\]\);/u);
   assert.match(shop, /\{ id: 'solid_blue',   name: 'Blue', nameKey: 'theme_name_blue', price: 0, category: 'solid'/u);
   const previews = read('src/components/ThemeSkinPreview.tsx');
-  assert.match(previews, /solid_blue: +require\('\.\.\/\.\.\/screenshots\/theme\/blue\/blue1\.png'\),/u);
+  assert.match(previews, /solid_blue: +require\('\.\.\/\.\.\/assets\/theme\/blue\/blue1\.png'\),/u);
 });
 
 // ── 4. The Japanese name of Natural AI Voice ─────────────────────────────────

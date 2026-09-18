@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { Palette } from '../types';
 import { useLang } from '../i18n';
 import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
+import { WordCoreAlertHost } from './WordCoreAlert';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -273,6 +274,7 @@ export function FolderCustomizeModal({
           </TouchableOpacity>
         </View>
       )}
+      <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
     </Modal>
   );
 }

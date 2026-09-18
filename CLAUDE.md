@@ -334,7 +334,7 @@ The app's plan state is for **UI only**. Access to a billable AI feature is deci
 | Skins | `solid_blue` only | All | All |
 | Individual theme purchase | ✓ (any plan) | ✓ | ✓ |
 | Custom Voice for Words | ✗ | ✓ | ✓ |
-| High-Quality AI Voice | ✗ | 200 one-time credits | ✓ Unlimited |
+| High-Quality AI Voice | ✗ | 10 card fronts, one-time grant | ✓ Unlimited |
 | Hide Word | ✗ | ✓ | ✗ |
 
 **Each paid feature has exactly one rule, and none is derived from another.**

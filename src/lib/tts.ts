@@ -60,7 +60,6 @@ import {
 } from './ttsPreloadQueue';
 import type { TTSPlaybackPhase } from './ttsPlaybackState';
 import { isAIRequestError } from './api/errors';
-import { canStartAutomaticVoiceGeneration } from './voiceCreditBalance';
 export type { TTSPlaybackPhase } from './ttsPlaybackState';
 
 // expo-audio is lazy-required so that a missing native module (e.g. in an
@@ -103,6 +102,8 @@ interface CachedAudio {
 
 export interface TTSPlaybackOptions {
   onPhaseChange?: (phase: TTSPlaybackPhase) => void;
+  /** Stable card identity for Basic's per-card server allowance. */
+  cardId?: string;
   /**
    * When AI generation is off, still play AI audio already on the device.
    *
@@ -149,6 +150,7 @@ interface AudioCacheLookupOptions {
   sampleVersion?: string;
   /** Explicit card language; omitted to preserve automatic detection. */
   language?: string;
+  cardId?: string;
   /** Re-check card ownership after the network response, before writing disk. */
   shouldPersistNetworkResult?: () => boolean;
   /**
@@ -300,6 +302,7 @@ async function fetchAndCacheAudio(
         request.contentVersion,
         options.promo,
         request.language,
+        options.cardId,
       );
       if (options.shouldPersistNetworkResult?.() === false) {
         throw new Error('cancelled_stale_preload');
@@ -337,6 +340,18 @@ export interface AIPronunciationPreloadOptions {
   language?: string;
   /** Newly saved/imported words jump ahead of a full-library sweep. */
   priority?: 'normal' | 'high';
+  /** Called once a daily or monthly Premium generation must wait for renewal. */
+  onDeferred?: (error: import('./api/errors').AIRequestError) => void;
+}
+
+async function waitForVoiceQuotaRetry(error: import('./api/errors').AIRequestError): Promise<void> {
+  const reset = error.quota?.resetsAt ? Date.parse(error.quota.resetsAt) : NaN;
+  const due = Number.isFinite(reset) ? reset : Date.now() + Math.max(1, error.retryAfterSeconds ?? 30) * 1_000;
+  // A whole month exceeds React Native's maximum setTimeout interval. Check in
+  // bounded pieces so the wait also behaves across a background/resume cycle.
+  while (Date.now() < due) {
+    await new Promise<void>(resolve => setTimeout(resolve, Math.min(due - Date.now(), 12 * 60 * 60 * 1_000)));
+  }
 }
 
 /**
@@ -344,29 +359,28 @@ export interface AIPronunciationPreloadOptions {
  * or changing playback UI. Manual playback uses the same fetch/cache function
  * and request registry, so it can join a running preload.
  */
-export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): void {
-  if (!isAIPronunciationPreloadEligible(options)) return;
+export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): Promise<boolean> {
+  if (!isAIPronunciationPreloadEligible(options)) return Promise.resolve(false);
   // No user action is behind a preload, so it must never raise the consent
   // dialog — and without consent it has nothing to do. The hard guard in
   // api/client.ts would refuse the request anyway; stopping here keeps a
   // whole library sweep from queueing work that can only fail.
-  if (!isAIConsentGranted()) return;
-  if (!canStartAutomaticVoiceGeneration()) return;
+  if (!isAIConsentGranted()) return Promise.resolve(false);
 
   const request = normalizeTTSRequest(options.text, options.voice, undefined, options.language);
-  if (!request.text || request.text.length > MAX_AI_INPUT_CHARS || !options.entryId) return;
+  if (!request.text || request.text.length > MAX_AI_INPUT_CHARS || !options.entryId) return Promise.resolve(false);
   const key = serializeTTSCacheKey(request);
 
   const queued = preloadQueue.enqueue(key, options.entryId, async () => {
-    if (!canStartAutomaticVoiceGeneration()) return;
 
     try {
       while (true) {
-        if (!preloadQueue.hasOwners(key) || !canStartAutomaticVoiceGeneration()) return;
+        if (!preloadQueue.hasOwners(key)) return;
         try {
           await fetchAndCacheAudio(request.text, request.voice, {
             trackAsActiveGeneration: false,
             language: request.language,
+            cardId: options.entryId,
             shouldPersistNetworkResult: () => preloadQueue.hasOwners(key),
           });
           break;
@@ -375,12 +389,12 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
           // before Basic reserves a credit, so waiting and retrying cannot
           // consume or strand the lifetime balance.
           if (isAIRequestError(error)
-            && (error.kind === 'rate_limited' || error.kind === 'usage_limited')
-            && error.retryAfterSeconds !== undefined) {
-            await new Promise(resolve => setTimeout(
-              resolve,
-              Math.max(1, error.retryAfterSeconds!) * 1_000,
-            ));
+            && ((error.kind === 'rate_limited' || error.kind === 'usage_limited')
+              && error.retryAfterSeconds !== undefined
+              || error.kind === 'monthly_limit_reached')) {
+            if (error.kind === 'monthly_limit_reached'
+              || error.limitWindow === 'day') options.onDeferred?.(error);
+            await waitForVoiceQuotaRetry(error);
             continue;
           }
           throw error;
@@ -392,7 +406,14 @@ export function preloadAIPronunciation(options: AIPronunciationPreloadOptions): 
     }
   }, options.priority ?? 'normal');
 
-  void queued.promise.catch(() => {});
+  return queued.promise.then(async () => {
+    try {
+      await fetchAndCacheAudio(request.text, request.voice, {
+        cacheOnly: true, language: request.language,
+      });
+      return true;
+    } catch { return false; }
+  }, () => false);
 }
 
 export interface AIPronunciationLibraryEntry {
@@ -402,12 +423,47 @@ export interface AIPronunciationLibraryEntry {
   language?: string;
 }
 
+/** Count distinct clips missing from disk without starting any network call. */
+export async function countUncachedAIPronunciations(
+  entries: readonly AIPronunciationLibraryEntry[],
+  voice: AIVoice,
+  stopAfter = Number.POSITIVE_INFINITY,
+): Promise<number> {
+  const seen = new Set<string>();
+  const candidates: { text: string; voice: AIVoice; language?: string }[] = [];
+  for (const entry of entries) {
+    if (entry.hasCustomAudio) continue;
+    const request = normalizeTTSRequest(entry.text, voice, undefined, entry.language);
+    if (!request.text || request.text.length > MAX_AI_INPUT_CHARS) continue;
+    const key = serializeTTSCacheKey(request);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    candidates.push(request);
+  }
+  let missing = 0;
+  for (let offset = 0; offset < candidates.length; offset += 8) {
+    const batch = candidates.slice(offset, offset + 8);
+    const misses = await Promise.all(batch.map(async request => {
+      try {
+        await fetchAndCacheAudio(request.text, request.voice, {
+          cacheOnly: true, language: request.language,
+        });
+        return false;
+      } catch (error) { return isAICacheOnlyMiss(error); }
+    }));
+    missing += misses.filter(Boolean).length;
+    if (missing > stopAfter) return missing;
+  }
+  return missing;
+}
+
 export interface AIPronunciationLibraryPreloadOptions {
   entries: readonly AIPronunciationLibraryEntry[];
   voice: AIVoice;
   hasAIAccess: boolean;
   triggerReason: string;
   priority?: 'normal' | 'high';
+  onDeferred?: AIPronunciationPreloadOptions['onDeferred'];
 }
 
 /**
@@ -421,14 +477,14 @@ export interface AIPronunciationLibraryPreloadOptions {
  */
 export function preloadAIPronunciationLibrary(
   options: AIPronunciationLibraryPreloadOptions,
-): void {
-  if (!options.hasAIAccess || options.entries.length === 0) return;
+): Promise<boolean[]> {
+  if (!options.hasAIAccess || options.entries.length === 0) return Promise.resolve([]);
   // Same rule as the single-entry preload: a background sweep of the whole
   // library is exactly the kind of unattended transmission consent exists to
   // prevent. Each entry is checked again inside preloadAIPronunciation.
-  if (!isAIConsentGranted()) return;
+  if (!isAIConsentGranted()) return Promise.resolve([]);
 
-  for (const entry of options.entries) {
+  return Promise.all(options.entries.map(entry =>
     preloadAIPronunciation({
       entryId: entry.id,
       text: entry.text,
@@ -437,8 +493,9 @@ export function preloadAIPronunciationLibrary(
       hasCustomAudio: entry.hasCustomAudio,
       language: entry.language,
       priority: options.priority,
-    });
-  }
+      onDeferred: options.onDeferred,
+    })
+  ));
 }
 
 /** Words released per event-loop turn, so a select-all delete cannot block a frame. */
@@ -728,6 +785,7 @@ async function speakFetchedAudio(
       cacheOnly,
       sampleVersion,
       language,
+      cardId: options.cardId,
       ...(promo ? { promo } : {}),
     });
     reportPhase('ready');
@@ -948,7 +1006,7 @@ export async function speakCustom(
  * the priority logic lives in one place.
  */
 export function speakWordCard(
-  card: { audioUri?: string; audioSpeed?: number; audioVolume?: number; word: string; wordLang?: string },
+  card: { id?: string; audioUri?: string; audioSpeed?: number; audioVolume?: number; word: string; wordLang?: string },
   canUseAIVoice: boolean,
   options?: TTSPlaybackOptions,
 ): Promise<void> {
@@ -959,7 +1017,7 @@ export function speakWordCard(
     // network. `speakCustom` only opens the local file.
     return speakCustom(card.audioUri!, card.audioSpeed ?? 1.0, card.audioVolume ?? 1.0, options);
   }
-  return speak(card.word, canUseAIVoice, card.wordLang, options);
+  return speak(card.word, canUseAIVoice, card.wordLang, { ...options, cardId: card.id });
 }
 
 /**
@@ -983,11 +1041,8 @@ export function speak(
     return speakWithAI(text, activeAIVoice, options, undefined, forcedLocale);
   }
 
-  // Generation is off, but audio already paid for and sitting on this device is
-  // still theirs to play. This is the state a Basic subscriber lands in once the
-  // 200 lifetime credits are gone: no new generation, and every word already
-  // generated keeps its real voice instead of silently dropping to the device
-  // engine. Playing a cached file reaches no network, so it can spend nothing.
+  // Generation can be unavailable while entitled cached audio remains on this
+  // device. A cache hit can still play without a network request or a card claim.
   //
   // `isAIEntitlementEligible` is the entitlement itself, published by App from
   // the same RevenueCat state every other AI surface reads. It is what keeps

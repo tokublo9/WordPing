@@ -144,6 +144,7 @@ export async function requestAISpeech(
   sampleVersion?: string,
   promo?: PromoSpeechRequest,
   langCode?: string,
+  cardId?: string,
 ): Promise<ArrayBuffer> {
   const trimmedText = typeof text === 'string' ? text.trim() : '';
   // Neither preview route carries user text: the sentence is chosen server-side.
@@ -175,6 +176,7 @@ export async function requestAISpeech(
         voice: validVoice,
         format,
         ...(action === 'speech' && langCode ? { langCode } : {}),
+        ...(action === 'speech' && cardId ? { cardId } : {}),
       };
     result = await postSpeech(VOICE_ENDPOINTS[action], body, { ...(signal ? { signal } : {}) });
   }

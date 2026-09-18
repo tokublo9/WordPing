@@ -117,12 +117,12 @@ test('the sweep is the sheet closing, not the row tap', () => {
   const app = fs.readFileSync('App.tsx', 'utf8');
   // Publishing on close is what feeds the voice-keyed sweep, so the generation
   // for a new voice starts after dismissal rather than while the sheet is open.
-  assert.match(app, /const key = `\$\{plan\} \$\{aiVoice\} \$\{entitlementRevision\}`;/u);
+  assert.match(app, /const key = `\$\{plan\} \$\{generationVoice\} \$\{entitlementRevision\} \$\{basicVoiceIds\?\.length \?\? 0\}`;/u);
   assert.match(app, /preloadAIPronunciationLibrary\(\{/u);
   // And it is the same queue and the same eligibility as every other preload.
   const tts = fs.readFileSync('src/lib/tts.ts', 'utf8');
-  assert.match(tts, /for \(const entry of options\.entries\) \{\s*preloadAIPronunciation\(\{/u);
-  assert.match(tts, /if \(!isAIConsentGranted\(\)\) return;/u);
+  assert.match(tts, /Promise\.all\(options\.entries\.map\(entry =>\s*preloadAIPronunciation\(\{/u);
+  assert.match(tts, /if \(!isAIConsentGranted\(\)\) return Promise\.resolve\(\[\]\);/u);
 });
 
 test('clips for retired voices are collected, and only those', () => {

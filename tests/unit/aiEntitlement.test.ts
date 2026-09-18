@@ -92,7 +92,7 @@ test('eligibility is derived from the configured AI allowance, not a tier list',
   assert.equal(planCanUseAI('free'), false);
 
   assert.equal(VOICE_MONTHLY_LIMITS.basic, 0);
-  assert.equal(VOICE_LIFETIME_CREDITS.basic, 200);
+  assert.equal(VOICE_LIFETIME_CREDITS.basic, 10);
   assert.equal(planCanUseAI('basic'), true);
 
   assert.equal(planCanUseAI('premium'), true, 'null means included, not zero');

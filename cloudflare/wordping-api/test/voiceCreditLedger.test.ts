@@ -56,21 +56,54 @@ class FakeDurableObjectState {
 function makeLedger(storage = new FakeStorage()) {
   const state = new FakeDurableObjectState(storage);
   const ledger = new VoiceCreditLedger(state as unknown as DurableObjectState);
-  const call = async (op: string, key: string): Promise<ReserveResult> => {
+  const call = async (op: string, key: string, cardKey?: string): Promise<ReserveResult> => {
     const response = await ledger.fetch(
-      new Request(`https://ledger/${op}?key=${encodeURIComponent(key)}`, { method: 'POST' }),
+      new Request(`https://ledger/${op}?key=${encodeURIComponent(key)}${cardKey ? `&card=${encodeURIComponent(cardKey)}` : ''}`, { method: 'POST' }),
     );
     return (await response.json()) as ReserveResult;
   };
   return { ledger, storage, call };
 }
 
+describe('the 10-card allowance', () => {
+  it('counts a card once across different generations and survives a restart', async () => {
+    const storage = new FakeStorage();
+    const first = makeLedger(storage);
+    expect((await first.call('cardPeek', '')).remaining).toBe(10);
+    await first.call('cardReserve', 'front-marin', 'card-1');
+    expect((await first.call('cardCommit', 'front-marin', 'card-1')).remaining).toBe(9);
+    const restarted = makeLedger(storage);
+    expect((await restarted.call('cardReserve', 'front-cedar', 'card-1')).ok).toBe(true);
+    expect((await restarted.call('cardCommit', 'front-cedar', 'card-1')).remaining).toBe(9);
+  });
+
+  it('never grants an 11th distinct card, including simultaneous claims', async () => {
+    const { call } = makeLedger();
+    const claims = await Promise.all(Array.from({ length: 11 }, (_, i) =>
+      call('cardReserve', `request-${i}`, `card-${i}`)));
+    expect(claims.filter(claim => claim.ok)).toHaveLength(10);
+    await Promise.all(claims.map((claim, i) => claim.ok
+      ? call('cardCommit', `request-${i}`, `card-${i}`) : Promise.resolve()));
+    expect((await call('cardPeek', '')).remaining).toBe(0);
+    expect((await call('cardReserve', 'retry-first', 'card-0')).ok).toBe(true);
+    expect((await call('cardReserve', 'new-card', 'card-11')).ok).toBe(false);
+  });
+
+  it('releases a failed generation without claiming the card', async () => {
+    const { call } = makeLedger();
+    await call('cardReserve', 'failed', 'card-1');
+    await call('cardRelease', 'failed', 'card-1');
+    expect((await call('cardPeek', '')).remaining).toBe(10);
+    expect((await call('cardCommit', 'failed', 'card-1')).ok).toBe(false);
+  });
+});
+
 function storedState(storage: FakeStorage): LedgerState {
   return storage.map.get('balance') as LedgerState;
 }
 
 describe('the one-time grant', () => {
-  it('issues exactly 200 on first sight and never again', async () => {
+  it('issues exactly 10 on first sight and never again', async () => {
     const { call, storage } = makeLedger();
 
     const first = await call('reserve', 'req-1');
@@ -79,14 +112,14 @@ describe('the one-time grant', () => {
     expect(first.remaining).toBe(BASIC_LIFETIME_VOICE_CREDITS);
 
     await call('commit', 'req-1');
-    expect(storedState(storage).remaining).toBe(199);
+    expect(storedState(storage).remaining).toBe(9);
 
     // Every later operation sees the same ledger — nothing re-grants.
     for (let index = 2; index <= 5; index++) {
       await call('reserve', `req-${index}`);
       await call('commit', `req-${index}`);
     }
-    expect(storedState(storage).remaining).toBe(195);
+    expect(storedState(storage).remaining).toBe(5);
     expect(storedState(storage).granted).toBe(true);
   });
 
@@ -97,17 +130,40 @@ describe('the one-time grant', () => {
       await first.call('reserve', `r-${index}`);
       await first.call('commit', `r-${index}`);
     }
-    expect(storedState(storage).remaining).toBe(197);
+    expect(storedState(storage).remaining).toBe(7);
 
     // A brand-new object over the same storage: an eviction, a redeploy, or a
     // new device hitting the same subscriber identity.
     const restarted = makeLedger(storage);
     const after = await restarted.call('peek', '');
-    expect(after.remaining).toBe(197);
+    expect(after.remaining).toBe(7);
     // And it does not re-grant on the way back up.
     await restarted.call('reserve', 'r-after');
     await restarted.call('commit', 'r-after');
-    expect(storedState(storage).remaining).toBe(196);
+    expect(storedState(storage).remaining).toBe(6);
+  });
+
+  it('converts an existing 200-credit balance without issuing a fresh grant', async () => {
+    const storage = new FakeStorage();
+    await storage.put('balance', {
+      granted: true, remaining: 195, reservations: {}, recentCommits: {},
+    } satisfies LedgerState);
+    const { call } = makeLedger(storage);
+
+    expect((await call('peek', '')).remaining).toBe(5);
+    expect(storedState(storage).grantSize).toBe(10);
+    expect((await call('peek', '')).remaining).toBe(5);
+  });
+
+  it('does not grant more credits to an existing account that spent over ten', async () => {
+    const storage = new FakeStorage();
+    await storage.put('balance', {
+      granted: true, remaining: 180, reservations: {}, recentCommits: {},
+    } satisfies LedgerState);
+    const { call } = makeLedger(storage);
+
+    expect((await call('peek', '')).remaining).toBe(0);
+    expect((await call('reserve', 'new-request')).ok).toBe(false);
   });
 });
 
@@ -115,7 +171,7 @@ describe('simultaneous requests', () => {
   it('two racing requests with one credit left: exactly one wins', async () => {
     const storage = new FakeStorage();
     await storage.put('balance', {
-      granted: true, remaining: 1, reservations: {}, recentCommits: {},
+      granted: true, grantSize: 10, remaining: 1, reservations: {}, recentCommits: {},
     } satisfies LedgerState);
     const { call } = makeLedger(storage);
 
@@ -127,16 +183,16 @@ describe('simultaneous requests', () => {
     expect(Math.min(a.available, b.available)).toBe(0);
   });
 
-  it('300 simultaneous attempts never generate more than 200 times', async () => {
+  it('30 simultaneous attempts never generate more than 10 times', async () => {
     const { call, storage } = makeLedger();
 
-    const attempts = Array.from({ length: 300 }, (_, index) => `req-${index}`);
+    const attempts = Array.from({ length: 30 }, (_, index) => `req-${index}`);
     const reservations = await Promise.all(attempts.map(key => call('reserve', key)));
     const granted = reservations.filter(reservation => reservation.ok);
 
     // The whole point: the balance is a hard ceiling under concurrency.
     expect(granted).toHaveLength(BASIC_LIFETIME_VOICE_CREDITS);
-    expect(reservations.filter(r => !r.ok)).toHaveLength(100);
+    expect(reservations.filter(r => !r.ok)).toHaveLength(20);
 
     // Committing every winner spends the balance exactly, never past zero.
     await Promise.all(
@@ -152,12 +208,12 @@ describe('simultaneous requests', () => {
   it('releases return credits so a later request can use them', async () => {
     const { call, storage } = makeLedger();
 
-    const keys = Array.from({ length: 200 }, (_, index) => `r-${index}`);
+    const keys = Array.from({ length: 10 }, (_, index) => `r-${index}`);
     await Promise.all(keys.map(key => call('reserve', key)));
     expect((await call('reserve', 'blocked')).ok).toBe(false);
 
     // Half the generations fail and give their credits back.
-    await Promise.all(keys.slice(0, 100).map(key => call('release', key)));
+    await Promise.all(keys.slice(0, 5).map(key => call('release', key)));
     expect((await call('reserve', 'now-allowed')).ok).toBe(true);
     // Nothing was spent by a release.
     expect(storedState(storage).remaining).toBe(BASIC_LIFETIME_VOICE_CREDITS);
@@ -168,11 +224,11 @@ describe('the lifecycle', () => {
   it('reserve then commit spends exactly one', async () => {
     const { call, storage } = makeLedger();
     await call('reserve', 'k');
-    expect(storedState(storage).remaining).toBe(200);
+    expect(storedState(storage).remaining).toBe(10);
     expect(Object.keys(storedState(storage).reservations)).toEqual(['k']);
 
     await call('commit', 'k');
-    expect(storedState(storage).remaining).toBe(199);
+    expect(storedState(storage).remaining).toBe(9);
     expect(storedState(storage).reservations).toEqual({});
   });
 
@@ -198,20 +254,20 @@ describe('duplicate and retried requests', () => {
     expect(second.duplicate).toBe(true);
     // One claim, not two.
     expect(Object.keys(storedState(storage).reservations)).toEqual(['same']);
-    expect((await call('peek', '')).available).toBe(199);
+    expect((await call('peek', '')).available).toBe(9);
   });
 
   it('the same key cannot be committed twice', async () => {
     const { call, storage } = makeLedger();
     await call('reserve', 'same');
     await call('commit', 'same');
-    expect(storedState(storage).remaining).toBe(199);
+    expect(storedState(storage).remaining).toBe(9);
 
     const retry = await call('commit', 'same');
     expect(retry.ok).toBe(true);
     expect(retry.duplicate).toBe(true);
     // Charged once, however many times the retry arrives.
-    expect(storedState(storage).remaining).toBe(199);
+    expect(storedState(storage).remaining).toBe(9);
   });
 
   it('a retry after a commit does not take a fresh credit', async () => {
@@ -223,7 +279,7 @@ describe('duplicate and retried requests', () => {
     expect(retryReserve.ok).toBe(true);
     expect(retryReserve.duplicate).toBe(true);
     expect(Object.keys(storedState(storage).reservations)).toEqual([]);
-    expect(storedState(storage).remaining).toBe(199);
+    expect(storedState(storage).remaining).toBe(9);
   });
 });
 
@@ -234,6 +290,7 @@ describe('abandoned reservations', () => {
     const now = 1_000_000;
     const abandoned: LedgerState = {
       granted: true,
+      grantSize: 10,
       remaining: 1,
       reservations: { dead: now - RESERVATION_TTL_MS - 1 },
       recentCommits: {},
@@ -247,6 +304,7 @@ describe('abandoned reservations', () => {
     const now = 1_000_000;
     const running: LedgerState = {
       granted: true,
+      grantSize: 10,
       remaining: 1,
       reservations: { live: now - 1_000 },
       recentCommits: {},
@@ -261,6 +319,7 @@ describe('abandoned reservations', () => {
     const now = 1_000_000;
     const expired: LedgerState = {
       granted: true,
+      grantSize: 10,
       remaining: 5,
       reservations: { slow: now - RESERVATION_TTL_MS - 1 },
       recentCommits: {},
@@ -272,7 +331,7 @@ describe('abandoned reservations', () => {
   it('never drops below zero', () => {
     const now = 1_000_000;
     const empty: LedgerState = {
-      granted: true, remaining: 0, reservations: {}, recentCommits: {},
+      granted: true, grantSize: 10, remaining: 0, reservations: {}, recentCommits: {},
     };
     const { next } = applyLedgerOp(empty, 'commit', 'k', now);
     expect(next.remaining).toBe(0);

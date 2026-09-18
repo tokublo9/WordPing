@@ -76,6 +76,12 @@ export const TEST_TUTORIAL_MODE = false;
 export const FLIP_MODE_ENABLED = false;
 
 /**
+ * Temporarily switch card faces without rotation and hide Vertical Flip in Settings.
+ * Set to true to restore both animations and the saved Vertical Flip control.
+ */
+export const CARD_FLIP_ANIMATION_ENABLED = false;
+
+/**
  * Links every Test Mode grade to card visibility. The former Settings toggle
  * is intentionally dormant; keep the grading option itself so configurability
  * can be restored later without rebuilding the grading rules.

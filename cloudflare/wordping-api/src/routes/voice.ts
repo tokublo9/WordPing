@@ -16,8 +16,10 @@ import {
   type Voice,
 } from '../config';
 import { audioResponse, errorResponse, type ResponseContext } from '../http';
+import { audioDurationMs } from '../audioDuration';
 import { log } from '../log';
 import { languageName, requestSpeech } from '../openai';
+import { commitAudioDuration, readAudioDuration, type QuotaDecision } from '../monthlyQuota';
 import { guard, type GuardContext } from '../pipeline';
 import { voiceCardSchema, voiceCustomSchema, voicePromoSchema, voiceSampleSchema } from '../schemas';
 
@@ -29,11 +31,17 @@ function voiceOrNull(voice: string): 'invalid_voice' | null {
   return resolveVoice(voice) === null ? 'invalid_voice' : null;
 }
 
+function durationLimitResponse(response: ResponseContext, quota: QuotaDecision, tier: 'basic' | 'premium' = 'premium'): Response {
+  return errorResponse(response, 'monthly_api_limit_reached', 429, {
+    limit: quota.limit, used: quota.used, resetsAt: quota.resetsAt,
+    tier, reason: 'duration',
+  }, { 'Retry-After': String(quota.retryAfterSeconds) });
+}
+
 /**
- * Upstream declares a size we are unwilling to relay. Streaming means we cannot
- * measure the body without buffering it, so the declared length is the only
- * pre-flight signal available; an undeclared length is allowed through, and
- * OpenAI's own output ceiling bounds it in practice.
+ * Upstream declares a size we are unwilling to relay. For streamed routes the
+ * declared length is the only pre-flight signal; Premium card audio also gets
+ * an exact post-buffer check before delivery.
  */
 function tooLarge(upstream: Response): boolean {
   const declared = Number(upstream.headers.get('Content-Length') ?? '');
@@ -49,7 +57,7 @@ function relay(
   extraHeaders: Record<string, string> = {},
 ): Response {
   const headers: Record<string, string> = { 'X-WordPing-Cache': cache, ...extraHeaders };
-  const declared = upstream.headers.get('Content-Length');
+  const declared = body instanceof ArrayBuffer ? String(body.byteLength) : upstream.headers.get('Content-Length');
   if (declared !== null) headers['Content-Length'] = declared;
   return audioResponse(response, body, contentTypeFor(format), headers);
 }
@@ -62,6 +70,7 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
     validate: body => voiceOrNull(body.voice),
     billableText: body => body.text,
     idempotencyInput: body => JSON.stringify({
+      cardId: body.cardId ?? null,
       text: body.text,
       voice: resolveVoice(body.voice),
       format: body.format ?? 'wav',
@@ -73,8 +82,27 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
   if (!result.ok) return result.response;
 
   const { body, characters } = result.value;
-  const voice = resolveVoice(body.voice) ?? DEFAULT_VOICE;
+  // Basic has one fixed voice. Enforce it for older app versions as well.
+  const voice = result.value.tier === 'basic' ? 'marin' : resolveVoice(body.voice) ?? DEFAULT_VOICE;
   const format: AudioFormat = body.format ?? 'wav';
+  const ledgerId = result.value.voiceCreditLedgerId;
+  if (!ledgerId) {
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'entitlement_verification_failed', 503,
+      { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
+  }
+  if (result.value.tier === 'basic') {
+    const available = await readAudioDuration(context.env, ledgerId, 'basic');
+    if (available === null) {
+      await result.value.releaseVoiceCredit();
+      return errorResponse(context.response, 'entitlement_verification_failed', 503,
+        { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
+    }
+    if (!available.allowed) {
+      await result.value.releaseVoiceCredit();
+      return durationLimitResponse(context.response, available, 'basic');
+    }
+  }
 
   // A credit is already reserved at this point. Every exit below either
   // commits it (audio delivered) or releases it (nothing delivered) — an
@@ -119,6 +147,41 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
     return errorResponse(context.response, 'request_timeout', 408, { reason: 'client_cancelled' });
   }
 
+  // Both paid plans are metered by the duration of newly generated card audio. Buffer
+  // this bounded response before delivery so a concurrent request cannot push
+  // the account beyond 30 minutes. Cached replays never enter this route.
+  let audio: ArrayBuffer;
+  try { audio = await upstream.arrayBuffer(); }
+  catch (error) {
+    await result.value.releaseVoiceCredit();
+    throw error;
+  }
+  if (audio.byteLength > MAX_AUDIO_RESPONSE_BYTES) {
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_too_large' });
+  }
+  const durationMs = audioDurationMs(audio, format);
+  if (durationMs === null) {
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_duration_unavailable' });
+  }
+  if (context.request.signal.aborted) {
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'request_timeout', 408, { reason: 'client_cancelled' });
+  }
+  const quota = await commitAudioDuration(context.env, ledgerId, durationMs,
+    result.value.tier === 'basic' ? 'basic' : 'premium');
+  if (quota === null) {
+    await result.value.releaseVoiceCredit();
+    return errorResponse(context.response, 'entitlement_verification_failed', 503,
+      { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
+  }
+  if (!quota.allowed) {
+    await result.value.releaseVoiceCredit();
+    return durationLimitResponse(context.response, quota,
+      result.value.tier === 'basic' ? 'basic' : 'premium');
+  }
+
   // The generation succeeded. This is the only place a credit becomes a spend,
   // and it is a no-op on Premium and for anything that never reserved one.
   //
@@ -139,7 +202,7 @@ export async function handleVoiceCard(context: GuardContext): Promise<Response> 
     upstream,
     format,
     'miss',
-    upstream.body!,
+    audio,
     creditBalance === undefined ? {} : {
       'X-WordPing-Voice-Credits-Remaining': String(creditBalance.remaining),
       'X-WordPing-Voice-Credits-Available': String(creditBalance.available),
@@ -316,6 +379,14 @@ export async function handleVoiceCustom(context: GuardContext): Promise<Response
   const voice = resolveVoice(body.voice) ?? DEFAULT_VOICE;
   const format: AudioFormat = body.format ?? 'wav';
 
+  const ledgerId = result.value.voiceCreditLedgerId;
+  if (!ledgerId) return errorResponse(context.response, 'entitlement_verification_failed', 503,
+    { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
+  const available = await readAudioDuration(context.env, ledgerId);
+  if (available === null) return errorResponse(context.response, 'entitlement_verification_failed', 503,
+    { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
+  if (!available.allowed) return durationLimitResponse(context.response, available);
+
   const upstream = await requestSpeech(
     {
       apiKey: context.env.OPENAI_API_KEY,
@@ -333,6 +404,20 @@ export async function handleVoiceCustom(context: GuardContext): Promise<Response
     return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_too_large' });
   }
 
+  const audio = await upstream.arrayBuffer();
+  if (audio.byteLength > MAX_AUDIO_RESPONSE_BYTES) {
+    return errorResponse(context.response, 'upstream_failed', 502, { reason: 'audio_too_large' });
+  }
+  const durationMs = audioDurationMs(audio, format);
+  if (durationMs === null) return errorResponse(context.response, 'upstream_failed', 502,
+    { reason: 'audio_duration_unavailable' });
+  if (context.request.signal.aborted) return errorResponse(context.response, 'request_timeout', 408,
+    { reason: 'client_cancelled' });
+  const quota = await commitAudioDuration(context.env, ledgerId, durationMs);
+  if (quota === null) return errorResponse(context.response, 'entitlement_verification_failed', 503,
+    { reason: 'voice_quota_ledger' }, { 'Retry-After': '30' });
+  if (!quota.allowed) return durationLimitResponse(context.response, quota);
+
   log('info', 'voice_custom_ok', context.response.requestId, { voice, format, characters });
-  return relay(context.response, upstream, format, 'miss', upstream.body!);
+  return relay(context.response, upstream, format, 'miss', audio);
 }

@@ -60,7 +60,7 @@ test('the theme registry is the only module that requires a theme asset', () => 
   // a stale path to hide.
   const sources = ['src/components/KisekaeShopSheet.tsx', 'src/components/ThemeDetailsSheet.tsx', 'src/components/ProSheet.tsx', 'App.tsx'];
   for (const file of sources) {
-    assert.doesNotMatch(read(file), /require\('[^']*screenshots\/theme/u, `${file} must go through ${REGISTRY}`);
+    assert.doesNotMatch(read(file), /require\('[^']*assets\/theme/u, `${file} must go through ${REGISTRY}`);
   }
 });
 
@@ -161,7 +161,7 @@ test('the six animated themes have no page-2 poster, and none is required', () =
   const details = read('src/components/ThemeDetailsSheet.tsx');
   for (const folder of ['deepsea', 'galaxy', 'aurora', 'cyberneon', 'beautifulwoods', 'rainywindow']) {
     assert.equal(
-      fs.existsSync(`screenshots/theme/${folder}/${folder === 'beautifulwoods' ? 'beautifulwoods' : folder}2.png`),
+      fs.existsSync(`assets/theme/${folder}/${folder === 'beautifulwoods' ? 'beautifulwoods' : folder}2.png`),
       false,
       `${folder}2.png is not expected to exist`,
     );
@@ -231,8 +231,8 @@ test('the Word List frame and the themes it covers are unchanged', () => {
   assert.ok(ids.includes('skin_deep_sea'));
 
   // Deep Sea's Word List still points at the same edited PNG its poster uses.
-  assert.match(shots, /skin_deep_sea: +require\('\.\.\/\.\.\/screenshots\/theme\/deepsea\/deepsea1\.png'\),/u);
-  assert.match(registry, /skin_deep_sea: +require\('\.\.\/\.\.\/screenshots\/theme\/deepsea\/deepsea1\.png'\),[\s\S]*THEME_VIDEO_POSTERS/u);
+  assert.match(shots, /skin_deep_sea: +require\('\.\.\/\.\.\/assets\/theme\/deepsea\/deepsea1\.png'\),/u);
+  assert.match(registry, /skin_deep_sea: +require\('\.\.\/\.\.\/assets\/theme\/deepsea\/deepsea1\.png'\),[\s\S]*THEME_VIDEO_POSTERS/u);
 });
 
 // ── Fullscreen preview backdrop ──────────────────────────────────────────────
@@ -295,5 +295,5 @@ test('the backdrop change touched no asset path', () => {
   // reaches it. Existence of every one is asserted at the top of this file.
   assert.doesNotMatch(registry, /previewBackdrop|backdrop/u);
   const backdropRule = read('src/features/themes/previewBackdrop.ts');
-  assert.doesNotMatch(backdropRule, /require\(|screenshots\/|\.png|\.mov/u);
+  assert.doesNotMatch(backdropRule, /require\(|assets\/theme\/|\.png|\.mov/u);
 });

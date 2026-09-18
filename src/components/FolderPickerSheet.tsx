@@ -17,6 +17,7 @@ import { AdBannerPlaceholder, AD_BANNER_HEIGHT } from './AdBannerPlaceholder';
 
 import type { Folder, Palette } from '../types';
 import { useLang } from '../i18n';
+import { WordCoreAlertHost } from './WordCoreAlert';
 
 const SCREEN_H  = Dimensions.get('window').height;
 const SHEET_H   = Math.round(SCREEN_H * 0.85);
@@ -139,6 +140,7 @@ export function FolderPickerSheet({
           </Animated.View>
         </View>
       </View>
+      <WordCoreAlertHost active={visible} priority={10} pal={pal} themeColor={themeColor} />
     </Modal>
   );
 }

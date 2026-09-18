@@ -6,6 +6,7 @@ import {
   errorFromWorkerResponse,
   isAIRequestError,
   MESSAGE_KEY_BY_KIND,
+  parseQuotaInfo,
   type AIErrorKind,
 } from '../../src/lib/api/errors';
 
@@ -173,6 +174,16 @@ test('the monthly voice limit is its own classification, not an outage', () => {
   });
   assert.equal(error.kind, 'monthly_limit_reached');
   assert.deepEqual(error.quota, { limit: 100, used: 100, resetsAt: '2026-09-01T00:00:00.000Z', tier: 'basic' });
+});
+
+test('the Worker duration reason survives quota parsing for the popup', () => {
+  assert.deepEqual(parseQuotaInfo({
+    limit: 1_800_000, used: 1_799_990, resetsAt: '2026-10-01T00:00:00.000Z',
+    tier: 'premium', reason: 'duration',
+  }), {
+    limit: 1_800_000, used: 1_799_990, resetsAt: '2026-10-01T00:00:00.000Z',
+    tier: 'premium', reason: 'duration',
+  });
 });
 
 test('rate limiting, offline and timeout each keep their own message', () => {
