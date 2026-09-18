@@ -32,3 +32,21 @@ test('reset countdown follows UTC timestamps and formats Japanese naturally', ()
   assert.equal(formatAiUsageReset('2026-09-18T12:00:01.000Z', now, 'ja'), '1分');
   assert.equal(formatAiUsageReset('2026-09-18T12:00:00.000Z', now, 'en-US'), '1m');
 });
+
+test('reset countdown stays in hours and minutes when the runtime misformats Intl units', () => {
+  const original = Intl.NumberFormat;
+  class BrokenUnitNumberFormat extends original {
+    constructor(...args: ConstructorParameters<typeof Intl.NumberFormat>) {
+      if (args[1]?.style === 'unit') throw new Error('unit formatting is unreliable');
+      super(...args);
+    }
+  }
+  Object.defineProperty(Intl, 'NumberFormat', { configurable: true, value: BrokenUnitNumberFormat });
+  try {
+    const now = Date.parse('2026-09-18T12:00:00.000Z');
+    assert.equal(formatAiUsageReset('2026-09-18T22:11:00.000Z', now, 'en-US'), '10h 11m');
+    assert.equal(formatAiUsageReset('2026-09-19T00:00:00.000Z', now, 'ja'), '12時間 0分');
+  } finally {
+    Object.defineProperty(Intl, 'NumberFormat', { configurable: true, value: original });
+  }
+});

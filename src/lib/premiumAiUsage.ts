@@ -43,13 +43,14 @@ export function formatAiUsageReset(resetsAt: string, now: number, language: stri
   const mins = minutes % 60;
   const number = new Intl.NumberFormat(language);
   const japanese = language.startsWith('ja');
-  const compact = (value: number, unit: 'day' | 'hour' | 'minute') =>
-    new Intl.NumberFormat(language, { style: 'unit', unit, unitDisplay: 'narrow' }).format(value);
+  // Hermes can convert Intl unit formatting into seconds (e.g. 10h -> 36,000 sec).
+  // Format the countdown units ourselves so it never displays seconds.
+  const compact = (value: number, suffix: string) => `${number.format(value)}${suffix}`;
   if (days > 0) return japanese
     ? `${number.format(days)}日 ${number.format(hours)}時間`
-    : `${compact(days, 'day')} ${compact(hours, 'hour')}`;
+    : `${compact(days, 'd')} ${compact(hours, 'h')}`;
   if (hours > 0) return japanese
     ? `${number.format(hours)}時間 ${number.format(mins)}分`
-    : `${compact(hours, 'hour')} ${compact(mins, 'minute')}`;
-  return japanese ? `${number.format(mins)}分` : compact(mins, 'minute');
+    : `${compact(hours, 'h')} ${compact(mins, 'm')}`;
+  return japanese ? `${number.format(mins)}分` : compact(mins, 'm');
 }
