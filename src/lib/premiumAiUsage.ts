@@ -35,9 +35,9 @@ export function remainingAiRequests(window: PremiumAiUsageWindow): number {
   return Math.max(0, window.limit - window.used);
 }
 
-/** Compact reset countdown matching the usage card, rounded up to a minute. */
+/** Compact reset countdown, rounded up and never shorter than one minute. */
 export function formatAiUsageReset(resetsAt: string, now: number, language: string): string {
-  const minutes = Math.max(0, Math.ceil((Date.parse(resetsAt) - now) / 60_000));
+  const minutes = Math.max(1, Math.ceil((Date.parse(resetsAt) - now) / 60_000));
   const days = Math.floor(minutes / 1_440);
   const hours = Math.floor((minutes % 1_440) / 60);
   const mins = minutes % 60;

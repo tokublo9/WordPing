@@ -29,4 +29,6 @@ test('reset countdown follows UTC timestamps and formats Japanese naturally', ()
   assert.equal(formatAiUsageReset('2026-09-19T00:00:00.000Z', now, 'en-US'), '12h 0m');
   assert.equal(formatAiUsageReset('2026-09-19T00:00:00.000Z', now, 'ja'), '12時間 0分');
   assert.equal(formatAiUsageReset('2026-10-01T00:00:00.000Z', now, 'en-US'), '12d 12h');
+  assert.equal(formatAiUsageReset('2026-09-18T12:00:01.000Z', now, 'ja'), '1分');
+  assert.equal(formatAiUsageReset('2026-09-18T12:00:00.000Z', now, 'en-US'), '1m');
 });
