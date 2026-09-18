@@ -153,7 +153,9 @@ export function PremiumAiUsageDialog({ visible, onClose, pal, themeColor, langua
             )}
             {usage && (
               <>
-                <UsageCard title={t('ai_usage_daily_limit')} window={usage.day} now={now} language={language} pal={pal} />
+                {remainingAiRequests(usage.month) > 0 && (
+                  <UsageCard title={t('ai_usage_daily_limit')} window={usage.day} now={now} language={language} pal={pal} />
+                )}
                 <UsageCard title={t('ai_usage_monthly_limit')} window={usage.month} now={now} language={language} pal={pal} />
                 <Text style={[styles.scope, { color: pal.sub }]}>{t('ai_usage_scope')}</Text>
               </>
