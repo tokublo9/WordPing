@@ -24,6 +24,9 @@ REVENUECAT_TIMEOUT_MS = "5000"
 # Set to "1" to bypass RevenueCat and treat every caller as premium.
 # LOCAL DEVELOPMENT ONLY. Never set this on a deployed environment.
 DEV_BYPASS_ENTITLEMENTS = "0"
+# Tester-only Basic ledger reset. Keep disabled in production; when enabled,
+# configure ADMIN_RESET_SECRET with `wrangler secret put`.
+ENABLE_ADMIN_LEDGER_RESET = "0"
 
 # KV holds rate-limit counters, the entitlement cache, operator kill switches,
 # and the shared voice-sample audio cache. Create it once with:

@@ -253,6 +253,27 @@ requests. Setting a limit to `0` revokes that feature for that tier.
 
 See `docs/COST_CONTROLS.md` for OpenAI budgets and alerts.
 
+### Tester-only Basic ledger reset
+
+The reset route is disabled by default (`ENABLE_ADMIN_LEDGER_RESET = "0"` in
+`wrangler.toml`). To use it in a dedicated test deployment, set the flag to
+`"1"` and configure its bearer secret:
+
+```bash
+npx wrangler secret put ADMIN_RESET_SECRET
+
+curl -X POST https://wordping-api.<subdomain>.workers.dev/v1/admin/voice-credits/reset \
+  -H "Authorization: Bearer $ADMIN_RESET_SECRET" \
+  -H 'Content-Type: application/json' \
+  -d '{"deviceId":"$RCAnonymousID:the-id-shown-on-the-test-device"}'
+```
+
+Here `deviceId` means the RevenueCat App User ID reported by that device, not
+the random `X-WordPing-Install-Id` rate-limit identifier. The route asks
+RevenueCat for the canonical subscriber before deleting its Basic card and
+legacy credit balances. It does not reset Premium usage. Restore the flag to
+`"0"` (or remove `ADMIN_RESET_SECRET`) when testing is finished.
+
 ## Known limitation: KV counters
 
 KV is eventually consistent and has no atomic increment, so the rate-limit

@@ -689,8 +689,12 @@ test('both onboarding language selectors share the 20-language registry without 
   assert.match(onboarding, /showingLearnLang \? learningLang : nativeLang/u);
   assert.match(onboarding, /showingLearnLang \? setLearningLang : setNativeLang/u);
 
-  // Unrelated category and discovery-source Other choices remain available.
-  assert.match(onboarding, /\{ id: 'other',\s+icon: '📦'/u);
+  // Vocabulary & Terms completes on its explanation-language picker; the
+  // deleted category screen cannot remain as hidden state or markup.
+  assert.match(onboarding, /step === 4 \|\| \(purpose === 'words' && step === 3\)/u);
+  assert.doesNotMatch(onboarding, /OB_CATEGORIES|wordCategory|showingCategoryPicker|ob_category_title/u);
+
+  // The unrelated discovery-source Other choice remains available.
   assert.match(onboarding, /\{ id: 'other',\s+icon: 'ellipsis-horizontal'/u);
 });
 

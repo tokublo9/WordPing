@@ -146,6 +146,7 @@ const KIND_BY_SERVER_CODE: Readonly<Record<string, AIErrorKind>> = {
   unsupported_media_type: 'invalid_input',
   payload_too_large: 'invalid_input',
   missing_install_id: 'invalid_input',
+  unauthorized: 'service_unavailable',
   subscription_required: 'subscription_required',
   rate_limit_exceeded: 'rate_limited',
   usage_limit_exceeded: 'usage_limited',

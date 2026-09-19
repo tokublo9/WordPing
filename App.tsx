@@ -38,7 +38,6 @@ import {
   hasEligibleAIEntitlement,
   isVerifiedAIIneligiblePlan,
   planCanUseAI,
-  planUsesLifetimeVoiceCredits,
   setAIEntitlementSnapshot,
 } from './src/lib/aiEntitlement';
 import { useFeatureDiscovery } from './src/hooks/useFeatureDiscovery';
@@ -68,6 +67,7 @@ import { useAppBootstrap } from './src/app/useAppBootstrap';
 import { useAppSettings } from './src/app/useAppSettings';
 import { AppModals } from './src/app/AppModals';
 import { WordCoreAlert as Alert, WordCoreAlertHost } from './src/components/WordCoreAlert';
+import { VoiceCreditsExhaustedDialog } from './src/components/VoiceCreditsExhaustedDialog';
 import { UpgradePlanImagePreloader } from './src/components/ProSheet';
 import { TestModeScreen, type TestModeProgress } from './src/components/TestModeScreen';
 import { recordAnswer } from './src/features/study/studyLog';
@@ -217,6 +217,25 @@ function AppContent() {
   const basicLimitNoticeShownRef = useRef(false);
   const [basicVoicePopup, setBasicVoicePopup] = useState<'initial' | 'added' | null>(null);
   const [premiumBackVoice, setPremiumBackVoice] = useState(false);
+  const [proSheetVisible, setProSheetVisible] = useState(false);
+  const [voiceCreditsExhaustedVisible, setVoiceCreditsExhaustedVisible] = useState(false);
+  const exhaustedFreeVoiceRef = useRef<(() => void) | null>(null);
+  const handleVoiceCreditsExhausted = useCallback((useFreeVoice: () => void) => {
+    exhaustedFreeVoiceRef.current = useFreeVoice;
+    setVoiceCreditsExhaustedVisible(true);
+  }, []);
+  const upgradeAfterVoiceCredits = useCallback(() => {
+    exhaustedFreeVoiceRef.current = null;
+    setVoiceCreditsExhaustedVisible(false);
+    setProSheetVisible(true);
+  }, []);
+  const useFreeVoiceAfterCredits = useCallback(() => {
+    const speakOnDevice = exhaustedFreeVoiceRef.current;
+    exhaustedFreeVoiceRef.current = null;
+    setVoiceCreditsExhaustedVisible(false);
+    setPreferDeviceVoice(true);
+    speakOnDevice?.();
+  }, [setPreferDeviceVoice]);
   useEffect(() => {
     void Promise.all([
       AsyncStorage.getItem(BASIC_VOICE_IDS_KEY),
@@ -346,7 +365,6 @@ function AppContent() {
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
   const menuBtnRef = useRef<View>(null);
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const [proSheetVisible, setProSheetVisible] = useState(false);
   // Settings owns a second ProSheet instance, so `proSheetVisible` alone does
   // not answer "is the Upgrade sheet on screen". Settings reports its own.
   const [settingsUpgradeSheetVisible, setSettingsUpgradeSheetVisible] = useState(false);
@@ -408,21 +426,14 @@ function AppContent() {
     return () => { active = false; unsubscribeConsent(); };
   }, []);
 
-  // A fresh Worker lookup is the post-purchase/restore barrier for the one plan
-  // that has a balance: it bypasses a cached Free entitlement, confirms
-  // RevenueCat server-side and initializes Basic's Durable Object balance
-  // before any library job is admitted.
-  //
-  // Scoped to plans that actually have a ledger. It used to run for every AI
-  // plan, which quietly made Premium's unlimited voice conditional on a
-  // Basic-only route succeeding — so an unreachable balance endpoint took AI
-  // Voice away from Premium too, for a count Premium does not have and would
-  // never have read. Premium is unmetered; there is nothing here to initialize
-  // for it, so there is nothing for it to wait on.
-  const usesVoiceCreditLedger = planUsesLifetimeVoiceCredits(plan);
+  // A fresh Worker lookup is the post-purchase/restore/customer-info barrier
+  // for every paid tier. It bypasses the Worker's entitlement cache, so a
+  // Basic -> Premium upgrade cannot enable voice locally while the server still
+  // evaluates requests against Basic's exhausted ledger. For Basic, the same
+  // request also initializes the Durable Object balance.
   const [voiceCreditReadyRevision, setVoiceCreditReadyRevision] = useState<number | null>(null);
   useEffect(() => {
-    if (!isSubscriptionLoaded || !usesVoiceCreditLedger
+    if (!isSubscriptionLoaded || plan === 'free'
       || entitlementSource === 'local-development-scenario') {
       setVoiceCreditReadyRevision(null);
       return;
@@ -472,7 +483,7 @@ function AppContent() {
         finishRetryWait = null;
       }
     };
-  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan, usesVoiceCreditLedger]);
+  }, [entitlementRevision, entitlementSource, isSubscriptionLoaded, plan]);
 
   // Upgrading after Basic exhaustion must resume Natural AI Voice immediately;
   // the fallback preference existed only because Basic had no credits left.
@@ -491,14 +502,11 @@ function AppContent() {
   // Whether the server-side half of AI Voice is ready to be used.
   //
   // Defined once, here, because two things read it — the library sweep below and
-  // `canUseAIVoice` — and they must not answer differently. A plan with no
-  // credit ledger is ready as soon as its entitlement is known: there is no
-  // balance to fetch, so waiting for one would be waiting for nothing. Only
-  // Basic is held until its balance has been read, which is what keeps the
-  // server the authority on how many generations remain.
+  // `canUseAIVoice` — and they must not answer differently. Both paid plans wait
+  // for the fresh Worker tier to match the latest RevenueCat snapshot. This is
+  // an entitlement barrier for Premium and also a balance barrier for Basic.
   const voiceBackendReady = entitlementSource === 'local-development-scenario'
-    || !usesVoiceCreditLedger
-    || voiceCreditReadyRevision === entitlementRevision;
+    || (plan !== 'free' && voiceCreditReadyRevision === entitlementRevision);
   const planRef = useRef(plan);
   planRef.current = plan;
   const premiumDeferredNoticeRef = useRef(new Set<string>());
@@ -1388,6 +1396,7 @@ function AppContent() {
       pal={pal}
       themeColor={activeThemeColor}
       canUseAIVoice={canUseAIVoice}
+      onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
       verticalFlip={verticalFlip}
     />
   ) : null;
@@ -1457,6 +1466,7 @@ function AppContent() {
           isSubscribed={isSubscribed}
           isPremium={isPremium}
           canUseAIVoice={canUseAIVoice}
+          onVoiceCreditsExhausted={handleVoiceCreditsExhausted}
           hasTextToSpeechHistory={TEXT_TO_SPEECH_ENABLED && hasTextToSpeechHistory}
           showTestMarker={showTestMarker}
           showNotificationMarker={showNotificationMarker}
@@ -1792,6 +1802,13 @@ function AppContent() {
       // Null until the target has been laid out. The dialog deliberately draws
       // nothing in that brief interval rather than flashing at screen centre.
       spotlight={testIntro?.spotlight ? spotlightRects[testIntro.spotlight] ?? null : null}
+      pal={pal}
+      themeColor={activeThemeColor}
+    />
+    <VoiceCreditsExhaustedDialog
+      visible={voiceCreditsExhaustedVisible}
+      onUpgrade={upgradeAfterVoiceCredits}
+      onUseFreeVoice={useFreeVoiceAfterCredits}
       pal={pal}
       themeColor={activeThemeColor}
     />

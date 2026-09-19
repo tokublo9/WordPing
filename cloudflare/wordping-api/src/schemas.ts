@@ -48,6 +48,11 @@ export type VoiceCardRequest = z.infer<typeof voiceCardSchema>;
 /** No client-supplied plan or count is accepted by the balance endpoint. */
 export const voiceCreditsSchema = z.object({ mode: z.literal('cards').optional() });
 
+/** RevenueCat App User ID shown by the target test device. */
+export const adminVoiceCreditsResetSchema = z.object({
+  deviceId: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9$:_.-]+$/u),
+});
+
 /**
  * Voice previews carry no user text at all: the sample sentence is chosen
  * server-side from config.ts. `sampleVersion` only lets the client invalidate a

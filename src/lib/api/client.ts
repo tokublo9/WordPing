@@ -9,6 +9,7 @@ import {
   AIRequestError,
   errorFromNetworkFailure,
   errorFromWorkerResponse,
+  isAIRequestError,
   parseQuotaInfo,
   parseRateLimitWindow,
   type MonthlyQuotaInfo,
@@ -87,6 +88,19 @@ if (__DEV__ && !isApiConfigured()) {
  * bootstrap. Once resolved it is reused for the life of the process.
  */
 let identityRequest: Promise<{ installId: string; appUserId: string }> | null = null;
+const VOICE_CARD_ENTITLEMENT_RETRY_WINDOW_MS = 2 * 60_000;
+let voiceCardEntitlementRetryUntil = 0;
+
+/** Allows the next post-purchase/restore card denial to refresh and retry once. */
+export function armVoiceCardEntitlementRetry(): void {
+  voiceCardEntitlementRetryUntil = Date.now() + VOICE_CARD_ENTITLEMENT_RETRY_WINDOW_MS;
+}
+
+function takeVoiceCardEntitlementRetry(): boolean {
+  const allowed = voiceCardEntitlementRetryUntil >= Date.now();
+  voiceCardEntitlementRetryUntil = 0;
+  return allowed;
+}
 
 async function resolveIdentity(): Promise<{ installId: string; appUserId: string }> {
   const [installId, localScenario] = await Promise.all([
@@ -121,6 +135,7 @@ function getIdentity(): Promise<{ installId: string; appUserId: string }> {
 /** Test hook, and used after a RevenueCat identity change. */
 export function resetApiIdentity(): void {
   identityRequest = null;
+  voiceCardEntitlementRetryUntil = 0;
   publishVoiceCreditBalance(null);
 }
 
@@ -372,7 +387,21 @@ export async function postSpeech(
   body: Record<string, unknown>,
   options: ApiRequestOptions = {},
 ): Promise<SpeechResult> {
-  const response = await post(VOICE_PATHS[endpoint], body, options, DEFAULT_SPEECH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await post(VOICE_PATHS[endpoint], body, options, DEFAULT_SPEECH_TIMEOUT_MS);
+  } catch (error) {
+    // A purchase can be visible to the SDK just before the Worker's cached
+    // Basic result changes. Refresh its entitlement endpoint and replay this
+    // card request exactly once; the retry is armed only by purchase/restore.
+    if (endpoint !== 'card' || !isAIRequestError(error)
+      || error.kind !== 'voice_credits_exhausted' || !takeVoiceCardEntitlementRetry()) {
+      throw error;
+    }
+    await fetchVoiceCreditBalance();
+    response = await post(VOICE_PATHS[endpoint], body, options, DEFAULT_SPEECH_TIMEOUT_MS);
+  }
+  if (endpoint === 'card') voiceCardEntitlementRetryUntil = 0;
   publishVoiceCreditHeaders(response.headers);
 
   const audio = await response.arrayBuffer();

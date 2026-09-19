@@ -6,6 +6,7 @@ import {
   Dimensions,
   Easing,
   Image,
+  Linking,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   ScrollView,
@@ -18,6 +19,7 @@ import { WordCoreAlert as Alert } from './WordCoreAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getLocales } from 'expo-localization';
 import type { Palette, ThemeSkin } from '../types';
 import { FREE_THEME_COLOR, SKINS } from '../constants';
 import { useLang, type TranslationKey } from '../i18n';
@@ -49,6 +51,8 @@ import {
 } from './ThemeSkinPreview';
 import { SHOP_ITEMS } from './KisekaeShopSheet';
 import { ThemeDetailsSheet } from './ThemeDetailsSheet';
+import { LEGAL_URLS } from '../config/legalUrls';
+import { shouldShowJapanCommerceDisclosure } from '../lib/japanCommerceDisclosure';
 
 const { height: SH, width: SW } = Dimensions.get('window');
 
@@ -1483,6 +1487,25 @@ export function ProSheet({
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
   const [detailsItem, setDetailsItem]               = useState<ShopItem | null>(null);
+  const deviceRegionCode = useMemo(() => {
+    try {
+      return getLocales()[0]?.regionCode ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const showJapanCommerceDisclosure = shouldShowJapanCommerceDisclosure(
+    deviceRegionCode,
+    planProducts,
+  );
+  const openExternal = useCallback(async (url: string) => {
+    try {
+      if (!(await Linking.canOpenURL(url))) throw new Error('unsupported_url');
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(t('err_title_error'));
+    }
+  }, [t]);
   /**
    * Height of the fixed bottom bar, used as the ScrollView's bottom inset.
    *
@@ -1671,7 +1694,7 @@ export function ProSheet({
   if (!visible) return null;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={s.overlayRoot} pointerEvents="box-none">
       {/* Backdrop */}
       <Animated.View style={[StyleSheet.absoluteFill, s.backdrop, { opacity: backdropO }]}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
@@ -1776,6 +1799,42 @@ export function ProSheet({
             <View style={s.infoCard}>
               <Text style={[s.infoText, { color: pal.sub }]}>{t('sub_info_payment')}</Text>
               <Text style={[s.infoText, { color: pal.sub, marginTop: 8 }]}>{t('sub_info_manage')}</Text>
+              <View style={s.legalLinks}>
+                <View style={s.legalLinkRow}>
+                  <TouchableOpacity
+                    style={[s.legalButton, { borderColor: pal.border }]}
+                    onPress={() => void openExternal(LEGAL_URLS.privacy)}
+                    activeOpacity={0.75}
+                    accessibilityRole="link"
+                  >
+                    <Text style={[s.legalButtonText, { color: themeColor }]}>
+                      {t('privacy_policy')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.legalButton, { borderColor: pal.border }]}
+                    onPress={() => void openExternal(LEGAL_URLS.terms)}
+                    activeOpacity={0.75}
+                    accessibilityRole="link"
+                  >
+                    <Text style={[s.legalButtonText, { color: themeColor }]}>
+                      {t('terms_of_service')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {showJapanCommerceDisclosure && (
+                  <TouchableOpacity
+                    style={[s.commercialDisclosureButton, { borderColor: pal.border }]}
+                    onPress={() => void openExternal(LEGAL_URLS.commercialTransactions)}
+                    activeOpacity={0.75}
+                    accessibilityRole="link"
+                  >
+                    <Text style={[s.legalButtonText, { color: themeColor }]}>
+                      特定商取引法に基づく表記
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {/* Back to top */}
@@ -2274,6 +2333,14 @@ const bar = StyleSheet.create({
 
 // Main stylesheet
 const s = StyleSheet.create({
+  // Word List and Test Mode keep mounted card/FAB layers with their own zIndex.
+  // Give the whole Upgrade sheet a higher stacking context so none of those
+  // descendants can be composited in front of it.
+  overlayRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+    elevation: 200,
+  },
   backdrop: { backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: {
     position: 'absolute',
@@ -2446,6 +2513,39 @@ const s = StyleSheet.create({
   infoText: {
     fontSize: 11.5,
     lineHeight: 16,
+  },
+  legalLinks: {
+    gap: 8,
+    marginTop: 12,
+  },
+  legalLinkRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  legalButton: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  commercialDisclosureButton: {
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  legalButtonText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   backToTopWrap: {
     alignSelf: 'center',

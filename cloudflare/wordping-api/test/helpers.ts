@@ -93,6 +93,11 @@ export class FakeCreditLedger {
         const parsed = new URL(url);
         const op = parsed.pathname.slice(1);
         const key = parsed.searchParams.get('key') ?? '';
+        if (op === 'adminReset') {
+          states.delete(name);
+          cardStates.delete(name);
+          return Response.json({ ok: true });
+        }
         if (op === 'quotaStatus') {
           const dayLimit = Number(parsed.searchParams.get('day'));
           return Response.json(describePremiumVoiceUsage(this.quotaStates.get(name), Date.now(), dayLimit));

@@ -290,7 +290,7 @@ test('the free branch skips only entitlement, never the limits', () => {
   // Keyed on a server-side constant, not on anything in the request.
   // The trailing `null` is the voice-credit ledger id: a free route has none,
   // which is the same statement as "spends nothing", made explicit at the call.
-  assert.match(pipeline, /if \(requiredTier === 'free'\) \{\s*return approve\(context, spec, parsed\.data, 'free', identity, null\);/u);
+  assert.match(pipeline, /if \(requiredTier === 'free'\) \{\s*return approve\(context, spec, parsed\.data, 'free', identity, null, null\);/u);
   // No client-controlled bypass of any kind.
   assert.doesNotMatch(pipeline, /skipEntitlement|body\.preview|isPreview|body\.free/u);
   // The protective half is shared, so it cannot be skipped with the lookup.

@@ -15,22 +15,6 @@ import { WordCoreAlertHost } from './WordCoreAlert';
 // Flip back to false before shipping.
 export const FORCE_SHOW_ONBOARDING = false;
 
-// ── Category list ─────────────────────────────────────────────────────────────
-
-const OB_CATEGORIES = [
-  { id: 'school',   icon: '📚', titleKey: 'ob_cat_school',   descKey: 'ob_cat_school_desc'   },
-  { id: 'work',     icon: '💼', titleKey: 'ob_cat_work',     descKey: 'ob_cat_work_desc'     },
-  { id: 'general',  icon: '🧠', titleKey: 'ob_cat_general',  descKey: 'ob_cat_general_desc'  },
-  { id: 'law',      icon: '⚖️', titleKey: 'ob_cat_law',      descKey: 'ob_cat_law_desc'      },
-  { id: 'personal', icon: '📝', titleKey: 'ob_cat_personal', descKey: 'ob_cat_personal_desc' },
-  { id: 'other',    icon: '📦', titleKey: 'ob_cat_other',    descKey: null                   },
-] as const satisfies ReadonlyArray<{
-  id: string;
-  icon: string;
-  titleKey: TranslationKey;
-  descKey: TranslationKey | null;
-}>;
-
 const OB_GENDERS = [
   { id: 'woman',             icon: 'female-outline', labelKey: 'ob_gender_woman' },
   { id: 'man',               icon: 'male-outline', labelKey: 'ob_gender_man' },
@@ -128,7 +112,7 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
   // step 1 = purpose
   // step 2 = profile details
   // step 3 = lang picker (language path: learn lang / words path: explanation lang)
-  // step 4 = lang picker (language path: explanation lang) OR category picker (words path)
+  // step 4 = explanation-language picker (language path only)
   const [step,         setStep]         = useState<1 | 2 | 3 | 4>(1);
   const [purpose,      setPurpose]      = useState<'language' | 'words' | null>(null);
   const [gender,       setGender]       = useState<OnboardingChoices['gender'] | null>(null);
@@ -138,19 +122,19 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
   const [discovery,    setDiscovery]    = useState<OnboardingChoices['discoverySource'] | null>(null);
   const [learningLang, setLearningLang] = useState<string | null>(null);
   const [nativeLang,   setNativeLang]   = useState<string | null>(null);
-  const [wordCategory, setWordCategory] = useState<string | null>(null);
 
-  // Progress bar — counts steps 2–4 (step 1 is the Welcome screen, not a flow step).
-  // progressAnim value: 0 (hidden) → 1 (33%) → 2 (67%) → 3 (100%).
+  // Progress bar — step 1 is the Welcome screen, not a flow step. Language
+  // Learning has three remaining screens; Vocabulary & Terms has two.
   const progressAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (step === 1) return;
+    const totalSteps = purpose === 'words' ? 2 : 3;
     Animated.timing(progressAnim, {
-      toValue: step - 1,
+      toValue: (step - 1) / totalSteps,
       duration: 280,
       useNativeDriver: false,
     }).start();
-  }, [step]);
+  }, [purpose, step]);
 
   const reset = () => {
     progressAnim.setValue(0);
@@ -163,7 +147,6 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
     setDiscovery(null);
     setLearningLang(null);
     setNativeLang(null);
-    setWordCategory(null);
   };
 
   // The reset runs once the flow is hidden, so the next open starts on the Welcome
@@ -199,18 +182,13 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
       discoverySource: discovery,
       nativeLang,
       ...(purpose === 'language' ? { learningLang: learningLang! } : {}),
-      ...(purpose === 'words' && wordCategory    ? { wordCategory } : {}),
     };
     onComplete(choices);
   };
 
-  // Both paths now end at step 4.
-  const isLastStep = step === 4;
+  const isLastStep = step === 4 || (purpose === 'words' && step === 3);
 
   const showingProfile = step === 2;
-
-  // Category picker is shown at step 4 for the words path.
-  const showingCategoryPicker = step === 4 && purpose === 'words';
 
   // Language picker logic (steps 3 and 4 on language path, step 3 on words path).
   const showingLearnLang  = step === 3 && purpose === 'language';
@@ -221,11 +199,9 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
 
   const canProceed = showingProfile
     ? gender !== null && birthDate !== null && discovery !== null
-    : showingCategoryPicker
-      ? wordCategory !== null
-      : (showingLearnLang
-        ? isSupportedOnboardingLanguage(learningLang)
-        : isSupportedOnboardingLanguage(nativeLang));
+    : (showingLearnLang
+      ? isSupportedOnboardingLanguage(learningLang)
+      : isSupportedOnboardingLanguage(nativeLang));
 
   const handleProceed = () => {
     if (!canProceed) return;
@@ -280,8 +256,8 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
                 {
                   backgroundColor: themeColor,
                   width: progressAnim.interpolate({
-                    inputRange: [0, 1, 2, 3],
-                    outputRange: ['0%', '33%', '67%', '100%'],
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
                   }),
                 },
               ]}
@@ -435,52 +411,6 @@ export function OnboardingModal({ visible, pal, themeColor, onComplete }: Props)
                         );
                       })}
                     </View>
-                  </View>
-                  <View style={{ height: 100 }} />
-                </ScrollView>
-              </>
-            ) : showingCategoryPicker ? (
-              /* ── Category picker (words path, step 4) ── */
-              <>
-                <View style={ob.stepHeader}>
-                  <Text style={[ob.stepTitle, { color: pal.text }]}>{t('ob_category_title')}</Text>
-                </View>
-                <ScrollView
-                  style={{ flex: 1 }}
-                  contentContainerStyle={ob.langScrollContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <View style={ob.categoryList}>
-                    {OB_CATEGORIES.map(cat => {
-                      const active = cat.id === wordCategory;
-                      return (
-                        <TouchableOpacity
-                          key={cat.id}
-                          onPress={() => setWordCategory(cat.id)}
-                          activeOpacity={0.75}
-                          style={[
-                            ob.categoryCard,
-                            {
-                              backgroundColor: active ? themeColor + '18' : pal.card,
-                              borderColor:     active ? themeColor : pal.border,
-                            },
-                          ]}
-                        >
-                          <Text style={ob.categoryIcon}>{cat.icon}</Text>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[ob.categoryTitle, { color: active ? themeColor : pal.text }]}>
-                              {t(cat.titleKey)}
-                            </Text>
-                            {cat.descKey && (
-                              <Text style={[ob.categoryDesc, { color: pal.sub }]}>
-                                {t(cat.descKey)}
-                              </Text>
-                            )}
-                          </View>
-                          {active && <Ionicons name="checkmark-circle" size={20} color={themeColor} />}
-                        </TouchableOpacity>
-                      );
-                    })}
                   </View>
                   <View style={{ height: 100 }} />
                 </ScrollView>
@@ -655,7 +585,7 @@ const ob = StyleSheet.create({
   purposeTitle: { fontSize: 16, fontWeight: '700', marginBottom: 3 },
   purposeDesc:  { fontSize: 13, lineHeight: 18 },
 
-  // Steps 2–4 — profile and language/category pickers
+  // Steps 2–4 — profile and language pickers
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -758,19 +688,6 @@ const ob = StyleSheet.create({
   langScrollContent: {
     paddingHorizontal: 20,
   },
-  categoryList: { gap: 10 },
-  categoryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 14,
-  },
-  categoryIcon:  { fontSize: 26 },
-  categoryTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  categoryDesc:  { fontSize: 13, lineHeight: 18 },
-
   langList:  { gap: 7 },
   langChip: {
     flexDirection: 'row',

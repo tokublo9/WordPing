@@ -7,7 +7,7 @@ import Purchases, {
   PurchasesError,
   PurchasesOfferings,
 } from 'react-native-purchases';
-import { resetApiIdentity } from '../lib/api/client';
+import { armVoiceCardEntitlementRetry, resetApiIdentity } from '../lib/api/client';
 import { parseRequestDate, shouldApplyCustomerInfo } from '../lib/entitlementOrdering';
 import {
   activeExpirationDateFromCustomerInfo,
@@ -15,6 +15,7 @@ import {
   planFromCustomerInfo,
   PACKAGE_IDS,
 } from '../lib/purchases';
+import { getStoredRevenueCatDeviceId } from '../lib/revenueCatIdentity';
 import {
   LOCAL_AI_VOICE_SCENARIO,
   getLocalAiVoiceTestScenario,
@@ -217,14 +218,9 @@ export function useSubscription() {
         };
         if (active) Purchases.addCustomerInfoUpdateListener(listener);
 
-        // WordPing has no accounts, so there is nothing to log in as.
-        //
-        // `logIn` is deliberately NOT called. The SDK persists whichever App
-        // User ID it is already using and restores it on every launch, so a
-        // fresh install gets a RevenueCat anonymous id and an upgrading user
-        // keeps the id their purchases are already attached to. Calling
-        // `logOut` here would mint a new anonymous user and strand existing
-        // subscribers until they found "Restore Purchases".
+        // configureRevenueCat establishes the Keychain-backed device identity
+        // and completes any one-time anonymous-to-custom migration before this
+        // first entitlement snapshot is read.
         const customerInfo = await fetchFreshCustomerInfo();
         const nextOfferings = await fetchOfferings();
         if (active) {
@@ -303,6 +299,7 @@ export function useSubscription() {
         // still rejects a snapshot older than one already applied.
         const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-purchase-refresh', refreshedInfo);
+        armVoiceCardEntitlementRetry();
         // The plan that was bought, not the one the refreshed receipt happens to
         // show. `purchasePackage` resolving means StoreKit completed and
         // RevenueCat validated it; reading the tier back here instead would turn
@@ -333,6 +330,7 @@ export function useSubscription() {
         // subscription from exactly the data the user distrusts.
         const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-restore-refresh', refreshedInfo);
+        armVoiceCardEntitlementRetry();
         return restoreOutcomeForPlan(planFromCustomerInfo(refreshedInfo));
       } catch (e) {
         // Backing out of the App Store sheet is an ordinary outcome, not a
@@ -354,24 +352,37 @@ export function useSubscription() {
     }
   };
 
-  // DEV ONLY: switch to a RevenueCat anonymous user for identity testing.
+  // DEV ONLY: reassert and refresh the stable device identity. RevenueCat's
+  // logOut is intentionally never called because it always mints a new
+  // anonymous subscriber and would therefore create a new Basic ledger.
   const unsubscribe = async (): Promise<void> => {
     if (!__DEV__) return;
+    let lastError: unknown = null;
     try {
-      await Purchases.logOut();
-      // logOut mints a new anonymous App User ID, so the cached identity the
-      // API client sends must be discarded or it would keep quoting the old one.
+      const appUserID = await getStoredRevenueCatDeviceId();
+      if (appUserID === null) throw new Error('stable_revenuecat_identity_unavailable');
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          await Purchases.logIn(appUserID);
+          lastError = null;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 250));
+        }
+      }
+      if (lastError !== null) throw lastError;
+      // The API client caches the SDK identity, so discard it after the SDK has
+      // confirmed the stable UUID even if this was a no-op re-login.
       resetApiIdentity();
-      // The new user's snapshots are on their own timeline and can legitimately
-      // carry an older requestDate than the previous user's last applied one.
-      // Clearing the guard here is what stops them being rejected as stale.
-      // This is the only place the App User ID changes: production never calls
-      // logIn or logOut, so there is no other switch point to cover.
+      // Preserve the legacy source label for analytics compatibility. Clearing
+      // ordering makes this explicit diagnostic refresh authoritative.
       resetEntitlementOrdering();
       const refreshedInfo = await fetchFreshCustomerInfo();
       applyVerifiedCustomerInfo('after-logout-refresh', refreshedInfo);
     } catch (e) {
-      if (__DEV__) console.warn('[useSubscription] logOut error:', errorMessage(e));
+      console.error('[useSubscription] stable RevenueCat logIn failed after retry; identity was not changed:',
+        purchaseErrorDetails(e));
     }
   };
 

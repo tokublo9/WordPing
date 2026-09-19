@@ -7,7 +7,13 @@ import {
   type FeatureLimits,
   type Tier,
 } from './config';
-import { EntitlementServiceError, resolveEntitlement, tierSatisfies } from './entitlements';
+import {
+  EntitlementServiceError,
+  forceRefreshEntitlementAfterBasicDeny,
+  resolveEntitlement,
+  tierSatisfies,
+  type EntitlementResult,
+} from './entitlements';
 import type { Env, ResolvedEnv } from './env';
 import { errorResponse, type ErrorCode, type ResponseContext } from './http';
 import { clientIp, privacyHash, readIdentity, type CallerIdentity } from './identity';
@@ -203,7 +209,7 @@ export async function guard<T>(
   // Skipping also means a RevenueCat outage cannot take the promo previews
   // down, which is the point of having them.
   if (requiredTier === 'free') {
-    return approve(context, spec, parsed.data, 'free', identity, null);
+    return approve(context, spec, parsed.data, 'free', identity, null, null);
   }
 
   // Past this point an entitlement is required, which means an App User ID is
@@ -213,10 +219,12 @@ export async function guard<T>(
 
   let tier: Tier;
   let voiceCreditLedgerId: string;
+  let entitlementSource: EntitlementResult['source'];
   if (context.localAiVoiceTestScenario === LOCAL_AI_VOICE_SCENARIO) {
     // Premium, because that is the tier High-Quality AI Voice belongs to. A
     // mocked Basic would be refused here and the harness would drive nothing.
     tier = 'premium';
+    entitlementSource = 'dev-bypass';
     voiceCreditLedgerId = await privacyHash(env, 'rcuser', identity.appUserId);
     log('info', 'local_entitlement_mocked', response.requestId, {
       feature: spec.feature, tier,
@@ -232,6 +240,7 @@ export async function guard<T>(
       );
       tier = entitlement.tier;
       voiceCreditLedgerId = entitlement.voiceCreditLedgerId;
+      entitlementSource = entitlement.source;
       log('info', 'entitlement_resolved', response.requestId, {
         feature: spec.feature, tier, source: entitlement.source,
       });
@@ -257,7 +266,9 @@ export async function guard<T>(
     return reject('subscription_required', 403, { requiredTier });
   }
 
-  return approve(context, spec, parsed.data, tier, identity, voiceCreditLedgerId);
+  return approve(
+    context, spec, parsed.data, tier, identity, voiceCreditLedgerId, entitlementSource,
+  );
 }
 
 /**
@@ -274,6 +285,7 @@ async function approve<T>(
   tier: Tier,
   identity: CallerIdentity | null,
   voiceCreditLedgerId: string | null,
+  entitlementSource: EntitlementResult['source'] | null,
 ): Promise<GuardResult<T>> {
   const { request, env, runtime, response } = context;
   const reject = (code: ErrorCode, status: number, details = {}, headers = {}): GuardResult<T> => ({
@@ -367,6 +379,48 @@ async function approve<T>(
         return reject('rate_limit_exceeded', 429, {
           scope: 'account', window: 'minute', limit: reservation.remaining,
         }, { 'Retry-After': '2' });
+      }
+      // The only expensive re-check is on a cached-Basic denial. A purchase can
+      // turn Basic into Premium while the five-minute positive cache is still
+      // live; refresh RevenueCat once here so that stale cache cannot apply an
+      // exhausted Basic ledger to the upgraded subscriber. Normal requests and
+      // Basic requests with credits never take this path.
+      if (tier === 'basic' && entitlementSource === 'cache' && identity !== null) {
+        try {
+          const refreshed = await forceRefreshEntitlementAfterBasicDeny(
+            env, context.resolved, identity.appUserId, response.requestId,
+          );
+          if (refreshed !== null) {
+            log('info', 'entitlement_refreshed_after_voice_credit_deny', response.requestId, {
+              previousTier: tier, refreshedTier: refreshed.tier,
+            });
+            if (refreshed.tier === 'premium') {
+              return approve(
+                context,
+                spec,
+                body,
+                refreshed.tier,
+                identity,
+                refreshed.voiceCreditLedgerId,
+                refreshed.source,
+              );
+            }
+            if (!tierSatisfies(refreshed.tier, 'basic')) {
+              return reject('subscription_required', 403, { requiredTier: 'basic' });
+            }
+          }
+        } catch (error) {
+          if (!(error instanceof EntitlementServiceError)) throw error;
+          if (error.reason === 'unauthorized') {
+            return reject('service_not_configured', 503, { reason: 'entitlement_credentials' });
+          }
+          return reject(
+            'entitlement_verification_failed',
+            503,
+            { reason: error.reason },
+            { 'Retry-After': '30' },
+          );
+        }
       }
       log('info', 'voice_credits_exhausted', response.requestId, { tier });
       return reject('voice_credits_exhausted', 403, {

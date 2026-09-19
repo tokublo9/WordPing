@@ -44,6 +44,7 @@
     "src/lib/ttsPlaybackState.ts",
     "src/features/voice/voicePreviewFlow.ts",
     "src/features/purchases/revenueCatKey.ts",
+    "src/features/purchases/revenueCatIdentity.ts",
     "src/features/cards/builtInCards.ts",
     "src/features/cards/duplicates.ts",
     "src/features/cards/fileImport.ts",

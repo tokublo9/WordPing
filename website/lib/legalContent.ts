@@ -45,7 +45,7 @@ function analyticsRetentionJa(): string {
 }
 
 export type LegalLocale = 'en' | 'ja';
-export type LegalSlug = 'privacy' | 'terms' | 'licenses' | 'support';
+export type LegalSlug = 'privacy' | 'terms' | 'licenses' | 'support' | 'commercial-transactions';
 
 export interface LegalSection {
   heading: string;

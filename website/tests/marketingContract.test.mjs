@@ -71,6 +71,22 @@ test('legal footer links retain the production route contract', () => {
   assert.match(readRepo('src/config/legalUrls.ts'), /https:\/\/word-ping-chi\.vercel\.app\/privacy/u);
 });
 
+test('the Japan commercial disclosure is published and linked only through the app gate', () => {
+  const page = read('app/[locale]/commercial-transactions/page.tsx');
+  const upgrade = readRepo('src/components/ProSheet.tsx');
+  const visibility = readRepo('src/lib/japanCommerceDisclosure.ts');
+
+  assert.match(page, /特定商取引法に基づく表記/u);
+  assert.match(page, /徳本大輝/u);
+  assert.match(page, /daiki\.studio9@gmail\.com/u);
+  assert.match(page, /代金以外に必要となる費用/u);
+  assert.match(page, /返品・キャンセルに関する特約/u);
+  assert.match(upgrade, /showJapanCommerceDisclosure &&/u);
+  assert.match(visibility, /deviceRegionCode\?\.toUpperCase\(\) === 'JP'/u);
+  assert.match(visibility, /currencyCode\?\.toUpperCase\(\) === 'JPY'/u);
+  assert.doesNotMatch(read('components/Footer.tsx'), /commercial-transactions/u);
+});
+
 test('hero lifecycle and reduced-motion behavior are wired into the rendered hero', () => {
   const hero = read('components/Hero.tsx');
   assert.match(hero, /createHeroPlayback/u);

@@ -108,6 +108,13 @@ function cacheKey(hashedUser: string): string {
   return `entitlement:${hashedUser}`;
 }
 
+const DENY_REFRESH_MIN_INTERVAL_MS = 20_000;
+const DENY_REFRESH_GUARD_TTL_SECONDS = 60;
+
+function denyRefreshGuardKey(hashedUser: string): string {
+  return `entitlement-deny-refresh:${hashedUser}`;
+}
+
 async function fetchTier(
   env: Env,
   resolved: ResolvedEnv,
@@ -251,6 +258,56 @@ export async function resolveEntitlement(
   });
 
   return { tier: verified.tier, source: 'revenuecat', voiceCreditLedgerId };
+}
+
+/** Bypasses the short entitlement cache and replaces it with RevenueCat's answer. */
+export function forceRefreshEntitlement(
+  env: Env,
+  resolved: ResolvedEnv,
+  appUserId: string,
+  requestId: string,
+): Promise<EntitlementResult> {
+  return resolveEntitlement(env, resolved, appUserId, requestId, true);
+}
+
+/**
+ * Re-verifies a cached Basic entitlement only when its exhausted ledger would
+ * deny a voice card. The small per-user guard keeps repeated denied taps from
+ * turning into an unbounded RevenueCat hot path.
+ *
+ * `null` means another deny-path refresh ran within the minimum interval. KV's
+ * minimum expiration is 60 seconds, so the stored timestamp enforces the
+ * shorter interval while the TTL cleans the guard up automatically.
+ */
+export async function forceRefreshEntitlementAfterBasicDeny(
+  env: Env,
+  resolved: ResolvedEnv,
+  appUserId: string,
+  requestId: string,
+  now: number = Date.now(),
+): Promise<EntitlementResult | null> {
+  const hashedUser = await privacyHash(env, 'rcuser', appUserId);
+  const key = denyRefreshGuardKey(hashedUser);
+  let previous: string | null;
+  try {
+    previous = await env.WORDPING_KV.get(key);
+  } catch (error) {
+    log('warn', 'entitlement_deny_refresh_guard_read_failed', requestId, redactError(error));
+    return null;
+  }
+  const previousAt = previous === null ? Number.NaN : Number(previous);
+  if (Number.isFinite(previousAt) && now - previousAt < DENY_REFRESH_MIN_INTERVAL_MS) {
+    return null;
+  }
+  try {
+    await env.WORDPING_KV.put(key, String(now), {
+      expirationTtl: DENY_REFRESH_GUARD_TTL_SECONDS,
+    });
+  } catch (error) {
+    log('warn', 'entitlement_deny_refresh_guard_write_failed', requestId, redactError(error));
+    return null;
+  }
+  return forceRefreshEntitlement(env, resolved, appUserId, requestId);
 }
 
 const TIER_RANK: Readonly<Record<Tier, number>> = { free: 0, basic: 1, premium: 2 };

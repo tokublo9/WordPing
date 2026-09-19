@@ -14,6 +14,7 @@ import {
 } from '../lib/api/voiceLimitMessage';
 import { showTopBanner } from '../lib/topBanner';
 import { resolveCardVoiceSource } from '../features/voice/cardVoiceSource';
+import { VOICE_LIFETIME_CREDITS } from '../lib/planLimits';
 
 export type WordCardVoiceTarget = 'word' | 'meaning';
 export type WordCardVoiceState = {
@@ -249,7 +250,20 @@ export function useWordCardVoicePlayback({
         return;
 
       case 'voice_credits_exhausted':
-        // The async fallback is awaited by play() so its state remains visible.
+        if (onVoiceCreditsExhausted) {
+          onVoiceCreditsExhausted(() => { void speakOnDevice(); });
+          return;
+        }
+        Alert.alert(
+          t('voice_credits_title'),
+          t('voice_credits_body').replace(
+            '{limit}', String(VOICE_LIFETIME_CREDITS.basic ?? 0),
+          ),
+          [
+            ...(onUpgrade ? [{ text: t('voice_credits_upgrade'), onPress: onUpgrade }] : []),
+            { text: t('voice_credits_use_free'), onPress: () => { void speakOnDevice(); } },
+          ],
+        );
         return;
 
       case 'consent_required':
@@ -341,6 +355,8 @@ export function useWordCardVoicePlayback({
     } catch (error) {
       if (isAIRequestError(error) && error.kind === 'monthly_limit_reached'
         && error.quota?.tier === 'basic' && error.quota.reason === 'duration') {
+        handleError(error);
+      } else if (isAIRequestError(error) && error.kind === 'voice_credits_exhausted') {
         handleError(error);
       } else if (isAIRequestError(error) && useDeviceVoiceAfterBasicLimit(
         getAIEntitlementSnapshot().plan, error.kind,

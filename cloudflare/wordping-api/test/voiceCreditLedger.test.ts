@@ -33,6 +33,9 @@ class FakeStorage {
   async put<T>(key: string, value: T): Promise<void> {
     this.map.set(key, JSON.parse(JSON.stringify(value)));
   }
+  async delete(key: string): Promise<boolean> {
+    return this.map.delete(key);
+  }
 }
 
 /**
@@ -116,6 +119,21 @@ describe('the 10-card allowance', () => {
     await call('cardRelease', 'failed', 'card-1');
     expect((await call('cardPeek', '')).remaining).toBe(10);
     expect((await call('cardCommit', 'failed', 'card-1')).ok).toBe(false);
+  });
+
+  it('lets the authenticated admin route clear card and legacy balances', async () => {
+    const { call } = makeLedger();
+    await call('cardReserve', 'card-request', 'card-1');
+    await call('cardCommit', 'card-request', 'card-1');
+    await call('reserve', 'legacy-request');
+    await call('commit', 'legacy-request');
+    expect((await call('cardPeek', '')).remaining).toBe(9);
+    expect((await call('peek', '')).remaining).toBe(9);
+
+    await call('adminReset', '');
+
+    expect((await call('cardPeek', '')).remaining).toBe(10);
+    expect((await call('peek', '')).remaining).toBe(10);
   });
 });
 

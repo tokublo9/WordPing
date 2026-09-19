@@ -35,6 +35,10 @@ export interface Env {
   OPENAI_TEXT_TIMEOUT_MS?: string;
   OPENAI_SPEECH_TIMEOUT_MS?: string;
   REVENUECAT_TIMEOUT_MS?: string;
+  /** Secret bearer token for the tester-only Basic ledger reset endpoint. */
+  ADMIN_RESET_SECRET?: string;
+  /** Must be exactly "1" or the reset endpoint behaves as not found. */
+  ENABLE_ADMIN_LEDGER_RESET?: string;
   DEV_BYPASS_ENTITLEMENTS?: string;
   /** Local `wrangler dev` scenario. Ignored for every non-loopback request. */
   LOCAL_AI_VOICE_TEST_SCENARIO?: string;

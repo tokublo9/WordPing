@@ -6,6 +6,10 @@ import {
   TEST_STORE_KEY_PREFIX,
   TEST_STORE_MISSING_KEY_MESSAGE,
 } from '../features/purchases/revenueCatKey';
+import {
+  completeStoredRevenueCatIdentityMigration,
+  prepareStoredRevenueCatIdentity,
+} from './revenueCatIdentity';
 
 export const ENTITLEMENT_IDS = {
   BASIC: 'basic',
@@ -106,12 +110,19 @@ export function configureRevenueCat(): Promise<boolean> {
     // and errors — the lines that mean something is actually wrong — still print,
     // to the iOS system log, so they remain readable in Console.app on TestFlight.
     await Purchases.setLogLevel(LOG_LEVEL.WARN);
-    Purchases.configure({ apiKey });
+    const identity = await prepareStoredRevenueCatIdentity();
+    Purchases.configure(identity.kind === 'custom'
+      ? { apiKey, appUserID: identity.appUserID }
+      : { apiKey });
 
     if (!(await Purchases.isConfigured())) {
       console.error('[RC] RevenueCat did not finish configuration.');
       return false;
     }
+    // A legacy install must first recover the SDK's cached anonymous user, then
+    // alias that subscriber to the stored UUID. Failure leaves both the old
+    // identity and the pending marker intact, so the next launch retries.
+    await completeStoredRevenueCatIdentityMigration(identity);
     return true;
   })().catch(error => {
     configurationRequest = null;

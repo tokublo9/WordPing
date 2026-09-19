@@ -12,6 +12,7 @@ export const ERROR_CODES = [
   'payload_too_large',
   'method_not_allowed',
   'not_found',
+  'unauthorized',
   'missing_install_id',
   'subscription_required',
   'rate_limit_exceeded',

@@ -240,6 +240,13 @@ export class VoiceCreditLedger {
     const url = new URL(request.url);
     const op = url.pathname.slice(1);
     const key = url.searchParams.get('key') ?? '';
+    if (op === 'adminReset') {
+      await this.state.blockConcurrencyWhile(async () => {
+        await this.state.storage.delete(CARD_BALANCE_KEY);
+        await this.state.storage.delete(BALANCE_KEY);
+      });
+      return Response.json({ ok: true });
+    }
     if (op === 'quotaStatus') {
       const dayLimit = Number(url.searchParams.get('day'));
       if (!Number.isInteger(dayLimit) || dayLimit < 0
@@ -451,5 +458,22 @@ export async function releaseVoiceCredit(
     log('info', 'voice_credit_released', requestId, {});
   } catch (error: unknown) {
     log('warn', 'voice_credit_release_failed', requestId, redactError(error));
+  }
+}
+
+/** Removes Basic's card and legacy balances for an authenticated tester reset. */
+export async function resetVoiceCreditLedger(
+  env: Env,
+  hashedAppUserId: string,
+): Promise<boolean> {
+  try {
+    const id = env.VOICE_CREDITS.idFromName(hashedAppUserId);
+    const response = await env.VOICE_CREDITS.get(id).fetch(
+      'https://ledger/adminReset',
+      { method: 'POST' },
+    );
+    return response.ok;
+  } catch {
+    return false;
   }
 }

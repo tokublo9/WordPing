@@ -7,9 +7,11 @@ const routes = [
   ['/privacy', 'Privacy Policy'],
   ['/terms', 'Terms of Service'],
   ['/licenses', 'Open Source Licences'],
+  ['/commercial-transactions', 'Commercial Disclosure under Japan’s Specified Commercial Transactions Act'],
   ['/ja/privacy', 'プライバシーポリシー'],
   ['/ja/terms', '利用規約'],
   ['/ja/licenses', 'オープンソースライセンス'],
+  ['/ja/commercial-transactions', '特定商取引法に基づく表記'],
 ];
 
 const pages = new Map();

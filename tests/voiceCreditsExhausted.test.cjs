@@ -13,21 +13,34 @@ function read(path) {
  * the app reacting to the server's answer rather than predicting it.
  */
 
-test('a server refusal falls back to device speech without the old dialog', () => {
+test('a server refusal shows the localized upgrade-or-device-voice dialog', () => {
   const errors = read('src/lib/api/errors.ts');
   const hook = read('src/hooks/useWordCardVoicePlayback.ts');
+  const app = read('App.tsx');
 
   // The Worker's code becomes its own kind, distinct from the monthly limit and
   // from a plan boundary — the two it would otherwise be confused with.
   assert.match(errors, /voice_credits_exhausted: 'voice_credits_exhausted',/u);
   assert.match(hook, /case 'voice_credits_exhausted':/u);
-  assert.match(hook, /useDeviceVoiceAfterBasicLimit\([\s\S]*?error\.kind,\s*\)\) \{\s*await speakOnDevice\(\);/u);
-  assert.doesNotMatch(read('App.tsx'), /<VoiceCreditsExhaustedDialog/u);
+  assert.match(hook, /onVoiceCreditsExhausted\(\(\) => \{ void speakOnDevice\(\); \}\)/u);
+  assert.match(app, /<VoiceCreditsExhaustedDialog/u);
+  assert.match(app, /onVoiceCreditsExhausted=\{handleVoiceCreditsExhausted\}/u);
+  assert.match(read('src/components/VoiceCreditsExhaustedDialog.tsx'), /t\('voice_credits_body'\)/u);
 
   // No mirrored balance anywhere in the app.
   for (const source of [hook, read('App.tsx')]) {
     assert.doesNotMatch(source, /remainingCredits|creditsRemaining/u);
   }
+});
+
+test('the Upgrade Plan sheet stays above Word List and Test Mode layers', () => {
+  const sheet = read('src/components/ProSheet.tsx');
+
+  assert.match(sheet, /<View style=\{s\.overlayRoot\} pointerEvents="box-none">/u);
+  assert.match(
+    sheet,
+    /overlayRoot:\s*\{\s*\.\.\.StyleSheet\.absoluteFillObject,\s*zIndex: 200,\s*elevation: 200,/u,
+  );
 });
 
 test('the Basic card-limit popup offers Premium after card addition', () => {
@@ -87,27 +100,20 @@ test('Basic is eligible to ask, and the plan tables say why', () => {
 
 // ── The balance lookup holds up only the plan it belongs to ──────────────────
 
-test('Premium AI Voice does not wait on Basic’s credit ledger', () => {
+test('every paid tier waits for a fresh Worker entitlement', () => {
   const app = read('App.tsx');
-  const entitlement = read('src/lib/aiEntitlement.ts');
 
-  // The rule is read from the credits table, not written as a tier name, so a
-  // repricing moves it and there is no second list to fall out of step.
-  assert.match(
-    entitlement,
-    /export function planUsesLifetimeVoiceCredits\(plan: PlanTier\): boolean \{\s*const credits = VOICE_LIFETIME_CREDITS\[plan\];\s*return typeof credits === 'number' && credits > 0;/u,
-  );
-
-  // The lookup runs only for a plan that has a balance to look up. Premium
-  // never makes the request, so the request failing cannot take its voice away.
-  assert.match(app, /const usesVoiceCreditLedger = planUsesLifetimeVoiceCredits\(plan\);/u);
-  assert.match(app, /if \(!isSubscriptionLoaded \|\| !usesVoiceCreditLedger/u);
+  // Every paid CustomerInfo revision runs the force-fresh Worker route. This
+  // includes purchase, restore and listener updates for Premium as well as Basic.
+  assert.match(app, /if \(!isSubscriptionLoaded \|\| plan === 'free'/u);
+  assert.match(app, /const balance = await fetchVoiceCreditBalance\(\);/u);
+  assert.match(app, /if \(balance\.tier === plan\)/u);
 
   // Readiness is resolved once and shared, so playback and the library sweep
   // cannot disagree about when the server side is usable.
   assert.match(
     app,
-    /const voiceBackendReady = entitlementSource === 'local-development-scenario'\s*\|\| !usesVoiceCreditLedger\s*\|\| voiceCreditReadyRevision === entitlementRevision;/u,
+    /const voiceBackendReady = entitlementSource === 'local-development-scenario'\s*\|\| \(plan !== 'free' && voiceCreditReadyRevision === entitlementRevision\);/u,
   );
   assert.equal(
     (app.match(/const voiceBackendReady =/gu) ?? []).length, 1,
@@ -121,7 +127,27 @@ test('Premium AI Voice does not wait on Basic’s credit ledger', () => {
   assert.match(sweep.slice(0, sweep.indexOf('preloadAIPronunciationLibrary')), /\|\| !voiceBackendReady/u);
 
   // Exhaustion stays the server's answer: no local balance decides playback.
-  assert.doesNotMatch(app, /voiceCreditReadyRevision !== entitlementRevision/u);
+  assert.doesNotMatch(app, /remainingCredits|creditsRemaining/u);
+});
+
+test('a post-purchase voice-card 403 refreshes and retries exactly once', () => {
+  const api = read('src/lib/api/client.ts');
+  const subscription = read('src/hooks/useSubscription.ts');
+  assert.match(subscription, /armVoiceCardEntitlementRetry\(\);/u);
+  assert.match(api, /error\.kind !== 'voice_credits_exhausted' \|\| !takeVoiceCardEntitlementRetry\(\)/u);
+  assert.match(api, /await fetchVoiceCreditBalance\(\);\s*response = await post\(VOICE_PATHS\[endpoint\]/u);
+  assert.equal((api.match(/takeVoiceCardEntitlementRetry\(\)/gu) ?? []).length, 2,
+    'one declaration and one guarded retry use');
+});
+
+test('the development identity refresh retries without creating an anonymous user', () => {
+  const subscription = read('src/hooks/useSubscription.ts');
+  assert.match(subscription, /for \(let attempt = 0; attempt < 2; attempt \+= 1\)/u);
+  assert.match(subscription, /await Purchases\.logIn\(appUserID\)/u);
+  assert.doesNotMatch(subscription, /Purchases\.logOut\(/u);
+  assert.match(subscription, /console\.error\('\[useSubscription\] stable RevenueCat logIn failed after retry; identity was not changed:'/u);
+  assert.ok(subscription.indexOf('resetApiIdentity();') > subscription.indexOf('if (lastError !== null) throw lastError;'),
+    'the cached identity is cleared only after the stable login succeeds');
 });
 
 test('an Upgrade Plan preview is independent of the credit ledger', () => {

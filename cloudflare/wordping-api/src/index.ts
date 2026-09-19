@@ -18,6 +18,7 @@ import { loadRuntimeConfig } from './runtimeConfig';
 import { handleTextAction } from './routes/text';
 import { handleVoiceCard, handleVoiceCustom, handleVoicePromo, handleVoiceSample } from './routes/voice';
 import { handleVoiceCredits } from './routes/voiceCredits';
+import { handleAdminVoiceCreditsReset } from './routes/adminVoiceCredits';
 import { WORKER_VERSION } from './version';
 
 /**
@@ -37,6 +38,7 @@ const ROUTES: Readonly<Record<string, RouteHandler>> = {
   '/v1/voice/promo': handleVoicePromo,
   '/v1/voice/custom': handleVoiceCustom,
   '/v1/voice/credits': handleVoiceCredits,
+  '/v1/admin/voice-credits/reset': handleAdminVoiceCreditsReset,
   '/v1/meaning': context => handleTextAction(context, 'meaning'),
   '/v1/breakdown': context => handleTextAction(context, 'breakdown'),
   '/v1/translate': context => handleTextAction(context, 'translation'),
@@ -135,7 +137,8 @@ export async function handleRequest(
   const handler = ROUTES[url.pathname];
   if (!handler) return errorResponse(response, 'not_found', 404);
 
-  const routeNeedsOpenAI = url.pathname !== '/v1/voice/credits';
+  const routeNeedsOpenAI = url.pathname !== '/v1/voice/credits'
+    && url.pathname !== '/v1/admin/voice-credits/reset';
   if (!localAiVoiceTestScenario
     && (!env.REVENUECAT_SECRET_API_KEY || (routeNeedsOpenAI && !env.OPENAI_API_KEY))) {
     // Which one is missing is an operator detail; the client learns only that

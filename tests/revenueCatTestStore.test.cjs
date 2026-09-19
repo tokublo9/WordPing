@@ -55,7 +55,7 @@ test('__DEV__ is handed to the resolver, never read inside it', () => {
 test('a failed resolution configures nothing at all', () => {
   const configure = purchases.slice(purchases.indexOf('export function configureRevenueCat('));
   const refusalAt = configure.indexOf('if (!resolution.ok) {');
-  const configureAt = configure.indexOf('Purchases.configure({ apiKey });');
+  const configureAt = configure.indexOf('Purchases.configure(identity.kind');
   assert.ok(refusalAt > -1 && configureAt > -1);
   assert.ok(refusalAt < configureAt, 'the refusal must come before the SDK is configured');
   // Each reason returns false rather than falling through to a key.
@@ -99,8 +99,9 @@ test('nothing about products, entitlements or the purchase flows moved', () => {
   assert.match(purchases, /export const PACKAGE_IDS = \{\s*BASIC: 'basic',\s*PREMIUM: 'premium',\s*\} as const;/u);
   assert.match(purchases, /if \(active\[ENTITLEMENT_IDS\.PREMIUM\]\?\.isActive\) return 'premium';/u);
   assert.match(purchases, /if \(active\[ENTITLEMENT_IDS\.BASIC\]\?\.isActive\) return 'basic';/u);
-  // The SDK is still configured exactly once, with the same call.
+  // The SDK is still configured exactly once; only its stable App User ID is new.
   assert.equal((purchases.match(/Purchases\.configure\(/gu) ?? []).length, 1);
+  assert.match(purchases, /identity\.kind === 'custom'[\s\S]{0,100}\{ apiKey, appUserID: identity\.appUserID \}/u);
   assert.match(purchases, /await Purchases\.setLogLevel\(LOG_LEVEL\.WARN\);/u);
 
   // The hook that owns purchase, restore and refresh is untouched by this.

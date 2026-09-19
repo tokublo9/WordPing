@@ -7,6 +7,7 @@ const requiredRoutes = [
   'app/[locale]/privacy/page.tsx',
   'app/[locale]/terms/page.tsx',
   'app/[locale]/licenses/page.tsx',
+  'app/[locale]/commercial-transactions/page.tsx',
 ];
 for (const route of requiredRoutes) {
   if (!existsSync(path.join(websiteRoot, route))) throw new Error(`Missing legal route: ${route}`);
@@ -41,6 +42,22 @@ const legalFiles = [
   'components/legal/LegalDocumentView.tsx',
   ...requiredRoutes,
 ].map(file => readFileSync(path.join(websiteRoot, file), 'utf8')).join('\n');
+
+const commercialDisclosureSource = readFileSync(
+  path.join(websiteRoot, 'app/[locale]/commercial-transactions/page.tsx'),
+  'utf8',
+);
+for (const statement of [
+  '特定商取引法に基づく表記',
+  '徳本大輝',
+  'daiki.studio9@gmail.com',
+  '代金以外に必要となる費用',
+  '返品・キャンセルに関する特約',
+]) {
+  if (!commercialDisclosureSource.includes(statement)) {
+    throw new Error(`Missing commercial disclosure statement: ${statement}`);
+  }
+}
 
 const placeholderPatterns = [
   /\bTBD\b/iu,

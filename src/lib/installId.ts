@@ -15,7 +15,7 @@ import { createId } from '../utils/createId';
  * server-side. See cloudflare/wordping-api/src/identity.ts.
  */
 
-const INSTALL_ID_KEY = 'wordping.install_id';
+export const INSTALL_ID_KEY = 'wordping.install_id';
 
 let cached: Promise<string> | null = null;
 

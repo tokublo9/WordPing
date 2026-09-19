@@ -10,4 +10,4 @@
  * The version string is the only way to confirm from outside which build is
  * live; a stale one makes it worse than useless.
  */
-export const WORKER_VERSION = '2026-09-19.kv-config-cache.1';
+export const WORKER_VERSION = '2026-09-19.voice-entitlement-refresh.1';
