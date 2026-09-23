@@ -91,12 +91,18 @@ export const THEME_ENTITLEMENT_IDS: ReadonlySet<string> = new Set(
   Object.values(THEME_PRODUCTS).map(refs => refs.entitlementId),
 );
 
-/** Whether any active entitlement is a theme bought outright. */
-export function hasAnyThemeEntitlement(ownedEntitlementIds: Iterable<string>): boolean {
-  for (const id of ownedEntitlementIds) {
-    if (THEME_ENTITLEMENT_IDS.has(id)) return true;
-  }
-  return false;
+/**
+ * Active theme entitlements, resolved back to the app's stable theme ids.
+ *
+ * Restore Purchases needs ids rather than a boolean so its confirmation can
+ * name exactly what came back. The mapping still goes through the explicit
+ * registry above; product, package and entitlement names are never guessed.
+ */
+export function themeIdsForEntitlements(ownedEntitlementIds: Iterable<string>): string[] {
+  const owned = new Set(ownedEntitlementIds);
+  return Object.entries(THEME_PRODUCTS)
+    .filter(([, refs]) => owned.has(refs.entitlementId))
+    .map(([themeId]) => themeId);
 }
 
 /** Theme id → App Store product identifier, for lookups keyed by product. */
@@ -124,8 +130,20 @@ export interface ThemeStoreProduct {
 export type ThemePriceDisplay =
   /** Free for everyone; no price line. */
   | { state: 'free' }
-  /** Bought outright. Shown instead of the price, on every plan. */
-  | { state: 'owned' }
+  /**
+   * Bought outright. Permanent, and true on every plan.
+   *
+   * `alsoIncludedInPlan` says whether the current subscription would have
+   * unlocked this theme anyway. The two surfaces answer differently:
+   *
+   *  - The shop grid hides the label while it is true. For a subscriber every
+   *    theme is already usable, so marking one of them "Owned" reads as a
+   *    difference in what they can do today, when there is none.
+   *  - Theme Details keeps showing it, because that is the one place the app
+   *    can tell them the theme is theirs permanently — the fact that outlives
+   *    the subscription, and the one worth confirming before cancelling.
+   */
+  | { state: 'owned'; alsoIncludedInPlan: boolean }
   /**
    * Covered by an active Basic or Premium subscription.
    *
@@ -224,7 +242,11 @@ export function resolveThemePriceForProduct({
   const ownedIndividually = ownedEntitlementIds.has(refs.entitlementId);
   // Permanent and plan-independent, so it is answered first and without waiting
   // for an entitlement lookup — the same order `resolveThemeAccess` uses.
-  if (ownedIndividually) return { state: 'owned' };
+  if (ownedIndividually) {
+    // Mirrors the subscription branch of `resolveThemeAccess`, so "the plan
+    // covers this too" cannot drift from "the plan unlocks this".
+    return { state: 'owned', alsoIncludedInPlan: isSubscriptionLoaded && isSubscribed };
+  }
 
   const access = resolveThemeAccess({
     price, isSubscribed, isSubscriptionLoaded, ownedIndividually, devUnlockOverride,

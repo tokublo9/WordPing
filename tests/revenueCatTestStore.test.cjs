@@ -104,6 +104,17 @@ test('nothing about products, entitlements or the purchase flows moved', () => {
   assert.match(purchases, /identity\.kind === 'custom'[\s\S]{0,100}\{ apiKey, appUserID: identity\.appUserID \}/u);
   assert.match(purchases, /await Purchases\.setLogLevel\(LOG_LEVEL\.WARN\);/u);
 
+  // Startup diagnostics read the identity only after the one configure call
+  // has completed, and before the existing migration can change it.
+  const configure = purchases.slice(purchases.indexOf('export function configureRevenueCat('));
+  const configureAt = configure.indexOf('Purchases.configure(identity.kind');
+  const configuredAt = configure.indexOf('if (!(await Purchases.isConfigured()))');
+  const userIdAt = configure.indexOf('const appUserId = await Purchases.getAppUserID();');
+  const migrationAt = configure.indexOf('await completeStoredRevenueCatIdentityMigration(identity);');
+  assert.ok(configureAt < configuredAt && configuredAt < userIdAt && userIdAt < migrationAt);
+  assert.equal((purchases.match(/\[RevenueCat\] Current App User ID:/gu) ?? []).length, 1);
+  assert.match(purchases, /console\.warn\('\[RevenueCat\] Current App User ID:', appUserId\);/u);
+
   // The hook that owns purchase, restore and refresh is untouched by this.
   const subscription = read('src/hooks/useSubscription.ts');
   assert.doesNotMatch(subscription, /TEST_STORE|USE_REVENUECAT_TEST_STORE|resolveRevenueCatApiKey/u);

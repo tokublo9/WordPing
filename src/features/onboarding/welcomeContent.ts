@@ -1,6 +1,5 @@
 import type { OnboardingChoices, WordCard } from '../../types';
 import { WELCOME_FOLDER_ID } from '../../lib/db';
-import { BCP47_TO_UI_LANG, translate } from '../../i18n';
 
 /**
  * The two folders a brand-new install starts with.
@@ -60,33 +59,6 @@ export const TIPS_FOLDER_NAMES: Record<string, string> = {
   'el-GR': 'Μπορείτε να αλλάξετε το όνομα και το εικονίδιο',
   'sv-SE': 'Du kan ändra namn och ikon',
 };
-
-/**
- * The card that shows what a card *is*.
- *
- * It sits above the instructions on both paths and is the first thing a new
- * user sees: the front reads "Front" and the back reads "Back", so one tap
- * demonstrates the gesture that the second instruction then describes in
- * words. Nothing else in the tutorial shows the two faces belong to one card.
- *
- * BOTH SIDES ARE IN THE EXPLANATION LANGUAGE, on both paths. Every other
- * Language Learning card puts the learning language on the front, but this one
- * is not vocabulary — it is a label for the surface it is printed on, and a
- * label in a language the user is still learning teaches nothing. That also
- * keeps its `wordLang` honest, so TTS reads it in the language it is written
- * in.
- *
- * The two words are `word_label` and `meaning_label`, the same strings the
- * Add/Edit sheet and the bulk importer already print over those two fields. The
- * card therefore names the faces exactly as the rest of the app does, in all
- * twenty languages, without any locale dictionary gaining an entry for it.
- */
-export const FACE_CARD_ID = 'wp-w0';
-
-/** The eight instruction cards, in the order they follow the face card. */
-const TUTORIAL_CARD_IDS = [
-  'wp-w1', 'wp-w2', 'wp-w3', 'wp-w4', 'wp-w5', 'wp-w6', 'wp-w7', 'wp-w8',
-] as const;
 
 /** Exactly eight, so a language cannot ship with an instruction missing. */
 type TutorialTexts = readonly [string, string, string, string, string, string, string, string];
@@ -308,34 +280,13 @@ const WELCOME_CARD_TEXTS: Record<string, TutorialTexts> = {
  * Every id onboarding owns.
  *
  * The whole list is removed and rebuilt when onboarding completes, so it must
- * cover the largest set the builder can return — the face card plus the eight
- * instructions of Language Learning. Vocabulary & Terms returns the face card
- * and four of the same instruction ids, and the four it leaves out are cleared
- * by the same filter rather than lingering from the seed.
+ * cover the largest set the builder can return — the eight cards of Language
+ * Learning. Vocabulary & Terms returns four of the same ids, and the four it
+ * leaves out are cleared by the same filter rather than lingering from the seed.
  */
-export const WELCOME_CARD_IDS: string[] = [FACE_CARD_ID, ...TUTORIAL_CARD_IDS];
-
-/**
- * The "Front" / "Back" card, in the language the user reads.
- *
- * `createdAt: 1` puts it above every instruction, which each start at 2 — the
- * list is drawn in the order this builder returns, and sorting by registration
- * order lands on the same arrangement.
- */
-function buildFaceCard(meaningLang: string): WordCard {
-  const uiLang = BCP47_TO_UI_LANG[meaningLang] ?? 'en-US';
-  return {
-    id:          FACE_CARD_ID,
-    createdAt:   1,
-    word:        translate(uiLang, 'word_label'),
-    meaning:     translate(uiLang, 'meaning_label'),
-    note:        '',
-    wordLang:    meaningLang,
-    meaningLang,
-    folderId:    WELCOME_FOLDER_ID,
-    builtIn:     true,
-  };
-}
+export const WELCOME_CARD_IDS: string[] = [
+  'wp-w1', 'wp-w2', 'wp-w3', 'wp-w4', 'wp-w5', 'wp-w6', 'wp-w7', 'wp-w8',
+];
 
 export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
   // Language Learning: eight cards, front = learn lang, back = explanation lang,
@@ -354,9 +305,9 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
   const meaningTexts = WELCOME_CARD_TEXTS[meaningLang] ?? WELCOME_CARD_TEXTS['en-US'];
 
   if (choices.purpose === 'words') {
-    return [buildFaceCard(meaningLang), ...[0, 1, 2, 3].map(i => ({
-      id:          TUTORIAL_CARD_IDS[i],
-      createdAt:   i + 2,
+    return [0, 1, 2, 3].map(i => ({
+      id:          WELCOME_CARD_IDS[i],
+      createdAt:   i + 1,
       word:        meaningTexts[i * 2],
       meaning:     meaningTexts[i * 2 + 1],
       note:        '',
@@ -366,12 +317,12 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
       // Written here, where the provenance is actually known: this text is
       // the app's own tutorial copy. The first edit clears it for good.
       builtIn:     true,
-    }))];
+    }));
   }
 
-  return [buildFaceCard(meaningLang), ...TUTORIAL_CARD_IDS.map((id, i) => ({
+  return WELCOME_CARD_IDS.map((id, i) => ({
     id,
-    createdAt:   i + 2,
+    createdAt:   i + 1,
     word:        wordTexts[i],
     meaning:     meaningTexts[i],
     note:        '',
@@ -379,5 +330,5 @@ export function buildWelcomeCards(choices: OnboardingChoices): WordCard[] {
     meaningLang,
     folderId:    WELCOME_FOLDER_ID,
     builtIn:     true,
-  }))];
+  }));
 }

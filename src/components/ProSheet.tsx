@@ -51,6 +51,7 @@ import {
 } from './ThemeSkinPreview';
 import { SHOP_ITEMS } from './KisekaeShopSheet';
 import { ThemeDetailsSheet } from './ThemeDetailsSheet';
+import { AboutAIVoiceDialog } from './AboutAIVoiceDialog';
 import { LEGAL_URLS } from '../config/legalUrls';
 import { shouldShowJapanCommerceDisclosure } from '../lib/japanCommerceDisclosure';
 
@@ -1487,6 +1488,7 @@ export function ProSheet({
   const [loadingPlan, setLoadingPlan]               = useState<'basic' | 'premium' | null>(null);
   const [playingDemo, setPlayingDemo]               = useState<DemoKey | null>(null);
   const [detailsItem, setDetailsItem]               = useState<ShopItem | null>(null);
+  const [aboutAIVoiceVisible, setAboutAIVoiceVisible] = useState(false);
   const deviceRegionCode = useMemo(() => {
     try {
       return getLocales()[0]?.regionCode ?? null;
@@ -1611,6 +1613,7 @@ export function ProSheet({
       setOpenAnimationDone(false);
       setPlayingDemo(null);
       setLoadingDemo(null);
+      setAboutAIVoiceVisible(false);
       stopPlayback();
     }
   }, [visible]);
@@ -1822,18 +1825,31 @@ export function ProSheet({
                     </Text>
                   </TouchableOpacity>
                 </View>
-                {showJapanCommerceDisclosure && (
+                <View style={s.legalLinkRow}>
+                  {showJapanCommerceDisclosure && (
+                    <TouchableOpacity
+                      style={[s.legalButton, { borderColor: pal.border }]}
+                      onPress={() => void openExternal(LEGAL_URLS.commercialTransactions)}
+                      activeOpacity={0.75}
+                      accessibilityRole="link"
+                    >
+                      <Text style={[s.legalButtonText, { color: themeColor }]}>
+                        特定商取引法に基づく表記
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
-                    style={[s.commercialDisclosureButton, { borderColor: pal.border }]}
-                    onPress={() => void openExternal(LEGAL_URLS.commercialTransactions)}
+                    style={[s.legalButton, { borderColor: pal.border }]}
+                    onPress={() => setAboutAIVoiceVisible(true)}
                     activeOpacity={0.75}
-                    accessibilityRole="link"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('ai_voice_info_menu')}
                   >
                     <Text style={[s.legalButtonText, { color: themeColor }]}>
-                      特定商取引法に基づく表記
+                      {t('ai_voice_info_menu')}
                     </Text>
                   </TouchableOpacity>
-                )}
+                </View>
               </View>
             </View>
 
@@ -1888,6 +1904,13 @@ export function ProSheet({
         // Inside the Upgrade sheet the plan buttons are already on screen, so a
         // locked theme just closes the details rather than reopening this sheet.
         onApply={(item) => { if (isSubscribed) onPickSkin?.(item.id); setDetailsItem(null); }}
+      />
+      <AboutAIVoiceDialog
+        visible={aboutAIVoiceVisible}
+        onClose={() => setAboutAIVoiceVisible(false)}
+        pal={pal}
+        themeColor={themeColor}
+        showPermissionAction={false}
       />
     </View>
   );
@@ -2524,15 +2547,6 @@ const s = StyleSheet.create({
   },
   legalButton: {
     flex: 1,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  commercialDisclosureButton: {
     minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',

@@ -94,6 +94,43 @@ test('Test Mode stops playback on a flip in either direction', () => {
   assert.equal((screen.match(/useWordCardVoicePlayback\(/gu) ?? []).length, 1);
 });
 
+test('Word List stops playback before a card tap changes sides', () => {
+  const card = read('src/components/SwipeableCard.tsx');
+  const tap = card.slice(card.indexOf('const handleTap = () => {'), card.indexOf('const handleCardPress'));
+
+  // Closing a swipe action does not change the visible side. The actual flip
+  // does, so it stops the shared engine first and only then updates the card.
+  assert.match(tap, /if \(isOpen\.current\) \{ close\(\); return; \}/u);
+  assert.match(tap, /if \(openCardRef\.current\) \{ openCardRef\.current\(\); return; \}/u);
+  assert.match(tap, /stopVoice\(\);\s*onFlip\(\);/u);
+  assert.match(card, /playMeaning: speakMeaning, stopVoice, wordVoiceSource/u);
+});
+
+test('device voice waits for the previous native audio session to close', () => {
+  const tts = read('src/lib/tts.ts');
+  const free = tts.slice(
+    tts.indexOf('async function speakFree('),
+    tts.indexOf('// ── Fetched AI audio playback'),
+  );
+  const fetched = tts.slice(
+    tts.indexOf('async function speakFetchedAudio('),
+    tts.indexOf('/** User-content and Natural AI Voice playback'),
+  );
+
+  // Word-card players keep expo-audio from scheduling its own delayed iOS
+  // deactivation; this module performs one explicit, awaitable transition.
+  assert.match(fetched, /keepAudioSessionActive: true/u);
+  assert.match(fetched, /deactivateAudioPlayerSession\(\);/u);
+  assert.match(tts, /audioLib\(\)\.setIsAudioActiveAsync\(false\)/u);
+
+  // AVSpeechSynthesizer starts only after that transition. A stop/flip during
+  // the await still wins via the epoch check and cannot start stale speech.
+  const waitAt = free.indexOf('await waitForAudioPlayerSessionTransition();');
+  const epochAt = free.indexOf("if (playbackEpoch !== epoch) throw new Error('cancelled');");
+  const speakAt = free.indexOf('speechLib().speak(');
+  assert.ok(waitAt > -1 && epochAt > waitAt && speakAt > epochAt);
+});
+
 test('card taps snap both faces without waiting for Custom Voice cleanup', () => {
   assert.match(read('src/features/flags.ts'), /export const CARD_FLIP_ANIMATION_ENABLED = false;/u);
   const cases = [

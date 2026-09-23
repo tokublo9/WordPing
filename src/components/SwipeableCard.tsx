@@ -197,6 +197,9 @@ export function SwipeableCard({
     if (isOpen.current) { close(); return; }
     // Another card is swiped open — close that one, don't flip this card.
     if (openCardRef.current) { openCardRef.current(); return; }
+    // The visible side is changing. Stop whichever list card currently owns
+    // audio before its text leaves the screen.
+    stopVoice();
     onFlip();
   };
 
@@ -271,7 +274,7 @@ export function SwipeableCard({
     : 0;
 
   // ── Voice ────────────────────────────────────────────────────────────────────
-  const { voiceState, playWord: speakWord, playMeaning: speakMeaning, wordVoiceSource } =
+  const { voiceState, playWord: speakWord, playMeaning: speakMeaning, stopVoice, wordVoiceSource } =
     useWordCardVoicePlayback({
       item,
       canUseAIVoice,

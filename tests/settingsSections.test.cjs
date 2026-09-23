@@ -413,10 +413,9 @@ test('Restore reuses the shared handler and cannot be run twice at once', () => 
     .replace(/\/\*[\s\S]*?\*\//gu, '')
     .replace(/^\s*\/\/.*$/gmu, '');
   assert.doesNotMatch(subscriptionCode, /setError\(|isPurchasing|isRestoring/u);
-  // Derived from the freshly fetched receipt, never from the `plan` state that
-  // the restore exists to correct.
-  // Both facts come from the same freshly fetched receipt, never client state.
-  assert.match(subscription, /restoreOutcomeForPlan\(\s*planFromCustomerInfo\(refreshedInfo\),\s*ownsAnyThemeFromCustomerInfo\(refreshedInfo\),\s*\)/u);
+  // The visible details and the applied access come from the same freshly
+  // fetched receipt, never from the `plan` state the restore exists to correct.
+  assert.match(subscription, /const details = restoredPurchaseDetailsFromCustomerInfo\(refreshedInfo\);\s*return restoreOutcomeForPlan\(details\.plan, details\);/u);
   // A refused concurrent operation is an outcome the UI can report, not silence.
   assert.match(subscription, /return result === BUSY \? \{ kind: 'busy' \} : result;/u);
 });
@@ -425,13 +424,15 @@ test('every purchase and restore outcome reaches a visible message', () => {
   const app = read('App.tsx');
   const outcomes = read('src/features/purchases/purchaseOutcome.ts');
 
-  // One place turns an outcome into an alert, so no screen can forget to.
-  // The body is optional: a theme-only restore has no sentence that is true of
-  // it, so it announces its title alone rather than borrowing subscription copy.
+  // One place turns ordinary outcomes into an alert, and successful restores
+  // use the detailed receipt-backed confirmation.
   assert.match(app, /const announceOutcome = useCallback\(\(message: OutcomeMessage \| null\) => \{[\s\S]*?if \(message\) Alert\.alert\(t\(message\.titleKey\), message\.bodyKey && t\(message\.bodyKey\)\);/u);
   assert.match(app, /announceOutcome\(purchaseOutcomeMessage\(await purchaseBasic\(\)\)\);/u);
   assert.match(app, /announceOutcome\(purchaseOutcomeMessage\(await purchasePremium\(\)\)\);/u);
-  assert.match(app, /announceOutcome\(restoreOutcomeMessage\(await restorePurchases\(\)\)\);/u);
+  assert.match(app, /announceRestoreOutcome\(await restorePurchases\(\)\);/u);
+  assert.match(app, /outcome\.details\.themeIds\.map[\s\S]*?t\(item\.nameKey\)/u);
+  assert.match(app, /outcome\.details\.plan === 'premium'[\s\S]*?t\('basic_plan_name'\)/u);
+  assert.match(app, /restore_details_template[\s\S]*?\{themes\}[\s\S]*?\{subscription\}[\s\S]*?\{period\}/u);
 
   // Cancelling is the one outcome that says nothing — that is what the null is.
   assert.match(outcomes, /case 'cancelled':\s*return null;/u);
@@ -443,17 +444,19 @@ test('every purchase and restore outcome reaches a visible message', () => {
     assert.match(outcomes, new RegExp(`case '${kind}':`, 'u'));
   }
   // An already-active entitlement counts as restored rather than "none found".
-  assert.match(outcomes, /if \(plan !== 'free'\) return \{ kind: 'restored', plan \};/u);
+  assert.match(outcomes, /if \(plan !== 'free'\) return \{ kind: 'restored', plan, details \};/u);
   // A theme owned outright is a restored purchase too. Reporting "no purchases
   // found" to someone who owns one was true of their plan and false of their
   // account, and Restore exists to settle exactly that question.
-  assert.match(outcomes, /return restoredAnyTheme \? \{ kind: 'restored_themes' \} : \{ kind: 'nothing_found' \};/u);
-  // Only purchases.ts may read entitlements.active, so the theme half of the
-  // answer is resolved there rather than in the hook.
-  assert.match(
-    read('src/lib/purchases.ts'),
-    /export function ownsAnyThemeFromCustomerInfo\(info: CustomerInfo\): boolean \{\s*return hasAnyThemeEntitlement\(Object\.keys\(info\.entitlements\.active \?\? \{\}\)\);/u,
-  );
+  assert.match(outcomes, /details\.themeIds\.length > 0\s*\? \{ kind: 'restored_themes', details \}/u);
+  // The summary uses original purchase dates and active expirations from the
+  // same receipt. A subscription's own dates take precedence, so an owned
+  // lifetime theme cannot make a monthly subscription look permanent.
+  const purchases = read('src/lib/purchases.ts');
+  assert.match(purchases, /export function restoredPurchaseDetailsFromCustomerInfo/u);
+  assert.match(purchases, /const relevantEntitlements = subscriptionEntitlement\s*\? \[subscriptionEntitlement\]\s*: themeEntitlements;/u);
+  assert.match(purchases, /entitlement\.originalPurchaseDate \?\? entitlement\.latestPurchaseDate/u);
+  assert.match(purchases, /entitlement\.expirationDate === null/u);
 });
 
 test('Purchases copy is translated in English and Japanese', () => {
@@ -462,6 +465,8 @@ test('Purchases copy is translated in English and Japanese', () => {
   assert.match(i18n, /restore_purchases:  'Restore Purchases',/u);
   assert.match(i18n, /purchases_section:  '購入',/u);
   assert.match(i18n, /restore_purchases:  '購入を復元',/u);
+  assert.match(i18n, /restore_details_template: '個別購入テーマ: \{themes\}\\n\\nサブスクリプション: \{subscription\}\\n復元したデータの期間: \{period\}',/u);
+  assert.match(i18n, /restore_details_no_expiration: '期限なし',/u);
 });
 
 // ── Themes are subscription-only ─────────────────────────────────────────────
@@ -561,6 +566,18 @@ test('a free user tapping a paid theme opens Upgrade Plan and applies nothing', 
   // A completed purchase applies the theme through the same call the shop
   // already uses, so nothing bypasses the access check.
   assert.match(shop, /onPickSkin\(exists \? item\.id : null\);\s*\n\s*setDetailsItem\(null\);/u);
+
+  // Clearing the selected item outside the detail sheet (the purchase path
+  // above) must also reset its retained animation state, or the last detail
+  // remains visibly on top of the grid with pointer events disabled.
+  const details = read('src/components/ThemeDetailsSheet.tsx');
+  assert.match(
+    details,
+    /if \(!item\) \{\s*animatedIdRef\.current = null;\s*slideX\.setValue\(SCREEN_W\);\s*setViewerState\(null\);\s*\}/u,
+  );
+  // The mounted shop also clears nested navigation while hidden, guaranteeing
+  // that opening Theme Shop always starts from the list.
+  assert.match(shop, /if \(!visible\) \{[\s\S]{0,260}setDetailsItem\(null\);\s*\n\s*return;/u);
 });
 
 test('an expired subscription falls back to a free theme without losing the preference', () => {
@@ -784,13 +801,22 @@ test('Owned replaces the price, and Buy is offered only at a real price', () => 
   // subscription check sits between them now — so the ordering is asserted by
   // position rather than by adjacency.
   const rule = products.slice(products.indexOf('export function resolveThemePriceForProduct('));
-  const ownedAt = rule.indexOf("if (ownedIndividually) return { state: 'owned' };");
+  const ownedAt = rule.indexOf('if (ownedIndividually) {');
   const productAt = rule.indexOf('const product = products.get(refs.packageId);');
   assert.ok(ownedAt > -1 && productAt > -1);
   assert.ok(ownedAt < productAt, 'ownership must be answered before any price lookup');
   assert.match(products, /const ownedIndividually = ownedEntitlementIds\.has\(refs\.entitlementId\);/u);
   // A purchase is never offered without a price to charge.
   assert.match(details, /\{priceDisplay\.state === 'priced' && onBuy && \(/u);
+
+  // The grid withholds "Owned" while the plan covers the theme anyway: for a
+  // subscriber every theme is already usable, so the badge would read as a
+  // difference in what they can do today when there is none.
+  assert.match(shop, /priceDisplay\.state === 'owned' && !priceDisplay\.alsoIncludedInPlan \?/u);
+  // Theme Details keeps it unconditionally — the one place that can say the
+  // theme is theirs permanently, which is what outlives the subscription.
+  assert.match(details, /\{priceDisplay\.state === 'owned' \?/u);
+  assert.doesNotMatch(details, /alsoIncludedInPlan/u);
 });
 
 test('a locked card shows a lock and an accessible label instead of a price', () => {

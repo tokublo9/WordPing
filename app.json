@@ -28,6 +28,7 @@
         "expo-build-properties",
         {
           "ios": {
+            "deploymentTarget": "15.1",
             "extraBuildSettings": {
               "SWIFT_VERSION": "5.9",
               "OTHER_SWIFT_FLAGS": "$(inherited) -enable-upcoming-feature InternalImportsByDefault"
@@ -35,6 +36,7 @@
           }
         }
       ],
+      "./plugins/withCocoaPodsDeploymentTarget",
       [
         "expo-audio",
         {

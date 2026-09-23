@@ -10,7 +10,10 @@ import {
   completeStoredRevenueCatIdentityMigration,
   prepareStoredRevenueCatIdentity,
 } from './revenueCatIdentity';
-import { hasAnyThemeEntitlement } from '../features/themes/themeProducts';
+import {
+  themeProductRefs,
+  themeIdsForEntitlements,
+} from '../features/themes/themeProducts';
 
 export const ENTITLEMENT_IDS = {
   BASIC: 'basic',
@@ -51,18 +54,75 @@ export function activeExpirationDateFromCustomerInfo(info: CustomerInfo): string
   return entitlement?.expirationDate ?? null;
 }
 
+export interface RestoredPurchaseDetails {
+  /** Individually purchased themes, never themes merely included in a plan. */
+  themeIds: string[];
+  /** The active subscription tier restored from this receipt. */
+  plan: 'free' | 'basic' | 'premium';
+  /** Start of the restored subscription, or first theme purchase for theme-only restores. */
+  startedAt: string | null;
+  /** Subscription expiry, or null for a permanent theme-only restore. */
+  endsAt: string | null;
+  /** Distinguishes permanent access from an unavailable expiry date. */
+  hasLifetimeAccess: boolean;
+}
+
+function validTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 /**
- * Whether the receipt carries any theme bought outright.
+ * Builds the receipt-backed summary shown after Restore Purchases succeeds.
  *
- * Here rather than at the call site because this module is the only place
- * `entitlements.active` may be read — the rule that keeps every plan decision
- * going through `planFromCustomerInfo` instead of a second, divergent
- * precedence. A theme entitlement can never collide with `basic` or `premium`,
- * so this answers a different question about the same snapshot and does not
- * touch the plan.
+ * Only active plan and theme entitlements participate: this mirrors what the
+ * restore actually made usable on this device and avoids presenting an expired
+ * subscription as though it had been restored. When a subscription is active,
+ * its own start and expiry define the displayed range; individually purchased
+ * themes must not make that subscription look permanent. For a theme-only
+ * restore, the range runs from the first purchase through lifetime access.
  */
-export function ownsAnyThemeFromCustomerInfo(info: CustomerInfo): boolean {
-  return hasAnyThemeEntitlement(Object.keys(info.entitlements.active ?? {}));
+export function restoredPurchaseDetailsFromCustomerInfo(
+  info: CustomerInfo,
+): RestoredPurchaseDetails {
+  const active = info.entitlements.active ?? {};
+  const plan = planFromCustomerInfo(info);
+  const themeIds = themeIdsForEntitlements(Object.keys(active));
+  const subscriptionEntitlement = plan === 'premium'
+    ? active[ENTITLEMENT_IDS.PREMIUM]
+    : plan === 'basic'
+      ? active[ENTITLEMENT_IDS.BASIC]
+      : undefined;
+  const themeEntitlements = themeIds.flatMap(themeId => {
+    const entitlementId = themeProductRefs(themeId)?.entitlementId;
+    return entitlementId && active[entitlementId] ? [active[entitlementId]] : [];
+  });
+  const relevantEntitlements = subscriptionEntitlement
+    ? [subscriptionEntitlement]
+    : themeEntitlements;
+
+  const starts = relevantEntitlements
+    .map(entitlement => validTimestamp(
+      entitlement.originalPurchaseDate ?? entitlement.latestPurchaseDate,
+    ))
+    .filter((timestamp): timestamp is number => timestamp !== null);
+  const expirations = relevantEntitlements
+    .map(entitlement => validTimestamp(entitlement.expirationDate))
+    .filter((timestamp): timestamp is number => timestamp !== null);
+  const hasLifetimeAccess = relevantEntitlements.some(
+    entitlement => entitlement.expirationDate === null,
+  );
+
+  return {
+    themeIds,
+    plan,
+    startedAt: starts.length > 0 ? new Date(Math.min(...starts)).toISOString() : null,
+    endsAt: !hasLifetimeAccess && expirations.length > 0
+      ? new Date(Math.max(...expirations)).toISOString()
+      : null,
+    hasLifetimeAccess,
+  };
 }
 
 let configurationRequest: Promise<boolean> | null = null;
@@ -134,6 +194,19 @@ export function configureRevenueCat(): Promise<boolean> {
       console.error('[RC] RevenueCat did not finish configuration.');
       return false;
     }
+
+    // Keep this after the SDK confirms configuration and before any identity
+    // migration. This is intentionally a warning so it remains visible while
+    // RevenueCat's normal INFO and DEBUG logging is disabled above. A logging
+    // failure must never disable purchases or alter the identity flow.
+    try {
+      const appUserId = await Purchases.getAppUserID();
+      console.warn('[RevenueCat] Current App User ID:', appUserId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[RevenueCat] Could not read current App User ID:', message);
+    }
+
     // A legacy install must first recover the SDK's cached anonymous user, then
     // alias that subscriber to the stored UUID. Failure leaves both the old
     // identity and the pending marker intact, so the next launch retries.

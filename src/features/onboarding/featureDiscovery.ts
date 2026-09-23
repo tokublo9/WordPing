@@ -20,7 +20,7 @@ import { planIsSubscribed, type PlanTier } from '../../lib/planLimits';
 export const FEATURE_MARKERS = {
   /** Settings → Card Behavior → the AI voice picker row. Premium only. */
   naturalAIVoice: 'natural-ai-voice.v1',
-  /** Settings → Help → About AI Voice. Premium only. */
+  /** Settings → App Info → About AI Voice. Premium only. */
   aboutAIVoice: 'about-ai-voice.v1',
   /** Settings → Theme Shop. Basic and Premium. */
   themeShop: 'theme-shop.v1',

@@ -85,7 +85,10 @@ test('a registered file replaces speech outright, with no generation', () => {
   // speakCustom opens the local file and nothing else: no gateway, no cache
   // fetch, no consent check — so a custom voice works with the network off.
   const speakCustom = tts.slice(tts.indexOf('export async function speakCustom'), tts.indexOf('// ── Public API'));
-  assert.match(speakCustom, /createAudioPlayer\(\{ uri \}\)/u);
+  assert.match(
+    speakCustom,
+    /createAudioPlayer\(\{ uri \}, \{ keepAudioSessionActive: true \}\)/u,
+  );
   assert.doesNotMatch(
     speakCustom,
     /fetchAndCacheAudio|requestAISpeech|speakWithAI|ensureAIConsent|requireAI/u,

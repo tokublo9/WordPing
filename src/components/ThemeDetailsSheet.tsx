@@ -459,10 +459,17 @@ export function ThemeDetailsSheet({
     });
   }, [displayItem]);
 
-  // Close fullscreen viewer when the sheet itself is dismissed
+  // The usual Back path animates `slideX` before clearing `item`, but a
+  // successful purchase clears the parent's item directly after applying the
+  // theme. Reset the retained sheet too, otherwise its last rendered theme
+  // remains at translateX=0 and visually covers the shop grid on every reopen.
   useEffect(() => {
-    if (!item) setViewerState(null);
-  }, [item]);
+    if (!item) {
+      animatedIdRef.current = null;
+      slideX.setValue(SCREEN_W);
+      setViewerState(null);
+    }
+  }, [item, slideX]);
 
   // Sequential gallery loading: the Word List frame loads first, and the Test
   // frame only once it is ready. Keying it by id resets it automatically when

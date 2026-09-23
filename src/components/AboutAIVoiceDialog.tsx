@@ -46,9 +46,16 @@ interface Props {
   onClose: () => void;
   pal: Palette;
   themeColor: string;
+  /**
+   * Settings owns permission changes. Other surfaces may reuse the disclosure
+   * as read-only information without creating another consent entry point.
+   */
+  showPermissionAction?: boolean;
 }
 
-export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props) {
+export function AboutAIVoiceDialog({
+  visible, onClose, pal, themeColor, showPermissionAction = true,
+}: Props) {
   const t = useLang();
   const insets = useSafeAreaInsets();
   const consent = useAIConsent();
@@ -148,33 +155,43 @@ export function AboutAIVoiceDialog({ visible, onClose, pal, themeColor }: Props)
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            {/* The privacy disclosure uses the same body treatment throughout
-                this dialog so no paragraph receives visual emphasis. */}
-            <Text style={[styles.body, styles.leadSpacing, { color: pal.sub }]}>
-              {t('ai_data_lead')}
-            </Text>
-            <Text style={[styles.body, { color: pal.sub }]}>{t('ai_voice_info_body')}</Text>
+            {/* Settings uses the split copy whose last sentence says the action
+                is on this screen. The Upgrade sheet is read-only, so it uses
+                the complete consent disclosure instead; that version directs
+                permission changes back to Settings. */}
+            {showPermissionAction ? (
+              <>
+                <Text style={[styles.body, styles.leadSpacing, { color: pal.sub }]}>
+                  {t('ai_data_lead')}
+                </Text>
+                <Text style={[styles.body, { color: pal.sub }]}>{t('ai_voice_info_body')}</Text>
+              </>
+            ) : (
+              <Text style={[styles.body, { color: pal.sub }]}>{t('ai_consent_body')}</Text>
+            )}
 
             {/* One action, in the same subdued style either way: the label is
                 the state. `unknown` and `declined` both read Allow, because
                 both mean permission is not held. */}
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                { borderColor: pal.border, backgroundColor: pal.input },
-                busy && styles.actionButtonBusy,
-              ]}
-              onPress={granted ? revoke : () => { void apply('granted'); }}
-              disabled={busy}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={t(actionKey)}
-              accessibilityState={{ disabled: busy }}
-            >
-              <Text style={[styles.actionLabel, { color: pal.sub }]}>
-                {t(actionKey)}
-              </Text>
-            </TouchableOpacity>
+            {showPermissionAction && (
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  { borderColor: pal.border, backgroundColor: pal.input },
+                  busy && styles.actionButtonBusy,
+                ]}
+                onPress={granted ? revoke : () => { void apply('granted'); }}
+                disabled={busy}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t(actionKey)}
+                accessibilityState={{ disabled: busy }}
+              >
+                <Text style={[styles.actionLabel, { color: pal.sub }]}>
+                  {t(actionKey)}
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
 
           <TouchableOpacity

@@ -29,6 +29,7 @@ import {
   purchaseOutcomeMessage,
   restoreOutcomeMessage,
   type OutcomeMessage,
+  type RestoreOutcome,
 } from './src/features/purchases/purchaseOutcome';
 import { AdBannerPlaceholder } from './src/components/AdBannerPlaceholder';
 import { TopBanner } from './src/components/TopBanner';
@@ -71,6 +72,7 @@ import { AppModals } from './src/app/AppModals';
 import { WordCoreAlert as Alert, WordCoreAlertHost } from './src/components/WordCoreAlert';
 import { VoiceCreditsExhaustedDialog } from './src/components/VoiceCreditsExhaustedDialog';
 import { UpgradePlanImagePreloader } from './src/components/ProSheet';
+import { SHOP_ITEMS } from './src/components/KisekaeShopSheet';
 import { TestModeScreen, type TestModeProgress } from './src/components/TestModeScreen';
 import { recordAnswer } from './src/features/study/studyLog';
 import { AppContextMenu } from './src/app/AppContextMenu';
@@ -132,6 +134,19 @@ function cardVoiceInput(card: WordCard): string {
     language: card.wordLang?.trim() || null,
     usesCustomAudio: Boolean(card.audioUri?.trim()),
   });
+}
+
+function formatRestoredPurchaseDate(value: string | null, language: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  try {
+    return new Intl.DateTimeFormat(language, {
+      year: 'numeric', month: 'short', day: 'numeric',
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
 }
 
 function AppContent() {
@@ -334,11 +349,39 @@ function AppContent() {
   // asked for and should have to acknowledge. It presents above the Settings
   // and Upgrade modals, which is where both callers live.
   const announceOutcome = useCallback((message: OutcomeMessage | null) => {
-    // The body is optional: a theme-only restore has no sentence that is true
-    // of it, so it announces its title alone rather than borrowing the
-    // subscription copy. See OutcomeMessage.bodyKey.
+    // Successful restores use the detailed path below. The generic mapper
+    // remains responsible for purchases, failures, busy and nothing-found.
     if (message) Alert.alert(t(message.titleKey), message.bodyKey && t(message.bodyKey));
   }, [t]);
+
+  const announceRestoreOutcome = useCallback((outcome: RestoreOutcome) => {
+    const message = restoreOutcomeMessage(outcome);
+    if (!message) return;
+    if (outcome.kind !== 'restored' && outcome.kind !== 'restored_themes') {
+      announceOutcome(message);
+      return;
+    }
+
+    const themeNames = outcome.details.themeIds.map(themeId => {
+      const item = SHOP_ITEMS.find(candidate => candidate.id === themeId);
+      return item ? t(item.nameKey) : themeId;
+    });
+    const themes = themeNames.length > 0 ? `\n• ${themeNames.join('\n• ')}` : '—';
+    const subscription = outcome.details.plan === 'premium'
+      ? t('cmp_premium')
+      : outcome.details.plan === 'basic'
+        ? t('basic_plan_name')
+        : '—';
+    const start = formatRestoredPurchaseDate(outcome.details.startedAt, language) ?? '—';
+    const end = outcome.details.hasLifetimeAccess
+      ? t('restore_details_no_expiration')
+      : formatRestoredPurchaseDate(outcome.details.endsAt, language) ?? '—';
+    const body = t('restore_details_template')
+      .replace('{themes}', themes)
+      .replace('{subscription}', subscription)
+      .replace('{period}', `${start} – ${end}`);
+    Alert.alert(t(message.titleKey), body);
+  }, [announceOutcome, language, t]);
 
   const subscribe = async (): Promise<void> => {
     announceOutcome(purchaseOutcomeMessage(await purchaseBasic()));
@@ -347,7 +390,7 @@ function AppContent() {
     announceOutcome(purchaseOutcomeMessage(await purchasePremium()));
   };
   const restore = async (): Promise<void> => {
-    announceOutcome(restoreOutcomeMessage(await restorePurchases()));
+    announceRestoreOutcome(await restorePurchases());
   };
 
   // Saving is switched off when stored data could not be read, so the user has

@@ -183,7 +183,10 @@ const SkinCard = memo(function SkinCard({
         ) : null}
       </View>
       <Text style={[styles.cardName, { color: pal.text }]} numberOfLines={2}>{t(item.nameKey)}</Text>
-      {priceDisplay.state === 'owned' ? (
+      {/* "Owned" is withheld while the plan covers the theme anyway — see
+          ThemePriceDisplay. Theme Details still shows it, which is where the
+          permanent fact belongs. */}
+      {priceDisplay.state === 'owned' && !priceDisplay.alsoIncludedInPlan ? (
         <Text style={[styles.cardPrice, { color: themeColor }]} numberOfLines={1}>
           {t('theme_owned')}
         </Text>
@@ -296,14 +299,20 @@ export function KisekaeShopSheet({
   }, [visible]);
 
   useEffect(() => {
-    if (visible) {
-      // Always open on the Popular tab and reset scroll position to the top.
-      setActiveTab('premium');
-      setOpenCount(c => c + 1);
-
-      slideY.setValue(SCREEN_H);
-      Animated.spring(slideY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
+    if (!visible) {
+      // The shop stays mounted to retain its image cache. Clear its nested
+      // navigation while it is off-screen so every later open starts at the
+      // theme grid, even if the shop was dismissed from a detail view.
+      setDetailsItem(null);
+      return;
     }
+
+    // Always open on the Popular tab and reset scroll position to the top.
+    setActiveTab('premium');
+    setOpenCount(c => c + 1);
+
+    slideY.setValue(SCREEN_H);
+    Animated.spring(slideY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
   }, [visible]);
 
   const handleClose = useCallback(() => {

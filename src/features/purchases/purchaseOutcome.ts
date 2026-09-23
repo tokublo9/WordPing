@@ -1,5 +1,6 @@
 import type { TranslationKey } from '../../i18n';
 import type { PlanTier } from '../../lib/planLimits';
+import type { RestoredPurchaseDetails } from '../../lib/purchases';
 
 /**
  * What a purchase or a restore actually did, and what to say about it.
@@ -33,7 +34,7 @@ export type PurchaseOutcome =
   | { kind: 'failed' };
 
 export type RestoreOutcome =
-  | { kind: 'restored'; plan: PaidPlan }
+  | { kind: 'restored'; plan: PaidPlan; details: RestoredPurchaseDetails }
   /**
    * No subscription, but at least one theme bought outright came back.
    *
@@ -41,7 +42,7 @@ export type RestoreOutcome =
    * this account has none — saying it would be a false statement. Separate from
    * `nothing_found` because something genuinely was restored.
    */
-  | { kind: 'restored_themes' }
+  | { kind: 'restored_themes'; details: RestoredPurchaseDetails }
   /** The receipt is valid and carries no active paid entitlement at all. */
   | { kind: 'nothing_found' }
   | { kind: 'cancelled' }
@@ -51,14 +52,9 @@ export type RestoreOutcome =
 export interface OutcomeMessage {
   titleKey: TranslationKey;
   /**
-   * Optional, because one outcome has no sentence that is true of it.
-   *
-   * A theme-only restore cannot borrow `restore_done_body` ("Your subscription
-   * is active on this device") and has no body string of its own — adding one
-   * would mean an entry in all twenty locale dictionaries, which the English
-   * and Japanese only rule defers. The title alone ("Purchases Restored") is
-   * accurate, already translated everywhere, and far better than the
-   * "no purchases found" this replaces.
+   * Optional because the successful restore body is assembled from receipt
+   * details by App. A theme-only restore still cannot borrow
+   * `restore_done_body` ("Your subscription is active on this device").
    */
   bodyKey?: TranslationKey;
 }
@@ -79,10 +75,12 @@ export interface OutcomeMessage {
  */
 export function restoreOutcomeForPlan(
   plan: PlanTier,
-  restoredAnyTheme = false,
+  details: RestoredPurchaseDetails,
 ): RestoreOutcome {
-  if (plan !== 'free') return { kind: 'restored', plan };
-  return restoredAnyTheme ? { kind: 'restored_themes' } : { kind: 'nothing_found' };
+  if (plan !== 'free') return { kind: 'restored', plan, details };
+  return details.themeIds.length > 0
+    ? { kind: 'restored_themes', details }
+    : { kind: 'nothing_found' };
 }
 
 /** `null` means say nothing: the user cancelled and knows they did. */
@@ -111,7 +109,7 @@ export function restoreOutcomeMessage(outcome: RestoreOutcome): OutcomeMessage |
     case 'restored':
       return { titleKey: 'restore_done_title', bodyKey: 'restore_done_body' };
     case 'restored_themes':
-      // Title only — see the note on OutcomeMessage.bodyKey.
+      // App supplies the receipt-backed theme names and period.
       return { titleKey: 'restore_done_title' };
     case 'nothing_found':
       return { titleKey: 'restore_purchases', bodyKey: 'restore_none_body' };

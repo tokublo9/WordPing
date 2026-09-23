@@ -244,6 +244,7 @@ export type TranslationKey =
   | 'purchase_error_title' | 'purchase_failed_body' | 'purchase_unavailable_body'
   | 'purchase_busy_body'
   | 'restore_done_title' | 'restore_done_body' | 'restore_none_body' | 'restore_failed_body'
+  | 'restore_details_template' | 'restore_details_no_expiration'
   // ── Notification intervals ────────────────────────────────────────────────
   // Display labels only. `INTERVAL_OPTIONS` still stores seconds, so a
   // translation here can never change what is scheduled.
@@ -453,7 +454,7 @@ const enUS: Dict = {
     'To generate High-Quality AI Voice, the text you want to play and your selected voice model (Marin or Cedar) are sent to OpenAI through the WordCore server.\n\n' +
     'The transmitted data is never used for any purpose other than generating the requested High-Quality AI Voice.\n\n' +
     'The WordCore server also receives an anonymous installation ID and an anonymous subscription ID solely to verify your plan and prevent abuse. These identifiers are not sent to OpenAI.\n\n' +
-    'No data is sent without your permission. You can withdraw permission at any time from Settings → Help → About AI Voice.',
+    'No data is sent without your permission. You can withdraw permission at any time from Settings.',
   ai_consent_allow: 'Allow and Continue',
   ai_consent_decline: 'Not Now',
   ai_consent_setting: 'AI Data Sharing',
@@ -583,6 +584,8 @@ const enUS: Dict = {
   purchase_busy_body: 'Another purchase or restore is still in progress. Please wait a moment and try again.',
   restore_done_title: 'Purchases Restored',
   restore_done_body: 'Your subscription is active on this device.',
+  restore_details_template: 'Individually purchased themes: {themes}\n\nSubscription: {subscription}\nRestored data period: {period}',
+  restore_details_no_expiration: 'No expiration',
   restore_none_body: 'No active purchases were found for this Apple ID.',
   restore_failed_body: 'Purchases could not be restored. Please check your connection and try again.',
   restore_purchases:  'Restore Purchases',
@@ -1186,7 +1189,7 @@ const ja: Dict = {
   // ── AI data-sharing consent ───────────────────────────────────────────────
   ai_consent_title: 'AI機能を使用しますか？',
   ai_data_lead: 'AI高品質音声を生成するため、再生したいテキストと選択した音声モデル（MarinまたはCedar）を、ワードコアのサーバーを経由してOpenAIへ送信します。',
-  ai_consent_body: 'AI高品質音声を生成するため、再生したいテキストと選択した音声モデル（MarinまたはCedar）を、ワードコアのサーバーを経由してOpenAIへ送信します。\n\n送信されたデータが、AI高品質音声の生成以外の目的で使用されることは一切ありません。\n\nワードコアのサーバーは、ご利用プランの確認と不正利用の防止のみを目的として、匿名のインストールIDおよび匿名のサブスクリプションIDも受け取ります。これらがOpenAIへ送信されることはありません。\n\n許可なくデータが送信されることはありません。許可は「設定」→「ヘルプ」→「AI Voiceについて」からいつでも取り消せます。',
+  ai_consent_body: 'AI高品質音声を生成するため、再生したいテキストと選択した音声モデル（MarinまたはCedar）を、ワードコアのサーバーを経由してOpenAIへ送信します。\n\n送信されたデータが、AI高品質音声の生成以外の目的で使用されることは一切ありません。\n\nワードコアのサーバーは、ご利用プランの確認と不正利用の防止のみを目的として、匿名のインストールIDおよび匿名のサブスクリプションIDも受け取ります。これらがOpenAIへ送信されることはありません。\n\n許可なくデータが送信されることはありません。許可は「設定」からいつでも取り消せます。',
   ai_consent_allow: '許可して続ける',
   ai_consent_decline: '今は許可しない',
   ai_consent_setting: 'AIデータ共有',
@@ -1312,6 +1315,8 @@ const ja: Dict = {
   purchase_busy_body: '別の購入または復元を処理中です。少し待ってからお試しください。',
   restore_done_title: '購入を復元しました',
   restore_done_body: 'この端末でサブスクリプションが有効になりました。',
+  restore_details_template: '個別購入テーマ: {themes}\n\nサブスクリプション: {subscription}\n復元したデータの期間: {period}',
+  restore_details_no_expiration: '期限なし',
   restore_none_body: 'このApple IDで有効な購入は見つかりませんでした。',
   restore_failed_body: '購入を復元できませんでした。通信環境を確認して、もう一度お試しください。',
   restore_purchases:  '購入を復元',
@@ -1822,7 +1827,7 @@ const ko: Dict = {
   notif_test_no_words: '먼저 단어를 추가한 다음 테스트 알림을 보내세요.',
   ai_consent_title: 'AI 기능을 사용하시겠습니까?',
   ai_data_lead: '고품질 AI 음성을 생성하기 위해 재생하려는 텍스트와 선택한 음성 모델(Marin 또는 Cedar)이 워드코어 서버를 거쳐 OpenAI로 전송됩니다.',
-  ai_consent_body: '고품질 AI 음성을 생성하기 위해 재생하려는 텍스트와 선택한 음성 모델(Marin 또는 Cedar)이 워드코어 서버를 거쳐 OpenAI로 전송됩니다.\n\n전송된 데이터는 요청한 고품질 AI 음성을 생성하는 목적 외에는 절대 사용되지 않습니다.\n\n워드코어 서버는 요금제를 확인하고 부정 사용을 방지하는 목적으로만 익명의 설치 ID와 익명의 구독 ID도 수신합니다. 이러한 식별자는 OpenAI로 전송되지 않습니다.\n\n허가 없이 데이터가 전송되지 않습니다. 허가는 설정 → 도움말 → AI Voice 정보에서 언제든지 철회할 수 있습니다.',
+  ai_consent_body: '고품질 AI 음성을 생성하기 위해 재생하려는 텍스트와 선택한 음성 모델(Marin 또는 Cedar)이 워드코어 서버를 거쳐 OpenAI로 전송됩니다.\n\n전송된 데이터는 요청한 고품질 AI 음성을 생성하는 목적 외에는 절대 사용되지 않습니다.\n\n워드코어 서버는 요금제를 확인하고 부정 사용을 방지하는 목적으로만 익명의 설치 ID와 익명의 구독 ID도 수신합니다. 이러한 식별자는 OpenAI로 전송되지 않습니다.\n\n허가 없이 데이터가 전송되지 않습니다. 허가는 설정에서 언제든지 철회할 수 있습니다.',
   ai_consent_allow: '허용하고 계속',
   ai_consent_decline: '지금은 허용 안 함',
   ai_consent_setting: 'AI 데이터 공유',
@@ -1913,6 +1918,8 @@ const ko: Dict = {
   purchase_busy_body: '다른 구매 또는 복원이 진행 중입니다. 잠시 후 다시 시도해 주세요.',
   restore_done_title: '구매를 복원했습니다',
   restore_done_body: '이 기기에서 구독이 활성화되었습니다.',
+  restore_details_template: '개별 구매 테마: {themes}\n\n구독: {subscription}\n복원한 데이터 기간: {period}',
+  restore_details_no_expiration: '만료 없음',
   restore_none_body: '이 Apple ID에서 활성화된 구매를 찾을 수 없습니다.',
   restore_failed_body: '구매를 복원하지 못했습니다. 네트워크 연결을 확인한 후 다시 시도해 주세요.',
   restore_purchases:  '구매 복원',
@@ -2502,7 +2509,7 @@ const zhCN: Dict = {
   notif_test_no_words: '请先添加单词，然后再发送测试通知。',
   ai_consent_title: '要使用 AI 功能吗？',
   ai_data_lead: '为了生成高质量 AI 语音，您想要播放的文本和所选的语音模型（Marin 或 Cedar）会通过 沃德科尔 服务器发送给 OpenAI。',
-  ai_consent_body: '为了生成高质量 AI 语音，您想要播放的文本和所选的语音模型（Marin 或 Cedar）会通过 沃德科尔 服务器发送给 OpenAI。\n\n所传输的数据绝不会用于生成所请求的高质量 AI 语音以外的任何目的。\n\n沃德科尔 服务器还会接收匿名安装 ID 和匿名订阅 ID，其唯一用途是验证您的方案并防止滥用。这些标识符不会发送给 OpenAI。\n\n未经您的许可，不会传输任何数据。您可以随时前往“设置”→“帮助”→“关于 AI Voice”撤回许可。',
+  ai_consent_body: '为了生成高质量 AI 语音，您想要播放的文本和所选的语音模型（Marin 或 Cedar）会通过 沃德科尔 服务器发送给 OpenAI。\n\n所传输的数据绝不会用于生成所请求的高质量 AI 语音以外的任何目的。\n\n沃德科尔 服务器还会接收匿名安装 ID 和匿名订阅 ID，其唯一用途是验证您的方案并防止滥用。这些标识符不会发送给 OpenAI。\n\n未经您的许可，不会传输任何数据。您可以随时在“设置”中撤回许可。',
   ai_consent_allow: '允许并继续',
   ai_consent_decline: '暂不允许',
   ai_consent_setting: 'AI 数据共享',
@@ -2592,6 +2599,8 @@ const zhCN: Dict = {
   purchase_busy_body: '另一项购买或恢复仍在处理中，请稍候再试。',
   restore_done_title: '已恢复购买',
   restore_done_body: '订阅已在本设备上启用。',
+  restore_details_template: '单独购买的主题：{themes}\n\n订阅：{subscription}\n已恢复数据的期间：{period}',
+  restore_details_no_expiration: '永久有效',
   restore_none_body: '未找到此 Apple ID 的有效购买。',
   restore_failed_body: '无法恢复购买。请检查网络连接后重试。',
   restore_purchases:  '恢复购买',
@@ -3186,7 +3195,7 @@ const es: Dict = {
     'Para generar voz de IA de alta calidad, el texto que quieres reproducir y el modelo de voz seleccionado (Marin o Cedar) se envían a OpenAI a través del servidor de WordCore.\n\n'
     + 'Los datos transmitidos no se utilizan nunca para ningún fin distinto de generar la voz de IA de alta calidad solicitada.\n\n'
     + 'El servidor de WordCore también recibe un ID de instalación anónimo y un ID de suscripción anónimo únicamente para verificar tu plan y evitar abusos. Estos identificadores no se envían a OpenAI.\n\n'
-    + 'No se envía ningún dato sin tu permiso. Puedes retirarlo en cualquier momento desde Ajustes → Ayuda → Acerca de AI Voice.',
+    + 'No se envía ningún dato sin tu permiso. Puedes retirarlo en cualquier momento desde Ajustes.',
   ai_consent_allow: 'Permitir y continuar',
   ai_consent_decline: 'Ahora no',
   ai_consent_setting: 'Uso compartido de datos de IA',
@@ -3283,6 +3292,8 @@ const es: Dict = {
   purchase_busy_body: 'Otra compra o restauración sigue en curso. Espera un momento e inténtalo de nuevo.',
   restore_done_title: 'Compras restauradas',
   restore_done_body: 'Tu suscripción está activa en este dispositivo.',
+  restore_details_template: 'Temas comprados individualmente: {themes}\n\nSuscripción: {subscription}\nPeriodo de datos restaurado: {period}',
+  restore_details_no_expiration: 'Sin caducidad',
   restore_none_body: 'No se encontraron compras activas para este ID de Apple.',
   restore_failed_body: 'No se pudieron restaurar las compras. Comprueba tu conexión e inténtalo de nuevo.',
   restore_purchases:  'Restaurar compras',
@@ -3877,7 +3888,7 @@ const fr: Dict = {
     'Pour générer une voix IA de haute qualité, le texte que vous souhaitez lire et le modèle vocal sélectionné (Marin ou Cedar) sont envoyés à OpenAI via le serveur WordCore.\n\n'
     + 'Les données transmises ne sont jamais utilisées à d’autres fins que la génération de la voix IA de haute qualité demandée.\n\n'
     + 'Le serveur WordCore reçoit également un identifiant d’installation anonyme et un identifiant d’abonnement anonyme, uniquement pour vérifier votre forfait et prévenir les abus. Ces identifiants ne sont pas envoyés à OpenAI.\n\n'
-    + 'Aucune donnée n’est transmise sans votre autorisation. Vous pouvez retirer cette autorisation à tout moment dans Paramètres → Aide → À propos d’AI Voice.',
+    + 'Aucune donnée n’est transmise sans votre autorisation. Vous pouvez retirer cette autorisation à tout moment dans Paramètres.',
   ai_consent_allow: 'Autoriser et continuer',
   ai_consent_decline: 'Pas maintenant',
   ai_consent_setting: 'Partage des données d’IA',
@@ -3974,6 +3985,8 @@ const fr: Dict = {
   purchase_busy_body: 'Un autre achat ou une restauration est en cours. Patientez un instant, puis réessayez.',
   restore_done_title: 'Achats restaurés',
   restore_done_body: 'Votre abonnement est actif sur cet appareil.',
+  restore_details_template: 'Thèmes achetés séparément : {themes}\n\nAbonnement : {subscription}\nPériode des données restaurées : {period}',
+  restore_details_no_expiration: 'Sans expiration',
   restore_none_body: 'Aucun achat actif n’a été trouvé pour cet identifiant Apple.',
   restore_failed_body: 'Impossible de restaurer les achats. Vérifiez votre connexion et réessayez.',
   restore_purchases:  'Restaurer les achats',
@@ -4568,7 +4581,7 @@ const de: Dict = {
     'Um eine hochwertige AI Voice-Ausgabe zu erzeugen, werden der Text, den du abspielen möchtest, und das ausgewählte Stimmmodell (Marin oder Cedar) über den WordCore-Server an OpenAI gesendet.\n\n'
     + 'Die übertragenen Daten werden niemals für einen anderen Zweck als die Erzeugung der angeforderten hochwertigen AI Voice-Ausgabe verwendet.\n\n'
     + 'Der WordCore-Server empfängt außerdem eine anonyme Installations-ID und eine anonyme Abonnement-ID, ausschließlich um deinen Tarif zu prüfen und Missbrauch zu verhindern. Diese Kennungen werden nicht an OpenAI gesendet.\n\n'
-    + 'Ohne deine Erlaubnis werden keine Daten übertragen. Du kannst die Erlaubnis jederzeit unter Einstellungen → Hilfe → Über AI Voice widerrufen.',
+    + 'Ohne deine Erlaubnis werden keine Daten übertragen. Du kannst die Erlaubnis jederzeit unter Einstellungen widerrufen.',
   ai_consent_allow: 'Zulassen und fortfahren',
   ai_consent_decline: 'Jetzt nicht zulassen',
   ai_consent_setting: 'KI-Datenfreigabe',
@@ -4665,6 +4678,8 @@ const de: Dict = {
   purchase_busy_body: 'Ein anderer Kauf oder eine Wiederherstellung läuft noch. Bitte warte einen Moment und versuche es erneut.',
   restore_done_title: 'Käufe wiederhergestellt',
   restore_done_body: 'Dein Abo ist auf diesem Gerät aktiv.',
+  restore_details_template: 'Einzeln gekaufte Themes: {themes}\n\nAbonnement: {subscription}\nZeitraum der wiederhergestellten Daten: {period}',
+  restore_details_no_expiration: 'Kein Ablaufdatum',
   restore_none_body: 'Für diese Apple-ID wurden keine aktiven Käufe gefunden.',
   restore_failed_body: 'Käufe konnten nicht wiederhergestellt werden. Prüfe deine Verbindung und versuche es erneut.',
   restore_purchases:  'Käufe wiederherstellen',
@@ -5259,7 +5274,7 @@ const it: Dict = {
     'Per generare una voce IA di alta qualità, il testo che vuoi riprodurre e il modello vocale selezionato (Marin o Cedar) vengono inviati a OpenAI tramite il server WordCore.\n\n'
     + 'I dati trasmessi non vengono mai utilizzati per scopi diversi dalla generazione della voce IA di alta qualità richiesta.\n\n'
     + 'Il server WordCore riceve anche un ID di installazione anonimo e un ID di abbonamento anonimo, esclusivamente per verificare il tuo piano e prevenire gli abusi. Questi identificatori non vengono inviati a OpenAI.\n\n'
-    + 'Nessun dato viene trasmesso senza il tuo consenso. Puoi revocarlo in qualsiasi momento da Impostazioni → Aiuto → Informazioni su AI Voice.',
+    + 'Nessun dato viene trasmesso senza il tuo consenso. Puoi revocarlo in qualsiasi momento da Impostazioni.',
   ai_consent_allow: 'Consenti e continua',
   ai_consent_decline: 'Non consentire ora',
   ai_consent_setting: 'Condivisione dei dati IA',
@@ -5356,6 +5371,8 @@ const it: Dict = {
   purchase_busy_body: 'È in corso un altro acquisto o ripristino. Attendi un momento e riprova.',
   restore_done_title: 'Acquisti ripristinati',
   restore_done_body: 'Il tuo abbonamento è attivo su questo dispositivo.',
+  restore_details_template: 'Temi acquistati singolarmente: {themes}\n\nAbbonamento: {subscription}\nPeriodo dei dati ripristinati: {period}',
+  restore_details_no_expiration: 'Nessuna scadenza',
   restore_none_body: 'Nessun acquisto attivo trovato per questo ID Apple.',
   restore_failed_body: 'Non è stato possibile ripristinare gli acquisti. Controlla la connessione e riprova.',
   restore_purchases:  'Ripristina acquisti',
@@ -5950,7 +5967,7 @@ const ptBR: Dict = {
     'Para gerar voz de IA de alta qualidade, o texto que você deseja reproduzir e o modelo de voz selecionado (Marin ou Cedar) são enviados à OpenAI por meio do servidor da WordCore.\n\n'
     + 'Os dados transmitidos nunca são usados para nenhuma finalidade além de gerar a voz de IA de alta qualidade solicitada.\n\n'
     + 'O servidor da WordCore também recebe um ID de instalação anônimo e um ID de assinatura anônimo exclusivamente para verificar seu plano e evitar abusos. Esses identificadores não são enviados à OpenAI.\n\n'
-    + 'Nenhum dado é transmitido sem sua permissão. Você pode revogá-la a qualquer momento em Configurações → Ajuda → Sobre o AI Voice.',
+    + 'Nenhum dado é transmitido sem sua permissão. Você pode revogá-la a qualquer momento em Configurações.',
   ai_consent_allow: 'Permitir e continuar',
   ai_consent_decline: 'Não permitir agora',
   ai_consent_setting: 'Compartilhamento de dados de IA',
@@ -6047,6 +6064,8 @@ const ptBR: Dict = {
   purchase_busy_body: 'Outra compra ou restauração ainda está em andamento. Aguarde um momento e tente novamente.',
   restore_done_title: 'Compras restauradas',
   restore_done_body: 'Sua assinatura está ativa neste dispositivo.',
+  restore_details_template: 'Temas comprados individualmente: {themes}\n\nAssinatura: {subscription}\nPeríodo dos dados restaurados: {period}',
+  restore_details_no_expiration: 'Sem expiração',
   restore_none_body: 'Nenhuma compra ativa foi encontrada para este ID Apple.',
   restore_failed_body: 'Não foi possível restaurar as compras. Verifique sua conexão e tente novamente.',
   restore_purchases:  'Restaurar compras',
@@ -6636,7 +6655,7 @@ const ru: Dict = {
   notif_test_no_words: 'Сначала добавьте слово, затем отправьте тестовое уведомление.',
   ai_consent_title: 'Использовать функции ИИ?',
   ai_data_lead: 'Для создания высококачественного голоса ИИ текст, который вы хотите воспроизвести, и выбранная модель голоса (Marin или Cedar) отправляются в OpenAI через сервер ВордКор.',
-  ai_consent_body: 'Для создания высококачественного голоса ИИ текст, который вы хотите воспроизвести, и выбранная модель голоса (Marin или Cedar) отправляются в OpenAI через сервер ВордКор.\n\nПереданные данные никогда не используются ни для каких целей, кроме создания запрошенного высококачественного голоса ИИ.\n\nСервер ВордКор также получает анонимный идентификатор установки и анонимный идентификатор подписки исключительно для проверки вашего плана и предотвращения злоупотреблений. Эти идентификаторы не отправляются в OpenAI.\n\nБез вашего разрешения никакие данные не передаются. Разрешение можно в любое время отозвать в разделе «Настройки» → «Справка» → «Об AI Voice».',
+  ai_consent_body: 'Для создания высококачественного голоса ИИ текст, который вы хотите воспроизвести, и выбранная модель голоса (Marin или Cedar) отправляются в OpenAI через сервер ВордКор.\n\nПереданные данные никогда не используются ни для каких целей, кроме создания запрошенного высококачественного голоса ИИ.\n\nСервер ВордКор также получает анонимный идентификатор установки и анонимный идентификатор подписки исключительно для проверки вашего плана и предотвращения злоупотреблений. Эти идентификаторы не отправляются в OpenAI.\n\nБез вашего разрешения никакие данные не передаются. Разрешение можно в любое время отозвать в разделе «Настройки».',
   ai_consent_allow: 'Разрешить и продолжить',
   ai_consent_decline: 'Пока не разрешать',
   ai_consent_setting: 'Передача данных ИИ',
@@ -6690,6 +6709,8 @@ const ru: Dict = {
   purchase_busy_body: 'Другая покупка или восстановление ещё выполняется. Подождите немного и попробуйте снова.',
   restore_done_title: 'Покупки восстановлены',
   restore_done_body: 'Подписка активна на этом устройстве.',
+  restore_details_template: 'Темы, приобретённые отдельно: {themes}\n\nПодписка: {subscription}\nПериод восстановленных данных: {period}',
+  restore_details_no_expiration: 'Без срока действия',
   restore_none_body: 'Активных покупок для этого Apple ID не найдено.',
   restore_failed_body: 'Не удалось восстановить покупки. Проверьте подключение и попробуйте снова.',
   restore_purchases: 'Восстановить покупки', unlock_full: 'Разблокировать полный доступ',
@@ -7184,7 +7205,7 @@ const ar: Dict = {
   notif_test_no_words: 'أضف كلمة أولاً، ثم أرسل إشعار اختبار.',
   ai_consent_title: 'هل تريد استخدام ميزات الذكاء الاصطناعي؟',
   ai_data_lead: 'لإنشاء صوت ذكاء اصطناعي عالي الجودة، يُرسَل النص الذي تريد تشغيله ونموذج الصوت الذي اخترته (Marin أو Cedar) إلى OpenAI عبر خادم وورد كور.',
-  ai_consent_body: 'لإنشاء صوت ذكاء اصطناعي عالي الجودة، يُرسَل النص الذي تريد تشغيله ونموذج الصوت الذي اخترته (Marin أو Cedar) إلى OpenAI عبر خادم وورد كور.\n\nلن تُستخدم البيانات المرسلة مطلقًا لأي غرض سوى إنشاء صوت الذكاء الاصطناعي عالي الجودة المطلوب.\n\nيتلقى خادم وورد كور أيضًا معرّف تثبيت مجهولاً ومعرّف اشتراك مجهولاً، لغرض وحيد هو التحقق من خطتك ومنع إساءة الاستخدام. ولا تُرسَل هذه المعرّفات إلى OpenAI.\n\nلن تُرسَل أي بيانات من دون إذنك. يمكنك سحب الإذن في أي وقت من «الإعدادات» ← «المساعدة» ← «حول AI Voice».',
+  ai_consent_body: 'لإنشاء صوت ذكاء اصطناعي عالي الجودة، يُرسَل النص الذي تريد تشغيله ونموذج الصوت الذي اخترته (Marin أو Cedar) إلى OpenAI عبر خادم وورد كور.\n\nلن تُستخدم البيانات المرسلة مطلقًا لأي غرض سوى إنشاء صوت الذكاء الاصطناعي عالي الجودة المطلوب.\n\nيتلقى خادم وورد كور أيضًا معرّف تثبيت مجهولاً ومعرّف اشتراك مجهولاً، لغرض وحيد هو التحقق من خطتك ومنع إساءة الاستخدام. ولا تُرسَل هذه المعرّفات إلى OpenAI.\n\nلن تُرسَل أي بيانات من دون إذنك. يمكنك سحب الإذن في أي وقت من «الإعدادات».',
   ai_consent_allow: 'السماح والمتابعة',
   ai_consent_decline: 'عدم السماح الآن',
   ai_consent_setting: 'مشاركة بيانات الذكاء الاصطناعي',
@@ -7238,6 +7259,8 @@ const ar: Dict = {
   purchase_busy_body: 'لا تزال هناك عملية شراء أو استعادة جارية. يرجى الانتظار قليلًا ثم المحاولة مجددًا.',
   restore_done_title: 'تمت استعادة المشتريات',
   restore_done_body: 'اشتراكك مُفعّل على هذا الجهاز.',
+  restore_details_template: 'السمات المشتراة بشكل فردي: {themes}\n\nالاشتراك: {subscription}\nفترة البيانات المستعادة: {period}',
+  restore_details_no_expiration: 'بلا انتهاء',
   restore_none_body: 'لم يتم العثور على مشتريات نشطة لمعرّف Apple هذا.',
   restore_failed_body: 'تعذّرت استعادة المشتريات. يرجى التحقق من اتصالك والمحاولة مرة أخرى.',
   restore_purchases: 'استعادة المشتريات', unlock_full: 'فتح التجربة الكاملة',
@@ -7732,7 +7755,7 @@ const hi: Dict = {
   notif_test_no_words: 'पहले एक शब्द जोड़ें, फिर परीक्षण सूचना भेजें।',
   ai_consent_title: 'क्या आप AI सुविधाओं का उपयोग करना चाहते हैं?',
   ai_data_lead: 'उच्च-गुणवत्ता वाली AI Voice जनरेट करने के लिए, जिस टेक्स्ट को आप चलाना चाहते हैं और आपका चुना हुआ वॉयस मॉडल (Marin या Cedar), वर्डकोर सर्वर के ज़रिए OpenAI को भेजा जाता है।',
-  ai_consent_body: 'उच्च-गुणवत्ता वाली AI Voice जनरेट करने के लिए, जिस टेक्स्ट को आप चलाना चाहते हैं और आपका चुना हुआ वॉयस मॉडल (Marin या Cedar), वर्डकोर सर्वर के ज़रिए OpenAI को भेजा जाता है।\n\nभेजे गए डेटा का उपयोग माँगी गई उच्च-गुणवत्ता वाली AI Voice जनरेट करने के अलावा किसी भी अन्य उद्देश्य के लिए कभी नहीं किया जाता।\n\nवर्डकोर सर्वर आपके प्लान की पुष्टि करने और दुरुपयोग रोकने के एकमात्र उद्देश्य से एक अनाम इंस्टॉलेशन ID और एक अनाम सब्सक्रिप्शन ID भी प्राप्त करता है। ये आइडेंटिफ़ायर OpenAI को नहीं भेजे जाते।\n\nआपकी अनुमति के बिना कोई डेटा नहीं भेजा जाता। आप सेटिंग्स → सहायता → AI Voice के बारे में जाकर कभी भी अनुमति वापस ले सकते हैं।',
+  ai_consent_body: 'उच्च-गुणवत्ता वाली AI Voice जनरेट करने के लिए, जिस टेक्स्ट को आप चलाना चाहते हैं और आपका चुना हुआ वॉयस मॉडल (Marin या Cedar), वर्डकोर सर्वर के ज़रिए OpenAI को भेजा जाता है।\n\nभेजे गए डेटा का उपयोग माँगी गई उच्च-गुणवत्ता वाली AI Voice जनरेट करने के अलावा किसी भी अन्य उद्देश्य के लिए कभी नहीं किया जाता।\n\nवर्डकोर सर्वर आपके प्लान की पुष्टि करने और दुरुपयोग रोकने के एकमात्र उद्देश्य से एक अनाम इंस्टॉलेशन ID और एक अनाम सब्सक्रिप्शन ID भी प्राप्त करता है। ये आइडेंटिफ़ायर OpenAI को नहीं भेजे जाते।\n\nआपकी अनुमति के बिना कोई डेटा नहीं भेजा जाता। आप सेटिंग्स से कभी भी अनुमति वापस ले सकते हैं।',
   ai_consent_allow: 'अनुमति दें और जारी रखें',
   ai_consent_decline: 'अभी अनुमति न दें',
   ai_consent_setting: 'AI डेटा साझा करना',
@@ -7786,6 +7809,8 @@ const hi: Dict = {
   purchase_busy_body: 'एक अन्य खरीदारी या पुनर्स्थापना अभी चल रही है। कृपया थोड़ा प्रतीक्षा करें और फिर प्रयास करें।',
   restore_done_title: 'खरीदारी पुनर्स्थापित हुई',
   restore_done_body: 'इस डिवाइस पर आपकी सदस्यता सक्रिय है।',
+  restore_details_template: 'अलग से खरीदी गई थीम: {themes}\n\nसदस्यता: {subscription}\nपुनर्स्थापित डेटा की अवधि: {period}',
+  restore_details_no_expiration: 'कोई समाप्ति नहीं',
   restore_none_body: 'इस Apple ID के लिए कोई सक्रिय खरीदारी नहीं मिली।',
   restore_failed_body: 'खरीदारी पुनर्स्थापित नहीं हो सकी। कृपया अपना कनेक्शन जाँचें और फिर प्रयास करें।',
   restore_purchases: 'खरीदारी पुनर्स्थापित करें', unlock_full: 'पूर्ण अनुभव अनलॉक करें',
@@ -8285,7 +8310,7 @@ const tr: Dict = {
     'Yüksek kaliteli AI Voice oluşturmak için oynatmak istediğiniz metin ve seçtiğiniz ses modeli (Marin veya Cedar), WordCore sunucusu üzerinden OpenAI’a gönderilir.\n\n'
     + 'Aktarılan veriler, istenen yüksek kaliteli AI Voice’u oluşturmak dışında hiçbir amaçla kullanılmaz.\n\n'
     + 'WordCore sunucusu ayrıca yalnızca planınızı doğrulamak ve kötüye kullanımı önlemek amacıyla anonim bir yükleme kimliği ve anonim bir abonelik kimliği alır. Bu tanımlayıcılar OpenAI’a gönderilmez.\n\n'
-    + 'İzniniz olmadan hiçbir veri aktarılmaz. İzni istediğiniz zaman Ayarlar → Yardım → AI Voice Hakkında bölümünden geri çekebilirsiniz.',
+    + 'İzniniz olmadan hiçbir veri aktarılmaz. İzni istediğiniz zaman Ayarlar bölümünden geri çekebilirsiniz.',
   ai_consent_allow: 'İzin Ver ve Devam Et',
   ai_consent_decline: 'Şimdi İzin Verme',
   ai_consent_setting: 'AI Veri Paylaşımı',
@@ -8346,6 +8371,8 @@ const tr: Dict = {
   purchase_busy_body: 'Başka bir satın alma veya geri yükleme sürüyor. Lütfen biraz bekleyip tekrar deneyin.',
   restore_done_title: 'Satın almalar geri yüklendi',
   restore_done_body: 'Aboneliğiniz bu cihazda etkin.',
+  restore_details_template: 'Ayrı satın alınan temalar: {themes}\n\nAbonelik: {subscription}\nGeri yüklenen veri dönemi: {period}',
+  restore_details_no_expiration: 'Süresiz',
   restore_none_body: 'Bu Apple Kimliği için etkin satın alma bulunamadı.',
   restore_failed_body: 'Satın almalar geri yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.',
   restore_purchases: 'Satın Almaları Geri Yükle', unlock_full: 'Tam deneyimi aç',
@@ -8845,7 +8872,7 @@ const nl: Dict = {
     'Om AI Voice van hoge kwaliteit te genereren, worden de tekst die je wilt afspelen en het geselecteerde stemmodel (Marin of Cedar) via de WordCore-server naar OpenAI gestuurd.\n\n'
     + 'De verzonden gegevens worden nooit voor een ander doel gebruikt dan het genereren van de gevraagde AI Voice van hoge kwaliteit.\n\n'
     + 'De WordCore-server ontvangt ook een anonieme installatie-ID en een anonieme abonnements-ID, uitsluitend om je abonnement te controleren en misbruik te voorkomen. Deze identificatiegegevens worden niet naar OpenAI gestuurd.\n\n'
-    + 'Zonder je toestemming worden geen gegevens verzonden. Je kunt je toestemming op elk moment intrekken via Instellingen → Help → Over AI Voice.',
+    + 'Zonder je toestemming worden geen gegevens verzonden. Je kunt je toestemming op elk moment intrekken via Instellingen.',
   ai_consent_allow: 'Toestaan en doorgaan',
   ai_consent_decline: 'Nu niet toestaan',
   ai_consent_setting: 'AI-gegevens delen',
@@ -8906,6 +8933,8 @@ const nl: Dict = {
   purchase_busy_body: 'Er loopt nog een andere aankoop of herstelactie. Wacht even en probeer het opnieuw.',
   restore_done_title: 'Aankopen hersteld',
   restore_done_body: 'Je abonnement is actief op dit apparaat.',
+  restore_details_template: 'Afzonderlijk gekochte thema’s: {themes}\n\nAbonnement: {subscription}\nPeriode van herstelde gegevens: {period}',
+  restore_details_no_expiration: 'Geen vervaldatum',
   restore_none_body: 'Er zijn geen actieve aankopen gevonden voor deze Apple ID.',
   restore_failed_body: 'Aankopen konden niet worden hersteld. Controleer je verbinding en probeer het opnieuw.',
   restore_purchases: 'Aankopen herstellen', unlock_full: 'Volledige ervaring ontgrendelen',
@@ -9405,7 +9434,7 @@ const vi: Dict = {
     'Để tạo giọng nói AI chất lượng cao, văn bản bạn muốn phát và mô hình giọng nói đã chọn (Marin hoặc Cedar) sẽ được gửi đến OpenAI thông qua máy chủ WordCore.\n\n'
     + 'Dữ liệu đã truyền tuyệt đối không được sử dụng cho bất kỳ mục đích nào khác ngoài việc tạo giọng nói AI chất lượng cao theo yêu cầu.\n\n'
     + 'Máy chủ WordCore cũng nhận ID cài đặt ẩn danh và ID đăng ký ẩn danh chỉ nhằm xác minh gói của bạn và ngăn chặn lạm dụng. Các mã nhận dạng này không được gửi đến OpenAI.\n\n'
-    + 'Không có dữ liệu nào được truyền khi chưa có sự cho phép của bạn. Bạn có thể thu hồi quyền bất cứ lúc nào trong Cài đặt → Trợ giúp → Giới thiệu về AI Voice.',
+    + 'Không có dữ liệu nào được truyền khi chưa có sự cho phép của bạn. Bạn có thể thu hồi quyền bất cứ lúc nào trong Cài đặt.',
   ai_consent_allow: 'Cho phép và tiếp tục',
   ai_consent_decline: 'Chưa cho phép',
   ai_consent_setting: 'Chia sẻ dữ liệu AI',
@@ -9466,6 +9495,8 @@ const vi: Dict = {
   purchase_busy_body: 'Một giao dịch mua hoặc khôi phục khác đang diễn ra. Vui lòng đợi một lát rồi thử lại.',
   restore_done_title: 'Đã khôi phục giao dịch',
   restore_done_body: 'Gói đăng ký của bạn đang hoạt động trên thiết bị này.',
+  restore_details_template: 'Giao diện mua riêng: {themes}\n\nGói đăng ký: {subscription}\nKhoảng dữ liệu đã khôi phục: {period}',
+  restore_details_no_expiration: 'Không hết hạn',
   restore_none_body: 'Không tìm thấy giao dịch nào đang hoạt động cho Apple ID này.',
   restore_failed_body: 'Không thể khôi phục giao dịch. Vui lòng kiểm tra kết nối và thử lại.',
   restore_purchases: 'Khôi phục giao dịch', unlock_full: 'Mở khóa toàn bộ',
@@ -9959,7 +9990,7 @@ const th: Dict = {
   notif_test_no_words: 'กรุณาเพิ่มคำก่อน แล้วจึงส่งการแจ้งเตือนทดสอบ',
   ai_consent_title: 'คุณต้องการใช้ฟีเจอร์ AI หรือไม่',
   ai_data_lead: 'เพื่อสร้างเสียง AI คุณภาพสูง ข้อความที่คุณต้องการเล่นและโมเดลเสียงที่เลือก (Marin หรือ Cedar) จะถูกส่งไปยัง OpenAI ผ่านเซิร์ฟเวอร์ เวิร์ดคอร์',
-  ai_consent_body: 'เพื่อสร้างเสียง AI คุณภาพสูง ข้อความที่คุณต้องการเล่นและโมเดลเสียงที่เลือก (Marin หรือ Cedar) จะถูกส่งไปยัง OpenAI ผ่านเซิร์ฟเวอร์ เวิร์ดคอร์\n\nข้อมูลที่ส่งจะไม่ถูกนำไปใช้เพื่อวัตถุประสงค์ใดๆ นอกจากการสร้างเสียง AI คุณภาพสูงตามที่ร้องขอ\n\nเซิร์ฟเวอร์ เวิร์ดคอร์ ยังรับ ID การติดตั้งแบบไม่ระบุตัวตนและ ID การสมัครสมาชิกแบบไม่ระบุตัวตน โดยมีวัตถุประสงค์เพียงเพื่อตรวจสอบแพลนและป้องกันการใช้งานในทางที่ผิด ตัวระบุเหล่านี้จะไม่ถูกส่งไปยัง OpenAI\n\nจะไม่มีการส่งข้อมูลใดๆ หากไม่ได้รับอนุญาตจากคุณ คุณสามารถถอนการอนุญาตได้ทุกเมื่อที่ การตั้งค่า → วิธีใช้ → เกี่ยวกับ AI Voice',
+  ai_consent_body: 'เพื่อสร้างเสียง AI คุณภาพสูง ข้อความที่คุณต้องการเล่นและโมเดลเสียงที่เลือก (Marin หรือ Cedar) จะถูกส่งไปยัง OpenAI ผ่านเซิร์ฟเวอร์ เวิร์ดคอร์\n\nข้อมูลที่ส่งจะไม่ถูกนำไปใช้เพื่อวัตถุประสงค์ใดๆ นอกจากการสร้างเสียง AI คุณภาพสูงตามที่ร้องขอ\n\nเซิร์ฟเวอร์ เวิร์ดคอร์ ยังรับ ID การติดตั้งแบบไม่ระบุตัวตนและ ID การสมัครสมาชิกแบบไม่ระบุตัวตน โดยมีวัตถุประสงค์เพียงเพื่อตรวจสอบแพลนและป้องกันการใช้งานในทางที่ผิด ตัวระบุเหล่านี้จะไม่ถูกส่งไปยัง OpenAI\n\nจะไม่มีการส่งข้อมูลใดๆ หากไม่ได้รับอนุญาตจากคุณ คุณสามารถถอนการอนุญาตได้ทุกเมื่อที่ การตั้งค่า',
   ai_consent_allow: 'อนุญาตและดำเนินการต่อ',
   ai_consent_decline: 'ยังไม่อนุญาต',
   ai_consent_setting: 'การแชร์ข้อมูล AI',
@@ -10013,6 +10044,8 @@ const th: Dict = {
   purchase_busy_body: 'มีการซื้อหรือการกู้คืนอื่นกำลังดำเนินการอยู่ กรุณารอสักครู่แล้วลองใหม่',
   restore_done_title: 'กู้คืนการซื้อแล้ว',
   restore_done_body: 'การสมัครสมาชิกของคุณใช้งานได้บนอุปกรณ์นี้',
+  restore_details_template: 'ธีมที่ซื้อแยก: {themes}\n\nการสมัครสมาชิก: {subscription}\nช่วงข้อมูลที่กู้คืน: {period}',
+  restore_details_no_expiration: 'ไม่มีวันหมดอายุ',
   restore_none_body: 'ไม่พบการซื้อที่ใช้งานอยู่สำหรับ Apple ID นี้',
   restore_failed_body: 'ไม่สามารถกู้คืนการซื้อได้ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่',
   restore_purchases: 'กู้คืนการซื้อ', unlock_full: 'ปลดล็อกประสบการณ์เต็มรูปแบบ',
@@ -10511,7 +10544,7 @@ const id: Dict = {
     'Untuk menghasilkan suara AI berkualitas tinggi, teks yang ingin Anda putar dan model suara yang dipilih (Marin atau Cedar) dikirim ke OpenAI melalui server WordCore.\n\n'
     + 'Data yang dikirim tidak pernah digunakan untuk tujuan apa pun selain menghasilkan suara AI berkualitas tinggi yang diminta.\n\n'
     + 'Server WordCore juga menerima ID instalasi anonim dan ID langganan anonim semata-mata untuk memverifikasi paket Anda dan mencegah penyalahgunaan. Pengidentifikasi ini tidak dikirim ke OpenAI.\n\n'
-    + 'Tidak ada data yang dikirim tanpa izin Anda. Anda dapat mencabut izin kapan saja melalui Pengaturan → Bantuan → Tentang AI Voice.',
+    + 'Tidak ada data yang dikirim tanpa izin Anda. Anda dapat mencabut izin kapan saja melalui Pengaturan.',
   ai_consent_allow: 'Izinkan dan Lanjutkan',
   ai_consent_decline: 'Jangan Izinkan Sekarang',
   ai_consent_setting: 'Berbagi Data AI',
@@ -10572,6 +10605,8 @@ const id: Dict = {
   purchase_busy_body: 'Pembelian atau pemulihan lain masih berlangsung. Tunggu sebentar lalu coba lagi.',
   restore_done_title: 'Pembelian dipulihkan',
   restore_done_body: 'Langganan Anda aktif di perangkat ini.',
+  restore_details_template: 'Tema yang dibeli terpisah: {themes}\n\nLangganan: {subscription}\nPeriode data yang dipulihkan: {period}',
+  restore_details_no_expiration: 'Tanpa kedaluwarsa',
   restore_none_body: 'Tidak ditemukan pembelian aktif untuk Apple ID ini.',
   restore_failed_body: 'Pembelian tidak dapat dipulihkan. Periksa koneksi Anda lalu coba lagi.',
   restore_purchases: 'Pulihkan Pembelian', unlock_full: 'Buka pengalaman penuh',
@@ -11070,7 +11105,7 @@ const pl: Dict = {
     'Aby wygenerować głos AI wysokiej jakości, tekst, który chcesz odtworzyć, oraz wybrany model głosu (Marin lub Cedar) są wysyłane do OpenAI za pośrednictwem serwera WordCore.\n\n'
     + 'Przesłane dane nigdy nie są wykorzystywane do celów innych niż wygenerowanie żądanego głosu AI wysokiej jakości.\n\n'
     + 'Serwer WordCore otrzymuje również anonimowy identyfikator instalacji i anonimowy identyfikator subskrypcji wyłącznie w celu zweryfikowania Twojego planu i zapobiegania nadużyciom. Te identyfikatory nie są wysyłane do OpenAI.\n\n'
-    + 'Żadne dane nie są przesyłane bez Twojej zgody. Zgodę możesz wycofać w dowolnym momencie w Ustawienia → Pomoc → Informacje o AI Voice.',
+    + 'Żadne dane nie są przesyłane bez Twojej zgody. Zgodę możesz wycofać w dowolnym momencie w Ustawieniach.',
   ai_consent_allow: 'Zezwól i kontynuuj',
   ai_consent_decline: 'Teraz nie zezwalaj',
   ai_consent_setting: 'Udostępnianie danych AI',
@@ -11131,6 +11166,8 @@ const pl: Dict = {
   purchase_busy_body: 'Trwa inny zakup lub przywracanie. Poczekaj chwilę i spróbuj ponownie.',
   restore_done_title: 'Przywrócono zakupy',
   restore_done_body: 'Twoja subskrypcja jest aktywna na tym urządzeniu.',
+  restore_details_template: 'Motywy kupione osobno: {themes}\n\nSubskrypcja: {subscription}\nOkres przywróconych danych: {period}',
+  restore_details_no_expiration: 'Bez daty wygaśnięcia',
   restore_none_body: 'Nie znaleziono aktywnych zakupów dla tego Apple ID.',
   restore_failed_body: 'Nie udało się przywrócić zakupów. Sprawdź połączenie i spróbuj ponownie.',
   restore_purchases: 'Przywróć zakupy', unlock_full: 'Odblokuj pełne doświadczenie',
@@ -11624,7 +11661,7 @@ const el: Dict = {
   notif_test_no_words: 'Προσθέστε πρώτα μια λέξη και μετά στείλτε δοκιμαστική ειδοποίηση.',
   ai_consent_title: 'Θέλετε να χρησιμοποιήσετε τις λειτουργίες AI;',
   ai_data_lead: 'Για τη δημιουργία φωνής AI υψηλής ποιότητας, το κείμενο που θέλετε να αναπαραχθεί και το επιλεγμένο μοντέλο φωνής (Marin ή Cedar) αποστέλλονται στο OpenAI μέσω του διακομιστή ΓουόρντΚορ.',
-  ai_consent_body: 'Για τη δημιουργία φωνής AI υψηλής ποιότητας, το κείμενο που θέλετε να αναπαραχθεί και το επιλεγμένο μοντέλο φωνής (Marin ή Cedar) αποστέλλονται στο OpenAI μέσω του διακομιστή ΓουόρντΚορ.\n\nΤα μεταδιδόμενα δεδομένα δεν χρησιμοποιούνται ποτέ για κανέναν άλλο σκοπό πέρα από τη δημιουργία της ζητούμενης φωνής AI υψηλής ποιότητας.\n\nΟ διακομιστής ΓουόρντΚορ λαμβάνει επίσης ένα ανώνυμο αναγνωριστικό εγκατάστασης και ένα ανώνυμο αναγνωριστικό συνδρομής αποκλειστικά για την επαλήθευση του προγράμματός σας και την αποτροπή κατάχρησης. Αυτά τα αναγνωριστικά δεν αποστέλλονται στο OpenAI.\n\nΚανένα δεδομένο δεν μεταδίδεται χωρίς την άδειά σας. Μπορείτε να ανακαλέσετε την άδεια ανά πάσα στιγμή από τις Ρυθμίσεις → Βοήθεια → Σχετικά με το AI Voice.',
+  ai_consent_body: 'Για τη δημιουργία φωνής AI υψηλής ποιότητας, το κείμενο που θέλετε να αναπαραχθεί και το επιλεγμένο μοντέλο φωνής (Marin ή Cedar) αποστέλλονται στο OpenAI μέσω του διακομιστή ΓουόρντΚορ.\n\nΤα μεταδιδόμενα δεδομένα δεν χρησιμοποιούνται ποτέ για κανέναν άλλο σκοπό πέρα από τη δημιουργία της ζητούμενης φωνής AI υψηλής ποιότητας.\n\nΟ διακομιστής ΓουόρντΚορ λαμβάνει επίσης ένα ανώνυμο αναγνωριστικό εγκατάστασης και ένα ανώνυμο αναγνωριστικό συνδρομής αποκλειστικά για την επαλήθευση του προγράμματός σας και την αποτροπή κατάχρησης. Αυτά τα αναγνωριστικά δεν αποστέλλονται στο OpenAI.\n\nΚανένα δεδομένο δεν μεταδίδεται χωρίς την άδειά σας. Μπορείτε να ανακαλέσετε την άδεια ανά πάσα στιγμή από τις Ρυθμίσεις.',
   ai_consent_allow: 'Να επιτρέπεται και συνέχεια',
   ai_consent_decline: 'Να μην επιτραπεί τώρα',
   ai_consent_setting: 'Κοινή χρήση δεδομένων AI',
@@ -11678,6 +11715,8 @@ const el: Dict = {
   purchase_busy_body: 'Μια άλλη αγορά ή επαναφορά βρίσκεται σε εξέλιξη. Περιμένετε λίγο και δοκιμάστε ξανά.',
   restore_done_title: 'Οι αγορές επαναφέρθηκαν',
   restore_done_body: 'Η συνδρομή σας είναι ενεργή σε αυτή τη συσκευή.',
+  restore_details_template: 'Θέματα που αγοράστηκαν ξεχωριστά: {themes}\n\nΣυνδρομή: {subscription}\nΠερίοδος δεδομένων που αποκαταστάθηκαν: {period}',
+  restore_details_no_expiration: 'Χωρίς λήξη',
   restore_none_body: 'Δεν βρέθηκαν ενεργές αγορές για αυτό το Apple ID.',
   restore_failed_body: 'Δεν ήταν δυνατή η επαναφορά των αγορών. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.',
   restore_purchases: 'Επαναφορά αγορών', unlock_full: 'Ξεκλείδωμα πλήρους εμπειρίας',
@@ -12176,7 +12215,7 @@ const sv: Dict = {
     'För att skapa AI-röst av hög kvalitet skickas texten du vill spela upp och den valda röstmodellen (Marin eller Cedar) via WordCore-servern till OpenAI.\n\n'
     + 'Överförda data används aldrig för något annat ändamål än att skapa den begärda AI-rösten av hög kvalitet.\n\n'
     + 'WordCore-servern tar också emot ett anonymt installations-ID och ett anonymt prenumerations-ID enbart för att verifiera ditt abonnemang och förhindra missbruk. Dessa identifierare skickas inte till OpenAI.\n\n'
-    + 'Inga data överförs utan ditt tillstånd. Du kan när som helst återkalla tillståndet under Inställningar → Hjälp → Om AI Voice.',
+    + 'Inga data överförs utan ditt tillstånd. Du kan när som helst återkalla tillståndet under Inställningar.',
   ai_consent_allow: 'Tillåt och fortsätt',
   ai_consent_decline: 'Tillåt inte nu',
   ai_consent_setting: 'Delning av AI-data',
@@ -12237,6 +12276,8 @@ const sv: Dict = {
   purchase_busy_body: 'Ett annat köp eller en återställning pågår fortfarande. Vänta en stund och försök igen.',
   restore_done_title: 'Köp återställda',
   restore_done_body: 'Din prenumeration är aktiv på den här enheten.',
+  restore_details_template: 'Separat köpta teman: {themes}\n\nPrenumeration: {subscription}\nPeriod för återställda data: {period}',
+  restore_details_no_expiration: 'Ingen utgångstid',
   restore_none_body: 'Inga aktiva köp hittades för detta Apple-ID.',
   restore_failed_body: 'Köpen kunde inte återställas. Kontrollera din anslutning och försök igen.',
   restore_purchases: 'Återställ köp', unlock_full: 'Lås upp hela upplevelsen',

@@ -46,7 +46,7 @@ test('the resolver refuses to price anything the subscription covers', () => {
     products.indexOf('/** Access and price for one theme'),
   );
   // Ownership first and plan-independent, then the plan, and only then a price.
-  assert.match(rule, /if \(ownedIndividually\) return \{ state: 'owned' \};/u);
+  assert.match(rule, /if \(ownedIndividually\) \{[\s\S]*?return \{ state: 'owned', alsoIncludedInPlan: isSubscriptionLoaded && isSubscribed \};/u);
   assert.match(rule, /const access = resolveThemeAccess\(\{/u);
   assert.match(
     rule,
@@ -78,14 +78,18 @@ test('subscription coverage is never recorded as a purchase', () => {
 });
 
 test('both surfaces draw the same four outcomes, and neither invents a plan check', () => {
-  // Card: owned says so, priced shows StoreKit's string, everything else — free,
-  // included, unavailable — draws no line at all.
-  assert.match(shop, /\{priceDisplay\.state === 'owned' \? \([\s\S]{0,200}t\('theme_owned'\)/u);
+  // Card: an outright purchase says Owned only when a plan is not covering it.
+  // Priced shows StoreKit's string; everything else — free, included,
+  // unavailable — draws no line at all.
+  assert.match(
+    shop,
+    /\{priceDisplay\.state === 'owned' && !priceDisplay\.alsoIncludedInPlan \? \([\s\S]{0,200}t\('theme_owned'\)/u,
+  );
   assert.match(shop, /\) : priceDisplay\.state === 'priced' \? \([\s\S]{0,500}\{priceDisplay\.priceString\}/u);
   assert.match(shop, /\) : null\}/u);
 
-  // Details: same ownership line, same price line, and the plan line for a
-  // theme the subscription covers.
+  // Details: ownership remains visible even while subscribed, plus the same
+  // price line and the plan line for a theme the subscription alone covers.
   assert.match(details, /\{priceDisplay\.state === 'owned' \? \([\s\S]{0,200}t\('theme_owned'\)/u);
   assert.match(details, /\) : priceDisplay\.state === 'priced' \? \(/u);
   // Two branches, not one condition: the locked upsell names Basic, and the

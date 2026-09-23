@@ -84,6 +84,21 @@ let activePlaybackKey: string | null = null;
 let stopActivePlayer: (() => void) | null = null;
 let focusToken: symbol | null = null;
 
+// expo-audio and expo-speech use different native playback paths on iOS. Keep
+// the session shutdown as an explicit barrier so device speech cannot begin
+// while the previous AVPlayer session is still being torn down.
+let audioSessionTransition: Promise<void> = Promise.resolve();
+
+function deactivateAudioPlayerSession(): void {
+  audioSessionTransition = audioSessionTransition.then(async () => {
+    try { await audioLib().setIsAudioActiveAsync(false); } catch {}
+  });
+}
+
+async function waitForAudioPlayerSessionTransition(): Promise<void> {
+  await audioSessionTransition;
+}
+
 // Incremented on every fetched-audio playback; lets us detect when a concurrent
 // call superseded us during an async gap (e.g. the network fetch).
 let epoch = 0;
@@ -695,13 +710,19 @@ function detectLocale(text: string): string {
   return 'en-US';
 }
 
-function speakFree(text: string, locale: string, options: TTSPlaybackOptions = {}): Promise<void> {
+async function speakFree(text: string, locale: string, options: TTSPlaybackOptions = {}): Promise<void> {
   const playbackKey = `device:${locale}:${text}`;
   const playbackEpoch = beginPlayback(playbackKey);
-  if (playbackEpoch == null) return Promise.resolve();
+  if (playbackEpoch == null) return;
+
+  // A fetched AI clip keeps the application audio session active until its
+  // explicit shutdown resolves. Starting AVSpeechSynthesizer before then lets
+  // iOS briefly duck the new device voice and leak the old player back through.
+  await waitForAudioPlayerSessionTransition();
+  if (playbackEpoch !== epoch) throw new Error('cancelled');
   options.onPhaseChange?.('ready');
 
-  return new Promise<void>((resolve, reject) => {
+  return await new Promise<void>((resolve, reject) => {
     const finish = () => {
       options.onPhaseChange?.('idle');
       finishPlayback(playbackKey, playbackEpoch);
@@ -794,6 +815,11 @@ async function speakFetchedAudio(
     if (myEpoch !== epoch) throw new Error('cancelled');
 
     // ── Prepare audio session ───────────────────────────────────────────────
+    // A preceding player may still be completing its explicit deactivation.
+    // Never let that stale native call land after this clip has started.
+    await waitForAudioPlayerSessionTransition();
+    if (myEpoch !== epoch) throw new Error('cancelled');
+
     // Always re-apply: iOS resets the audio session after backgrounding or when
     // another app takes audio focus, making subsequent playback silent/missing.
     try {
@@ -805,7 +831,12 @@ async function speakFetchedAudio(
     // ── Create player and play ──────────────────────────────────────────────
     // The server has already removed the silent tail. A short status interval
     // now only minimizes native completion-event delivery latency.
-    const player = createAudioPlayer({ uri: fileUri }, { updateInterval: 50 });
+    // We own deactivation below. Leaving it to expo-audio schedules a delayed
+    // session shutdown that can land after a newly started device voice.
+    const player = createAudioPlayer(
+      { uri: fileUri },
+      { updateInterval: 50, keepAudioSessionActive: true },
+    );
     currentPlayer = player;
     const audioTiming = timingByFileUri.get(fileUri);
     const safeStartSeconds = safeAudibleStartSeconds(audioTiming);
@@ -826,6 +857,7 @@ async function speakFetchedAudio(
         try { player.remove(); } catch {}
         if (currentPlayer === player) currentPlayer = null;
         if (stopActivePlayer === stop) stopActivePlayer = null;
+        deactivateAudioPlayerSession();
         releaseAudioFocus(focusToken);
         focusToken = null;
         reportPhase('idle');
@@ -939,12 +971,14 @@ export async function speakCustom(
   options.onPhaseChange?.('checking-cache');
 
   try {
+    await waitForAudioPlayerSessionTransition();
+    if (myEpoch !== epoch) throw new Error('cancelled');
     try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
 
     if (myEpoch !== epoch) throw new Error('cancelled');
     options.onPhaseChange?.('ready');
 
-    const player = createAudioPlayer({ uri });
+    const player = createAudioPlayer({ uri }, { keepAudioSessionActive: true });
     player.volume = Math.min(volume, 1.0);
     player.setPlaybackRate(speed, 'medium');
     currentPlayer = player;
@@ -967,6 +1001,7 @@ export async function speakCustom(
         else try { player.remove(); } catch {}
         if (currentPlayer === player) currentPlayer = null;
         if (stopActivePlayer === stop) stopActivePlayer = null;
+        deactivateAudioPlayerSession();
         releaseAudioFocus(focusToken);
         focusToken = null;
         options.onPhaseChange?.('idle');
@@ -1251,11 +1286,16 @@ async function speakBundledPromo(
   try {
     // iOS resets the session after backgrounding or when another app takes
     // focus, so this is re-applied per play, as everywhere else.
+    await waitForAudioPlayerSessionTransition();
+    if (myEpoch !== epoch) throw new Error('cancelled');
     try { await setAudioModeAsync({ playsInSilentMode: true }); } catch {}
     if (myEpoch !== epoch) throw new Error('cancelled');
     options.onPhaseChange?.('ready');
 
-    const player = createAudioPlayer(source, { updateInterval: 50 });
+    const player = createAudioPlayer(
+      source,
+      { updateInterval: 50, keepAudioSessionActive: true },
+    );
     currentPlayer = player;
 
     return await new Promise<void>((resolve, reject) => {
@@ -1275,6 +1315,7 @@ async function speakBundledPromo(
         }
         if (currentPlayer === player) currentPlayer = null;
         if (stopActivePlayer === stop) stopActivePlayer = null;
+        deactivateAudioPlayerSession();
         releaseAudioFocus(focusToken);
         focusToken = null;
         options.onPhaseChange?.('idle');
