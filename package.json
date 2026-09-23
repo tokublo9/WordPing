@@ -9,7 +9,7 @@
     "test:audio": "node --test tests/audioTiming.test.cjs",
     "test:cards": "node --test tests/cardSorting.test.cjs",
     "test:bulk": "node --test tests/bulkImport.test.cjs",
-    "test:source": "node --test tests/",
+    "test:source": "node --test tests/*.test.cjs",
     "pretest:unit": "tsc -p tsconfig.test.json",
     "test:unit": "node --test .test-build/tests/unit/",
     "test:worker": "npm --prefix cloudflare/wordping-api test",
