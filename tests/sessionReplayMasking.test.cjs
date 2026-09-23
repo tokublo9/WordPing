@@ -82,10 +82,10 @@ test('visibility comes from a stored flag, never from the id or the text', () =>
 
 test('the flag is written where provenance is known and cleared on the first content edit', () => {
   // Both creation paths mark their own copy.
-  assert.equal((read('src/lib/db.ts').match(/builtIn: true/gu) ?? []).length, 8, 'all eight seeds');
+  assert.equal((read('src/lib/db.ts').match(/builtIn: true/gu) ?? []).length, 9, 'all nine seeds');
   assert.equal(
-    (read('src/features/onboarding/welcomeContent.ts').match(/builtIn:\s+true,/gu) ?? []).length, 2,
-    'both buildWelcomeCards branches',
+    (read('src/features/onboarding/welcomeContent.ts').match(/builtIn:\s+true,/gu) ?? []).length, 3,
+    'both buildWelcomeCards branches, plus the face card they share',
   );
 
   // The first edit of front, back or note drops it, and only those three.

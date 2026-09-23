@@ -76,20 +76,23 @@ const DEFAULT_FOLDERS: Folder[] = [
  * The eight tutorial cards, seeded in English on a genuine first launch.
  *
  * Placeholders only: every id here is in `WELCOME_CARD_IDS`, so completing
- * onboarding removes all eight and rebuilds them in the user's languages — as
- * eight cards for Language Learning, or four for Vocabulary & Terms. The text
- * is kept in step with `WELCOME_CARD_TEXTS['en-US']` in
- * `features/onboarding/welcomeContent.ts`, which is where it is translated.
+ * onboarding removes all nine and rebuilds them in the user's languages — as
+ * the face card plus eight instructions for Language Learning, or the face card
+ * plus four for Vocabulary & Terms. The instruction text is kept in step with
+ * `WELCOME_CARD_TEXTS['en-US']` in `features/onboarding/welcomeContent.ts`,
+ * which is where it is translated; `wp-w0` is the "Front"/"Back" face card and
+ * takes its two words from the `word_label`/`meaning_label` strings there.
  */
 const DEFAULT_CARDS: WordCard[] = [
-  { id: 'wp-w1', createdAt: 1, word: 'Test your words using the graduation-cap icon in the top-right corner.',    meaning: 'Test your words using the graduation-cap icon in the top-right corner.',    note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w2', createdAt: 2, word: 'Tap a card to check its back.',                                          meaning: 'Tap a card to check its back.',                                          note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w3', createdAt: 3, word: 'You can hide the front of a card from the editing screen.',           meaning: 'You can hide the front of a card from the editing screen.',           note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w4', createdAt: 4, word: 'You can also register custom audio.',                                       meaning: 'You can also register custom audio.',                                       note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w5', createdAt: 5, word: 'Set notifications using the notification icon to review words automatically.', meaning: 'Set notifications using the notification icon to review words automatically.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w6', createdAt: 6, word: 'Word cards and folders can be edited by swiping or long-pressing them.',     meaning: 'Word cards and folders can be edited by swiping or long-pressing them.',     note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w7', createdAt: 7, word: 'Upgrade your plan to access more than 20 themes and high-quality AI voices.', meaning: 'Upgrade your plan to access more than 20 themes and high-quality AI voices.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
-  { id: 'wp-w8', createdAt: 8, word: 'Tap the three-dot icon in the top-right corner to reorder or delete cards.', meaning: 'Tap the three-dot icon in the top-right corner to reorder or delete cards.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w0', createdAt: 1, word: 'Front',                                                                   meaning: 'Back',                                                                   note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w1', createdAt: 2, word: 'Test your words using the graduation-cap icon in the top-right corner.',    meaning: 'Test your words using the graduation-cap icon in the top-right corner.',    note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w2', createdAt: 3, word: 'Tap a card to check its back.',                                          meaning: 'Tap a card to check its back.',                                          note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w3', createdAt: 4, word: 'You can hide the front of a card from the editing screen.',           meaning: 'You can hide the front of a card from the editing screen.',           note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w4', createdAt: 5, word: 'You can also register custom audio.',                                       meaning: 'You can also register custom audio.',                                       note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w5', createdAt: 6, word: 'Set notifications using the notification icon to review words automatically.', meaning: 'Set notifications using the notification icon to review words automatically.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w6', createdAt: 7, word: 'Word cards and folders can be edited by swiping or long-pressing them.',     meaning: 'Word cards and folders can be edited by swiping or long-pressing them.',     note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w7', createdAt: 8, word: 'Upgrade your plan to access more than 20 themes and high-quality AI voices.', meaning: 'Upgrade your plan to access more than 20 themes and high-quality AI voices.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
+  { id: 'wp-w8', createdAt: 9, word: 'Tap the three-dot icon in the top-right corner to reorder or delete cards.', meaning: 'Tap the three-dot icon in the top-right corner to reorder or delete cards.', note: '', wordLang: 'en-US', folderId: WELCOME_FOLDER_ID, builtIn: true },
 ];
 
 export interface Settings {

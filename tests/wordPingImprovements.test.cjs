@@ -602,13 +602,18 @@ test('no gesture tutorial popup, state or Settings item exists', () => {
   );
 });
 
-test('the eight tutorial cards are seeded once and owned by onboarding', () => {
+test('the face card and eight tutorial cards are seeded once and owned by onboarding', () => {
   const db = read('src/lib/db.ts');
   const cards = db.slice(db.indexOf('const DEFAULT_CARDS'), db.indexOf('export interface Settings'));
 
-  // Eight placeholder cards, in tutorial order.
+  // Nine placeholder cards, in tutorial order: the "Front"/"Back" face card
+  // first, then the eight instructions.
   const ids = [...cards.matchAll(/id: '(wp-w\d)'/gu)].map(match => match[1]);
-  assert.deepEqual(ids, ['wp-w1', 'wp-w2', 'wp-w3', 'wp-w4', 'wp-w5', 'wp-w6', 'wp-w7', 'wp-w8']);
+  assert.deepEqual(ids, ['wp-w0', 'wp-w1', 'wp-w2', 'wp-w3', 'wp-w4', 'wp-w5', 'wp-w6', 'wp-w7', 'wp-w8']);
+
+  // The face card leads, so tapping the first thing on screen is what shows
+  // that a card has two sides.
+  assert.match(cards, /\{ id: 'wp-w0', createdAt: 1, word: 'Front',\s+meaning: 'Back',/u);
 
   // Seeded once, only on a genuine first launch.
   assert.match(db, /if \(isFirstLaunch && cards\.length === 0\)/u);
@@ -622,7 +627,8 @@ test('the eight tutorial cards are seeded once and owned by onboarding', () => {
   assert.deepEqual(welcomeIds, ids);
   assert.match(read('App.tsx'), /prev\.filter\(c => !WELCOME_CARD_IDS\.includes\(c\.id\)\)/u);
 
-  // Each seeded card's English copy is the matching tutorial instruction, so the
+  // Each seeded instruction card's English copy is the matching tutorial
+  // instruction, so the
   // placeholder a first launch shows cannot drift from the translated one.
   const english = welcome.slice(welcome.indexOf("'en-US': ["), welcome.indexOf("'ja-JP': ["));
   const instructions = [...english.matchAll(/^ {4}'(.+)',$/gmu)].map(match => match[1]);
@@ -704,6 +710,20 @@ test('both onboarding language selectors share the 20-language registry without 
 
 test('the tutorial cards map instructions onto both purposes', () => {
   const welcome = read('src/features/onboarding/welcomeContent.ts');
+
+  // Both paths open with the face card, and every instruction starts at 2 so
+  // the face card's createdAt: 1 keeps it on top under registration order too.
+  assert.equal((welcome.match(/buildFaceCard\(meaningLang\)/gu) ?? []).length, 2);
+  assert.match(welcome, /id:\s+FACE_CARD_ID,\n\s+createdAt:\s+1,/u);
+  assert.equal((welcome.match(/createdAt:\s+i \+ 2,/gu) ?? []).length, 2);
+
+  // Its two words are the app's own field labels, so no locale dictionary needs
+  // an entry for it and the card names the faces the way the editor does.
+  assert.match(welcome, /word:\s+translate\(uiLang, 'word_label'\),/u);
+  assert.match(welcome, /meaning:\s+translate\(uiLang, 'meaning_label'\),/u);
+  // Explanation language on both sides, on both paths — a label in a language
+  // the user is still learning would teach nothing.
+  assert.match(welcome, /function buildFaceCard\(meaningLang: string\): WordCard/u);
 
   // Language Learning: the same instruction on both sides, in the two languages.
   assert.match(welcome, /word:\s+wordTexts\[i\],\n\s+meaning:\s+meaningTexts\[i\],/u);
