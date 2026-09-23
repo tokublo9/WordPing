@@ -5,7 +5,7 @@ import type { Folder, WordCard } from '../../types';
 import { planFolderMove } from '../cards/duplicates';
 import { createId } from '../../utils/createId';
 import { createDefaultFolderNotifSettings } from '../notifications/defaultSettings';
-import { posthog } from '../../config/posthog';
+// import { posthog } from '../../config/posthog';   // PostHog removed — see src/config/posthog.ts.
 import { planFolderDeletion } from './folderDeletion';
 
 export const EMPTY_FOLDERS_KEY = 'wordping_empty_folders_intentional_v1';
@@ -111,7 +111,7 @@ export function useFolders({
     };
     setFolders(prev => [...prev, folder]);
     void AsyncStorage.removeItem(EMPTY_FOLDERS_KEY);
-    posthog?.capture('folder_created');
+    // posthog?.capture('folder_created');
   };
 
   const deleteFolder = (id: string) => {
@@ -121,13 +121,13 @@ export function useFolders({
     if (plan.folders.length === 0) void AsyncStorage.setItem(EMPTY_FOLDERS_KEY, 'true');
     setCards(plan.cards);
     if (plan.deletedCards.length > 0) onCardsDeleted?.(plan.deletedCards, plan.cards);
-    posthog?.capture('folder_deleted');
+    // posthog?.capture('folder_deleted');
   };
 
   const renameFolder = (id: string, name: string, icon: string) => {
     if (!folders.some(folder => folder.id === id)) return;
     setFolders(prev => prev.map(f => f.id === id ? { ...f, name, icon } : f));
-    posthog?.capture('folder_renamed');
+    // posthog?.capture('folder_renamed');
   };
 
   const openMovePicker = (ids: string[]) => {
@@ -152,10 +152,10 @@ export function useFolders({
     if (movableIds.length === 0) return;
     const moving = new Set(movableIds);
     setCards(prev => prev.map(c => moving.has(c.id) ? { ...c, folderId: targetFolderId } : c));
-    posthog?.capture('cards_moved_to_folder', {
-      moved_count: movableIds.length,
-      duplicates_skipped: blockedIds.length,
-    });
+    // posthog?.capture('cards_moved_to_folder', {
+    //   moved_count: movableIds.length,
+    //   duplicates_skipped: blockedIds.length,
+    // });
   };
 
   return {

@@ -94,27 +94,9 @@ export function checkEasProduction(eas: EasConfig): PreflightIssue[] {
     issues.push({ severity: 'error', where, message: `EXPO_PUBLIC_WORDPING_API_BASE_URL points at a local dev server (${apiUrl})` });
   }
 
-  // PostHog. Deliberately a warning, not an error: these may legitimately be
-  // supplied as EAS environment variables in the dashboard rather than in this
-  // file, and this check cannot see those. What it does catch is the case that
-  // actually shipped — neither set anywhere, so `config/posthog.ts` builds no
-  // client, and the app has no analytics and no Session Replay while the
-  // privacy policy says it has both.
-  const posthogVars = ['EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN', 'EXPO_PUBLIC_POSTHOG_HOST'] as const;
-  const missingPosthog = posthogVars.filter(name => !env[name]);
-  if (missingPosthog.length > 0) {
-    issues.push({
-      severity: 'warning',
-      where,
-      message: `${missingPosthog.join(' and ')} not set here — confirm they are set as EAS environment variables, or analytics and Session Replay will be silently absent from the build`,
-    });
-  }
-  for (const name of posthogVars) {
-    const value = env[name];
-    if (value && isPlaceholder(value)) {
-      issues.push({ severity: 'error', where, message: `${name} is still a placeholder (${value})` });
-    }
-  }
+  // PostHog was removed, so there is no analytics credential to check for any
+  // more. A build profile that still carries EXPO_PUBLIC_POSTHOG_* is not an
+  // error — it is simply unused — and their absence is now the correct state.
 
   for (const [key, value] of Object.entries(env)) {
     if (FORBIDDEN_CLIENT_KEYS.some(secret => key.toUpperCase().includes(secret))) {

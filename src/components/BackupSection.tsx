@@ -14,7 +14,7 @@ import {
 import { BackupImportError } from '../lib/backup/importBackup';
 import type { ImportMode } from '../lib/backup/format';
 import { canUseBackup } from '../features/backup/backupAccess';
-import { posthog } from '../config/posthog';
+// import { posthog } from '../config/posthog';   // PostHog removed — see src/config/posthog.ts.
 
 /**
  * Backup and restore, in Settings.
@@ -91,10 +91,10 @@ export function BackupSection({
       // Offer the share sheet immediately: a backup that never leaves the
       // device does not protect against losing the device.
       await shareBackupFile(created.uri, t('backup_share_title'));
-      posthog?.capture('backup_exported', {
-        word_count: created.backup.data.words.length,
-        folder_count: created.backup.data.folders.length,
-      });
+      // posthog?.capture('backup_exported', {
+      //   word_count: created.backup.data.words.length,
+      //   folder_count: created.backup.data.folders.length,
+      // });
       Alert.alert(
         t('backup_export_done'),
         fill(t('backup_export_summary'), {
@@ -127,11 +127,11 @@ export function BackupSection({
       // Started before the summary alert so the user is never told an import
       // succeeded while the app is still showing the pre-import library.
       onDataImported();
-      posthog?.capture('backup_imported', {
-        import_mode: mode,
-        word_count: summary.words,
-        folder_count: summary.folders,
-      });
+      // posthog?.capture('backup_imported', {
+      //   import_mode: mode,
+      //   word_count: summary.words,
+      //   folder_count: summary.folders,
+      // });
       Alert.alert(
         t('backup_import_done'),
         fill(t('backup_import_summary'), { words: summary.words, folders: summary.folders }),

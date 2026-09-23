@@ -8,8 +8,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PostHogErrorBoundary, PostHogProvider } from 'posthog-react-native';
-import { posthog, publishAnalyticsResearchProperties } from './src/config/posthog';
+// PostHog removed — see src/config/posthog.ts. The provider, the error
+// boundary and the research-property publish below are commented out with it.
+// import { PostHogErrorBoundary, PostHogProvider } from 'posthog-react-native';
+// import { posthog, publishAnalyticsResearchProperties } from './src/config/posthog';
 import {
   persistCardsAndWait,
   reloadLocalData,
@@ -1727,12 +1729,10 @@ function AppContent() {
           onComplete: async (choices) => {
             await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(choices));
             setOnboardingPurpose(choices.purpose);
-            // The research answers exist for the first time here, and the
-            // consent state has not changed, so nothing else would publish them
-            // until the next launch. Reads back what was just written and sends
-            // only the derived properties — the date of birth stays on device —
-            // and returns immediately if analytics is off.
-            publishAnalyticsResearchProperties();
+            // Was: publish the onboarding answers as analytics Person
+            // Properties. Nothing leaves the device now — the answers are
+            // stored by the `setItem` above and read back at launch.
+            // publishAnalyticsResearchProperties();
             setLearnLang(choices.purpose === 'language' ? choices.learningLang ?? null : null);
             setNativeLang(choices.nativeLang);
             const uiLang = BCP47_TO_UI_LANG[choices.nativeLang];
@@ -1819,13 +1819,15 @@ function AppContent() {
 }
 
 export default function App() {
-  if (!posthog) return <AppContent />;
+  // No analytics provider: there is no client to mount one around, so no
+  // Session Replay starts and no lifecycle or screen event is captured.
+  return <AppContent />;
 
-  return (
-    <PostHogProvider client={posthog}>
-      <PostHogErrorBoundary>
-        <AppContent />
-      </PostHogErrorBoundary>
-    </PostHogProvider>
-  );
+  // return (
+  //   <PostHogProvider client={posthog}>
+  //     <PostHogErrorBoundary>
+  //       <AppContent />
+  //     </PostHogErrorBoundary>
+  //   </PostHogProvider>
+  // );
 }

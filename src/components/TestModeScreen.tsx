@@ -40,7 +40,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useTestIntro } from '../hooks/useTestIntro';
 import type { SpotlightRect, SpotlightTarget } from '../features/onboarding/spotlight';
 import { nextTestIntroStep } from '../features/onboarding/tutorialState';
-import { posthog } from '../config/posthog';
+// import { posthog } from '../config/posthog';   // PostHog removed — see src/config/posthog.ts.
 
 const TEST_MUTED_KEY = 'wordping_test_muted';
 type TestMuteMode = 'none' | 'front' | 'back' | 'both';
@@ -658,13 +658,13 @@ export function TestModeScreen({ cards, resetCards, onUpdateCard, onDeleteCard, 
     // because one was given, not because the screen was opened.
     setSessionStudyLog(log => recordAnswer(log, answeredAt));
     onAnswerRecorded?.(answeredAt);
-    posthog?.capture('test_answered', {
-      answer_kind: kind,
-      card_action: outcome.action,
-    });
-    if (idx + 1 === total) {
-      posthog?.capture('test_completed', { card_count: total });
-    }
+    // posthog?.capture('test_answered', {
+    //   answer_kind: kind,
+    //   card_action: outcome.action,
+    // });
+    // if (idx + 1 === total) {
+    //   posthog?.capture('test_completed', { card_count: total });
+    // }
 
     // Perfect removes the card from the test — deleted outright with "Sync with
     // test results" on, mastered and out of the queue with it off — so the card

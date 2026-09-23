@@ -6,7 +6,16 @@ const test = require('node:test');
 const read = relative => fs.readFileSync(relative, 'utf8');
 
 /**
- * What Session Replay is allowed to record.
+ * That nothing is recorded, and that the masking which made recording safe is
+ * still in place if it ever is again.
+ *
+ * PostHog has been removed: the last four tests in this file are what holds
+ * that — no client, no capture, no research properties, no Share Usage Data
+ * row. The masking tests above them are deliberately kept. The mask wrappers
+ * are still in the tree, and they are the only reason a restored Session
+ * Replay would not screenshot the user's vocabulary on its first frame; a
+ * wrapper silently dropped while replay is off would be found only after it
+ * had already been recorded.
  *
  * Replay on React Native is screenshots, so anything legible on screen is in the
  * recording unless a native view carries the mask marker. Two rules matter and
@@ -21,6 +30,16 @@ function tsxFiles(dir = 'src', out = []) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) tsxFiles(full, out);
     else if (entry.name.endsWith('.tsx')) out.push(full);
+  }
+  return out;
+}
+
+/** Every .ts and .tsx under src. */
+function tsFiles(dir = 'src', out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) tsFiles(full, out);
+    else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) out.push(full);
   }
   return out;
 }
@@ -131,108 +150,57 @@ test('no native alert carries a front, back, note or folder name', () => {
   assert.doesNotMatch(read('src/components/TextToSpeechScreen.tsx'), /Delete “\$\{item\.filename\}”/u);
 });
 
-test('global masking is off, and the per-field masking that replaces it is on', () => {
-  const config = read('src/config/posthog.ts');
-  // On React Native `maskAllTextInputs` masks every RCTTextView and
-  // RCTParagraphComponentView — all `<Text>`, not just inputs — so leaving it
-  // on blacked out the whole interface. Off, with each private field masked.
-  assert.match(config, /maskAllTextInputs: false,/u);
-  assert.match(config, /maskAllImages: false,/u);
-  // These two are unrelated to what is on screen and stay off.
-  assert.match(config, /captureLog: false,/u);
-  assert.match(config, /captureNetworkTelemetry: false,/u);
-  assert.match(config, /enableSessionReplay: sessionReplaySupported,/u);
-});
-
-test('the analytics opt-out is applied before anything is captured, and covers replay', () => {
-  const config = read('src/config/posthog.ts');
-  const consent = read('src/lib/analyticsConsent.ts');
-
-  // Opted out until the stored preference says otherwise. Without this the
-  // client captures during its own bootstrap, racing the read — and a user who
-  // switched recording off would be recorded for the start of every launch.
-  assert.match(config, /defaultOptIn: false,/u);
-  // Resolved at import time, not from a React effect, so the decision is made
-  // before the first render rather than after the first screen is on file.
-  assert.match(config, /void loadAnalyticsConsent\(\)\.then\(applyAnalyticsConsent\)/u);
-  assert.match(config, /subscribeToAnalyticsConsent\(applyAnalyticsConsent\)/u);
-
-  // One call for both halves: the SDK's optOut also drives the native Session
-  // Replay plugin, so there is no second switch that could disagree.
-  assert.match(config, /state === 'enabled' \? client\.optIn\(\) : client\.optOut\(\)/u);
-
-  // Analytics is on unless the user said otherwise, and only the exact stored
-  // token turns it off — a truncated value must not be read as a decision.
-  assert.match(consent, /export const DEFAULT_ANALYTICS_CONSENT: AnalyticsConsentState = 'enabled';/u);
-  assert.match(consent, /return raw === 'disabled' \? 'disabled' : 'enabled';/u);
-  // Pure: the state machine must stay testable, so the store is injected.
-  // Code only — the comments there name AsyncStorage as the binding it avoids.
-  const consentCode = consent
+/** Source with block comments and whole-line `//` comments removed. */
+function live(relative) {
+  return read(relative)
     .replace(/\/\*[\s\S]*?\*\//gu, '')
     .replace(/^\s*\/\/.*$/gmu, '');
-  assert.doesNotMatch(consentCode, /react-native|expo-|AsyncStorage/u);
+}
 
-  // The switch exists, is not gated on a plan, and is not inside the
-  // entitlement-gated backup block.
-  const settings = read('src/components/SettingsModal.tsx');
-  assert.match(settings, /t\('analytics_setting'\)/u);
-  // The control is a row that opens its own explanation, and the opt-out is
-  // that popup's action — still one tap away in Settings, and still writing the
-  // shared consent store rather than a local flag of its own.
-  assert.match(settings, /label=\{t\('analytics_setting'\)\}\s*onPress=\{\(\) => setAnalyticsInfoVisible\(true\)\}/u);
-  assert.match(settings, /onPress: \(\) => \{ void handleChangeAnalytics\(\); \}/u);
-  assert.match(settings, /await setAnalyticsConsent\(analyticsEnabled \? 'disabled' : 'enabled'\);/u);
-  const analyticsAt = settings.indexOf("t('analytics_setting')");
-  const block = settings.slice(analyticsAt - 700, analyticsAt);
-  assert.doesNotMatch(block, /backupVisible &&|isPremium \?|isSubscribed \?/u);
+test('no analytics client is constructed, so nothing can be captured', () => {
+  // PostHog was removed. The module still exists, and the whole previous
+  // integration is kept commented out inside it so it can be restored
+  // deliberately — which is exactly why this reads the live code only.
+  const config = live('src/config/posthog.ts');
+
+  assert.match(config, /export const posthog: PostHog \| undefined = undefined;/u);
+  assert.doesNotMatch(config, /new PostHog\(/u, 'no client may be constructed');
+  assert.doesNotMatch(config, /enableSessionReplay|sessionReplayConfig/u, 'no replay configuration');
+  assert.doesNotMatch(config, /optIn\(\)|optOut\(\)|setPersonProperties|\.capture\(/u);
+  // A type-only import: the package must not be pulled into the runtime graph
+  // by this module.
+  assert.match(config, /^import type PostHog from 'posthog-react-native';$/mu);
+
+  // The provider is gone too, so no lifecycle event, screen event or Session
+  // Replay frame is captured by the SDK's own instrumentation.
+  const app = live('App.tsx');
+  assert.match(app, /export default function App\(\) \{\s*return <AppContent \/>;\s*\}/u);
+  assert.doesNotMatch(app, /PostHogProvider|PostHogErrorBoundary|publishAnalyticsResearchProperties\(\)/u);
 });
 
-test('the research properties send a derived age and never the date of birth', () => {
-  const research = read('src/features/onboarding/researchProperties.ts');
-  const sender = read('src/lib/analyticsResearchProperties.ts');
-  const config = read('src/config/posthog.ts');
-
-  // The built payload names every key explicitly, and `dateOfBirth` is read
-  // exactly once — to derive the age from it, never to send it.
-  // The builder alone. `parseOnboardingChoices` sits after it in the same file
-  // and legitimately reads both `dateOfBirth` and `wordCategory` off the stored
-  // record, so slicing to end of file would defeat the point of these checks.
-  const buildStart = research.indexOf('export function buildResearchProperties');
-  const build = research
-    .slice(buildStart, research.indexOf('export function parseOnboardingChoices', buildStart))
-    .replace(/\/\*[\s\S]*?\*\//gu, '')
-    .replace(/^\s*\/\/.*$/gmu, '');
-  assert.match(build, /const age = calculateAge\(choices\.dateOfBirth, now\);/u);
-  assert.match(build, /if \(age !== null\) properties\.age = age;/u);
-  for (const key of [
-    'gender:', 'discovery_source:', 'native_language:', 'learning_purpose:',
-    'properties.learning_language =',
-  ]) {
-    assert.ok(build.includes(key), `missing research property: ${key}`);
+test('no event is captured anywhere in the app', () => {
+  const offenders = [];
+  for (const file of ['App.tsx', ...tsFiles()]) {
+    if (/\.capture\(/u.test(live(file))) offenders.push(file);
   }
-  // The date is touched once, by the age derivation, and by nothing else.
-  assert.equal(
-    (build.match(/dateOfBirth/gu) ?? []).length,
-    1,
-    'dateOfBirth may only be read to derive the age',
-  );
-  assert.doesNotMatch(build, /date_of_birth/u);
-  // No vocabulary, note, folder name or backup content reaches the payload.
-  assert.doesNotMatch(build, /word|meaning|note|folder|backup/iu);
+  assert.deepEqual(offenders, [], 'these still capture an analytics event');
+});
 
-  // Person Properties, not event properties: set once against the anonymous
-  // distinct id, with no identify() that would mint or alias a user.
-  assert.match(sender, /client\.setPersonProperties\(properties, undefined, false\);/u);
-  assert.doesNotMatch(sender, /\.capture\(|\.identify\(/u);
+test('the research properties are no longer built or sent', () => {
+  // `parseOnboardingChoices` stays — bootstrap reads the stored answers to
+  // restore the languages — but nothing derives a payload from them any more.
+  const research = live('src/features/onboarding/researchProperties.ts');
+  assert.match(research, /export function parseOnboardingChoices/u);
+  assert.doesNotMatch(research, /export function buildResearchProperties/u);
 
-  // Gated on the opt-out before the stored answers are read, and again after
-  // the await, so switching analytics off mid-read wins.
-  assert.match(sender, /if \(!isAnalyticsEnabled\(\)\) return null;/u);
-  assert.match(sender, /if \(!isAnalyticsEnabled\(\)\) return;/u);
+  const sender = live('src/lib/analyticsResearchProperties.ts');
+  assert.equal(sender.trim(), '', 'the sender must be commented out in full');
+});
 
-  // Published only from the enable path, and recomputed there rather than
-  // stored, so a birthday that passed while the app was closed is picked up.
-  assert.match(config, /if \(state !== 'enabled'\) return;\s*(?:\/\/[^\n]*\n\s*)*void syncAnalyticsResearchProperties\(client\)/u);
+test('Share Usage Data is gone from Settings, with no consent left to read', () => {
+  const settings = live('src/components/SettingsModal.tsx');
+  assert.doesNotMatch(settings, /analytics_setting|analyticsInfoVisible|setAnalyticsConsent/u);
+  assert.doesNotMatch(settings, /from '\.\.\/lib\/analyticsConsent'/u);
 });
 
 /**
@@ -245,9 +213,10 @@ test('the research properties send a derived age and never the date of birth', (
 const VISIBLE_INPUT_FILES = new Set(['src/components/KisekaeShopSheet.tsx']);
 
 test('every TextInput that can hold the user’s own words is masked individually', () => {
-  // With the global flag off this is the only thing standing between a private
+  // With the global flag off this was the only thing standing between a private
   // field and the recording, so it is checked over the whole tree rather than a
-  // list of files someone has to remember to extend.
+  // list of files someone has to remember to extend. Kept while replay is off:
+  // see the note at the top of this file.
   const unmasked = [];
   let inputs = 0;
   for (const file of tsxFiles()) {

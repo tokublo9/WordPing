@@ -691,11 +691,15 @@ test('both onboarding language selectors share the 20-language registry without 
 
   // Vocabulary & Terms completes on its explanation-language picker; the
   // deleted category screen cannot remain as hidden state or markup.
-  assert.match(onboarding, /step === 4 \|\| \(purpose === 'words' && step === 3\)/u);
+  assert.match(onboarding, /step === 3 \|\| \(purpose === 'words' && step === 2\)/u);
   assert.doesNotMatch(onboarding, /OB_CATEGORIES|wordCategory|showingCategoryPicker|ob_category_title/u);
 
-  // The unrelated discovery-source Other choice remains available.
-  assert.match(onboarding, /\{ id: 'other',\s+icon: 'ellipsis-horizontal'/u);
+  // Nothing about the person is asked any more: the profile step is gone, so
+  // neither its state, its option tables nor its date picker may remain.
+  assert.doesNotMatch(
+    onboarding,
+    /OB_GENDERS|OB_DISCOVERY_SOURCES|showingProfile|birthDate|DateTimePicker|ob_profile_title/u,
+  );
 });
 
 test('the tutorial cards map instructions onto both purposes', () => {

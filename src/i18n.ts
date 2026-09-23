@@ -568,7 +568,7 @@ const enUS: Dict = {
   privacy_controls_section: 'Privacy',
   analytics_setting: 'Share Usage Data',
   analytics_setting_desc:
-    'WordCore uses PostHog for product analytics and masked Session Replay. It collects app interactions, technical device information, and these approved research properties: derived age, gender, discovery source, native language, learning language, and learning purpose. Your exact date of birth is not sent.\n\n'
+    'WordCore uses PostHog for product analytics and masked Session Replay. It collects app interactions, technical device information, and these approved research properties: explanation language, learning language, and learning purpose. WordCore does not ask for your age, gender, or how you heard about it.\n\n'
     + 'Your user-created words, meanings, notes, folder names, imported content, and backup content are not sent.\n\n'
     + 'This data helps us understand how WordCore is used and improve the app. It is not used for advertising or tracking across apps or websites.\n\n'
     + 'Analytics events are retained for approximately 12 months, and Session Replay recordings for approximately 30 days. You can turn off sharing at any time.',
@@ -1300,7 +1300,7 @@ const ja: Dict = {
   // ── Privacy & purchase feedback ───────────────────────────────────────────
   privacy_controls_section: 'プライバシー',
   analytics_setting: '使用状況データの共有',
-  analytics_setting_desc: 'ワードコアは、製品分析とマスキングされたSession ReplayのためにPostHogを使用しています。アプリ内の操作、端末の技術情報、および承認された調査項目（算出された年齢、性別、ワードコアを知ったきっかけ、母語、学習言語、学習目的）を収集します。正確な生年月日は送信されません。\n\nユーザーが作成した単語、意味、メモ、フォルダ名、インポートした内容、バックアップの内容は送信されません。\n\nこれらのデータは、ワードコアの利用状況を理解し、アプリを改善するために使用されます。広告や、アプリ・ウェブサイトをまたぐトラッキングには使用されません。\n\n分析イベントは約12か月、Session Replayの録画は約30日間保持されます。共有はいつでもオフにできます。',
+  analytics_setting_desc: 'ワードコアは、製品分析とマスキングされたSession ReplayのためにPostHogを使用しています。アプリ内の操作、端末の技術情報、および承認された調査項目（説明言語、学習言語、学習目的）を収集します。年齢・性別・ワードコアを知ったきっかけはお尋ねしません。\n\nユーザーが作成した単語、意味、メモ、フォルダ名、インポートした内容、バックアップの内容は送信されません。\n\nこれらのデータは、ワードコアの利用状況を理解し、アプリを改善するために使用されます。広告や、アプリ・ウェブサイトをまたぐトラッキングには使用されません。\n\n分析イベントは約12か月、Session Replayの録画は約30日間保持されます。共有はいつでもオフにできます。',
   analytics_turn_off: '共有をオフにする',
   analytics_turn_on: '共有をオンにする',
   purchase_done_title: 'ありがとうございます',

@@ -148,21 +148,23 @@ test('review and recommendation rows live only inside App Info', () => {
   assert.match(appInfo, /result\.action === Share\.dismissedAction/u);
 });
 
-test('App Info places Premium AI usage above usage sharing and Privacy Policy', () => {
+test('App Info places Premium AI usage above the Privacy Policy, with no usage sharing', () => {
   const settings = read('src/components/SettingsModal.tsx');
   const appInfo = settings.slice(settings.indexOf('function AppInfoSheet'));
   const rows = appInfo.slice(appInfo.indexOf('<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>'));
   const positions = [
-    'write_review', 'recommend_friends', 'ai_voice_info_menu', 'ai_usage_title', 'analytics_setting', 'privacy_policy',
+    'write_review', 'recommend_friends', 'ai_voice_info_menu', 'ai_usage_title', 'privacy_policy',
   ].map(key => rows.indexOf(`label={t('${key}')}`));
   assert.ok(positions.every(position => position >= 0));
   assert.ok(positions.every((position, index) => index === 0 || positions[index - 1] < position));
   assert.match(rows, /\{isPremium && \(\s*<SettingRow\s+icon="speedometer-outline"\s+label=\{t\('ai_usage_title'\)\}/u);
   assert.match(appInfo, /<PremiumAiUsageDialog\s+visible=\{aiUsageVisible && isPremium\}/u);
-  const firstGroup = rows.slice(0, positions[5]);
+  const firstGroup = rows.slice(0, positions[4]);
   assert.doesNotMatch(firstGroup, /s\.sectionLabel|purchases_section|<BackupSection/u);
-  const dividerAt = rows.indexOf('<View style={[styles.divider', positions[4]);
-  assert.ok(positions[4] < dividerAt && dividerAt < positions[5]);
+  const dividerAt = rows.indexOf('<View style={[styles.divider', positions[3]);
+  assert.ok(positions[3] < dividerAt && dividerAt < positions[4]);
+  // PostHog was removed, so there is no usage-sharing row left to place.
+  assert.doesNotMatch(rows, /analytics_setting/u);
 });
 
 test('review and share use one App Store constants module and localized failures', () => {
@@ -865,11 +867,9 @@ test('exactly the three visible Settings toggles use the compact control', () =>
   // instead. "Show result colour on cards" was removed with its preference —
   // the label is simply part of a card now.
   //
-  // Share Usage Data is deliberately NOT in this list. It is no longer an
-  // inline switch: flipping analytics and Session Replay is consequential
-  // enough that it must be read about first, so the row only opens its
-  // explanation and the act of turning sharing on or off happens on the button
-  // inside that popup. Listing it here again would mean the switch came back.
+  // Share Usage Data is not in this list, and is not anywhere else either:
+  // PostHog was removed, so there is no analytics to consent to and no row,
+  // switch or popup for it.
   const rows = [...settings.matchAll(/<ToggleRow\b([\s\S]*?)\/>/gu)]
     .map(match => match[1].match(/label=\{t\('([a-z_]+)'\)\}/u)?.[1])
     .filter(Boolean);
@@ -877,17 +877,7 @@ test('exactly the three visible Settings toggles use the compact control', () =>
     'premium_back_voice', 'view_flip', 'show_full_card', 'hide_ai_tools', 'vertical_flip',
   ]);
   assert.ok(!rows.includes('analytics_setting'), 'Share Usage Data must not be an inline toggle');
-
-  // Instead it is a tappable SettingRow that opens its information popup: the
-  // stats icon, no `value` (so SettingRow draws the chevron rather than a
-  // right-hand value), a button role, and an onPress that only opens the
-  // popup — it must not change the consent state on its own.
-  const analyticsRow = settings.match(/<SettingRow\b(?:(?!\/>)[\s\S])*?analytics_setting(?:(?!\/>)[\s\S])*?\/>/u)?.[0];
-  assert.ok(analyticsRow, 'Share Usage Data must be a SettingRow');
-  assert.match(analyticsRow, /icon="stats-chart-outline"/u);
-  assert.match(analyticsRow, /onPress=\{\(\) => setAnalyticsInfoVisible\(true\)\}/u);
-  assert.match(analyticsRow, /accessibilityRole="button"/u);
-  assert.doesNotMatch(analyticsRow, /value=|setAnalyticsConsent|handleChangeAnalytics/u);
+  assert.doesNotMatch(settings, /analytics_setting|setAnalyticsInfoVisible|handleChangeAnalytics/u);
   // SettingRow renders the right-facing chevron exactly when it carries no
   // value, which is what makes this row read as "opens something".
   assert.match(
@@ -1039,20 +1029,10 @@ test('the informational Card Behavior rows use the compact shared layout and ali
     ['vertical_flip', 'swap-vertical-outline'],
   ]);
 
-  // Share Usage Data keeps the same stats icon, but as a tappable SettingRow in
-  // the App Info sheet's Privacy section: it opens an explanation rather than
-  // flipping analytics and Session Replay under the user's finger. It passes no
-  // `value`, which is what makes SettingRow draw the chevron, and its press
-  // handler only opens the popup.
-  const analyticsRow = settings.match(/<SettingRow\b(?:(?!\/>)[\s\S])*?analytics_setting(?:(?!\/>)[\s\S])*?\/>/u)?.[0];
-  assert.ok(analyticsRow, 'Share Usage Data must be a SettingRow');
-  assert.match(analyticsRow, /icon="stats-chart-outline"/u);
-  assert.match(analyticsRow, /onPress=\{\(\) => setAnalyticsInfoVisible\(true\)\}/u);
-  assert.match(analyticsRow, /accessibilityRole="button"/u);
-  assert.doesNotMatch(analyticsRow, /value=|setAnalyticsConsent|handleChangeAnalytics/u);
+  // Share Usage Data's stats icon went with the row itself when PostHog was
+  // removed, so the icon must not come back on some other row either.
+  assert.doesNotMatch(settings, /icon="stats-chart-outline"/u);
   assert.match(settings, /\{value\s*\?\s*<Text[\s\S]{0,120}:\s*<Ionicons name="chevron-forward"/u);
-  // The consent change lives on the popup's action button, and nowhere else.
-  assert.match(settings, /action=\{\{[\s\S]{0,200}onPress: \(\) => \{ void handleChangeAnalytics\(\); \}/u);
   // Same shared icon column; the badge prop is the new-feature marker, which is
   // pinned to this icon rather than dropped beside the label.
   assert.match(settings, /<CardBehaviorIcon name="mic-outline" color=\{pal\.sub\}\s*badge=\{\{/u);
@@ -1193,41 +1173,21 @@ test('only one popup can be open, and dismissal keeps content mounted until comp
   assert.match(settings, /const \[infoContent, setInfoContent\] = useState<SettingsInfoContent \| null>\(null\);/u);
   assert.match(settings, /const \[infoPopupVisible, setInfoPopupVisible\] = useState\(false\);/u);
 
-  // Two popups exist, and both are legitimate. They are not variants of one
-  // another and cannot contend for a slot:
-  //
-  //   1. the Card Behavior popup, in SettingsModal, whose content is swapped
-  //      into a single slot so a second tap replaces the first;
-  //   2. the Share Usage Data popup, in AppInfoSheet, whose content is fixed
-  //      and written inline.
-  //
-  // Different components, different state, and AppInfoSheet is itself a
-  // separate screen — so neither can be raised while the other is showing.
+  // One popup remains. The Share Usage Data popup went with PostHog, so the
+  // Card Behavior popup — whose content is swapped into a single slot, so a
+  // second tap replaces the first — is now the only one in the file.
   const popups = [...settings.matchAll(/<SettingsInfoPopup\b([\s\S]*?)\/>/gu)].map(m => m[1]);
-  assert.equal(popups.length, 2, 'the Card Behavior popup and the Share Usage Data popup');
-  const [cardBehaviorPopup, analyticsPopup] = popups;
-
-  // Each is driven by its own visibility flag — no shared boolean to fight over.
+  assert.equal(popups.length, 1, 'only the Card Behavior popup is left');
+  const [cardBehaviorPopup] = popups;
   assert.match(cardBehaviorPopup, /visible=\{infoPopupVisible\}/u);
-  assert.match(analyticsPopup, /visible=\{analyticsInfoVisible\}/u);
-  assert.notEqual(
-    cardBehaviorPopup.match(/visible=\{(\w+)\}/u)?.[1],
-    analyticsPopup.match(/visible=\{(\w+)\}/u)?.[1],
-    'the two popups must not share one visibility flag',
-  );
-  // They are owned by different components, which is what makes them disjoint.
+  assert.doesNotMatch(settings, /analyticsInfoVisible/u);
+  // It is raised from SettingsModal, not from the App Info sheet.
   const appInfoStart = settings.indexOf('function AppInfoSheet');
   assert.ok(settings.indexOf('visible={infoPopupVisible}') < appInfoStart, 'Card Behavior popup is in SettingsModal');
-  assert.ok(settings.indexOf('visible={analyticsInfoVisible}') > appInfoStart, 'Share Usage Data popup is in AppInfoSheet');
-  // Leaving App Info takes its popup with it, so it can never outlive the
-  // screen that raised it and reappear over an unrelated one.
-  assert.match(settings, /\}\s*else\s*\{\s*setAnalyticsInfoVisible\(false\);\s*setAiUsageVisible\(false\);\s*\}/u);
-  // Only the Card Behavior popup swaps content, so only it needs the deferred
-  // clear. The analytics popup carries fixed content and one explicit action.
+  // Leaving App Info still takes its own dialog with it.
+  assert.match(settings, /\}\s*else\s*\{\s*setAiUsageVisible\(false\);\s*\}/u);
+  // It swaps content, so it needs the deferred clear.
   assert.match(cardBehaviorPopup, /content=\{infoContent\}\s*onClose=\{closeInfoPopup\}\s*onDismiss=\{dismissInfoPopup\}/u);
-  assert.match(analyticsPopup, /content=\{\{ title: t\('analytics_setting'\), body: t\('analytics_setting_desc'\) \}\}/u);
-  assert.match(analyticsPopup, /action=\{\{[\s\S]*?onPress: \(\) => \{ void handleChangeAnalytics\(\); \}/u);
-  assert.match(analyticsPopup, /onClose=\{\(\) => setAnalyticsInfoVisible\(false\)\}/u);
   // The Card Behavior popup describes settings and must never act on one.
   assert.doesNotMatch(cardBehaviorPopup, /action=/u);
   assert.match(settings, /const closeInfoPopup = useCallback\(\(\) => \{\s*if \(infoPopupClosing\.current\) return;\s*infoPopupClosing\.current = true;\s*setInfoPopupVisible\(false\);/u);

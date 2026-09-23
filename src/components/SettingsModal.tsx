@@ -19,12 +19,15 @@ import {
   FLIP_MODE_ENABLED,
 } from '../features/flags';
 import { canUseBackup } from '../features/backup/backupAccess';
-import {
-  isAnalyticsEnabled,
-  loadAnalyticsConsent,
-  setAnalyticsConsent,
-  subscribeToAnalyticsConsent,
-} from '../lib/analyticsConsent';
+// Share Usage Data has been removed along with PostHog — see
+// src/config/posthog.ts. There is no analytics to consent to, so the row, its
+// popup and the consent reads that fed them are gone.
+// import {
+//   isAnalyticsEnabled,
+//   loadAnalyticsConsent,
+//   setAnalyticsConsent,
+//   subscribeToAnalyticsConsent,
+// } from '../lib/analyticsConsent';
 import { KisekaeShopSheet } from './KisekaeShopSheet';
 import type { ThemePurchasesState } from '../hooks/useThemePurchases';
 import type { PlanStoreProducts } from '../lib/planPricing';
@@ -1013,40 +1016,7 @@ function AppInfoSheet({
 }) {
   const insets = useSafeAreaInsets();
   const t = useLang();
-  const [analyticsInfoVisible, setAnalyticsInfoVisible] = useState(false);
   const [aiUsageVisible, setAiUsageVisible] = useState(false);
-  const [analyticsUpdating, setAnalyticsUpdating] = useState(false);
-  const analyticsUpdateInFlight = useRef(false);
-
-  // ── Analytics consent ───────────────────────────────────────────────────────
-  // Reflects the stored preference rather than a local default. The popup is
-  // the only control; `config/posthog.ts` owns the effect of the value, where
-  // one state-machine update starts or stops events and Session Replay together.
-  const [analyticsEnabled, setAnalyticsEnabledState] = useState(isAnalyticsEnabled());
-  useEffect(() => {
-    let active = true;
-    void loadAnalyticsConsent().then(state => {
-      if (active) setAnalyticsEnabledState(state === 'enabled');
-    });
-    const unsubscribe = subscribeToAnalyticsConsent(state => {
-      if (active) setAnalyticsEnabledState(state === 'enabled');
-    });
-    return () => { active = false; unsubscribe(); };
-  }, []);
-  const handleChangeAnalytics = useCallback(async () => {
-    if (analyticsUpdateInFlight.current) return;
-    analyticsUpdateInFlight.current = true;
-    setAnalyticsUpdating(true);
-    try {
-      await setAnalyticsConsent(analyticsEnabled ? 'disabled' : 'enabled');
-    } finally {
-      analyticsUpdateInFlight.current = false;
-      setAnalyticsUpdating(false);
-    }
-  }, [analyticsEnabled]);
-  // Every locale now carries its own sharing-action copy, so there is no
-  // language test here any more and no borrowed consent-withdrawal wording.
-  const analyticsActionLabel = t(analyticsEnabled ? 'analytics_turn_off' : 'analytics_turn_on');
   const slideX = useRef(new Animated.Value(SW)).current;
   const openExternal = useCallback(async (url: string) => {
     try {
@@ -1086,7 +1056,6 @@ function AppInfoSheet({
       slideX.setValue(SW);
       Animated.spring(slideX, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }).start();
     } else {
-      setAnalyticsInfoVisible(false);
       setAiUsageVisible(false);
     }
   }, [visible]);
@@ -1147,14 +1116,6 @@ function AppInfoSheet({
             pal={pal}
           />
         )}
-        <SettingRow
-          icon="stats-chart-outline"
-          label={t('analytics_setting')}
-          onPress={() => setAnalyticsInfoVisible(true)}
-          accessibilityRole="button"
-          pal={pal}
-        />
-
         <View style={[styles.divider, { backgroundColor: pal.border }]} />
 
         <SettingRow icon="document-text-outline" label={t('privacy_policy')} pal={pal}
@@ -1169,19 +1130,6 @@ function AppInfoSheet({
         <SettingRow icon="information-circle-outline" label={t('app_version')}
           value={APP_VERSION} pal={pal} />
       </ScrollView>
-      <SettingsInfoPopup
-        visible={analyticsInfoVisible}
-        content={{ title: t('analytics_setting'), body: t('analytics_setting_desc') }}
-        action={{
-          label: analyticsActionLabel,
-          onPress: () => { void handleChangeAnalytics(); },
-          disabled: analyticsUpdating,
-          tone: analyticsEnabled ? 'subdued' : 'primary',
-        }}
-        onClose={() => setAnalyticsInfoVisible(false)}
-        pal={pal}
-        themeColor={themeColor}
-      />
       <PremiumAiUsageDialog
         visible={aiUsageVisible && isPremium}
         onClose={() => setAiUsageVisible(false)}
