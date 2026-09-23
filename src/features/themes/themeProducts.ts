@@ -80,6 +80,25 @@ export const THEME_PRODUCTS: Readonly<Record<string, ThemeProductRefs>> = {
   solid_yellow:    { productId: 'com.wordping.theme.yellow', packageId: 'theme_yellow', entitlementId: 'theme_yellow' },
 };
 
+/**
+ * Every entitlement a theme purchase can grant.
+ *
+ * Used to tell a theme entitlement apart from a plan entitlement (`basic`,
+ * `premium`) in a bag of active ids, which is what lets Restore Purchases
+ * report a restored theme on an account with no subscription.
+ */
+export const THEME_ENTITLEMENT_IDS: ReadonlySet<string> = new Set(
+  Object.values(THEME_PRODUCTS).map(refs => refs.entitlementId),
+);
+
+/** Whether any active entitlement is a theme bought outright. */
+export function hasAnyThemeEntitlement(ownedEntitlementIds: Iterable<string>): boolean {
+  for (const id of ownedEntitlementIds) {
+    if (THEME_ENTITLEMENT_IDS.has(id)) return true;
+  }
+  return false;
+}
+
 /** Theme id → App Store product identifier, for lookups keyed by product. */
 export const THEME_PRODUCT_IDS: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(THEME_PRODUCTS).map(([themeId, refs]) => [themeId, refs.productId]),

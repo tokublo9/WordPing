@@ -10,6 +10,7 @@ import {
   completeStoredRevenueCatIdentityMigration,
   prepareStoredRevenueCatIdentity,
 } from './revenueCatIdentity';
+import { hasAnyThemeEntitlement } from '../features/themes/themeProducts';
 
 export const ENTITLEMENT_IDS = {
   BASIC: 'basic',
@@ -48,6 +49,20 @@ export function activeExpirationDateFromCustomerInfo(info: CustomerInfo): string
       ? active[ENTITLEMENT_IDS.BASIC]
       : undefined;
   return entitlement?.expirationDate ?? null;
+}
+
+/**
+ * Whether the receipt carries any theme bought outright.
+ *
+ * Here rather than at the call site because this module is the only place
+ * `entitlements.active` may be read — the rule that keeps every plan decision
+ * going through `planFromCustomerInfo` instead of a second, divergent
+ * precedence. A theme entitlement can never collide with `basic` or `premium`,
+ * so this answers a different question about the same snapshot and does not
+ * touch the plan.
+ */
+export function ownsAnyThemeFromCustomerInfo(info: CustomerInfo): boolean {
+  return hasAnyThemeEntitlement(Object.keys(info.entitlements.active ?? {}));
 }
 
 let configurationRequest: Promise<boolean> | null = null;

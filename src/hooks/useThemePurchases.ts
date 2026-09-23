@@ -9,6 +9,8 @@ import Purchases, {
 
 import {
   THEME_OFFERING_ID,
+  THEME_PRODUCTS,
+  allThemePackageIds,
   themeProductRefs,
   type ThemeStoreProduct,
 } from '../features/themes/themeProducts';
@@ -47,6 +49,18 @@ export interface ThemePurchasesState {
   ownershipLoaded: boolean;
   /** The theme currently being bought, or null. Blocks a second attempt. */
   purchasingThemeId: string | null;
+  /**
+   * The store answered and returned nothing sellable.
+   *
+   * Distinct from "still loading": until the lookup finishes this is false and
+   * the shop shows nothing, exactly as before. Once it is true the shop can say
+   * so and offer a retry, instead of silently becoming a subscription upsell —
+   * which is what an unconfigured offering used to look like, to users and to
+   * App Review alike.
+   */
+  productsUnavailable: boolean;
+  /** Re-runs the lookup. The shop calls this when it opens and on Retry. */
+  reloadProducts(): void;
   /**
    * Buy one theme.
    *
@@ -113,6 +127,11 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
   const [ownedEntitlementIds, setOwned] = useState<ReadonlySet<string>>(EMPTY_OWNED);
   const [ownershipLoaded, setOwnershipLoaded] = useState(false);
   const [purchasingThemeId, setPurchasingThemeId] = useState<string | null>(null);
+  const [productsUnavailable, setProductsUnavailable] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  /** Re-runs the effect below. Cheap: it is one getOfferings call. */
+  const reloadProducts = useCallback(() => setReloadToken(token => token + 1), []);
 
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
@@ -135,6 +154,7 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
     let listener: ((info: CustomerInfo) => void) | null = null;
 
     (async () => {
+      let resolved: Map<string, ThemeStoreProduct> = new Map();
       try {
         // By id, never `offerings.current`: the current offering is whichever
         // one the dashboard marks default, which is the subscription offering
@@ -144,21 +164,85 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
         const themeOffering = offerings.all[THEME_OFFERING_ID];
         if (!active) return;
 
-        if (themeOffering) {
+        if (themeOffering && themeOffering.availablePackages.length > 0) {
           packagesRef.current = new Map(
             themeOffering.availablePackages.map(pkg => [pkg.identifier, pkg]),
           );
-          setProducts(new Map(
+          resolved = new Map(
             themeOffering.availablePackages.map(pkg => [pkg.identifier, toThemeProduct(pkg)]),
-          ));
+          );
+        } else {
+          // The loudest failure this hook has, and the one that actually
+          // shipped: an absent offering used to fall through the `if` with no
+          // log at all, so a shop with no prices was indistinguishable from a
+          // shop nobody had configured. App Review read it as "the products are
+          // not in the binary". Names only — no key, no receipt, no user data.
+          console.error(
+            `[themes] offering "${THEME_OFFERING_ID}" is missing or empty.`,
+            {
+              offeringsSeen: Object.keys(offerings.all),
+              packagesExpected: allThemePackageIds(),
+              packagesReceived: themeOffering?.availablePackages.map(p => p.identifier) ?? [],
+            },
+          );
         }
       } catch (error) {
-        // Leave `products` empty: every theme then reads as `unavailable`, which
-        // hides the price and disables buying — the correct answer to "unknown".
-        // Logged because it is a real failure: `code` and `readableErrorCode`
-        // separate a configuration fault from a network one.
-        console.warn('[themes] offering lookup failed', describeSdkError(error));
+        // A thrown lookup is a different fault from an empty one: `code` and
+        // `readableErrorCode` separate a configuration problem from a network one.
+        console.error('[themes] offering lookup failed', describeSdkError(error));
       }
+
+      // Fallback: ask for the products directly.
+      //
+      // The offering is a dashboard construct that App Store Connect knows
+      // nothing about, so it is the one part of this chain that can be wrong
+      // while every product is correctly configured and approved. Asking
+      // StoreKit for the identifiers we already hold routes around it — the
+      // shop can then price and sell a theme even if its package was never
+      // attached to an offering.
+      //
+      // Buying still needs a PurchasesPackage, which only the offering supplies,
+      // so this path prices the shop and reports honestly rather than pretending
+      // a purchase is possible. That is why the flag below is `.size === 0` on
+      // the *packages*, not on the prices.
+      if (active && resolved.size === 0) {
+        try {
+          const wanted = Object.values(THEME_PRODUCTS);
+          const storeProducts = await Purchases.getProducts(wanted.map(refs => refs.productId));
+          if (!active) return;
+          const byProductId = new Map(storeProducts.map(product => [product.identifier, product]));
+          for (const refs of wanted) {
+            const product = byProductId.get(refs.productId);
+            if (product) {
+              resolved.set(refs.packageId, {
+                identifier: refs.packageId,
+                priceString: product.priceString,
+              });
+            }
+          }
+          if (resolved.size > 0) {
+            console.error(
+              `[themes] recovered ${resolved.size} price(s) via getProducts. `
+              + `The "${THEME_OFFERING_ID}" offering needs fixing in RevenueCat: `
+              + 'prices show, but buying needs a package and cannot work until it is.',
+            );
+          } else {
+            console.error(
+              '[themes] getProducts returned nothing either. The products are not '
+              + 'reachable from StoreKit — check App Store Connect status, pricing, '
+              + 'and the Paid Applications agreement.',
+            );
+          }
+        } catch (error) {
+          console.error('[themes] getProducts fallback failed', describeSdkError(error));
+        }
+      }
+
+      if (!active) return;
+      setProducts(resolved);
+      // Reported on the packages, not the prices: without a package there is
+      // nothing to hand to purchasePackage, so the shop must not offer a Buy.
+      setProductsUnavailable(packagesRef.current.size === 0);
 
       try {
         const info = await Purchases.getCustomerInfo();
@@ -185,7 +269,7 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
       active = false;
       if (listener) Purchases.removeCustomerInfoUpdateListener(listener);
     };
-  }, [subscriptionLoaded]);
+  }, [subscriptionLoaded, reloadToken]);
 
   const purchaseTheme = useCallback(async (
     themeId: string,
@@ -217,5 +301,8 @@ export function useThemePurchases(subscriptionLoaded: boolean): ThemePurchasesSt
     }
   }, []);
 
-  return { products, ownedEntitlementIds, ownershipLoaded, purchasingThemeId, purchaseTheme };
+  return {
+    products, ownedEntitlementIds, ownershipLoaded, purchasingThemeId,
+    productsUnavailable, reloadProducts, purchaseTheme,
+  };
 }

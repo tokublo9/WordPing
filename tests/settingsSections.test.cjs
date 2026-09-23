@@ -415,7 +415,8 @@ test('Restore reuses the shared handler and cannot be run twice at once', () => 
   assert.doesNotMatch(subscriptionCode, /setError\(|isPurchasing|isRestoring/u);
   // Derived from the freshly fetched receipt, never from the `plan` state that
   // the restore exists to correct.
-  assert.match(subscription, /return restoreOutcomeForPlan\(planFromCustomerInfo\(refreshedInfo\)\);/u);
+  // Both facts come from the same freshly fetched receipt, never client state.
+  assert.match(subscription, /restoreOutcomeForPlan\(\s*planFromCustomerInfo\(refreshedInfo\),\s*ownsAnyThemeFromCustomerInfo\(refreshedInfo\),\s*\)/u);
   // A refused concurrent operation is an outcome the UI can report, not silence.
   assert.match(subscription, /return result === BUSY \? \{ kind: 'busy' \} : result;/u);
 });
@@ -425,7 +426,9 @@ test('every purchase and restore outcome reaches a visible message', () => {
   const outcomes = read('src/features/purchases/purchaseOutcome.ts');
 
   // One place turns an outcome into an alert, so no screen can forget to.
-  assert.match(app, /const announceOutcome = useCallback\(\(message: OutcomeMessage \| null\) => \{\s*if \(message\) Alert\.alert\(t\(message\.titleKey\), t\(message\.bodyKey\)\);/u);
+  // The body is optional: a theme-only restore has no sentence that is true of
+  // it, so it announces its title alone rather than borrowing subscription copy.
+  assert.match(app, /const announceOutcome = useCallback\(\(message: OutcomeMessage \| null\) => \{[\s\S]*?if \(message\) Alert\.alert\(t\(message\.titleKey\), message\.bodyKey && t\(message\.bodyKey\)\);/u);
   assert.match(app, /announceOutcome\(purchaseOutcomeMessage\(await purchaseBasic\(\)\)\);/u);
   assert.match(app, /announceOutcome\(purchaseOutcomeMessage\(await purchasePremium\(\)\)\);/u);
   assert.match(app, /announceOutcome\(restoreOutcomeMessage\(await restorePurchases\(\)\)\);/u);
@@ -436,11 +439,21 @@ test('every purchase and restore outcome reaches a visible message', () => {
   for (const kind of ['purchased', 'unavailable', 'busy', 'failed']) {
     assert.match(outcomes, new RegExp(`case '${kind}':`, 'u'));
   }
-  for (const kind of ['restored', 'nothing_found', 'busy', 'failed']) {
+  for (const kind of ['restored', 'restored_themes', 'nothing_found', 'busy', 'failed']) {
     assert.match(outcomes, new RegExp(`case '${kind}':`, 'u'));
   }
   // An already-active entitlement counts as restored rather than "none found".
-  assert.match(outcomes, /return plan === 'free' \? \{ kind: 'nothing_found' \} : \{ kind: 'restored', plan \};/u);
+  assert.match(outcomes, /if \(plan !== 'free'\) return \{ kind: 'restored', plan \};/u);
+  // A theme owned outright is a restored purchase too. Reporting "no purchases
+  // found" to someone who owns one was true of their plan and false of their
+  // account, and Restore exists to settle exactly that question.
+  assert.match(outcomes, /return restoredAnyTheme \? \{ kind: 'restored_themes' \} : \{ kind: 'nothing_found' \};/u);
+  // Only purchases.ts may read entitlements.active, so the theme half of the
+  // answer is resolved there rather than in the hook.
+  assert.match(
+    read('src/lib/purchases.ts'),
+    /export function ownsAnyThemeFromCustomerInfo\(info: CustomerInfo\): boolean \{\s*return hasAnyThemeEntitlement\(Object\.keys\(info\.entitlements\.active \?\? \{\}\)\);/u,
+  );
 });
 
 test('Purchases copy is translated in English and Japanese', () => {

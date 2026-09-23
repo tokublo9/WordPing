@@ -334,7 +334,10 @@ function AppContent() {
   // asked for and should have to acknowledge. It presents above the Settings
   // and Upgrade modals, which is where both callers live.
   const announceOutcome = useCallback((message: OutcomeMessage | null) => {
-    if (message) Alert.alert(t(message.titleKey), t(message.bodyKey));
+    // The body is optional: a theme-only restore has no sentence that is true
+    // of it, so it announces its title alone rather than borrowing the
+    // subscription copy. See OutcomeMessage.bodyKey.
+    if (message) Alert.alert(t(message.titleKey), message.bodyKey && t(message.bodyKey));
   }, [t]);
 
   const subscribe = async (): Promise<void> => {

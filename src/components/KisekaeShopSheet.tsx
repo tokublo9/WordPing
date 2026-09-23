@@ -317,7 +317,21 @@ export function KisekaeShopSheet({
   // integer is a paid/free flag with no currency attached to it. Supplied by
   // App rather than fetched here: the same ownership decides whether a theme
   // stays applied after a subscription ends, and two lookups could disagree.
-  const { products, ownedEntitlementIds, purchasingThemeId, purchaseTheme } = themePurchases;
+  const {
+    products, ownedEntitlementIds, purchasingThemeId, purchaseTheme,
+    productsUnavailable, reloadProducts,
+  } = themePurchases;
+
+  // Ask the store again each time the shop opens.
+  //
+  // The lookup used to run once, at launch, keyed on the subscription being
+  // loaded — so a device that was offline for that one moment showed an
+  // unpriced shop for the rest of the session with no way to recover. One
+  // getOfferings call per open is cheap next to that.
+  useEffect(() => {
+    if (visible) reloadProducts();
+  }, [visible, reloadProducts]);
+
 
   /**
    * Resolved once per store update, not once per render.
@@ -468,6 +482,29 @@ export function KisekaeShopSheet({
       {/* Tabs — Solid (left) | Premium (right) */}
       <ShopTabs active={activeTab} onSwitch={setActiveTab} themeColor={themeColor} pal={pal} />
 
+      {/* Prices could not be loaded.
+          Shown rather than swallowed: without it every paid theme silently
+          loses its price and its Buy button, and the shop reads as a
+          subscription upsell — which is how 23 configured products came to
+          look absent. */}
+      {productsUnavailable && (
+        <View style={[styles.loadErrorRow, { backgroundColor: pal.chip, borderColor: pal.border }]}>
+          <Ionicons name="alert-circle-outline" size={16} color={pal.sub} />
+          <Text style={[styles.loadErrorText, { color: pal.sub }]} numberOfLines={2}>
+            {t('err_title_error')}
+          </Text>
+          <TouchableOpacity
+            onPress={reloadProducts}
+            style={[styles.loadErrorBtn, { borderColor: themeColor }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('retry')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.loadErrorBtnText, { color: themeColor }]}>{t('retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Product grid */}
       <FlatList
         key={`${activeTab}-${openCount}`}
@@ -564,6 +601,25 @@ const styles = StyleSheet.create({
     height: 2, borderRadius: 1,
   },
 
+  loadErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: H_PAD,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  loadErrorText: { flex: 1, fontSize: 13, fontWeight: '600' },
+  loadErrorBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  loadErrorBtnText: { fontSize: 13, fontWeight: '700' },
   grid:    { paddingHorizontal: H_PAD, paddingTop: 4 },
   gridRow: { gap: GAP, marginBottom: 24 },
 

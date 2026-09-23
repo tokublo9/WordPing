@@ -34,7 +34,15 @@ export type PurchaseOutcome =
 
 export type RestoreOutcome =
   | { kind: 'restored'; plan: PaidPlan }
-  /** The receipt is valid and carries no active paid entitlement. */
+  /**
+   * No subscription, but at least one theme bought outright came back.
+   *
+   * Separate from `restored` because the plan copy names a subscription, and
+   * this account has none — saying it would be a false statement. Separate from
+   * `nothing_found` because something genuinely was restored.
+   */
+  | { kind: 'restored_themes' }
+  /** The receipt is valid and carries no active paid entitlement at all. */
   | { kind: 'nothing_found' }
   | { kind: 'cancelled' }
   | { kind: 'busy' }
@@ -42,7 +50,17 @@ export type RestoreOutcome =
 
 export interface OutcomeMessage {
   titleKey: TranslationKey;
-  bodyKey: TranslationKey;
+  /**
+   * Optional, because one outcome has no sentence that is true of it.
+   *
+   * A theme-only restore cannot borrow `restore_done_body` ("Your subscription
+   * is active on this device") and has no body string of its own — adding one
+   * would mean an entry in all twenty locale dictionaries, which the English
+   * and Japanese only rule defers. The title alone ("Purchases Restored") is
+   * accurate, already translated everywhere, and far better than the
+   * "no purchases found" this replaces.
+   */
+  bodyKey?: TranslationKey;
 }
 
 /**
@@ -59,8 +77,12 @@ export interface OutcomeMessage {
  * never from client state, or this would confirm a subscription from a stale
  * snapshot.
  */
-export function restoreOutcomeForPlan(plan: PlanTier): RestoreOutcome {
-  return plan === 'free' ? { kind: 'nothing_found' } : { kind: 'restored', plan };
+export function restoreOutcomeForPlan(
+  plan: PlanTier,
+  restoredAnyTheme = false,
+): RestoreOutcome {
+  if (plan !== 'free') return { kind: 'restored', plan };
+  return restoredAnyTheme ? { kind: 'restored_themes' } : { kind: 'nothing_found' };
 }
 
 /** `null` means say nothing: the user cancelled and knows they did. */
@@ -88,6 +110,9 @@ export function restoreOutcomeMessage(outcome: RestoreOutcome): OutcomeMessage |
       return null;
     case 'restored':
       return { titleKey: 'restore_done_title', bodyKey: 'restore_done_body' };
+    case 'restored_themes':
+      // Title only — see the note on OutcomeMessage.bodyKey.
+      return { titleKey: 'restore_done_title' };
     case 'nothing_found':
       return { titleKey: 'restore_purchases', bodyKey: 'restore_none_body' };
     case 'busy':

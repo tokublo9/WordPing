@@ -12,6 +12,7 @@ import { parseRequestDate, shouldApplyCustomerInfo } from '../lib/entitlementOrd
 import {
   activeExpirationDateFromCustomerInfo,
   configureRevenueCat,
+  ownsAnyThemeFromCustomerInfo,
   planFromCustomerInfo,
   PACKAGE_IDS,
 } from '../lib/purchases';
@@ -331,7 +332,13 @@ export function useSubscription() {
         const refreshedInfo = await fetchFreshCustomerInfo();
         applyVerifiedCustomerInfo('after-restore-refresh', refreshedInfo);
         armVoiceCardEntitlementRetry();
-        return restoreOutcomeForPlan(planFromCustomerInfo(refreshedInfo));
+        // Themes are read from the same verified receipt, so a user who owns
+        // only themes is told they were restored instead of "no purchases
+        // found" — which was true of their plan and false of their account.
+        return restoreOutcomeForPlan(
+          planFromCustomerInfo(refreshedInfo),
+          ownsAnyThemeFromCustomerInfo(refreshedInfo),
+        );
       } catch (e) {
         // Backing out of the App Store sheet is an ordinary outcome, not a
         // failure: it is neither logged nor reported, exactly as in purchasePlan.
