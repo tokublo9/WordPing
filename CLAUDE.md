@@ -259,7 +259,11 @@ Non-negotiables when touching the Worker:
 
 ### AI voices (`src/lib/aiVoices.ts`)
 
-Client-side valid voices: `cedar fable alloy ash coral nova marin shimmer`. Default: `marin`.
+Client-side valid voices: `marin cedar`. Default: `marin`.
+
+`fable alloy ash coral nova shimmer` were retired and live in `RETIRED_AI_VOICES`,
+which exists so `isAIVoice()` rejects a stored one and a user who had picked it
+falls back to the default instead of requesting a voice the picker no longer offers.
 
 **The Edge Function VOICES set must be a superset of the client's `AI_VOICES` array.** If you add a voice to `AI_VOICES`, also add it to the Edge Function and redeploy.
 
@@ -329,12 +333,12 @@ The app's plan state is for **UI only**. Access to a billable AI feature is deci
 |---|---|---|---|
 | Words | Unlimited | Unlimited | Unlimited |
 | Folders | Unlimited | Unlimited | Unlimited |
-| TTS plays | 10 (`FREE_VOICE_LIMIT`) | Unlimited | Unlimited |
+| Device TTS plays | Unlimited | Unlimited | Unlimited |
 | Theme colors | Blue only | All | All |
 | Skins | `solid_blue` only | All | All |
 | Individual theme purchase | ✓ (any plan) | ✓ | ✓ |
 | Custom Voice for Words | ✗ | ✓ | ✓ |
-| High-Quality AI Voice | ✗ | 10 card fronts, one-time grant | ✓ Unlimited |
+| High-Quality AI Voice | ✗ | 10 card fronts, one-time grant | 400/month, 200/day, 30 min audio/month |
 | Hide Word | ✗ | ✓ | ✗ |
 
 **Each paid feature has exactly one rule, and none is derived from another.**
@@ -348,9 +352,13 @@ The app's plan state is for **UI only**. Access to a billable AI feature is deci
 
 ### Basic's one-time AI Voice credits
 
-Basic includes **200 High-Quality AI Voice generations, granted once and never
+Basic includes **the fronts of 10 distinct cards, granted once and never
 refilled** — not monthly, not on renewal, cancellation, resubscription, restore,
-reinstall, or a new device. The balance lives in a Cloudflare **Durable Object**
+reinstall, or a new device. The number is `VOICE_LIFETIME_CREDITS.basic` in
+`cloudflare/wordping-api/src/planLimits.ts`; an earlier draft granted 200, and
+ledgers created then carry a `grantSize` so they are not silently re-scoped.
+A slot is claimed per *card*, so editing that card or changing its voice costs
+nothing more. The balance lives in a Cloudflare **Durable Object**
 (`cloudflare/wordping-api/src/lifetimeCredits.ts`) keyed by the salted hash of the
 RevenueCat App User ID, so it belongs to the subscription rather than the install
 and local data can never reissue it. A Durable Object rather than KV because KV

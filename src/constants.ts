@@ -469,7 +469,9 @@ export const REVEAL_WIDTH = 166;
 
 
 // Words and folders are unlimited on every plan — there is no count limit constant.
-export const FREE_VOICE_LIMIT = 10;
+// Device TTS is unlimited on every plan too. There used to be a FREE_VOICE_LIMIT
+// of 10 here; nothing ever read it, but its presence had CLAUDE.md documenting a
+// cap that the app has never enforced.
 
 export const MAX_AI_INPUT_CHARS = 500;
 
