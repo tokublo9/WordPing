@@ -26,3 +26,15 @@ cloudflare/**/.wrangler/
 cloudflare/**/.dev.vars
 .vercel
 .env*
+
+# iCloud Drive conflict copies.
+#
+# ~/Documents is iCloud-managed, so a sync conflict silently drops a byte-identical
+# duplicate beside every file it touches — "config 2.ts", "icon 3.png", ".gitignore 2".
+# 285 of them appeared across the source tree in one session. They are untracked but
+# not ignored, so `git add -A` would commit the lot.
+#
+# Neither pattern matches any tracked file (checked with `git ls-files`), and git
+# ignores these rules for files already tracked, so nothing real can be hidden by them.
+* [0-9].*
+* [0-9]
